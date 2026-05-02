@@ -1,0 +1,250 @@
+@import "highlight.js/styles/github.css";
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
+
+/* Dark mode: override highlight.js with dark theme colors */
+@layer base {
+  .dark pre code.hljs {
+    background: hsl(0 0% 14.9%);
+    color: hsl(0 0% 85%);
+  }
+  .dark .hljs-comment,
+  .dark .hljs-quote { color: hsl(0 0% 55%); }
+  .dark .hljs-keyword,
+  .dark .hljs-selector-tag { color: hsl(293 70% 68%); }
+  .dark .hljs-string,
+  .dark .hljs-addition { color: hsl(130 50% 62%); }
+  .dark .hljs-number,
+  .dark .hljs-literal { color: hsl(25 80% 58%); }
+  .dark .hljs-title,
+  .dark .hljs-section { color: hsl(207 70% 68%); }
+  .dark .hljs-type,
+  .dark .hljs-built_in { color: hsl(38 80% 58%); }
+  .dark .hljs-attr,
+  .dark .hljs-variable { color: hsl(350 65% 65%); }
+  .dark .hljs-deletion { color: hsl(0 65% 60%); }
+  .dark .hljs-meta { color: hsl(0 0% 55%); }
+}
+
+/* Prose code block tweaks */
+@layer components {
+  .prose pre:not(:where([class~="not-prose"], [class~="not-prose"] *)) {
+    @apply rounded-lg border border-border;
+  }
+  .prose code:not(pre code):not(:where([class~="not-prose"], [class~="not-prose"] *)) {
+    @apply rounded-md px-1.5 py-0.5 text-[0.85em] font-medium;
+    background: hsl(var(--muted));
+  }
+  .prose pre code:not(:where([class~="not-prose"], [class~="not-prose"] *)) {
+    font-size: 0.8em;
+    line-height: 1.6;
+  }
+  /* Prevent tables from overflowing their container */
+  .prose table:not(:where([class~="not-prose"], [class~="not-prose"] *)) {
+    display: block;
+    overflow-x: auto;
+  }
+  /* Ensure images scale down within prose */
+  .prose img:not(:where([class~="not-prose"], [class~="not-prose"] *)) {
+    max-width: 100%;
+    height: auto;
+  }
+}
+
+:root {
+  --background: 30 20% 98%;
+  --foreground: 25 15% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 3.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 3.9%;
+  --primary: 25 30% 18%;
+  --primary-foreground: 30 30% 95%;
+  --secondary: 0 0% 96.1%;
+  --secondary-foreground: 0 0% 9%;
+  --muted: 0 0% 96.1%;
+  --muted-foreground: 25 10% 48%;
+  --accent: 0 0% 96.1%;
+  --accent-foreground: 0 0% 9%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 25 15% 90%;
+  --input: 25 15% 90%;
+  --ring: 25 15% 12%;
+  --radius: 0.625rem;
+}
+
+.dark {
+  --background: 25 15% 8%;
+  --foreground: 30 15% 93%;
+  --card: 0 0% 5%;
+  --card-foreground: 0 0% 98%;
+  --popover: 0 0% 5%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 30 15% 90%;
+  --primary-foreground: 25 30% 12%;
+  --secondary: 0 0% 14.9%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 0 0% 14.9%;
+  --muted-foreground: 25 8% 58%;
+  --accent: 0 0% 14.9%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 25 10% 18%;
+  --input: 25 10% 18%;
+  --ring: 30 15% 75%;
+}
+
+@layer base {
+  [data-tauri-drag-region] {
+    -webkit-app-region: drag;
+    cursor: grab;
+  }
+
+  [data-tauri-drag-region]:active {
+    cursor: grabbing;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html,
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  /* Thin scrollbar for native scroll areas */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground));
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
+/* ── View Transitions: circle-expand theme switch ── */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 9999;
+}
+
+@keyframes theme-circle-expand {
+  from {
+    clip-path: circle(
+      0% at var(--theme-transition-x, 50%) var(--theme-transition-y, 50%)
+    );
+  }
+  to {
+    clip-path: circle(
+      150% at var(--theme-transition-x, 50%) var(--theme-transition-y, 50%)
+    );
+  }
+}
+
+::view-transition-new(root) {
+  animation: theme-circle-expand 0.4s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
+
+/* ── Rainbow flow animation for Skill Zoo logo ── */
+@keyframes rainbow-flow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+@layer components {
+  .rainbow-text {
+    background: linear-gradient(
+      90deg,
+      #C882B4,
+      #EB5F57,
+      #F58B57,
+      #FAC35F,
+      #91C882,
+      #82AADC,
+      #9B82C8,
+      #C882B4
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-position: 200% 50%;
+  }
+
+  .rainbow-text-initial {
+    animation: rainbow-flow 3s linear 2 forwards;
+  }
+
+  .rainbow-text-animate {
+    animation: rainbow-flow 3s linear 1 forwards;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rainbow-text-initial,
+  .rainbow-text-animate {
+    animation: none;
+  }
+}

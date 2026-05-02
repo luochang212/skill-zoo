@@ -1,0 +1,21 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="fg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1c1c20"/>
+      <stop offset="100%" stop-color="#2e2e33"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="118" fill="#f5e9d0"/>
+  <text
+    x="256"
+    y="256"
+    text-anchor="middle"
+    dominant-baseline="central"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="260"
+    font-weight="bold"
+    font-style="italic"
+    letter-spacing="-14"
+    fill="url(#fg)"
+  >SZ</text>
+</svg>

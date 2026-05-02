@@ -1,0 +1,4 @@
+* text=auto
+
+Cargo.lock -text
+Cargo.toml -text

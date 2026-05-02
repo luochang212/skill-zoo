@@ -1,0 +1,226 @@
+{
+  "common": {
+    "back": "Back",
+    "cancel": "Cancel",
+    "close": "Close",
+    "remove": "Remove",
+    "save": "Save",
+    "saving": "Saving...",
+    "loading": "Loading...",
+    "install": "Install",
+    "installing": "Installing...",
+    "installed": "Installed",
+    "create": "Create",
+    "creating": "Creating...",
+    "update": "Update",
+    "updating": "Updating...",
+    "removing": "Removing...",
+    "all": "All",
+    "uninstall": "Uninstall"
+  },
+  "nav": {
+    "local": "Local",
+    "discover": "Discover",
+    "settings": "Settings"
+  },
+  "sidebar": {
+    "title": "Skills",
+    "all": "All",
+    "star": "Star",
+    "mySkills": "My Skills",
+    "consistency": "Consistency",
+    "repos": "Repos"
+  },
+  "browse": {
+    "searchRepoPlaceholder": "Search skills or GitHub repo...",
+    "installs": "installs",
+    "discovering": "Discovering skills...",
+    "recommended": "Recommended",
+    "skills": "{{count}} skills",
+    "notSynced": "not synced",
+    "truncated": "Showing first {{shown}} skills (repo limit: {{limit}})",
+    "noRepos": "No repositories found.",
+    "searching": "Searching...",
+    "noSkillsToInstall": "No skills to install.",
+    "noDescription": "No description",
+    "backToDiscover": "Back to discover",
+    "viewRepo": "View",
+    "noSearchResult": "No repository found.",
+    "selectAll": "Select all",
+    "selectedCount": "{{count}} selected",
+    "installSelected": "Install selected",
+    "recentlyViewed": "Recently Viewed",
+    "clearHistory": "Clear"
+  },
+  "installed": {
+    "searchPlaceholder": "Search installed...",
+    "loadingInstalled": "Loading installed skills...",
+    "createSkill": "Create Skill",
+    "noMatch": "No installed skills match your filters."
+  },
+  "skill": {
+    "mine": "Mine",
+    "view": "View",
+    "edit": "Edit",
+    "split": "Split",
+    "files": "Files",
+    "updated": "Updated",
+    "noContent": "This skill has no content.",
+    "noContentHintSwitch": "Switch to Edit to write or paste skill content.",
+    "noContentHintType": "Start typing on the left to see a preview.",
+    "timeJustNow": "just now",
+    "timeMinAgo": "{{count}}m ago",
+    "timeHourAgo": "{{count}}h ago",
+    "timeDayAgo": "{{count}}d ago",
+    "origin": {
+      "userManaged": "User-managed skill",
+      "cannotConfigure": "Agent links are managed by the user for this skill"
+    }
+  },
+  "skillFiles": {
+    "empty": "No files found.",
+    "error": "Could not load file tree."
+  },
+  "createSkill": {
+    "title": "Create New Skill",
+    "create": "Create",
+    "name": "Name",
+    "description": "Description",
+    "namePlaceholder": "my-skill-name",
+    "nameInvalid": "Only letters, numbers, hyphens, underscores, and dots. Must start with a letter or number.",
+    "descriptionPlaceholder": "Briefly describe what this skill does...",
+    "contentPlaceholder": "# My Skill\n\nWrite your skill content here...",
+    "contentAriaLabel": "Skill content",
+    "emptyHint": "Start typing to see a live preview on the right."
+  },
+  "installDialog": {
+    "title": "Install Skills",
+    "from": "From",
+    "agents": "Agents",
+    "skills": "Skills",
+    "selectAll": "Select all",
+    "installCount": "Install ({{count}})"
+  },
+  "error": {
+    "title": "Something went wrong",
+    "retry": "Retry",
+    "network": "Network error. Check your internet connection and try again.",
+    "cliMissing": "Required tools not found. Make sure Node.js and npx are installed.",
+    "permDenied": "Permission denied. Check that the skills directory is accessible.",
+    "diskFull": "Disk is full. Free up some space and try again.",
+    "skillNotFound": "This skill no longer exists on disk.",
+    "repoNotFound": "Repository not found. It may be private or the link is incorrect.",
+    "rateLimit": "GitHub API rate limit reached. Please wait and try again later.",
+    "generic": "Could not complete the operation. Please try again."
+  },
+  "configureDialog": {
+    "title": "Agent Configuration",
+    "description": "Manage which agents have access to",
+    "loading": "Loading agent status...",
+    "linked": "linked",
+    "broken": "broken",
+    "missing": "missing"
+  },
+  "removeDialog": {
+    "title": "Remove Skill",
+    "description": "Are you sure you want to remove",
+    "warning": "This will unlink it from all agents and delete the local files."
+  },
+  "symlink": {
+    "title": "Symlink Status",
+    "loading": "Loading symlinks...",
+    "empty": "No symlinks found.",
+    "linked": "linked",
+    "broken": "broken",
+    "missing": "missing"
+  },
+  "consistency": {
+    "sameContent": "Same content",
+    "differentContent": "Different content",
+    "mergeToSsot": "Merge to SSOT",
+    "viewContent": "View content",
+    "conflictHint": "These skills have different content. Please review them manually before deciding how to proceed.",
+    "noDuplicates": "No duplicate skills detected",
+    "noConflicts": "No conflicting skills detected",
+    "noIssues": "No consistency issues detected",
+    "mergeConfirmTitle": "Confirm Merge Duplicate Skills",
+    "mergeConfirmDesc": "All copies of skill \"{{name}}\" will be merged into the SSOT directory.",
+    "mergeStepsLabel": "What will happen:",
+    "mergeStep1": "Content will be copied to the SSOT directory",
+    "mergeStep2": "Original directories will be deleted",
+    "mergeStep3": "Symlinks will be created for affected agents",
+    "deleteDirsLabel": "Directories to be replaced with symlinks:",
+    "mergeCannotUndo": "This action cannot be undone.",
+    "mergeConfirmBtn": "Confirm Merge",
+    "duplicate": "Duplicate",
+    "conflict": "Conflict",
+    "mismatch": "Mismatch",
+    "noMismatches": "No name mismatches detected",
+    "mismatchHint": "The skill name in SKILL.md doesn't match its folder name. Rename the folder to keep them consistent.",
+    "folderName": "Folder"
+  },
+  "skillHero": {
+    "updated": "Updated",
+    "updating": "Updating...",
+    "updateFromGit": "Update from git",
+    "noRepo": "No git repo linked",
+    "configureAgents": "Configure agents",
+    "openInFileManager": "Open in Finder",
+    "removeSkill": "Remove skill"
+  },
+  "star": {
+    "star": "Star",
+    "unstar": "Unstar"
+  },
+  "settings": {
+    "appearance": "Appearance",
+    "theme": {
+      "title": "Theme",
+      "description": "Choose the appearance theme for the app",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System"
+    },
+    "language": {
+      "title": "Language",
+      "description": "Choose the display language for the app",
+      "en": "English",
+      "zh": "简体中文"
+    },
+    "maintenance": {
+      "title": "Skill Maintenance",
+      "updateAll": "Update All Skills",
+      "updateAllDesc": "Pull the latest version of all installed skills from Git repositories",
+      "updating": "Updating…",
+      "updateAllBtn": "Update All",
+      "rescan": "Rescan Skills",
+      "rescanDesc": "Re-scan filesystem to discover new or removed skills",
+      "rescanning": "Scanning…",
+      "rescanBtn": "Rescan",
+      "hideNonSsot": "Hide non-SSOT skills",
+      "hideNonSsotDesc": "Only show skills managed by Skill Zoo, hide user-placed skills in agent directories",
+      "installedCount": "{{count}} skill(s) currently installed"
+    },
+    "agentPaths": {
+      "title": "Agent Settings",
+      "description": "Manage agent visibility and skill directory paths",
+      "open": "Open",
+      "notFound": "Not found",
+      "hiddenHint": "Hidden agents won't appear in skill configuration or receive symlinked skills.",
+      "minOneWarning": "At least one agent must remain visible.",
+      "visible": "Visible",
+      "hidden": "Hidden"
+    },
+    "about": {
+      "title": "About",
+      "description": "Agent Skill Manager — Unified management for skills in Claude Code, Codex, Cursor, and more"
+    },
+    "feedback": {
+      "title": "Feedback",
+      "description": "Help us improve Skill Zoo!",
+      "reportBug": "Report a Bug",
+      "requestFeature": "Request a Feature",
+      "hint": "Opens GitHub Issues in your browser with app info pre-filled."
+    }
+  }
+}

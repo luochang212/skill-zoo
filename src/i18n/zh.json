@@ -1,0 +1,226 @@
+{
+  "common": {
+    "back": "返回",
+    "cancel": "取消",
+    "close": "关闭",
+    "remove": "删除",
+    "save": "保存",
+    "saving": "保存中...",
+    "loading": "加载中...",
+    "install": "安装",
+    "installing": "安装中...",
+    "installed": "已安装",
+    "create": "创建",
+    "creating": "创建中...",
+    "update": "更新",
+    "updating": "更新中...",
+    "removing": "删除中...",
+    "all": "全部",
+    "uninstall": "卸载"
+  },
+  "nav": {
+    "local": "本地",
+    "discover": "发现",
+    "settings": "设置"
+  },
+  "sidebar": {
+    "title": "技能",
+    "all": "全部",
+    "star": "收藏",
+    "mySkills": "我的技能",
+    "consistency": "一致性",
+    "repos": "仓库"
+  },
+  "browse": {
+    "searchRepoPlaceholder": "搜索技能或 GitHub 仓库...",
+    "installs": "次安装",
+    "discovering": "正在发现技能...",
+    "recommended": "推荐",
+    "skills": "{{count}} 个技能",
+    "notSynced": "未同步",
+    "truncated": "显示前 {{shown}} 个技能 (仓库上限: {{limit}})",
+    "noRepos": "未找到仓库。",
+    "searching": "搜索中...",
+    "noSkillsToInstall": "没有可安装的技能。",
+    "noDescription": "暂无描述",
+    "backToDiscover": "返回发现",
+    "viewRepo": "查看",
+    "noSearchResult": "未找到仓库。",
+    "selectAll": "全选",
+    "selectedCount": "已选 {{count}} 个",
+    "installSelected": "安装所选",
+    "recentlyViewed": "最近浏览",
+    "clearHistory": "清空"
+  },
+  "installed": {
+    "searchPlaceholder": "搜索已安装...",
+    "loadingInstalled": "正在加载已安装的技能...",
+    "createSkill": "创建技能",
+    "noMatch": "没有匹配筛选条件的已安装技能。"
+  },
+  "skill": {
+    "mine": "我的",
+    "view": "查看",
+    "edit": "编辑",
+    "split": "分屏",
+    "files": "文件",
+    "updated": "更新于",
+    "noContent": "此技能没有内容。",
+    "noContentHintSwitch": "切换到编辑模式以编写或粘贴技能内容。",
+    "noContentHintType": "在左侧开始输入以查看预览。",
+    "timeJustNow": "刚刚",
+    "timeMinAgo": "{{count}} 分钟前",
+    "timeHourAgo": "{{count}} 小时前",
+    "timeDayAgo": "{{count}} 天前",
+    "origin": {
+      "userManaged": "用户管理的技能",
+      "cannotConfigure": "此技能的代理链接由用户自行管理"
+    }
+  },
+  "skillFiles": {
+    "empty": "未找到文件。",
+    "error": "无法加载文件树。"
+  },
+  "createSkill": {
+    "title": "创建新技能",
+    "create": "创建",
+    "name": "名称",
+    "description": "描述",
+    "namePlaceholder": "my-skill-name",
+    "nameInvalid": "仅允许字母、数字、连字符、下划线和点号，且必须以字母或数字开头",
+    "descriptionPlaceholder": "简要描述此技能的功能...",
+    "contentPlaceholder": "# 我的技能\n\n在此编写技能内容...",
+    "contentAriaLabel": "技能内容",
+    "emptyHint": "开始输入内容，右侧将实时预览。"
+  },
+  "installDialog": {
+    "title": "安装技能",
+    "from": "来自",
+    "agents": "代理",
+    "skills": "技能",
+    "selectAll": "全选",
+    "installCount": "安装 ({{count}})"
+  },
+  "error": {
+    "title": "出错了",
+    "retry": "重试",
+    "network": "网络连接失败，请检查网络后重试。",
+    "cliMissing": "未找到所需工具，请确认已安装 Node.js 和 npx。",
+    "permDenied": "权限不足，请检查技能目录是否可访问。",
+    "diskFull": "磁盘空间不足，请清理后重试。",
+    "skillNotFound": "该技能已不存在于磁盘中。",
+    "repoNotFound": "仓库未找到，可能是私有仓库或链接不正确。",
+    "rateLimit": "GitHub API 请求次数已达上限，请稍后再试。",
+    "generic": "操作无法完成，请重试。"
+  },
+  "configureDialog": {
+    "title": "代理配置",
+    "description": "管理哪些代理可以访问",
+    "loading": "正在加载代理状态...",
+    "linked": "已链接",
+    "broken": "已损坏",
+    "missing": "未链接"
+  },
+  "removeDialog": {
+    "title": "删除技能",
+    "description": "确定要删除",
+    "warning": "这将取消与所有代理的链接并删除本地文件。"
+  },
+  "symlink": {
+    "title": "符号链接状态",
+    "loading": "正在加载符号链接...",
+    "empty": "未找到符号链接。",
+    "linked": "已链接",
+    "broken": "已损坏",
+    "missing": "未链接"
+  },
+  "consistency": {
+    "sameContent": "内容相同",
+    "differentContent": "内容不同",
+    "mergeToSsot": "合并到 SSOT",
+    "viewContent": "查看内容",
+    "conflictHint": "这些技能内容不同，请手动检查后再决定如何处理。",
+    "noDuplicates": "没有检测到重复技能",
+    "noConflicts": "没有检测到冲突技能",
+    "noIssues": "没有检测到一致性问题",
+    "mergeConfirmTitle": "确认合并重复技能",
+    "mergeConfirmDesc": "即将合并技能「{{name}}」的所有副本到 SSOT 目录。",
+    "mergeStepsLabel": "操作步骤：",
+    "mergeStep1": "将内容复制到 SSOT 目录",
+    "mergeStep2": "删除原始目录",
+    "mergeStep3": "为受影响的代理创建符号链接",
+    "deleteDirsLabel": "将被替换为符号链接的目录：",
+    "mergeCannotUndo": "此操作不可撤销。",
+    "mergeConfirmBtn": "确认合并",
+    "duplicate": "重复",
+    "conflict": "冲突",
+    "mismatch": "不匹配",
+    "noMismatches": "没有检测到名称不匹配",
+    "mismatchHint": "SKILL.md 中的技能名称与文件夹名不一致。重命名文件夹以保持一致。",
+    "folderName": "文件夹"
+  },
+  "skillHero": {
+    "updated": "已更新",
+    "updating": "更新中...",
+    "updateFromGit": "从 Git 更新",
+    "noRepo": "未关联 Git 仓库",
+    "configureAgents": "配置代理",
+    "openInFileManager": "在文件夹中打开",
+    "removeSkill": "删除技能"
+  },
+  "star": {
+    "star": "收藏",
+    "unstar": "取消收藏"
+  },
+  "settings": {
+    "appearance": "外观",
+    "theme": {
+      "title": "主题",
+      "description": "选择应用的外观主题",
+      "light": "浅色",
+      "dark": "深色",
+      "system": "系统"
+    },
+    "language": {
+      "title": "语言",
+      "description": "选择应用的显示语言",
+      "en": "English",
+      "zh": "简体中文"
+    },
+    "maintenance": {
+      "title": "技能维护",
+      "updateAll": "更新全部技能",
+      "updateAllDesc": "从 Git 仓库拉取所有已安装技能的最新版本",
+      "updating": "更新中…",
+      "updateAllBtn": "更新全部",
+      "rescan": "重新扫描技能",
+      "rescanDesc": "重新扫描文件系统以发现新增或移除的技能",
+      "rescanning": "扫描中…",
+      "rescanBtn": "重新扫描",
+      "hideNonSsot": "隐藏非 SSOT 技能",
+      "hideNonSsotDesc": "仅显示 Skill Zoo 管理的技能，隐藏用户放在代理目录中的技能",
+      "installedCount": "当前已安装 {{count}} 个技能"
+    },
+    "agentPaths": {
+      "title": "Agent 设置",
+      "description": "管理 Agent 可见性和技能目录路径",
+      "open": "打开",
+      "notFound": "未创建",
+      "hiddenHint": "隐藏的 Agent 不会在技能配置中显示，也不会创建符号链接。",
+      "minOneWarning": "至少需要保留一个可见的 Agent。",
+      "visible": "可见",
+      "hidden": "隐藏"
+    },
+    "about": {
+      "title": "关于",
+      "description": "Agent Skill 管理器 — 统一管理 Claude Code、Codex、Cursor 等工具的技能"
+    },
+    "feedback": {
+      "title": "反馈",
+      "description": "帮助我们改进 Skill Zoo！",
+      "reportBug": "报告 Bug",
+      "requestFeature": "功能建议",
+      "hint": "在浏览器中打开 GitHub Issues，应用信息已预填。"
+    }
+  }
+}

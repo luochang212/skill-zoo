@@ -1,0 +1,57 @@
+[package]
+name = "skill-zoo"
+version = "0.1.0"
+description = "Local GUI tool for managing Agent Skills"
+authors = ["luochang212"]
+license = "MIT"
+edition = "2021"
+rust-version = "1.85.0"
+
+[lib]
+name = "skill_zoo_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+default = []
+test-helpers = []
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+tauri = { version = "2", features = ["protocol-asset", "tray-icon", "image-png"] }
+tauri-plugin-opener = "2"
+dirs = "6.0"
+reqwest = { version = "0.13", features = ["rustls", "json", "query"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync", "process"] }
+futures = "0.3"
+anyhow = "1.0"
+thiserror = "2.0"
+
+serde_yml = "0.0.12"
+url = "2.5"
+regex = "1.10"
+tempfile = "3"
+uuid = { version = "1", features = ["v4"] }
+zip = "8.6"
+sha2 = "0.11"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", features = ["NSColor"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+junction = "2.0"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+opt-level = "s"
+panic = "unwind"
+strip = "symbols"
+
+[dev-dependencies]
+mockito = "1"

@@ -1,0 +1,24 @@
+[
+  {
+    "image": "banners/banner1.webp",
+    "title": "Anthropic Skills",
+    "subtitle": "Official agent skills from Anthropic",
+    "owner": "anthropics",
+    "name": "skills"
+  },
+  {
+    "image": "banners/banner2.webp",
+    "title": "Dive into LangGraph",
+    "subtitle": "Build complex agent workflows",
+    "owner": "luochang212",
+    "name": "dive-into-langgraph"
+  },
+  {
+    "image": "banners/banner3.webp",
+    "title": "Awesome Claude Skills",
+    "subtitle": "Curated skills for Claude AI",
+    "owner": "ComposioHQ",
+    "name": "awesome-claude-skills",
+    "hideText": true
+  }
+]

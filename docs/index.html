@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Skill Zoo — AI Agent Skill Manager</title>
+<meta name="description" content="Local GUI tool for managing AI Agent Skills — unified management for skills in Claude Code, Codex, Cursor, Gemini, and more.">
+<link rel="icon" type="image/png" href="favicon.png">
+<link href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/style.css" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --glow-color: hsl(186 100% 69%);
+  --bg: #0a0a0b;
+  --surface: #111114;
+  --border: #1e1e24;
+  --text: #e4e4e7;
+  --text-dim: #71717a;
+  /* Light page vars */
+  --l-bg: #fafaf9;
+  --l-surface: #ffffff;
+  --l-border: #e7e5e4;
+  --l-text: #1c1917;
+  --l-text-dim: #78716c;
+  --l-accent: #0e7490;
+  --nav-h: 52px;
+}
+
+html { scroll-snap-type: none; }
+
+@media (pointer: coarse) {
+  html { scroll-snap-type: y proximity; }
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Geist Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Nav ── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  height: var(--nav-h);
+  display: flex; align-items: center;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 1px solid transparent;
+  transition: background .4s, border-color .4s, backdrop-filter .4s, -webkit-backdrop-filter .4s;
+}
+nav.light {
+  background: rgba(250,250,249,.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom-color: var(--l-border);
+}
+nav .inner {
+  max-width: clamp(960px, 81vw, 1400px); width: 100%; margin: 0 auto; padding: 0 48px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+nav .logo {
+  font-family: 'Geist Sans', system-ui, sans-serif;
+  font-weight: 700; font-size: 15px; letter-spacing: 2px;
+  color: var(--text-dim);
+  text-decoration: none;
+  text-shadow: none;
+  transition: color .4s;
+}
+nav.light .logo {
+  color: #0e7490;
+  text-shadow: none;
+}
+nav .gh-link {
+  font-size: 15px; font-weight: 600; color: var(--text-dim); text-decoration: none;
+  transition: color .2s;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+nav .gh-link:hover { color: var(--text); }
+nav.light .gh-link { color: var(--l-text-dim); }
+nav.light .gh-link:hover { color: var(--l-text); }
+nav .gh-icon {
+  width: 16px; height: 16px;
+  opacity: .75;
+  transition: opacity .2s;
+}
+nav .gh-link:hover .gh-icon { opacity: 1; }
+
+/* ── Sections ── */
+.page {
+  height: 100vh;
+  scroll-snap-align: start;
+  position: relative;
+  overflow: hidden;
+  content-visibility: auto;
+  contain-intrinsic-size: 100vh;
+}
+
+/* ── Hero gradient background ── */
+#hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  background: var(--bg);
+  position: relative;
+  overflow: hidden;
+}
+#hero::before {
+  content: '';
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 50%, rgba(14,116,144,.12) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 60% at 20% 80%, rgba(34,211,238,.06) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 60% at 80% 20%, rgba(14,116,144,.06) 0%, transparent 60%);
+}
+#hero::after {
+  content: '';
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(14,116,144,.18) 0%, transparent 70%);
+  mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 25%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 25%, transparent 70%);
+  animation: bg-flicker 3s linear infinite;
+}
+@keyframes bg-flicker {
+  0% { opacity: .45; } 2% { opacity: .85; } 8% { opacity: .1; }
+  9% { opacity: .85; } 12% { opacity: .1; } 20% { opacity: .85; }
+  25% { opacity: .22; } 30% { opacity: .85; } 70% { opacity: .45; }
+  72% { opacity: .12; } 77% { opacity: .65; } 100% { opacity: .65; }
+}
+.hero-grid {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 20%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 20%, transparent 70%);
+  animation: bg-flicker 3s linear infinite;
+}
+/* Hero title entrance */
+.hero-entrance {
+  position: relative; z-index: 1;
+  animation: hero-enter .8s cubic-bezier(.16,1,.3,1) both;
+}
+.hero-entrance .hero-subtitle {
+  animation: hero-enter .8s cubic-bezier(.16,1,.3,1) .15s both;
+}
+@keyframes hero-enter {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.glowing-txt {
+  color: var(--glow-color);
+  font-family: 'Geist Sans', system-ui, sans-serif;
+  font-size: clamp(3em, 10vw, 7em);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-shadow:
+    0 0 4px rgba(255,255,255,.15),
+    0 0 20px var(--glow-color),
+    0 0 60px var(--glow-color);
+  animation: text-flicker 3s linear infinite;
+  transition: opacity .4s, text-shadow .4s;
+  cursor: default;
+  user-select: none;
+}
+
+.faulty-letter {
+  animation: faulty-flicker 2s linear infinite;
+  transition: opacity .4s;
+}
+
+.glowing-txt:hover,
+.glowing-txt:hover .faulty-letter {
+  animation: none;
+}
+.glowing-txt:hover .faulty-letter {
+  opacity: 1;
+}
+.glowing-txt:hover {
+  opacity: 1;
+  text-shadow:
+    0 0 6px rgba(255,255,255,.40),
+    0 0 24px var(--glow-color),
+    0 0 80px var(--glow-color);
+}
+
+.hero-subtitle {
+  margin-top: 24px;
+  font-size: 15px;
+  color: var(--text-dim);
+  letter-spacing: 1.5px;
+}
+
+.scroll-hint {
+  position: absolute;
+  bottom: 36px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  cursor: pointer; text-decoration: none;
+  animation: bounce-arrow 2s ease-in-out infinite;
+}
+.scroll-hint span {
+  font-size: 10px; color: var(--text-dim); letter-spacing: 3px; text-transform: uppercase;
+}
+.scroll-hint svg {
+  width: 20px; height: 20px; stroke: var(--glow-color); fill: none; stroke-width: 2;
+  filter: drop-shadow(0 0 6px var(--glow-color));
+}
+
+.scroll-hint-light {
+  position: absolute;
+  bottom: 18px; left: 50%;
+  transform: translateX(-50%);
+  animation: bounce-arrow 2s ease-in-out infinite;
+}
+.scroll-hint-light svg {
+  width: 22px; height: 22px; stroke: var(--l-text-dim); fill: none; stroke-width: 2.5;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ── Page 2: Showcase (light, left download ~45% + right carousel ~55%) ── */
+#showcase {
+  display: flex;
+  align-items: stretch;
+  background: var(--l-bg);
+}
+
+.showcase-left {
+  width: 38%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-end;
+  padding: 80px 32px 80px 48px;
+  gap: 20px;
+}
+
+.showcase-left-content {
+  max-width: 340px;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 16px;
+}
+
+.showcase-left h2 {
+  font-family: 'Geist Sans', system-ui, sans-serif;
+  font-weight: 700; font-size: 24px;
+  letter-spacing: 0.5px;
+  color: var(--l-text);
+}
+
+.showcase-left p {
+  font-size: 14px;
+  color: var(--l-text-dim);
+  line-height: 1.7;
+}
+
+.showcase-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 80px 48px 80px 24px;
+  gap: 24px;
+}
+
+.carousel-wrapper {
+  perspective: 1400px;
+  width: 100%;
+  position: relative;
+  overflow: visible;
+}
+
+.carousel {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+}
+
+.carousel-card {
+  position: absolute;
+  top: 50%; left: 50%;
+  aspect-ratio: 2200 / 1405;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--l-border);
+  cursor: pointer;
+  transition: transform .7s cubic-bezier(.25,.8,.25,1), opacity .7s cubic-bezier(.25,.8,.25,1), box-shadow .7s cubic-bezier(.25,.8,.25,1);
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+}
+
+.carousel-card img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.carousel-dots { display: flex; justify-content: center; gap: 6px; width: 100%; }
+.carousel-dots button {
+  width: 6px; height: 6px;
+  border-radius: 50%; border: none;
+  background: var(--l-border);
+  cursor: pointer; transition: background .3s, width .3s, border-radius .3s;
+}
+.carousel-dots button.active {
+  background: var(--l-accent);
+  width: 20px; border-radius: 3px;
+}
+
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 28px; border-radius: 12px;
+  background: var(--l-accent); color: #fff;
+  font-size: 13px; font-weight: 600;
+  text-decoration: none; transition: background .2s, transform .2s, box-shadow .2s;
+}
+.btn-primary:hover {
+  background: #0c5e75; transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(14,116,144,.25);
+}
+
+.btn-secondary {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 28px; border-radius: 12px;
+  background: transparent;
+  border: 1px solid var(--l-border); color: var(--l-text);
+  font-size: 13px; font-weight: 500;
+  text-decoration: none; transition: border-color .2s, color .2s, transform .2s, box-shadow .2s;
+}
+.btn-secondary:hover {
+  border-color: var(--l-text-dim); transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,.06);
+}
+
+.version-tag { font-size: 11px; color: var(--l-text-dim); }
+
+
+/* ── Page 3: Features (light) ── */
+#features {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--l-bg);
+  padding: 80px max(64px, 8vw) 24px;
+  overflow-y: auto;
+}
+
+.features-inner { max-width: clamp(960px, 81vw, 1400px); width: 100%; }
+
+.features-inner h2 {
+  text-align: center;
+  font-family: 'Geist Sans', system-ui, sans-serif;
+  font-size: 24px; font-weight: 700;
+  letter-spacing: 3px;
+  margin-bottom: min(96px, 6vh);
+  color: var(--l-text);
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 340px));
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: min(96px, 6vh);
+}
+
+.feature-card {
+  padding: 24px;
+  border-radius: 14px;
+  background: var(--l-surface);
+  border: 1px solid var(--l-border);
+  transition: border-color .3s, box-shadow .3s, transform .3s;
+  opacity: 0; transform: translateY(20px);
+}
+.feature-card.visible {
+  opacity: 1; transform: translateY(0);
+}
+.feature-card:hover {
+  border-color: var(--l-accent);
+  box-shadow: 0 4px 16px rgba(14,116,144,.08);
+  transform: translateY(-2px);
+}
+
+.feature-card .icon {
+  width: 28px; height: 28px; margin-bottom: 10px;
+  color: var(--l-accent);
+  stroke: currentColor; fill: none;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+.feature-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; color: var(--l-text); }
+.feature-card p { font-size: 12px; line-height: 1.6; color: var(--l-text-dim); }
+
+.tech-tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-bottom: 32px; }
+.tech-tag {
+  padding: 5px 14px; border-radius: 99px;
+  font-size: 11px; font-weight: 500;
+  border: 1px solid var(--l-border);
+  color: var(--l-text-dim);
+}
+
+footer {
+  text-align: center; padding: 24px;
+  border-top: 1px solid var(--l-border);
+  font-size: 11px; color: var(--l-text-dim);
+}
+footer a { color: var(--l-accent); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+
+/* ── Animations ── */
+/* Pause heavy hero animations when off-screen */
+#hero.hero-paused::after,
+#hero.hero-paused .hero-grid,
+#hero.hero-paused .glowing-txt,
+#hero.hero-paused .faulty-letter {
+  animation-play-state: paused;
+}
+
+@keyframes faulty-flicker {
+  0% { opacity: .9; } 2% { opacity: .1; } 4% { opacity: .5; }
+  19% { opacity: .5; } 21% { opacity: .1; } 23% { opacity: 1; }
+  80% { opacity: .5; } 83% { opacity: .4; } 87% { opacity: 1; }
+}
+@keyframes text-flicker {
+  0% { opacity: .85; } 2% { opacity: 1; } 8% { opacity: .1; }
+  9% { opacity: 1; } 12% { opacity: .1; } 20% { opacity: 1; }
+  25% { opacity: .3; } 30% { opacity: 1; } 70% { opacity: .7; }
+  72% { opacity: .2; } 77% { opacity: .9; } 100% { opacity: .9; }
+}
+@keyframes bounce-arrow {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(10px); }
+}
+
+@media (max-width: 768px) {
+  .glowing-txt { font-size: 2.5em; letter-spacing: 0.08em; }
+  #showcase { flex-direction: column; }
+  .showcase-left {
+    width: 100%; padding: 72px 24px 24px; align-items: center;
+  }
+  .showcase-left-content { align-items: center; text-align: center; }
+  .showcase-right { padding: 24px; align-items: center; }
+  .features-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Nav ── -->
+<nav id="main-nav">
+  <div class="inner">
+    <a href="#hero" class="logo">SKILL ZOO</a>
+    <a href="https://github.com/luochang212/skill-zoo" target="_blank" class="gh-link">
+      <svg class="gh-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+      GitHub
+    </a>
+  </div>
+</nav>
+
+<!-- ── Page 1: Hero (dark) ── -->
+<section id="hero" class="page">
+  <div class="hero-grid"></div>
+  <div class="hero-entrance">
+    <h1 class="glowing-txt">SK<span class="faulty-letter">I</span>LL ZOO</h1>
+  </div>
+  <p class="hero-subtitle hero-entrance">Local GUI for managing AI Agent Skills</p>
+  <a href="#showcase" class="scroll-hint">
+    <span>Scroll</span>
+    <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12l7 7 7-7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </a>
+</section>
+
+<!-- ── Page 2: Download (left ~45%) + Screenshots carousel (right ~55%) ── -->
+<section id="showcase" class="page">
+  <div class="showcase-left">
+    <div class="showcase-left-content">
+      <h2>Get Skill Zoo</h2>
+      <p>Free &amp; open source. One place for all your AI agent skills.</p>
+      <a href="https://github.com/luochang212/skill-zoo/releases" target="_blank" class="btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83zM13 3.5c.73-.83 1.94-1.37 2.93-1.4.13 1.17-.34 2.34-.98 3.16-.69.8-1.82 1.42-2.92 1.34-.15-1.14.4-2.29.97-3.1z"/></svg>
+        Download for macOS
+      </a>
+      <a href="https://github.com/luochang212/skill-zoo/releases" target="_blank" class="btn-secondary">
+        Windows
+      </a>
+    </div>
+  </div>
+  <div class="showcase-right">
+    <div class="carousel-wrapper" id="carousel-wrapper">
+      <div class="carousel" id="carousel"></div>
+    </div>
+    <div class="carousel-dots" id="carousel-dots"></div>
+  </div>
+  <a href="#features" class="scroll-hint scroll-hint-light">
+    <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+  </a>
+</section>
+
+<!-- ── Page 3: Features (light) ── -->
+<section id="features" class="page">
+  <div class="features-inner">
+    <h2>Features</h2>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+        <h3>Browse &amp; Discover</h3>
+        <p>Explore skill repositories from GitHub with banner recommendations.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+        <h3>One-Click Install</h3>
+        <p>Install skills to a shared store with automatic symlink creation.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="9" cy="5" r="2"/><path d="M7 11V7a2 2 0 0 1 2-2h0"/><circle cx="17" cy="5" r="2"/><path d="M15 11V7a2 2 0 0 1 2-2h0"/></svg></div>
+        <h3>Multi-Agent</h3>
+        <p>Claude Code, Codex, Cursor, Gemini, Trae, Trae CN, Hermes, OpenClaw.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a7 7 0 0 0 0 20 10 10 0 0 1 0-20z" fill="currentColor" opacity=".15"/><path d="M12 2a10 10 0 0 1 0 20"/></svg></div>
+        <h3>Dark &amp; Light Theme</h3>
+        <p>Follows system preference with smooth animated transitions.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+        <h3>i18n</h3>
+        <p>English and Simplified Chinese, auto-detected.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
+        <h3>Local &amp; Offline</h3>
+        <p>All data in local files. No cloud dependency.</p>
+      </div>
+    </div>
+    <div class="tech-tags">
+      <span class="tech-tag">Tauri v2</span>
+      <span class="tech-tag">React 19</span>
+      <span class="tech-tag">TypeScript</span>
+      <span class="tech-tag">Rust</span>
+      <span class="tech-tag">Tailwind CSS</span>
+      <span class="tech-tag">Bun</span>
+      <span class="tech-tag">shadcn/ui</span>
+    </div>
+  </div>
+    <footer>
+      &copy; 2026 Skill Zoo · MIT License ·
+      <a href="https://github.com/luochang212/skill-zoo" target="_blank">GitHub</a>
+    </footer>
+  </div>
+</section>
+
+<script>
+// 3D Cover Flow carousel
+const sources = [
+  { src: './screenshots/screenshot-1.webp', alt: 'Skill Zoo main interface' },
+  { src: './screenshots/screenshot-2.webp', alt: 'Skill detail view' },
+  { src: './screenshots/screenshot-3.webp', alt: 'Settings page' },
+];
+
+const ASPECT = 2200 / 1405;
+const MAX_CARD_W = 660;
+
+const carousel = document.getElementById('carousel');
+const wrapper = document.getElementById('carousel-wrapper');
+const dotsContainer = document.getElementById('carousel-dots');
+let current = 0, timer;
+
+// Build cards and dots
+const cards = sources.map((s, i) => {
+  const card = document.createElement('div');
+  card.className = 'carousel-card';
+  card.innerHTML = `<img src="${s.src}" alt="${s.alt}" draggable="false">`;
+  card.addEventListener('click', () => { if (i !== current) goTo(i); });
+  carousel.appendChild(card);
+
+  const dot = document.createElement('button');
+  dot.dataset.idx = i;
+  dot.addEventListener('click', () => goTo(i));
+  dotsContainer.appendChild(dot);
+
+  return { card, dot };
+});
+
+function getStyle(diff, cardW) {
+  const abs = Math.abs(diff);
+  const sign = diff < 0 ? -1 : 1;
+  if (abs === 0) {
+    return { x: 0, scale: 1, ry: 0, z: 120, opacity: 1, zIdx: 20, shadow: '0 1px 3px rgba(0,0,0,0.06), 0 8px 20px rgba(0,0,0,0.08), 0 22px 50px rgba(0,0,0,0.12)' };
+  }
+  if (abs === 1) {
+    return { x: sign * cardW * 0.32, scale: 0.78, ry: sign * -22, z: -50, opacity: 0.55, zIdx: 10, shadow: '0 2px 6px rgba(0,0,0,0.05), 0 6px 18px rgba(0,0,0,0.07)' };
+  }
+  return { x: sign * cardW * 0.48, scale: 0.62, ry: sign * -15, z: -110, opacity: 0, zIdx: 5, shadow: '0 2px 8px rgba(0,0,0,0.03)' };
+}
+
+function layout() {
+  const n = cards.length;
+  const cardW = Math.min(wrapper.clientWidth * 0.72, MAX_CARD_W);
+  const cardH = cardW / ASPECT;
+
+  wrapper.style.height = `${Math.max(cardH + 80, 300)}px`;
+
+  cards.forEach(({ card, dot }, i) => {
+    let diff = (i - current + n) % n;
+    if (diff > n / 2) diff -= n;
+    const s = getStyle(diff, cardW);
+
+    card.style.width = `${cardW}px`;
+    card.style.marginLeft = `${-cardW / 2}px`;
+    card.style.marginTop = `${-cardH / 2}px`;
+    card.style.transform = `translateX(${s.x}px) scale(${s.scale}) rotateY(${s.ry}deg) translateZ(${s.z}px)`;
+    card.style.zIndex = s.zIdx;
+    card.style.opacity = s.opacity;
+    card.style.boxShadow = s.shadow;
+    dot.classList.toggle('active', i === current);
+  });
+}
+
+function goTo(idx) {
+  clearInterval(timer);
+  current = idx;
+  layout();
+  timer = setInterval(() => goTo((current + 1) % cards.length), 8000);
+}
+
+layout();
+timer = setInterval(() => goTo((current + 1) % cards.length), 8000);
+
+let resizePending = false;
+window.addEventListener('resize', () => {
+  if (!resizePending) {
+    resizePending = true;
+    requestAnimationFrame(() => {
+      layout();
+      resizePending = false;
+    });
+  }
+});
+
+// Smooth scroll
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const t = document.querySelector(a.getAttribute('href'));
+    if (t) { e.preventDefault(); t.scrollIntoView({ behavior: 'smooth' }); }
+  });
+});
+
+// Nav color toggle: dark on hero, light on other pages
+const nav = document.getElementById('main-nav');
+const hero = document.getElementById('hero');
+
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    nav.classList.toggle('light', !entry.isIntersecting);
+    hero.classList.toggle('hero-paused', !entry.isIntersecting);
+  });
+}, { threshold: 0.5 });
+
+observer.observe(hero);
+
+// Feature cards scroll reveal
+const featureCards = document.querySelectorAll('.feature-card');
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach((entry, i) => {
+    if (entry.isIntersecting) {
+      // stagger each card
+      const idx = Array.from(featureCards).indexOf(entry.target);
+      setTimeout(() => entry.target.classList.add('visible'), idx * 80);
+      revealObserver.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.15 });
+featureCards.forEach(card => revealObserver.observe(card));
+
+</script>
+
+</body>
+</html>

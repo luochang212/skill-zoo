@@ -1,0 +1,56 @@
+[
+  {
+    "owner": "anthropics",
+    "name": "skills",
+    "branch": "main",
+    "description": "Public repository for Agent Skills"
+  },
+  {
+    "owner": "vercel-labs",
+    "name": "skills",
+    "branch": "main",
+    "description": "Skills Catalog for Codex"
+  },
+  {
+    "owner": "flutter",
+    "name": "skills",
+    "branch": "main",
+    "description": "Agent skills for Flutter development — testing, architecture, responsive layouts, routing, localization, and more"
+  },
+  {
+    "owner": "vercel-labs",
+    "name": "next-skills",
+    "branch": "main",
+    "description": "Agent skills for Next.js — best practices, RSC patterns, data fetching, async APIs, version upgrades, and caching"
+  },
+  {
+    "owner": "vercel-labs",
+    "name": "agent-browser",
+    "branch": "main",
+    "description": "Browser automation CLI for AI agents"
+  },
+  {
+    "owner": "alchaincyf",
+    "name": "nuwa-skill",
+    "branch": "main",
+    "description": "Distill anyone's thinking style — mental models, decision heuristics, and communication DNA"
+  },
+  {
+    "owner": "obra",
+    "name": "superpowers",
+    "branch": "main",
+    "description": "An agentic skills framework & software development methodology that works."
+  },
+  {
+    "owner": "ComposioHQ",
+    "name": "awesome-claude-skills",
+    "branch": "master",
+    "description": "A curated list of awesome Claude Skills, resources, and tools for customizing Claude AI workflows"
+  },
+  {
+    "owner": "luochang212",
+    "name": "dive-into-langgraph",
+    "branch": "main",
+    "description": "Agent skills for LangGraph — ReAct agents, state graphs, memory, MCP servers, supervisor patterns, parallelization, RAG, and multi-agent workflows"
+  }
+]
