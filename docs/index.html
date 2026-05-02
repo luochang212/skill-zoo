@@ -218,7 +218,7 @@ nav .gh-link:hover .gh-icon { opacity: 1; }
 
 .scroll-hint-light {
   position: absolute;
-  bottom: 18px; left: 50%;
+  bottom: 36px; left: 50%;
   transform: translateX(-50%);
   animation: bounce-arrow 2s ease-in-out infinite;
 }
@@ -246,7 +246,7 @@ nav .gh-link:hover .gh-icon { opacity: 1; }
 
 .showcase-left-content {
   max-width: 340px;
-  display: flex; flex-direction: column; align-items: flex-start; gap: 16px;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
 }
 
 .showcase-left h2 {
@@ -485,14 +485,27 @@ footer a:hover { text-decoration: underline; }
   <div class="showcase-left">
     <div class="showcase-left-content">
       <h2>Get Skill Zoo</h2>
-      <p>Free &amp; open source. One place for all your AI agent skills.</p>
-      <a href="https://github.com/luochang212/skill-zoo/releases" target="_blank" class="btn-primary">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83zM13 3.5c.73-.83 1.94-1.37 2.93-1.4.13 1.17-.34 2.34-.98 3.16-.69.8-1.82 1.42-2.92 1.34-.15-1.14.4-2.29.97-3.1z"/></svg>
-        Download for macOS
-      </a>
-      <a href="https://github.com/luochang212/skill-zoo/releases" target="_blank" class="btn-secondary">
-        Windows
-      </a>
+      <p>Free &amp; open source desktop app. One place for all your AI agent skills.</p>
+      <!-- macOS -->
+      <div style="width:100%;max-width:340px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <span style="font-size:13px;font-weight:600;color:var(--l-text);">macOS</span>
+          <span style="font-size:10px;font-weight:600;color:#0e7490;background:rgba(14,116,144,.1);padding:2px 8px;border-radius:99px;">Recommended</span>
+        </div>
+        <div style="background:var(--l-surface);border:1px solid var(--l-border);border-radius:10px;padding:12px 16px;font-family:monospace;font-size:12px;color:var(--l-text);line-height:1.8;">
+          brew tap luochang212/tap<br>
+          brew install --cask skill-zoo
+        </div>
+      </div>
+      <!-- Windows / direct download -->
+      <div style="width:100%;max-width:340px;">
+        <div style="font-size:13px;font-weight:600;color:var(--l-text);margin-bottom:10px;">Windows</div>
+        <a href="https://github.com/luochang212/skill-zoo/releases" target="_blank" class="btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download Installer
+        </a>
+        <div style="font-size:11px;color:var(--l-text-dim);margin-top:10px;">Preferred for Windows, also works on macOS.</div>
+      </div>
     </div>
   </div>
   <div class="showcase-right">

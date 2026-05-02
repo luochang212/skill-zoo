@@ -5,26 +5,25 @@
 
 # Skill Zoo
 
-Local AI Agent skill manager — browse, install, and manage skills for Claude Code, Codex, Cursor, Gemini, and more.
+Local Agent Skill manager — browse, install, and manage skills for Claude Code, Codex, Cursor, Gemini, and more.
 
 ![app-screenshot](docs/screenshots/screenshot-1.webp)
 
-## Features
+## 🚀 Features
 
-- **Browse & Discover** — Explore skill repositories on GitHub with banner carousel and recommended repos
-- **One-click Install** — Install skills to a shared directory (`~/.agents/skills/`) and symlink to target agents
-- **Skill Detail** — View, edit, and browse skill files with built-in Markdown editor and file tree
-- **Skill Creation** — Create new skills and deploy to selected agents
-- **Duplicate Detection** — Find skills with the same name across directories and merge them
-- **Multi-Agent Support** — Claude Code, Codex, Gemini, Cursor, Trae, Trae CN, Hermes, OpenClaw
-- **Dark/Light Theme** — Follows system preference by default, with manual toggle
-- **Multilingual** — English and Simplified Chinese
+- **Browse & Discover**: Explore skill repositories on GitHub and [skills.sh](https://skills.sh/)
+- **One-click Install**: Batch-install skills from GitHub repositories and symlink to target agents
+- **Skill Authoring**: Built-in Markdown editor for editing skill files
+- **Consistency Check**: Same-name skill detection, file format validation, and one-click deduplication for skills with identical name and hash
+- **Multi-Agent Support**: Supports Claude Code, Cursor, Codex, and other AI coding assistants
+- **Dark/Light Theme**: Follows system preference by default, with manual toggle
+- **Multilingual**: English and Simplified Chinese
 
-## Tech Stack
+## ✨ Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | React 19 + TypeScript + Vite 8 |
+| Frontend | React 19 + TypeScript 6 + Vite 8 |
 | Backend | Rust (Tauri v2) |
 | Styling | Tailwind CSS 4 + shadcn/ui |
 | State | TanStack React Query |
@@ -33,27 +32,26 @@ Local AI Agent skill manager — browse, install, and manage skills for Claude C
 | Editor | CodeMirror 6 |
 | Package Manager | Bun |
 
-## Installation
+## 📦 Installation
 
-### GitHub Releases
+### macOS
 
-Download the latest version from the [Releases](https://github.com/luochang212/skill-zoo/releases) page:
-
-- **macOS** — `.dmg` (Apple Silicon / Intel)
-- **Windows** — `.msi` or `.exe`
-
-> macOS users: if you see "app is damaged and can't be opened," run `xattr -d com.apple.quarantine /Applications/skill-zoo.app` in Terminal.
-
-### Homebrew
+Homebrew is recommended:
 
 ```bash
-brew tap luochang212/skill-zoo
-brew install skill-zoo
+brew tap luochang212/tap
+brew install --cask skill-zoo
 ```
 
-## Development
+You can also download the `.dmg` package from the [Releases](https://github.com/luochang212/skill-zoo/releases) page.
 
-Prerequisites: [Bun](https://bun.sh), [Rust](https://www.rust-lang.org/tools/install) (1.85+)
+> If you see "skill-zoo" is damaged and can't be opened, run `xattr -d com.apple.quarantine /Applications/skill-zoo.app` in Terminal.
+
+### Windows
+
+Download the `.msi` or `.exe` installer from the [Releases](https://github.com/luochang212/skill-zoo/releases) page.
+
+## 🔧 Development
 
 ```bash
 # Install dependencies
@@ -69,7 +67,7 @@ bun run typecheck
 bun run tauri build
 ```
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 skill-zoo/
@@ -77,21 +75,21 @@ skill-zoo/
 │   ├── components/
 │   │   ├── skills/         # Skill browsing, detail, install, creation
 │   │   ├── settings/       # Theme, language, maintenance, about
-│   │   ├── layout/         # Header
+│   │   ├── layout/         # Top navigation
 │   │   └── ui/             # shadcn/ui primitives
-│   ├── hooks/              # React Query hooks & query invalidation
-│   ├── i18n/               # Translations (en, zh)
-│   ├── lib/                # Tauri API clients, agent configs, platform utils
+│   ├── hooks/              # React Query hooks & cache invalidation
+│   ├── i18n/               # Translations (English, Chinese)
+│   ├── lib/                # Tauri API client, agent config, platform utils
 │   └── types/              # TypeScript type definitions
 ├── src-tauri/              # Tauri + Rust backend
 │   ├── src/
 │   │   ├── commands/       # Tauri IPC command handlers
-│   │   ├── services/       # Skill ops, CLI add/remove, lock file
+│   │   ├── services/       # Skill operations, CLI management, lock file
 │   │   ├── persistence/    # Metadata & settings persistence
-│   │   ├── config.rs       # Agent configs & path detection
+│   │   ├── config.rs       # Agent config & path detection
 │   │   ├── store.rs        # App state
 │   │   └── error.rs        # Error types
-│   ├── resources/          # Banners, recommended repos
+│   ├── resources/          # Carousel banners, recommended repos
 │   ├── Cargo.toml
 │   └── tauri.conf.json
 ├── docs/                   # Screenshots
@@ -99,6 +97,6 @@ skill-zoo/
 └── vite.config.ts
 ```
 
-## License
+## 📜 License
 
 [MIT](LICENSE)

@@ -5,26 +5,25 @@
 
 # Skill Zoo
 
-本地 AI Agent 技能管理器 — 浏览、安装、管理 Claude Code、Codex、Cursor、Gemini 等工具的技能。
+本地 Agent Skill 管理器 — 浏览、安装、管理 Claude Code、Codex、Cursor、Gemini 等工具的技能。
 
 ![app-screenshot](docs/screenshots/screenshot-1.webp)
 
-## 功能
+## 🚀 功能
 
-- **浏览发现** — 探索 GitHub 上的技能仓库，轮播图和推荐仓库
-- **一键安装** — 安装技能到共享目录 `~/.agents/skills/`，并软链接到目标 Agent
-- **技能详情** — 内置 Markdown 编辑器和文件树，查看、编辑技能文件
-- **技能创建** — 创建新技能并部署到选定的 Agent
-- **重复检测** — 发现跨目录的同名技能并合并
-- **多 Agent 支持** — Claude Code、Codex、Gemini、Cursor、Trae、Trae CN、Hermes、OpenClaw
-- **深浅色主题** — 默认跟随系统，支持手动切换
-- **国际化** — 支持英文和简体中文
+- **浏览发现**：探索 GitHub 和 [skills.sh](https://skills.sh/) 上的技能仓库
+- **一键安装**：从 GitHub 仓库批量安装技能，并链接到指定 Agent
+- **技能创作**：内置 Markdown 编辑器，支持编辑技能文件
+- **一致性检查**：支持同名技能检测、文件格式检测，对同名同 hash 技能可一键去重
+- **多 Agent 支持**：支持 Claude Code、Cursor、Codex 等 AI 编程助手
+- **明暗主题**：默认跟随系统，支持手动切换
+- **国际化**：支持英文和简体中文
 
-## 技术栈
+## ✨ 技术栈
 
 | 层级 | 技术 |
 |------|------|
-| 前端 | React 19 + TypeScript + Vite 8 |
+| 前端 | React 19 + TypeScript 6 + Vite 8 |
 | 后端 | Rust（Tauri v2） |
 | 样式 | Tailwind CSS 4 + shadcn/ui |
 | 状态 | TanStack React Query |
@@ -33,27 +32,26 @@
 | 编辑器 | CodeMirror 6 |
 | 包管理 | Bun |
 
-## 安装
+## 📦 安装
 
-### GitHub Releases
+### macOS
 
-从 [Releases](https://github.com/luochang212/skill-zoo/releases) 页面下载最新版本：
-
-- **macOS** — `.dmg`（Apple Silicon / Intel）
-- **Windows** — `.msi` 或 `.exe`
-
-> macOS 用户：如果提示"应用已损坏，无法打开"，请在终端中执行 `xattr -d com.apple.quarantine /Applications/skill-zoo.app`。
-
-### Homebrew
+推荐通过 Homebrew 安装：
 
 ```bash
-brew tap luochang212/skill-zoo
-brew install skill-zoo
+brew tap luochang212/tap
+brew install --cask skill-zoo
 ```
 
-## 开发
+也可从 [Releases](https://github.com/luochang212/skill-zoo/releases) 页面下载 `.dmg` 安装包。
 
-前置条件：[Bun](https://bun.sh)、[Rust](https://www.rust-lang.org/tools/install)（1.85+）
+> 如果提示：“skill-zoo”已损坏，无法打开。请在终端中执行 `xattr -d com.apple.quarantine /Applications/skill-zoo.app`
+
+### Windows
+
+从 [Releases](https://github.com/luochang212/skill-zoo/releases) 页面下载 `.msi` 或 `.exe` 安装包。
+
+## 🔧 开发
 
 ```bash
 # 安装依赖
@@ -69,7 +67,7 @@ bun run typecheck
 bun run tauri build
 ```
 
-## 项目结构
+## 📁 项目结构
 
 ```
 skill-zoo/
@@ -86,7 +84,7 @@ skill-zoo/
 ├── src-tauri/              # Tauri + Rust 后端
 │   ├── src/
 │   │   ├── commands/       # Tauri IPC 命令处理
-│   │   ├── services/       # 技能操作、CLI 增删、锁文件
+│   │   ├── services/       # 技能操作、CLI 管理、锁文件
 │   │   ├── persistence/    # 元数据和设置持久化
 │   │   ├── config.rs       # Agent 配置与路径检测
 │   │   ├── store.rs        # 应用状态
@@ -99,6 +97,6 @@ skill-zoo/
 └── vite.config.ts
 ```
 
-## 开源协议
+## 📜 开源协议
 
 [MIT](LICENSE)
