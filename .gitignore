@@ -7,4 +7,6 @@ src-tauri/target/
 src-tauri/gen/
 
 archived/
+.worktrees/
+docs/superpowers/
 CLAUDE.md
