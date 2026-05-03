@@ -39,6 +39,7 @@ jobs:
         run: cargo test --manifest-path src-tauri/Cargo.toml --features test-helpers
 
   build:
+    if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
     needs: [test-frontend, test-backend]
@@ -144,7 +145,7 @@ jobs:
       - name: Generate release body
         id: release_body
         run: |
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null)
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
           VERSION="${{ github.ref_name }}"
           if [ -z "$PREV_TAG" ]; then
             COMMITS=$(git log --pretty=format:"- %s" --no-merges)
