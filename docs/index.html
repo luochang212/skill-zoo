@@ -7,6 +7,7 @@
 <meta name="description" content="Local GUI tool for managing AI Agent Skills — unified management for skills in Claude Code, Codex, Cursor, Gemini, and more.">
 <link rel="icon" type="image/png" href="favicon.png">
 <link href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/style.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-mono/style.css" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -29,9 +30,6 @@
 
 html { scroll-snap-type: none; }
 
-@media (pointer: coarse) {
-  html { scroll-snap-type: y proximity; }
-}
 
 body {
   background: var(--bg);
@@ -235,17 +233,18 @@ nav .gh-link:hover .gh-icon { opacity: 1; }
 }
 
 .showcase-left {
-  width: 38%;
+  width: 36%;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  align-items: flex-end;
-  padding: 80px 32px 80px 48px;
+  align-items: center;
+  padding: 80px 14px 80px 48px;
   gap: 20px;
 }
 
 .showcase-left-content {
-  max-width: 340px;
+  max-width: 300px;
+  width: 100%;
   display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
 }
 
@@ -268,8 +267,8 @@ nav .gh-link:hover .gh-icon { opacity: 1; }
   flex-direction: column;
   justify-content: center;
   align-items: flex-start;
-  padding: 80px 48px 80px 24px;
-  gap: 24px;
+  padding: 80px 48px 80px 14px;
+  gap: 6px;
 }
 
 .carousel-wrapper {
@@ -344,6 +343,49 @@ nav .gh-link:hover .gh-icon { opacity: 1; }
 
 .version-tag { font-size: 11px; color: var(--l-text-dim); }
 
+.code-block {
+  background: rgba(14, 116, 144, 0.11);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border: none;
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 12px;
+  color: var(--l-text);
+  line-height: 1.8;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+}
+.copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--l-text-dim);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .2s, color .2s;
+}
+.copy-btn:hover {
+  background: var(--l-border);
+  color: var(--l-text);
+}
+.copy-btn.copied {
+  color: #0e7490;
+}
+.prompt {
+  color: var(--l-text-dim);
+  user-select: none;
+}
+
 
 /* ── Page 3: Features (light) ── */
 #features {
@@ -361,10 +403,10 @@ nav .gh-link:hover .gh-icon { opacity: 1; }
 .features-inner h2 {
   text-align: center;
   font-family: 'Geist Sans', system-ui, sans-serif;
-  font-size: 24px; font-weight: 700;
-  letter-spacing: 3px;
+  font-size: 24px; font-weight: 600;
+  letter-spacing: 4px;
   margin-bottom: min(96px, 6vh);
-  color: var(--l-text);
+  color: var(--l-accent);
 }
 
 .features-grid {
@@ -378,17 +420,21 @@ nav .gh-link:hover .gh-icon { opacity: 1; }
 .feature-card {
   padding: 24px;
   border-radius: 14px;
-  background: var(--l-surface);
-  border: 1px solid var(--l-border);
-  transition: border-color .3s, box-shadow .3s, transform .3s;
+  background: rgba(14, 116, 144, 0.07);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  transition: border-color .3s, box-shadow .3s, transform .3s, background .3s;
   opacity: 0; transform: translateY(20px);
 }
 .feature-card.visible {
   opacity: 1; transform: translateY(0);
 }
 .feature-card:hover {
-  border-color: var(--l-accent);
-  box-shadow: 0 4px 16px rgba(14,116,144,.08);
+  background: rgba(14, 116, 144, 0.12);
+  border-color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 28px rgba(14, 116, 144, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.7);
   transform: translateY(-2px);
 }
 
@@ -442,15 +488,97 @@ footer a:hover { text-decoration: underline; }
   50% { transform: translateX(-50%) translateY(10px); }
 }
 
+/* ── Mobile ── */
 @media (max-width: 768px) {
-  .glowing-txt { font-size: 2.5em; letter-spacing: 0.08em; }
-  #showcase { flex-direction: column; }
-  .showcase-left {
-    width: 100%; padding: 72px 24px 24px; align-items: center;
+  /* Disable scroll-snap — fights with inner scrolling and dynamic heights */
+  html { scroll-snap-type: none; }
+
+  .page {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
   }
-  .showcase-left-content { align-items: center; text-align: center; }
-  .showcase-right { padding: 24px; align-items: center; }
-  .features-grid { grid-template-columns: 1fr; }
+  #hero { height: 100dvh; }
+
+  /* Nav */
+  nav .inner { max-width: 100%; padding: 0 16px; }
+  nav .logo { font-size: 13px; letter-spacing: 1px; }
+  nav .gh-link { font-size: 13px; }
+
+  /* Hero */
+  .glowing-txt { font-size: 2.2em; letter-spacing: 0.06em; }
+  .hero-subtitle {
+    font-size: 13px; letter-spacing: 1px;
+    padding: 0 16px; text-align: center;
+  }
+  .hero-grid { background-size: 32px 32px; }
+
+  /* Showcase — carousel on top, download text below */
+  #showcase { flex-direction: column; }
+  .showcase-right { order: -1; }
+  .showcase-left {
+    width: 100%; padding: 0.5vh 5vw 15vh;
+    align-items: center;
+  }
+  .showcase-left-content {
+    max-width: 100%; width: 100%;
+    align-items: center; text-align: center;
+  }
+  .showcase-left h2 { font-size: 20px; }
+  .showcase-right {
+    padding: 3vh 3vw 1vh;
+    align-items: center;
+  }
+  #showcase .scroll-hint-light { bottom: 3vh; }
+  .code-block { text-align: left; }
+  .btn-primary, .btn-secondary {
+    width: auto;
+  }
+  #features {
+    padding: 0 16px;
+    overflow-y: visible;
+  }
+  .features-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 100%;
+    min-height: 88vh;
+  }
+  .features-inner h2 {
+    font-size: 20px; letter-spacing: 2px;
+    margin-top: 11vh;
+    margin-bottom: auto;
+  }
+  .features-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: -1vh;
+  }
+  .feature-card { padding: 14px; }
+  .feature-card .icon { width: 22px; height: 22px; margin-bottom: 6px; }
+  .feature-card h3 { font-size: 13px; margin-bottom: 2px; }
+  .feature-card p { font-size: 11px; line-height: 1.5; }
+
+  /* Tech tags */
+  .tech-tags { gap: 6px; margin-top: auto; margin-bottom: 9vh; }
+  .tech-tag { padding: 4px 10px; font-size: 10px; }
+
+  /* Download command block */
+  .showcase-left-content > div { max-width: 100% !important; }
+
+
+  /* Footer */
+  footer { padding: 2vh; font-size: 10px; }
+}
+
+/* ── Small phones ── */
+@media (max-width: 400px) {
+  .glowing-txt { font-size: 1.75em; letter-spacing: 0.04em; }
+  .hero-subtitle { font-size: 12px; }
+  nav .gh-link span { display: none; } /* icon only */
+  .scroll-hint { bottom: 14px; }
+  .scroll-hint span { font-size: 9px; letter-spacing: 2px; }
 }
 </style>
 </head>
@@ -488,21 +616,21 @@ footer a:hover { text-decoration: underline; }
       <p>Free &amp; open source desktop app. One place for all your AI agent skills.</p>
       <!-- macOS -->
       <div style="width:100%;max-width:340px;">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-          <span style="font-size:13px;font-weight:600;color:var(--l-text);">macOS</span>
-          <span style="font-size:10px;font-weight:600;color:#0e7490;background:rgba(14,116,144,.1);padding:2px 8px;border-radius:99px;">Recommended</span>
-        </div>
-        <div style="background:var(--l-surface);border:1px solid var(--l-border);border-radius:10px;padding:12px 16px;font-family:monospace;font-size:12px;color:var(--l-text);line-height:1.8;">
-          brew tap luochang212/tap<br>
-          brew install --cask skill-zoo
+        <div style="font-size:13px;font-weight:600;color:var(--l-text);margin-bottom:10px;">macOS</div>
+        <div class="code-block">
+          <button class="copy-btn" aria-label="Copy" data-copy>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+          <div><span class="prompt" aria-hidden="true">$ </span>brew tap luochang212/tap</div>
+          <div><span class="prompt" aria-hidden="true">$ </span>brew install --cask skill-zoo</div>
         </div>
       </div>
       <!-- Windows / direct download -->
       <div style="width:100%;max-width:340px;">
         <div style="font-size:13px;font-weight:600;color:var(--l-text);margin-bottom:10px;">Windows</div>
         <a href="https://github.com/luochang212/skill-zoo/releases" target="_blank" class="btn-primary">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Download Installer
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+          GitHub Releases
         </a>
         <div style="font-size:11px;color:var(--l-text-dim);margin-top:10px;">Preferred for Windows, also works on macOS.</div>
       </div>
@@ -569,8 +697,8 @@ footer a:hover { text-decoration: underline; }
       &copy; 2026 Skill Zoo · MIT License ·
       <a href="https://github.com/luochang212/skill-zoo" target="_blank">GitHub</a>
     </footer>
-  </div>
 </section>
+
 
 <script>
 // 3D Cover Flow carousel
@@ -618,10 +746,10 @@ function getStyle(diff, cardW) {
 
 function layout() {
   const n = cards.length;
-  const cardW = Math.min(wrapper.clientWidth * 0.72, MAX_CARD_W);
+  const cardW = Math.min(wrapper.clientWidth * 0.69, MAX_CARD_W);
   const cardH = cardW / ASPECT;
 
-  wrapper.style.height = `${Math.max(cardH + 80, 300)}px`;
+  wrapper.style.height = `${Math.max(cardH + 60, 300)}px`;
 
   cards.forEach(({ card, dot }, i) => {
     let diff = (i - current + n) % n;
@@ -694,6 +822,38 @@ const revealObserver = new IntersectionObserver((entries) => {
   });
 }, { threshold: 0.15 });
 featureCards.forEach(card => revealObserver.observe(card));
+
+// Copy button
+document.querySelectorAll('.copy-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const block = btn.closest('.code-block');
+    if (!block) return;
+    const lines = Array.from(block.querySelectorAll('div:not(.copy-btn)'))
+      .map(div => {
+        const clone = div.cloneNode(true);
+        clone.querySelectorAll('.prompt').forEach(p => p.remove());
+        return clone.textContent.trim();
+      })
+      .join('\n');
+    try {
+      await navigator.clipboard.writeText(lines);
+      btn.classList.add('copied');
+      setTimeout(() => btn.classList.remove('copied'), 1500);
+    } catch (e) {
+      // fallback
+      const ta = document.createElement('textarea');
+      ta.value = lines;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      btn.classList.add('copied');
+      setTimeout(() => btn.classList.remove('copied'), 1500);
+    }
+  });
+});
 
 </script>
 

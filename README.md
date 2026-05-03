@@ -34,7 +34,7 @@ Local Agent Skill manager — browse, install, and manage skills for Claude Code
 
 ## 📦 Installation
 
-### macOS
+### 1. macOS
 
 Homebrew is recommended:
 
@@ -47,7 +47,7 @@ You can also download the `.dmg` package from the [Releases](https://github.com/
 
 > If you see "skill-zoo" is damaged and can't be opened, run `xattr -d com.apple.quarantine /Applications/skill-zoo.app` in Terminal.
 
-### Windows
+### 2. Windows
 
 Download the `.msi` or `.exe` installer from the [Releases](https://github.com/luochang212/skill-zoo/releases) page.
 

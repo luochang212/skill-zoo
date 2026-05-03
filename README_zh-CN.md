@@ -34,7 +34,7 @@
 
 ## 📦 安装
 
-### macOS
+### 1）macOS
 
 推荐通过 Homebrew 安装：
 
@@ -47,7 +47,7 @@ brew install --cask skill-zoo
 
 > 如果提示：“skill-zoo”已损坏，无法打开。请在终端中执行 `xattr -d com.apple.quarantine /Applications/skill-zoo.app`
 
-### Windows
+### 2）Windows
 
 从 [Releases](https://github.com/luochang212/skill-zoo/releases) 页面下载 `.msi` 或 `.exe` 安装包。
 
