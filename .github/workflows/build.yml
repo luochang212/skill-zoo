@@ -155,9 +155,7 @@ jobs:
           BODY=$(cat RELEASE_BODY.md)
           BODY="${BODY//__VERSION__/$VERSION}"
           BODY="${BODY//__COMMITS__/$COMMITS}"
-          echo "body<<EOF" >> $GITHUB_OUTPUT
-          echo "$BODY" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "$BODY" > release-notes.md
 
       - name: Create release and upload assets
         env:
@@ -165,7 +163,7 @@ jobs:
         run: |
           gh release create "${{ github.ref_name }}" \
             --title "${{ github.ref_name }}" \
-            --notes "${{ steps.release_body.outputs.body }}" \
+            --notes-file release-notes.md \
             $(find artifacts -name "Skill-Zoo-*" -type f)
 
   update-homebrew:
