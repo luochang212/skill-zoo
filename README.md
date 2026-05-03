@@ -7,7 +7,7 @@
 
 Local Agent Skill manager — browse, install, and manage skills for Claude Code, Codex, Cursor, Gemini, and more.
 
-![app-screenshot](docs/home-page.webp)
+![app-screenshot](docs/skill-zoo.webp)
 
 ## 🚀 Features
 

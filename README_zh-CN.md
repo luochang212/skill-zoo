@@ -7,7 +7,7 @@
 
 本地 Agent Skill 管理器 — 浏览、安装、管理 Claude Code、Codex、Cursor、Gemini 等工具的技能。
 
-![app-screenshot](docs/home-page.webp)
+![app-screenshot](docs/skill-zoo.webp)
 
 ## 🚀 功能
 
