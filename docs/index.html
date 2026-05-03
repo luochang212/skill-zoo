@@ -343,6 +343,79 @@ nav .gh-link:hover .gh-icon { opacity: 1; }
 
 .version-tag { font-size: 11px; color: var(--l-text-dim); }
 
+.warn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px; height: 17px;
+  color: var(--l-text-dim);
+  position: relative;
+  vertical-align: middle;
+  margin-left: 5px;
+  flex-shrink: 0;
+  transition: color .2s;
+}
+.warn-icon svg {
+  width: 17px; height: 17px;
+  display: block;
+}
+.warn-icon:hover {
+  color: #d97706;
+}
+.warn-icon .tooltip {
+  display: none;
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 10px);
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid var(--l-border);
+  color: var(--l-text);
+  font-size: 13px;
+  font-weight: 400;
+  padding: 10px 14px;
+  border-radius: 10px;
+  width: max-content;
+  max-width: 330px;
+  text-align: left;
+  line-height: 1.6;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.5);
+  z-index: 50;
+}
+.warn-icon .tooltip::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 100%;
+  width: 10px;
+}
+.warn-icon .tooltip code {
+  font-family: 'Geist Mono', monospace;
+  background: rgba(14, 116, 144, 0.12);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--l-accent);
+  white-space: normal;
+}
+.warn-icon .tooltip::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 100%;
+  left: auto;
+  transform: translateY(-50%);
+  border: 5px solid transparent;
+  border-right-color: var(--l-border);
+}
+.warn-icon:hover .tooltip {
+  display: block;
+}
+
+
 .code-block {
   background: rgba(14, 116, 144, 0.11);
   backdrop-filter: blur(16px) saturate(150%);
@@ -568,6 +641,33 @@ footer a:hover { text-decoration: underline; }
   .showcase-left-content > div { max-width: 100% !important; }
 
 
+  /* Warn icon tooltip — show below, click to toggle */
+  .warn-icon .tooltip {
+    top: calc(100% + 8px);
+    left: 0;
+    right: auto;
+    transform: none;
+    max-width: 260px;
+    font-size: 12px;
+  }
+  .warn-icon .tooltip::after {
+    display: none;
+  }
+  .warn-icon .tooltip::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 8px;
+    border: 5px solid transparent;
+    border-bottom-color: var(--l-border);
+  }
+  .warn-icon:hover .tooltip {
+    display: none;
+  }
+  .warn-icon .tooltip.visible {
+    display: block;
+  }
+
   /* Footer */
   footer { padding: 2vh; font-size: 10px; }
 }
@@ -616,7 +716,13 @@ footer a:hover { text-decoration: underline; }
       <p>Free &amp; open source desktop app. One place for all your AI agent skills.</p>
       <!-- macOS -->
       <div style="width:100%;max-width:340px;">
-        <div style="font-size:13px;font-weight:600;color:var(--l-text);margin-bottom:10px;">macOS</div>
+        <div style="font-size:13px;font-weight:600;color:var(--l-text);margin-bottom:10px;display:flex;align-items:center;">
+          macOS
+          <span class="warn-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor" stroke="none"/></svg>
+            <span class="tooltip">If you see "skill-zoo" is damaged and can't be opened, run <code>xattr -d com.apple.quarantine /Applications/skill-zoo.app</code> in Terminal.</span>
+          </span>
+        </div>
         <div class="code-block">
           <button class="copy-btn" aria-label="Copy" data-copy>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
@@ -853,6 +959,25 @@ document.querySelectorAll('.copy-btn').forEach(btn => {
       setTimeout(() => btn.classList.remove('copied'), 1500);
     }
   });
+});
+
+// Warn icon: click to toggle tooltip on touch devices
+document.querySelectorAll('.warn-icon').forEach(icon => {
+  icon.addEventListener('click', (e) => {
+    if (window.matchMedia('(hover: hover)').matches) return;
+    e.stopPropagation();
+    const tip = icon.querySelector('.tooltip');
+    if (!tip) return;
+    // Close all other open tooltips
+    document.querySelectorAll('.warn-icon .tooltip.visible').forEach(t => {
+      if (t !== tip) t.classList.remove('visible');
+    });
+    tip.classList.toggle('visible');
+  });
+});
+// Click outside to dismiss
+document.addEventListener('click', () => {
+  document.querySelectorAll('.warn-icon .tooltip.visible').forEach(t => t.classList.remove('visible'));
 });
 
 </script>
