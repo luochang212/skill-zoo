@@ -34,38 +34,38 @@
 
 ## 📦 安装
 
-### 1）macOS
+### macOS
 
-推荐通过 Homebrew 安装：
+从 [Releases](https://github.com/luochang212/skill-zoo/releases) 页面下载对应芯片的 `.dmg` 文件，打开后将 `skill-zoo.app` 拖入 `Applications` 文件夹。
+
+> 如果提示”skill-zoo 已损坏，无法打开”，请在终端执行 `xattr -d com.apple.quarantine /Applications/skill-zoo.app`。
+>
+> **说明：** 我们没有 Apple 开发者账号（$99/年），因此应用无法签名或公证。`xattr -d` 用于移除 macOS 对未签名应用附加的隔离标记，只需执行一次。
+
+<details>
+<summary>🧑‍💻 通过 Homebrew 安装（macOS 开发者）</summary>
 
 ```bash
 brew tap luochang212/tap
 brew install --cask skill-zoo
 ```
 
-也可从 [Releases](https://github.com/luochang212/skill-zoo/releases) 页面下载 `.dmg` 安装包。
+首次启动同样需要执行 `xattr -d com.apple.quarantine /Applications/skill-zoo.app`。
 
-> 如果提示：“skill-zoo”已损坏，无法打开。请在终端中执行 `xattr -d com.apple.quarantine /Applications/skill-zoo.app`
+</details>
 
-### 2）Windows
+### Windows
 
-从 [Releases](https://github.com/luochang212/skill-zoo/releases) 页面下载 `.msi` 或 `.exe` 安装包。
+从 [Releases](https://github.com/luochang212/skill-zoo/releases) 下载便携版，解压到任意文件夹，运行 `skill-zoo.exe`。
 
-## 🔧 开发
+> 如果 SmartScreen 弹出警告，点击 **”更多信息”** → **”仍要运行”**。
 
-```bash
-# 安装依赖
-bun install
+<details>
+<summary>📦 安装包（备选）</summary>
 
-# 开发模式运行
-bun run tauri dev
+从 [Releases](https://github.com/luochang212/skill-zoo/releases) 下载 `.exe` 安装包运行即可。SmartScreen 同样可能弹出警告，按上述方式处理。
 
-# 类型检查
-bun run typecheck
-
-# 生产构建
-bun run tauri build
-```
+</details>
 
 ## 📁 项目结构
 
@@ -95,6 +95,22 @@ skill-zoo/
 ├── docs/                   # 截图
 ├── package.json
 └── vite.config.ts
+```
+
+## 🔧 开发
+
+```bash
+# 安装依赖
+bun install
+
+# 开发模式运行
+bun run tauri dev
+
+# 类型检查
+bun run typecheck
+
+# 生产构建
+bun run tauri build
 ```
 
 ## 📜 开源协议

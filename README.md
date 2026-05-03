@@ -34,38 +34,38 @@ Local Agent Skills Manager — Discover, install, and manage skills for AI codin
 
 ## 📦 Installation
 
-### 1. macOS
+### macOS
 
-Homebrew is recommended:
+Download the `.dmg` matching your chip from the [Releases](https://github.com/luochang212/skill-zoo/releases) page, open it, and drag `skill-zoo.app` into `Applications`.
+
+> If you see "skill-zoo" is damaged and can't be opened, run `xattr -d com.apple.quarantine /Applications/skill-zoo.app` in Terminal.
+>
+> **Note:** We don't have an Apple Developer account ($99/year), so the app cannot be signed or notarized. `xattr -d` removes the quarantine flag that macOS attaches to unsigned apps, allowing it to launch normally.
+
+<details>
+<summary>🧑‍💻 Install via Homebrew (macOS developers)</summary>
 
 ```bash
 brew tap luochang212/tap
 brew install --cask skill-zoo
 ```
 
-You can also download the `.dmg` package from the [Releases](https://github.com/luochang212/skill-zoo/releases) page.
+You'll also need to run `xattr -d com.apple.quarantine /Applications/skill-zoo.app` on first launch.
 
-> If you see "skill-zoo" is damaged and can't be opened, run `xattr -d com.apple.quarantine /Applications/skill-zoo.app` in Terminal.
+</details>
 
-### 2. Windows
+### Windows
 
-Download the `.msi` or `.exe` installer from the [Releases](https://github.com/luochang212/skill-zoo/releases) page.
+Download the portable version from [Releases](https://github.com/luochang212/skill-zoo/releases), extract it to any folder, and run `skill-zoo.exe`.
 
-## 🔧 Development
+> If SmartScreen shows a warning, click **"More info"** → **"Run anyway"**.
 
-```bash
-# Install dependencies
-bun install
+<details>
+<summary>📦 Installer (alternative)</summary>
 
-# Run in development mode
-bun run tauri dev
+Download the `.exe` installer from [Releases](https://github.com/luochang212/skill-zoo/releases) and run it. SmartScreen may also show a warning — same workaround applies.
 
-# Type checking
-bun run typecheck
-
-# Build for production
-bun run tauri build
-```
+</details>
 
 ## 📁 Project Structure
 
@@ -95,6 +95,22 @@ skill-zoo/
 ├── docs/                   # Screenshots
 ├── package.json
 └── vite.config.ts
+```
+
+## 🔧 Development
+
+```bash
+# Install dependencies
+bun install
+
+# Run in development mode
+bun run tauri dev
+
+# Type checking
+bun run typecheck
+
+# Build for production
+bun run tauri build
 ```
 
 ## 📜 License
