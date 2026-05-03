@@ -1,88 +1,100 @@
 ---
 name: release
-description: Use when the user wants to release a new version, publish a release, or ship a build. Covers version bumping, tag creation, CI verification, and Homebrew cask compatibility.
+description: Use when the user asks to release a new version, ship a build, or publish a Skill Zoo release. Also use when a tag push results in Homebrew 404 errors or missing artifact failures.
 ---
 
 # Release
 
 ## Overview
 
-Releasing a new version of Skill Zoo is done by pushing a `v*` tag. The CI handles builds, creates a GitHub Release with renamed artifacts, and updates the Homebrew cask formula.
+Release is done by pushing a `v*` tag. CI builds all platforms, creates a GitHub Release, and updates the Homebrew cask. The only manual step is the tag push.
 
 **Announce at start:** "I'm using the release skill to ship a new version."
 
-## Checklist
+## When to Use
 
-- [ ] 1. Confirm version number
-- [ ] 2. Verify all changes are committed
-- [ ] 3. Check RELEASE_BODY.md is current
-- [ ] 4. Verify Homebrew cask URL pattern is correct
-- [ ] 5. Tag and push
-- [ ] 6. Monitor CI
+```dot
+digraph when_release {
+    "User asks to release/ship/publish?" [shape=diamond];
+    "Use this skill" [shape=box];
+    "Homebrew 404 or artifact-not-found after a tag push?" [shape=diamond];
+    "Use this skill" [shape=box];
+    "Pre-release checks (code review, QA)?" [shape=diamond];
+    "Not this skill — use requesting-code-review" [shape=box];
 
-## Step 1: Confirm Version
-
-Ask the user which version they want to release. Check existing tags:
-
-```bash
-git tag --sort=-v:refname | head -5
+    "User asks to release/ship/publish?" -> "Use this skill" [label="yes"];
+    "User asks to release/ship/publish?" -> "Homebrew 404 or artifact-not-found after a tag push?" [label="no"];
+    "Homebrew 404 or artifact-not-found after a tag push?" -> "Use this skill" [label="yes"];
+    "Homebrew 404 or artifact-not-found after a tag push?" -> "Pre-release checks (code review, QA)?" [label="no"];
+    "Pre-release checks (code review, QA)?" -> "Not this skill — use requesting-code-review" [label="yes"];
+}
 ```
 
-The version must start with `v` (e.g., `v0.1.2`). Only `v*` tags trigger the release CI.
+**Use when:**
+- User says "release", "ship", "publish", "new version", "bump version"
+- Homebrew cask update failed (404 on DMG URLs)
+- CI `create-release` job failed to find artifacts
 
-## Step 2: Verify Changes Are Committed
+**Don't use for:**
+- Code review before releasing
+- Deciding WHAT version number (ask the user)
+- Feature work or bug fixes
 
-```bash
-git status --short
-```
+## Quick Reference
 
-There must be no uncommitted changes. If there are, commit them first or warn the user.
+| Step | Command |
+|------|---------|
+| Check existing tags | `git tag --sort=-v:refname \| head -5` |
+| Check uncommitted changes | `git status --short` |
+| Verify cask URL | `gh api repos/luochang212/homebrew-tap/contents/Casks/skill-zoo.rb --jq '.content' \| base64 -d` |
+| Tag and push | `git push origin main && git tag v<VERSION> && git push origin v<VERSION>` |
+| Monitor CI | https://github.com/luochang212/skill-zoo/actions |
 
-## Step 3: Check RELEASE_BODY.md
+## Core Pattern
 
-Read `RELEASE_BODY.md` and verify:
-- The `__COMMITS__` placeholder is present for auto-generated changelogs
-- The `__VERSION__` placeholder is used in download table file names, not hardcoded `vx.x.x`
-- Install instructions are up to date
+### 1. Confirm Version
 
-## Step 4: Verify Homebrew Cask URL
+Ask the user. Check `git tag --sort=-v:refname | head -5` for context. Version must start with `v` (only `v*` tags trigger CI).
 
-The cask at [luochang212/homebrew-tap](https://github.com/luochang212/homebrew-tap/blob/main/Casks/skill-zoo.rb) must have URL patterns matching the renamed artifacts:
+### 2. Verify Prerequisites
+
+- `git status --short` is clean. Warn user if uncommitted changes exist.
+- `RELEASE_BODY.md` uses `__VERSION__` and `__COMMITS__` placeholders — never hardcoded version numbers.
+- The Homebrew cask URL pattern matches renamed artifacts:
 
 ```ruby
-# ARM
 url ".../Skill-Zoo-v#{version}-macOS-arm64.dmg"
-# Intel
 url ".../Skill-Zoo-v#{version}-macOS-x64.dmg"
 ```
 
-The CI only updates `version` and `sha256` in the formula at release time — it does not fix URL mismatches. If the URL is wrong, the formula will 404 for all users. Correct it before releasing.
+CI only updates `version` and `sha256` in the formula. A mismatched URL 404s for all Homebrew users. Verify with the command in Quick Reference.
 
-```bash
-gh api repos/luochang212/homebrew-tap/contents/Casks/skill-zoo.rb --jq '.content' | base64 -d
-```
-
-## Step 5: Tag and Push
+### 3. Tag and Push
 
 ```bash
 git push origin main
-git tag v<VERSION>
-git push origin v<VERSION>
+git tag v0.1.2
+git push origin v0.1.2
 ```
 
-## Step 6: Monitor CI
+### 4. CI Jobs (triggered by `v*` tag)
 
-After pushing the tag, the CI triggers three jobs:
-
-| Job | What it does |
+| Job | Outcome |
 |---|---|
-| **build** | Builds macOS arm64/x64 DMGs and Windows NSIS installer + portable zip. Renames all to `Skill-Zoo-v{VERSION}-{platform}.{ext}`. |
-| **create-release** | Downloads artifacts, substitutes `__VERSION__` and `__COMMITS__` in `RELEASE_BODY.md`, creates the GitHub Release. |
-| **update-homebrew** | Computes SHA256 of both DMGs, updates the cask formula in `luochang212/homebrew-tap`, opens a PR. |
+| **build** | DMGs, NSIS installer, portable zip → renamed to `Skill-Zoo-v{VERSION}-{platform}.{ext}` |
+| **create-release** | GitHub Release with substituted release notes + all artifacts |
+| **update-homebrew** | Computes SHA256, updates cask formula, opens PR |
 
-Watch the [Actions tab](https://github.com/luochang212/skill-zoo/actions) for failures.
+### 5. Post-Release
 
-## Post-Release
+- Merge the auto-generated PR in `luochang212/homebrew-tap`
+- Verify the [GitHub Release](https://github.com/luochang212/skill-zoo/releases) shows correct assets and notes
 
-- If `update-homebrew` succeeded, merge the auto-generated PR in `luochang212/homebrew-tap`.
-- Verify the [GitHub Release](https://github.com/luochang212/skill-zoo/releases) page shows correct assets and release notes.
+## Common Mistakes
+
+| Mistake | Fix |
+|---------|-----|
+| Pushing tag before pushing main | Always `git push origin main` first. A tag on an unpushed commit won't trigger CI on the right SHA. |
+| Hardcoding version in RELEASE_BODY.md | Use `__VERSION__` placeholder. The CI substitutes it automatically. |
+| Forgetting to check cask URL before releasing | Run the `gh api` command in Quick Reference. CI won't fix a broken URL pattern. |
+| Releasing with uncommitted changes | `git status --short` must be empty. Uncommitted changes won't be included in the release. |
