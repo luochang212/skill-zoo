@@ -5,9 +5,9 @@
 
 # Skill Zoo
 
-本地 Agent Skill 管理器 — 浏览、安装、管理 Claude Code、Codex、Cursor、Gemini 等工具的技能。
-
 ![app-screenshot](docs/header-image.webp)
+
+本地 Agent Skills 管理器 — 发现、安装、管理 Claude Code、Codex、Cursor、Gemini 等 AI 编程工具的技能。
 
 ## 🚀 功能
 

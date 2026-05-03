@@ -5,9 +5,9 @@
 
 # Skill Zoo
 
-Local Agent Skill manager — browse, install, and manage skills for Claude Code, Codex, Cursor, Gemini, and more.
-
 ![app-screenshot](docs/header-image.webp)
+
+Local Agent Skills Manager — Discover, install, and manage skills for AI coding tools including Claude Code, Codex, Cursor, Gemini and more.
 
 ## 🚀 Features
 
