@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRepoSkills, useRepoMetadata, useInstallSkills, useInstalledSkills, useRemoveSkill } from "@/hooks/useSkills";
+import { useRepoSkills, useRepoMetadata, useInstallSkills, useInstalledSkills, useRemoveSkill, useSkillPreview } from "@/hooks/useSkills";
 import { skillsApi } from "@/lib/api/skills";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,9 +16,11 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { SkillInstallDialog } from "@/components/skills/SkillInstallDialog";
+import { MarkdownContent } from "@/components/skills/MarkdownContent";
 import type { DiscoverRepo, DiscoverableSkill } from "@/types/skills";
 import { BackButton } from "@/components/ui/BackButton";
 import { AlertTriangle, Star, GitFork, ExternalLink, Check, RotateCw, Loader } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface RepoDetailProps {
   repo: DiscoverRepo;
@@ -46,6 +48,18 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
   const [pendingRemove, setPendingRemove] = useState<DiscoverableSkill | null>(null);
+  const [previewSkill, setPreviewSkill] = useState<DiscoverableSkill | null>(null);
+
+  const {
+    data: previewContent,
+    isLoading: previewLoading,
+    isError: previewError,
+  } = useSkillPreview(
+    previewSkill?.repoOwner ?? null,
+    previewSkill?.repoName ?? null,
+    repo.branch,
+    previewSkill?.directory ?? null,
+  );
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -143,7 +157,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
   const isTruncated = skillList.length === 500;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative">
       {/* Hero */}
       <div className="px-5 pt-4 pb-3 border-b border-border">
         <div className="flex items-center justify-between">
@@ -257,8 +271,11 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
                       aria-label={skill.installed ? t("common.installed") : `Select ${skill.name}`}
                       className="h-4 w-4 shrink-0"
                     />
-                    <div className="min-w-0 flex-1">
-                      <h4 className="text-[13px] font-medium">{skill.name}</h4>
+                    <div
+                      className="min-w-0 flex-1 cursor-pointer"
+                      onClick={() => setPreviewSkill(skill)}
+                    >
+                      <h4 className="text-[13px] font-medium hover:text-primary transition-colors">{skill.name}</h4>
                       {skill.description && (
                         <p className="text-[12px] text-muted-foreground/80 line-clamp-1 mt-0.5">
                           {skill.description}
@@ -362,6 +379,47 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
           isPending={installMutation.isPending}
         />
       )}
+
+      {/* Preview side panel */}
+      <AnimatePresence>
+        {previewSkill && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              className="absolute inset-0 bg-black/20 z-20"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setPreviewSkill(null)}
+            />
+            {/* Panel */}
+            <motion.div
+              className="absolute top-0 right-0 h-full w-[45%] min-w-[400px] max-w-[600px] bg-background border-l border-border shadow-xl z-30 flex flex-col"
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 24, stiffness: 260 }}
+            >
+              <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
+                {previewLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader className="h-4 w-4 animate-spin" />
+                    <span>{t("loading")}</span>
+                  </div>
+                ) : previewError ? (
+                  <div className="flex flex-col items-center justify-center gap-3 py-12">
+                    <AlertTriangle className="h-8 w-8 text-destructive/60" />
+                    <p className="text-sm text-muted-foreground">{t("error.generic")}</p>
+                  </div>
+                ) : previewContent ? (
+                  <MarkdownContent content={previewContent} />
+                ) : null}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

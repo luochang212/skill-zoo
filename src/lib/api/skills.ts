@@ -74,6 +74,9 @@ export const skillsApi = {
   getRepoSkills: (owner: string, name: string, branch?: string, force?: boolean) =>
     invoke<DiscoverableSkill[]>("get_repo_skills", { owner, name, branch, force }),
 
+  previewSkillMd: (owner: string, name: string, branch: string | undefined, skillDir: string) =>
+    invoke<string>("preview_skill_md", { owner, name, branch, skillDir }),
+
   getRepoMetadata: (owner: string, name: string) =>
     invoke<DiscoverRepo>("get_repo_metadata", { owner, name }),
 

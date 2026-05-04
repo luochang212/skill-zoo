@@ -162,6 +162,20 @@ export function useRepoMetadata(owner: string | null, name: string | null) {
   });
 }
 
+export function useSkillPreview(
+  owner: string | null,
+  name: string | null,
+  branch: string | undefined,
+  skillDir: string | null,
+) {
+  return useQuery({
+    queryKey: ["repos", "preview", owner, name, branch, skillDir],
+    queryFn: () => skillsApi.previewSkillMd(owner!, name!, branch, skillDir!),
+    enabled: !!owner && !!name && !!skillDir,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 // ── Discover (skills.sh) ──
 
 export function useSearchSkillsSh(query: string | null, limit?: number) {

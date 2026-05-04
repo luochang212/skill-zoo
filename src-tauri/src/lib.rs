@@ -68,6 +68,7 @@ pub fn run() {
             commands::skill::search_repo,
             commands::skill::get_repo_metadata,
             commands::skill::get_repo_skills,
+            commands::skill::preview_skill_md,
             commands::skill::search_skills_sh,
             commands::skill::star_skill,
             commands::skill::unstar_skill,

@@ -628,6 +628,37 @@ pub async fn get_repo_skills(
     Ok(skills)
 }
 
+#[tauri::command]
+pub async fn preview_skill_md(
+    owner: String,
+    name: String,
+    branch: Option<String>,
+    skill_dir: String,
+) -> Result<String, String> {
+    let branch = branch.unwrap_or_else(|| "main".to_string());
+    validate_repo_segments(&owner, &name, &branch)?;
+    validate_skill_directory(&skill_dir)?;
+
+    let zip_path = CliService::ensure_cached_zip(&owner, &name, &branch, false)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let file = std::fs::File::open(&zip_path).map_err(|e| e.to_string())?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+
+    let needle = format!("/{}/SKILL.md", &skill_dir);
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
+        if entry.name().ends_with(&needle) {
+            let mut content = String::new();
+            std::io::Read::read_to_string(&mut entry, &mut content).map_err(|e| e.to_string())?;
+            return Ok(content);
+        }
+    }
+
+    Err(format!("SKILL.md not found for skill: {skill_dir}"))
+}
+
 // ────────────── Discover (skills.sh) ──────────────
 
 #[derive(Debug, Clone, serde::Deserialize)]

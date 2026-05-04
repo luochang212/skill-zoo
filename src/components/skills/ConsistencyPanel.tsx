@@ -48,7 +48,7 @@ function DuplicateGroupCard({
       {expanded && (
         <div className="px-4 pb-3 space-y-2 border-t border-border/40">
           {group.skills.map((s) => (
-            <SkillEntry key={s.skillId} skill={s} showHash={!group.sameContent} />
+            <SkillEntry key={s.id} skill={s} showHash={!group.sameContent} />
           ))}
 
           {group.sameContent && onMerge && (
@@ -91,19 +91,21 @@ function SkillEntry({ skill, showHash }: { skill: InstalledSkill; showHash: bool
           {skill.contentHash.slice(0, 8)}
         </code>
       )}
-      <Button
-        size="sm"
-        variant="ghost"
-        className="h-6 text-[11px] px-2 shrink-0"
-        onClick={() => {
-          import("@/lib/api/skills").then((api) => {
-            api.skillsApi.openSkillPath(skill.homePath);
-          });
-        }}
-      >
-        <Eye className="h-3 w-3 mr-1" />
-        {t("consistency.viewContent")}
-      </Button>
+      {skill.homePath && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 text-[11px] px-2 shrink-0"
+          onClick={() => {
+            import("@/lib/api/skills").then((api) => {
+              api.skillsApi.openSkillPath(skill.homePath!);
+            });
+          }}
+        >
+          <Eye className="h-3 w-3 mr-1" />
+          {t("consistency.viewContent")}
+        </Button>
+      )}
     </div>
   );
 }
