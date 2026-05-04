@@ -87,7 +87,6 @@ git push origin v0.1.2
 
 ### 5. Post-Release
 
-- Merge the auto-generated PR in `luochang212/homebrew-tap`
 - Verify the [GitHub Release](https://github.com/luochang212/skill-zoo/releases) shows correct assets and notes
 
 ## Common Mistakes
