@@ -5,9 +5,28 @@
 
 # Skill Zoo
 
+[![Release](https://img.shields.io/github/v/release/luochang212/skill-zoo?style=flat-square&color=0e7490)](https://github.com/luochang212/skill-zoo/releases)
+[![Downloads](https://img.shields.io/github/downloads/luochang212/skill-zoo/total?style=flat-square&color=0e7490)](https://github.com/luochang212/skill-zoo/releases)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-0e7490?style=flat-square)]()
+[![License](https://img.shields.io/badge/license-MIT-0e7490?style=flat-square)](LICENSE)
+[![CI](https://github.com/luochang212/skill-zoo/actions/workflows/build.yml/badge.svg)](https://github.com/luochang212/skill-zoo/actions)
+
 ![app-screenshot](docs/header-image.webp)
 
 Local Agent Skills Manager — Discover, install, and manage skills for AI coding tools including Claude Code, Codex, Cursor, Gemini and more.
+
+## Why Skill Zoo?
+
+AI coding tools are multiplying — Claude Code, Cursor, Codex, Gemini. Each stores skills in a different directory. Before Skill Zoo, managing skills meant:
+
+- Manually copying files between agent directories
+- No way to discover what skills exist in the community
+- No visibility into which skills are installed where
+- Divergent copies of the same skill silently drifting out of sync
+
+Skill Zoo gives you a single place to **browse**, **install**, **edit**, and **sync** skills across all your AI coding tools. It's a file manager with a purpose-built UI — local-first, no cloud, no lock-in.
+
+<!-- ![Demo](docs/demo.gif) -->
 
 ## 🚀 Features
 

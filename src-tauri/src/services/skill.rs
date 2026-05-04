@@ -646,19 +646,19 @@ impl SkillService {
 
     /// Convert a YAML value to a string, handling numbers, booleans, and null.
     fn yaml_value_to_string(v: &serde_yml::Value) -> String {
-    if let Some(s) = v.as_str() {
-        return s.to_string();
-    }
-    if let Some(i) = v.as_i64() {
-        return i.to_string();
-    }
-    if let Some(f) = v.as_f64() {
-        return f.to_string();
-    }
-    if let Some(b) = v.as_bool() {
-        return b.to_string();
-    }
-    String::new()
+        if let Some(s) = v.as_str() {
+            return s.to_string();
+        }
+        if let Some(i) = v.as_i64() {
+            return i.to_string();
+        }
+        if let Some(f) = v.as_f64() {
+            return f.to_string();
+        }
+        if let Some(b) = v.as_bool() {
+            return b.to_string();
+        }
+        String::new()
     }
 
     pub async fn discover_from_repo(

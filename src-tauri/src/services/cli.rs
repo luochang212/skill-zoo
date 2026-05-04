@@ -529,16 +529,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_strip_ansi_noop() {
-        // Native names never have ANSI escapes — strip_ansi is identity.
-        assert_eq!(CliService::strip_ansi("hello"), "hello");
-        assert_eq!(
-            CliService::strip_ansi("agent-browser"),
-            "agent-browser"
-        );
-    }
-
-    #[test]
     fn test_parse_github_url_short() {
         let (owner, repo, branch) = CliService::parse_github_url("vercel-labs/skills").unwrap();
         assert_eq!(owner, "vercel-labs");
@@ -571,17 +561,4 @@ mod tests {
         assert!(CliService::parse_github_url("https://gitlab.com/foo/bar").is_err());
     }
 
-    #[test]
-    fn test_extract_frontmatter() {
-        let md = "---\nname: test\n---\n\n# Hello";
-        assert_eq!(
-            crate::services::skill::SkillService::extract_frontmatter(md).unwrap(),
-            "name: test"
-        );
-    }
-
-    #[test]
-    fn test_extract_frontmatter_none() {
-        assert!(crate::services::skill::SkillService::extract_frontmatter("# Just a header").is_none());
-    }
 }

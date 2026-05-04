@@ -5,9 +5,28 @@
 
 # Skill Zoo
 
+[![Release](https://img.shields.io/github/v/release/luochang212/skill-zoo?style=flat-square&color=0e7490)](https://github.com/luochang212/skill-zoo/releases)
+[![Downloads](https://img.shields.io/github/downloads/luochang212/skill-zoo/total?style=flat-square&color=0e7490)](https://github.com/luochang212/skill-zoo/releases)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-0e7490?style=flat-square)]()
+[![License](https://img.shields.io/badge/license-MIT-0e7490?style=flat-square)](LICENSE)
+[![CI](https://github.com/luochang212/skill-zoo/actions/workflows/build.yml/badge.svg)](https://github.com/luochang212/skill-zoo/actions)
+
 ![app-screenshot](docs/header-image.webp)
 
 本地 Agent Skills 管理器 — 发现、安装、管理 Claude Code、Codex、Cursor、Gemini 等 AI 编程工具的技能。
+
+## 为什么选择 Skill Zoo？
+
+AI 编程工具越来越多 — Claude Code、Cursor、Codex、Gemini。每个工具把技能存在不同目录。没有 Skill Zoo 之前，管理技能意味着：
+
+- 在多个 Agent 目录之间手动复制文件
+- 无法发现社区中有哪些技能
+- 看不到哪些技能安装到了哪里
+- 同一技能的多个副本各自修改，逐渐产生差异
+
+Skill Zoo 让你在一个地方**浏览**、**安装**、**编辑**和**同步**所有 AI 编程工具的 skill。它是一个拥有专用界面设计的文件管理器 — 本地优先，无云端，无锁定。
+
+<!-- ![Demo](docs/demo.gif) -->
 
 ## 🚀 功能
 
