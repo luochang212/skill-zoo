@@ -15,7 +15,7 @@
 
 Local Agent Skills Manager — Discover, install, and manage skills for AI coding tools including Claude Code, Codex, Cursor, Gemini and more.
 
-## Why Skill Zoo?
+<!-- ## Why Skill Zoo?
 
 AI coding tools are multiplying — Claude Code, Cursor, Codex, Gemini. Each stores skills in a different directory. Before Skill Zoo, managing skills meant:
 
@@ -26,7 +26,7 @@ AI coding tools are multiplying — Claude Code, Cursor, Codex, Gemini. Each sto
 
 Skill Zoo gives you a single place to **browse**, **install**, **edit**, and **sync** skills across all your AI coding tools. It's a file manager with a purpose-built UI — local-first, no cloud, no lock-in.
 
-<!-- ![Demo](docs/demo.gif) -->
+![Demo](docs/demo.gif) -->
 
 ## 🚀 Features
 
