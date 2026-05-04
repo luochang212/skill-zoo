@@ -86,6 +86,18 @@ nav .gh-icon {
 }
 nav .gh-link:hover .gh-icon { opacity: 1; }
 
+nav .lang-toggle {
+  font-size: 13px; font-weight: 600;
+  color: var(--text-dim); text-decoration: none;
+  padding: 4px 8px; border-radius: 6px;
+  border: none;
+  cursor: pointer; background: transparent;
+  transition: color .2s;
+}
+nav .lang-toggle:hover { color: var(--text); }
+nav.light .lang-toggle { color: var(--l-text-dim); }
+nav.light .lang-toggle:hover { color: var(--l-text); }
+
 /* ── Sections ── */
 .page {
   height: 100vh;
@@ -668,10 +680,13 @@ footer a:hover { text-decoration: underline; }
 <nav id="main-nav">
   <div class="inner">
     <a href="#hero" class="logo">SKILL ZOO</a>
-    <a href="https://github.com/luochang212/skill-zoo" target="_blank" class="gh-link">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <button class="lang-toggle" id="lang-toggle">中文</button>
+      <a href="https://github.com/luochang212/skill-zoo" target="_blank" class="gh-link">
       <svg class="gh-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
       GitHub
     </a>
+    </div>
   </div>
 </nav>
 
@@ -681,9 +696,9 @@ footer a:hover { text-decoration: underline; }
   <div class="hero-entrance">
     <h1 class="glowing-txt">SK<span class="faulty-letter">I</span>LL ZOO</h1>
   </div>
-  <p class="hero-subtitle hero-entrance">Local GUI for managing AI Agent Skills</p>
+  <p class="hero-subtitle hero-entrance" data-i18n="hero-subtitle">Local GUI for managing AI Agent Skills</p>
   <a href="#showcase" class="scroll-hint">
-    <span>Scroll</span>
+    <span data-i18n="scroll">Scroll</span>
     <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12l7 7 7-7" stroke-linecap="round" stroke-linejoin="round"/></svg>
   </a>
 </section>
@@ -692,13 +707,13 @@ footer a:hover { text-decoration: underline; }
 <section id="showcase" class="page">
   <div class="showcase-left">
     <div class="showcase-left-content">
-      <h2>Get Skill Zoo</h2>
-      <p>Free &amp; open source desktop app. One place for all your AI agent skills.</p>
+      <h2 data-i18n="get-skill-zoo">Get Skill Zoo</h2>
+      <p data-i18n="get-skill-zoo-desc">Free &amp; open source desktop app. One place for all your AI agent skills.</p>
       <!-- macOS -->
       <div class="download-macos-wrap" style="display:flex;width:100%;">
         <div style="width:100%;max-width:340px;">
         <div class="download-macos-title" style="font-size:13px;font-weight:600;color:var(--l-text);margin-bottom:10px;display:flex;align-items:center;">
-          macOS
+          <span data-i18n="macos">macOS</span>
           <span class="warn-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor" stroke="none"/></svg>
             <span class="tooltip">If you see "skill-zoo" is damaged and can't be opened, run <code>xattr -d com.apple.quarantine /Applications/skill-zoo.app</code> in Terminal. This is needed because we don't have an Apple Developer account ($99/year) for signing/notarizing the app.</span>
@@ -711,13 +726,13 @@ footer a:hover { text-decoration: underline; }
           <div><span class="prompt" aria-hidden="true">$ </span>brew tap luochang212/tap</div>
           <div><span class="prompt" aria-hidden="true">$ </span>brew install --cask skill-zoo</div>
         </div>
-        <div style="font-size:11px;color:var(--l-text-dim);margin-top:8px;">Or download the <a href="https://github.com/luochang212/skill-zoo/releases" target="_blank" style="color:var(--l-accent);">.dmg from GitHub Releases</a></div>
+        <div style="font-size:11px;color:var(--l-text-dim);margin-top:8px;" data-i18n="or-download">Or download the <a href="https://github.com/luochang212/skill-zoo/releases" target="_blank" style="color:var(--l-accent);">.dmg from GitHub Releases</a></div>
       </div>
       </div>
       <!-- Windows -->
       <div class="download-win" style="width:100%;max-width:340px;display:flex;flex-direction:column;align-items:flex-start;">
         <div style="font-size:13px;font-weight:600;color:var(--l-text);margin-bottom:10px;display:flex;align-items:center;">
-          Windows
+          <span data-i18n="windows">Windows</span>
           <span class="warn-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor" stroke="none"/></svg>
             <span class="tooltip">Portable version recommended. If SmartScreen shows a warning, click <strong>"More info"</strong> → <strong>"Run anyway"</strong>.</span>
@@ -744,37 +759,37 @@ footer a:hover { text-decoration: underline; }
 <!-- ── Page 3: Features (light) ── -->
 <section id="features" class="page">
   <div class="features-inner">
-    <h2>Features</h2>
+    <h2 data-i18n="features">Features</h2>
     <div class="features-grid">
       <div class="feature-card">
         <div class="icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
-        <h3>Browse &amp; Discover</h3>
-        <p>Explore skill repositories from GitHub with banner recommendations.</p>
+        <h3 data-i18n="browse-discover">Browse &amp; Discover</h3>
+        <p data-i18n="browse-discover-desc">Explore skill repositories from GitHub with banner recommendations.</p>
       </div>
       <div class="feature-card">
         <div class="icon"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
-        <h3>One-Click Install</h3>
-        <p>Install skills to a shared store with automatic symlink creation.</p>
+        <h3 data-i18n="one-click-install">One-Click Install</h3>
+        <p data-i18n="one-click-install-desc">Install skills to a shared store with automatic symlink creation.</p>
       </div>
       <div class="feature-card">
         <div class="icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="9" cy="5" r="2"/><path d="M7 11V7a2 2 0 0 1 2-2h0"/><circle cx="17" cy="5" r="2"/><path d="M15 11V7a2 2 0 0 1 2-2h0"/></svg></div>
-        <h3>Multi-Agent</h3>
-        <p>Claude Code, Codex, Cursor, Gemini, Trae, Trae CN, Hermes, OpenClaw.</p>
+        <h3 data-i18n="multi-agent">Multi-Agent</h3>
+        <p data-i18n="multi-agent-desc">Claude Code, Codex, Cursor, Gemini, Trae, Trae CN, Hermes, OpenClaw.</p>
       </div>
       <div class="feature-card">
         <div class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a7 7 0 0 0 0 20 10 10 0 0 1 0-20z" fill="currentColor" opacity=".15"/><path d="M12 2a10 10 0 0 1 0 20"/></svg></div>
-        <h3>Dark &amp; Light Theme</h3>
-        <p>Follows system preference with smooth animated transitions.</p>
+        <h3 data-i18n="dark-light-theme">Dark &amp; Light Theme</h3>
+        <p data-i18n="dark-light-theme-desc">Follows system preference with smooth animated transitions.</p>
       </div>
       <div class="feature-card">
         <div class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
-        <h3>i18n</h3>
-        <p>English and Simplified Chinese, auto-detected.</p>
+        <h3 data-i18n="i18n">i18n</h3>
+        <p data-i18n="i18n-desc">English and Simplified Chinese, auto-detected.</p>
       </div>
       <div class="feature-card">
         <div class="icon"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
-        <h3>Local &amp; Offline</h3>
-        <p>All data in local files. No cloud dependency.</p>
+        <h3 data-i18n="local-offline">Local &amp; Offline</h3>
+        <p data-i18n="local-offline-desc">All data in local files. No cloud dependency.</p>
       </div>
     </div>
     <div class="tech-tags">
@@ -795,6 +810,93 @@ footer a:hover { text-decoration: underline; }
 
 
 <script>
+// ── i18n ──
+const T = {
+  'hero-subtitle':       { en: 'Local GUI for managing AI Agent Skills', zh: '管理 AI Agent Skills 的本地 GUI 工具' },
+  'scroll':              { en: 'Scroll', zh: 'Scroll' },
+  'get-skill-zoo':       { en: 'Get Skill Zoo', zh: '获取 Skill Zoo' },
+  'get-skill-zoo-desc':  { en: 'Free & open source desktop app. One place for all your AI agent skills.', zh: '免费开源桌面应用，集中管理你的所有 AI agent skills。' },
+  'macos':               { en: 'macOS', zh: 'macOS' },
+  'windows':             { en: 'Windows', zh: 'Windows' },
+  'features':            { en: 'Features', zh: '功能特性' },
+  'browse-discover':     { en: 'Browse & Discover', zh: '浏览与发现' },
+  'browse-discover-desc':{ en: 'Explore skill repositories from GitHub with banner recommendations.', zh: '浏览 GitHub 上的 skill 仓库，附带精选推荐。' },
+  'one-click-install':   { en: 'One-Click Install', zh: '一键安装' },
+  'one-click-install-desc':{ en: 'Install skills to a shared store with automatic symlink creation.', zh: '安装 skills 到共享存储，自动创建符号链接。' },
+  'multi-agent':         { en: 'Multi-Agent', zh: '多 Agent 支持' },
+  'multi-agent-desc':    { en: 'Claude Code, Codex, Cursor, Gemini, Trae, Trae CN, Hermes, OpenClaw.', zh: 'Claude Code、Codex、Cursor、Gemini、Trae、Trae CN、Hermes、OpenClaw。' },
+  'dark-light-theme':    { en: 'Dark & Light Theme', zh: '深色与浅色主题' },
+  'dark-light-theme-desc':{ en: 'Follows system preference with smooth animated transitions.', zh: '跟随系统偏好，切换动画流畅自然。' },
+  'i18n':                { en: 'i18n', zh: '国际化' },
+  'i18n-desc':           { en: 'English and Simplified Chinese, auto-detected.', zh: '英文与简体中文，自动检测。' },
+  'local-offline':       { en: 'Local & Offline', zh: '本地与离线' },
+  'local-offline-desc':  { en: 'All data in local files. No cloud dependency.', zh: '所有数据存储在本地文件，不依赖云服务。' },
+};
+
+// Keys whose elements contain mixed HTML (handled via innerHTML, not textContent)
+const HTML_KEYS = new Set(['or-download']);
+
+let currentLang = 'en';
+
+function detectLang() {
+  const params = new URLSearchParams(location.search);
+  if (params.get('lang') === 'zh') return 'zh';
+  if (params.get('lang') === 'en') return 'en';
+  if (sessionStorage.getItem('lang')) return sessionStorage.getItem('lang');
+  return navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+}
+
+function applyTranslations(lang) {
+  currentLang = lang;
+  sessionStorage.setItem('lang', lang);
+  document.getElementById('lang-toggle').textContent = lang === 'en' ? '中文' : 'EN';
+  document.documentElement.lang = lang === 'zh' ? 'zh' : 'en';
+  document.title = lang === 'zh' ? 'Skill Zoo — AI Agent 技能管理器' : 'Skill Zoo — AI Agent Skill Manager';
+
+  // Simple text nodes (skip mixed-content elements)
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.dataset.i18n;
+    if (HTML_KEYS.has(key)) return;
+    if (T[key] && T[key][lang]) el.textContent = T[key][lang];
+  });
+
+  // Mixed-content elements
+  const orDownloadDiv = document.querySelector('[data-i18n="or-download"]');
+  if (orDownloadDiv) {
+    orDownloadDiv.innerHTML = lang === 'zh'
+      ? '或从 <a href="https://github.com/luochang212/skill-zoo/releases" target="_blank" style="color:var(--l-accent);">GitHub Releases</a> 下载 .dmg'
+      : 'Or download the <a href="https://github.com/luochang212/skill-zoo/releases" target="_blank" style="color:var(--l-accent);">.dmg from GitHub Releases</a>';
+  }
+
+  const footer = document.querySelector('footer');
+  if (footer) {
+    footer.innerHTML = lang === 'zh'
+      ? '&copy; 2026 Skill Zoo · MIT 协议 · <a href="https://github.com/luochang212/skill-zoo" target="_blank">GitHub</a>'
+      : '&copy; 2026 Skill Zoo · MIT License · <a href="https://github.com/luochang212/skill-zoo" target="_blank">GitHub</a>';
+  }
+
+  // Tooltips
+  const warnIcons = document.querySelectorAll('.warn-icon');
+  if (warnIcons[0]) {
+    const cmd = 'xattr -d com.apple.quarantine /Applications/skill-zoo.app';
+    warnIcons[0].querySelector('.tooltip').innerHTML = lang === 'zh'
+      ? `如果提示"skill-zoo"已损坏无法打开，请在终端运行 <code>${cmd}</code>。这是因为我们没有 Apple Developer 账号（$99/年）来签名/公证应用。`
+      : `If you see "skill-zoo" is damaged and can't be opened, run <code>${cmd}</code> in Terminal. This is needed because we don't have an Apple Developer account ($99/year) for signing/notarizing the app.`;
+  }
+  if (warnIcons[1]) {
+    warnIcons[1].querySelector('.tooltip').innerHTML = lang === 'zh'
+      ? '建议使用便携版。如果 SmartScreen 发出警告，请点击 <strong>"更多信息"</strong> → <strong>"仍要运行"</strong>。'
+      : 'Portable version recommended. If SmartScreen shows a warning, click <strong>"More info"</strong> → <strong>"Run anyway"</strong>.';
+  }
+}
+
+document.getElementById('lang-toggle').addEventListener('click', () => {
+  applyTranslations(currentLang === 'en' ? 'zh' : 'en');
+});
+
+// Apply on load
+applyTranslations(detectLang());
+
 // 3D Cover Flow carousel
 const sources = [
   { src: './screenshots/screenshot-1.webp', alt: 'Skill Zoo main interface' },

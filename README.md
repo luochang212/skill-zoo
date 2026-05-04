@@ -99,6 +99,8 @@ skill-zoo/
 
 ## 🔧 Development
 
+Prerequisites: [Bun](https://bun.sh/), [Rust](https://www.rust-lang.org/tools/install), and a [Tauri setup](https://v2.tauri.app/start/prerequisites/).
+
 ```bash
 # Install dependencies
 bun install
