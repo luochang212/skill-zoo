@@ -12,6 +12,7 @@
 ### Fixed
 - Race condition in BannerCarousel.
 - Lock ordering in get_installed_skills.
+- Sorting not applied to grid view in InstalledSkills.
 
 ## [0.1.2] — 2026-05-04
 
