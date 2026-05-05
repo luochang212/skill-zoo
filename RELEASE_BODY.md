@@ -26,7 +26,7 @@ xattr -d com.apple.quarantine /Applications/skill-zoo.app
 > **Note:** We don't have an Apple Developer account ($99/year), so the app cannot be signed or notarized. `xattr -d` removes the quarantine flag that macOS attaches to unsigned apps, allowing it to launch normally. This only needs to be done once.
 
 <details>
-<summary>🧑‍💻 Install via Homebrew (macOS developers)</summary>
+<summary>Install via Homebrew (macOS developers)</summary>
 
 ```bash
 brew tap luochang212/tap
@@ -48,14 +48,14 @@ You'll also need to run `xattr -d com.apple.quarantine /Applications/skill-zoo.a
 **Windows**: Download the portable version, extract it to any folder, and double-click the `.exe` to run. If SmartScreen shows a warning, click **"More info"** → **"Run anyway"**.
 
 <details>
-<summary>📦 Installer (alternative)</summary>
+<summary>Installer (alternative)</summary>
 
 Download `Skill-Zoo-__VERSION__-Windows.exe` and run it. The installer will set up shortcuts automatically. SmartScreen may also show a warning — handle it the same way.
 
 </details>
 
 <details>
-<summary>🇨🇳 中文说明</summary>
+<summary>🇨🇳 中文安装指南</summary>
 
 ## 安装指南
 
@@ -85,7 +85,7 @@ xattr -d com.apple.quarantine /Applications/skill-zoo.app
 > **说明**：我们没有 Apple 开发者账号（$99/年），因此应用无法签名或公证。`xattr -d` 会移除 macOS 对未签名应用的隔离标记，使其可以正常启动。此操作只需执行一次。
 
 <details>
-<summary>🧑‍💻 通过 Homebrew 安装（macOS 开发者）</summary>
+<summary>通过 Homebrew 安装（macOS 开发者）</summary>
 
 ```bash
 brew tap luochang212/tap
@@ -107,7 +107,7 @@ brew upgrade --cask skill-zoo
 **Windows**：下载便携版，解压到任意文件夹，双击 `.exe` 运行。如果出现 SmartScreen 警告，点击 **"更多信息"** → **"仍要运行"**。
 
 <details>
-<summary>📦 安装版（备选）</summary>
+<summary>安装版（备选）</summary>
 
 下载 `Skill-Zoo-__VERSION__-Windows.exe` 并运行，安装程序会自动创建快捷方式。SmartScreen 可能同样出现警告，处理方式相同。
 
