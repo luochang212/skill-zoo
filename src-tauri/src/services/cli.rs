@@ -69,17 +69,23 @@ impl CliService {
 
         for (skill_name, _description, skill_path) in &to_install {
             let dest_dir = ssot_dir.join(skill_name);
+            let tmp_dir = ssot_dir.join(format!(".{skill_name}.tmp"));
 
-            // Remove previous installation if present
-            if dest_dir.exists() {
-                std::fs::remove_dir_all(&dest_dir).map_err(AppError::Io)?;
+            // Clean up leftover temp directory from a previous failed install
+            if tmp_dir.exists() {
+                let _ = std::fs::remove_dir_all(&tmp_dir);
             }
 
-            match Self::copy_dir_contents(skill_path, &dest_dir) {
+            match Self::copy_dir_contents(skill_path, &tmp_dir) {
                 Ok(_) => {
+                    if dest_dir.exists() {
+                        std::fs::remove_dir_all(&dest_dir).map_err(AppError::Io)?;
+                    }
+                    std::fs::rename(&tmp_dir, &dest_dir).map_err(AppError::Io)?;
                     installed_names.push(skill_name.clone());
                 }
                 Err(e) => {
+                    let _ = std::fs::remove_dir_all(&tmp_dir);
                     errors.push(format!("{skill_name}: {e}"));
                 }
             }
@@ -282,8 +288,13 @@ impl CliService {
         }
     }
 
+    fn sanitize_branch(branch: &str) -> String {
+        branch.replace(['/', '\\'], "--")
+    }
+
     pub fn cache_zip_path(owner: &str, repo: &str, branch: &str) -> PathBuf {
-        config::get_repo_zip_cache_dir().join(format!("{owner}--{repo}--{branch}.zip"))
+        config::get_repo_zip_cache_dir()
+            .join(format!("{owner}--{repo}--{}.zip", Self::sanitize_branch(branch)))
     }
 
     pub async fn ensure_cached_zip(
@@ -332,7 +343,10 @@ impl CliService {
             )));
         }
 
-        let tmp_path = cache_dir.join(format!(".{owner}--{repo}--{branch}.zip.tmp"));
+        let tmp_path = cache_dir.join(format!(
+            ".{owner}--{repo}--{}.zip.tmp",
+            Self::sanitize_branch(branch)
+        ));
         std::fs::write(&tmp_path, &bytes).map_err(AppError::Io)?;
         std::fs::rename(&tmp_path, &cache_path).map_err(AppError::Io)?;
 
@@ -515,12 +529,18 @@ impl CliService {
 
         let ssot_dir = config::get_agents_skills_dir();
         let dest = ssot_dir.join(name);
+        let tmp = ssot_dir.join(format!(".{name}.tmp"));
+
+        if tmp.exists() {
+            let _ = std::fs::remove_dir_all(&tmp);
+        }
+
+        Self::copy_dir_contents(skill_path, &tmp)?;
 
         if dest.exists() {
             std::fs::remove_dir_all(&dest).map_err(AppError::Io)?;
         }
-
-        Self::copy_dir_contents(skill_path, &dest)
+        std::fs::rename(&tmp, &dest).map_err(AppError::Io)
     }
 }
 

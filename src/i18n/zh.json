@@ -220,6 +220,7 @@
       "description": "帮助我们改进 Skill Zoo！",
       "reportBug": "报告 Bug",
       "requestFeature": "功能建议",
+      "releases": "GitHub Releases",
       "hint": "在浏览器中打开 GitHub Issues，应用信息已预填。"
     }
   }

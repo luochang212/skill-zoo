@@ -130,20 +130,18 @@ pub async fn get_installed_skills(
     force: Option<bool>,
 ) -> Result<Vec<InstalledSkill>, String> {
     if !force.unwrap_or(false) {
-        let entries: Vec<crate::persistence::SkillCacheEntry> = {
+        let skills_opt = {
             let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
             if !cache.skills.is_empty() {
-                cache.skills.clone()
+                let metadata = state.metadata.read().map_err(|e| e.to_string())?;
+                let skills = SkillService::get_cached_skills(&cache, &metadata)
+                    .map_err(|e| e.to_string())?;
+                Some(skills)
             } else {
-                Vec::new()
+                None
             }
         };
-        if !entries.is_empty() {
-            let mut skills = {
-                let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-                let metadata = state.metadata.read().map_err(|e| e.to_string())?;
-                SkillService::get_cached_skills(&cache, &metadata).map_err(|e| e.to_string())?
-            };
+        if let Some(mut skills) = skills_opt {
             // detect_agents does filesystem I/O — must be outside any lock
             SkillService::fill_detect_agents(&mut skills);
             return Ok(skills);

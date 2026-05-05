@@ -220,6 +220,7 @@
       "description": "Help us improve Skill Zoo!",
       "reportBug": "Report a Bug",
       "requestFeature": "Request a Feature",
+      "releases": "GitHub Releases",
       "hint": "Opens GitHub Issues in your browser with app info pre-filled."
     }
   }
