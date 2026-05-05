@@ -68,20 +68,38 @@ Use today's date. Group changes under **Added**, **Changed**, **Fixed** headings
 
 Commit the changelog update before proceeding.
 
-### 3. Verify Prerequisites
+### 3. Update Cargo.toml Version
+
+Update `src-tauri/Cargo.toml` version to match the release version:
+
+```bash
+sed -i '' 's/^version = ".*"/version = "X.Y.Z"/' src-tauri/Cargo.toml
+```
+
+Commit this change before proceeding.
+
+### 4. Verify Cask URL Pattern
+
+Before tagging, verify the Homebrew cask URL pattern matches the CI artifact naming:
+
+```bash
+gh api repos/luochang212/homebrew-tap/contents/Casks/skill-zoo.rb --jq '.content' | base64 -d
+```
+
+Check that the URL in the cask matches the artifact naming produced by CI:
+```
+Skill-Zoo-v{VERSION}-macOS-arm64.dmg
+Skill-Zoo-v{VERSION}-macOS-x64.dmg
+```
+
+A mismatched URL will 404 for all Homebrew users. If the pattern doesn't match, fix the cask formula before proceeding.
+
+### 5. Verify Prerequisites
 
 - `git status --short` is clean. Warn user if uncommitted changes exist.
 - `RELEASE_BODY.md` uses `__VERSION__` and `__COMMITS__` placeholders — never hardcoded version numbers.
-- The Homebrew cask URL pattern matches renamed artifacts:
 
-```ruby
-url ".../Skill-Zoo-v#{version}-macOS-arm64.dmg"
-url ".../Skill-Zoo-v#{version}-macOS-x64.dmg"
-```
-
-CI only updates `version` and `sha256` in the formula. A mismatched URL 404s for all Homebrew users. Verify with the command in Quick Reference.
-
-### 4. Tag and Push
+### 6. Tag and Push
 
 > **CRITICAL:** Pushing a `v*` tag triggers CI to build and publish a release. **Always tell the user explicitly that a push is about to happen and get their consent before executing.** Never push without approval.
 
@@ -91,7 +109,7 @@ git tag v0.1.2
 git push origin v0.1.2
 ```
 
-### 5. CI Jobs (triggered by `v*` tag)
+### 7. CI Jobs (triggered by `v*` tag)
 
 | Job | Outcome |
 |---|---|
@@ -99,7 +117,7 @@ git push origin v0.1.2
 | **create-release** | GitHub Release with substituted release notes + all artifacts |
 | **update-homebrew** | Computes SHA256, updates cask formula, opens PR |
 
-### 6. Post-Release
+### 8. Post-Release
 
 - CI creates a PR in `luochang212/homebrew-tap` — once the PR looks good, merge it with `gh`:
   ```bash
