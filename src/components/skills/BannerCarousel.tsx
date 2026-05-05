@@ -79,20 +79,35 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
   }, []);
 
   useEffect(() => {
+    let ignore = false;
     async function loadUrls() {
       setLoading(true);
-      const urls = await Promise.all(
-        banners.map(async (b) => {
-          const path = await resolveResource(b.image);
-          return convertFileSrc(path);
-        })
-      );
-      setImageUrls(urls);
-      setLoading(false);
+      try {
+        const urls = await Promise.all(
+          banners.map(async (b) => {
+            const path = await resolveResource(b.image);
+            return convertFileSrc(path);
+          })
+        );
+        if (!ignore) {
+          setImageUrls(urls);
+        }
+      } catch {
+        // Banner image load failed — proceed with empty state
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
+      }
     }
     if (banners.length > 0) {
       loadUrls();
+    } else {
+      setLoading(false);
     }
+    return () => {
+      ignore = true;
+    };
   }, [banners]);
 
   // Auto-play

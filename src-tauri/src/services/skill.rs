@@ -1250,7 +1250,7 @@ impl SkillService {
     /// Searches SSOT first, then agent directories (same fallback as read_skill_md).
     pub fn list_skill_files(directory: &str) -> Result<Vec<SkillFileNode>, AppError> {
         crate::commands::skill::validate_skill_directory(directory)
-            .map_err(|e| AppError::BadRequest(e))?;
+            .map_err(AppError::BadRequest)?;
 
         // Build candidate directories — SSOT first, then agent dirs
         let mut candidates: Vec<std::path::PathBuf> = Vec::new();
@@ -1324,7 +1324,7 @@ impl SkillService {
         }
     }
 
-    fn sort_nodes(nodes: &mut Vec<SkillFileNode>) {
+    fn sort_nodes(nodes: &mut [SkillFileNode]) {
         nodes.sort_by(|a, b| match (a.is_dir, b.is_dir) {
             (true, false) => std::cmp::Ordering::Less,
             (false, true) => std::cmp::Ordering::Greater,
