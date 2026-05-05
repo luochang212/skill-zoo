@@ -318,7 +318,7 @@ export function InstalledSkills({
           <div className="flex-1 overflow-auto pt-1 pr-1">
             {viewMode === "grid" ? (
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                {filtered.map((skill) => (
+                {sorted.map((skill) => (
                   <SkillCard
                     key={skill.id}
                     skill={skill}
