@@ -7,7 +7,7 @@ description: Use when the user asks to release a new version, ship a build, or p
 
 ## Overview
 
-Release is done by pushing a `v*` tag. CI builds all platforms, creates a GitHub Release, and updates the Homebrew cask. The only manual step is the tag push.
+Release is done by pushing a `v*` tag. CI builds all platforms, creates a GitHub Release, and updates the Homebrew cask. Manual steps: update CHANGELOG.md, then tag and push.
 
 **Announce at start:** "I'm using the release skill to ship a new version."
 
@@ -56,7 +56,19 @@ digraph when_release {
 
 Ask the user. Check `git tag --sort=-v:refname | head -5` for context. Version must start with `v` (only `v*` tags trigger CI).
 
-### 2. Verify Prerequisites
+### 2. Update CHANGELOG.md
+
+Before tagging, move the `[Unreleased]` section to a new version entry:
+
+```markdown
+## [X.Y.Z] — YYYY-MM-DD
+```
+
+Use today's date. Group changes under **Added**, **Changed**, **Fixed** headings. Review commits since the last tag with `git log --oneline v<LAST>..HEAD` to ensure nothing is missed.
+
+Commit the changelog update before proceeding.
+
+### 3. Verify Prerequisites
 
 - `git status --short` is clean. Warn user if uncommitted changes exist.
 - `RELEASE_BODY.md` uses `__VERSION__` and `__COMMITS__` placeholders — never hardcoded version numbers.
@@ -69,7 +81,9 @@ url ".../Skill-Zoo-v#{version}-macOS-x64.dmg"
 
 CI only updates `version` and `sha256` in the formula. A mismatched URL 404s for all Homebrew users. Verify with the command in Quick Reference.
 
-### 3. Tag and Push
+### 4. Tag and Push
+
+> **CRITICAL:** Pushing a `v*` tag triggers CI to build and publish a release. **Always tell the user explicitly that a push is about to happen and get their consent before executing.** Never push without approval.
 
 ```bash
 git push origin main
@@ -77,7 +91,7 @@ git tag v0.1.2
 git push origin v0.1.2
 ```
 
-### 4. CI Jobs (triggered by `v*` tag)
+### 5. CI Jobs (triggered by `v*` tag)
 
 | Job | Outcome |
 |---|---|
@@ -85,7 +99,7 @@ git push origin v0.1.2
 | **create-release** | GitHub Release with substituted release notes + all artifacts |
 | **update-homebrew** | Computes SHA256, updates cask formula, opens PR |
 
-### 5. Post-Release
+### 6. Post-Release
 
 - CI creates a PR in `luochang212/homebrew-tap` — once the PR looks good, merge it with `gh`:
   ```bash

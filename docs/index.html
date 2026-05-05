@@ -131,9 +131,7 @@ nav.light .lang-toggle:hover { color: var(--l-text); }
   position: absolute; inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 60% 50% at 50% 50%, rgba(14,116,144,.12) 0%, transparent 70%),
-    radial-gradient(ellipse 40% 60% at 20% 80%, rgba(34,211,238,.06) 0%, transparent 60%),
-    radial-gradient(ellipse 40% 60% at 80% 20%, rgba(14,116,144,.06) 0%, transparent 60%);
+    radial-gradient(ellipse 60% 50% at 50% 50%, rgba(14,116,144,.12) 0%, transparent 70%);
 }
 #hero::after {
   content: '';
@@ -891,9 +889,7 @@ function applyTranslations(lang) {
 
   const footer = document.querySelector('footer');
   if (footer) {
-    footer.innerHTML = lang === 'zh'
-      ? '&copy; 2026 Skill Zoo · MIT 协议 · <a href="https://github.com/luochang212/skill-zoo" target="_blank">GitHub</a>'
-      : '&copy; 2026 Skill Zoo · MIT License · <a href="https://github.com/luochang212/skill-zoo" target="_blank">GitHub</a>';
+    footer.innerHTML = '&copy; 2026 Skill Zoo · MIT License · <a href="https://github.com/luochang212/skill-zoo" target="_blank">GitHub</a>';
   }
 
   // Tooltips
