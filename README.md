@@ -136,11 +136,11 @@ bun run tauri build
 
 ## 😇 Trust & Security
 
-- **Code You Can Audit** — All source code is open and builds run fully on GitHub Actions; anyone can review what you're running
-- **Connects On Demand** — No background polling; network requests only fire when you trigger an action like browsing or installing
-- **You Stay in Control** — Any operation that touches real files (delete, move, overwrite) always asks you to confirm first
+- **Auditable Code** — 100% open source. Every build runs on GitHub Actions for anyone to inspect.
+- **Connects On Demand** — No background polling. Network requests only happen when you browse or install something.
+- **You Stay in Control** — Any operation that touches real files (delete, move, overwrite) asks for confirmation first.
 
-## 🤝 Contributing
+## 💡 Contributing
 
 Found a bug or have an idea? Open an [issue](https://github.com/luochang212/skill-zoo/issues) or submit a PR — contributions of all kinds are welcome!
 
