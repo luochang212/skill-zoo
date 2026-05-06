@@ -10,10 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useSymlinkStatus, useToggleSymlink } from "@/hooks/useSkills";
-import {
-  useVisibleAgents,
-  filterVisibleAgents,
-} from "@/hooks/useSettings";
+import { useVisibleAgentOrder } from "@/hooks/useSettings";
 import { useAgentConfigs, getAgentLabel } from "@/lib/agents";
 import { AlertTriangle } from "lucide-react";
 import type { SymlinkStatus } from "@/types/skills";
@@ -36,11 +33,8 @@ export function ConfigureDialog({
   const { t } = useTranslation();
   const { data: symlinks, isLoading, isError, error, refetch } = useSymlinkStatus();
   const toggleSymlink = useToggleSymlink();
-  const { data: visibleAgentsData } = useVisibleAgents();
+  const visibleAgentOrder = useVisibleAgentOrder();
   const { data: agentConfigs } = useAgentConfigs();
-
-  const agentOrder = agentConfigs?.map((a) => a.id) ?? [];
-  const visibleAgentOrder = filterVisibleAgents(agentOrder, visibleAgentsData);
 
   // Find symlinks for this skill
   const skillSymlinks =

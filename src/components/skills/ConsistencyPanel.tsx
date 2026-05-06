@@ -16,6 +16,31 @@ import type { DuplicateGroup, NameMismatch } from "@/hooks/useSkillIssues";
 
 type ConsistencyTab = "duplicates" | "conflicts" | "mismatches";
 
+function TabContent({
+  hint,
+  empty,
+  hasItems,
+  children,
+}: {
+  hint: string;
+  empty: string;
+  hasItems: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-[12px] text-muted-foreground">{hint}</p>
+      {hasItems ? (
+        <div className="space-y-4">{children}</div>
+      ) : (
+        <div className="flex items-start justify-center pt-[20vh]">
+          <p className="text-sm text-muted-foreground">{empty}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DuplicateGroupCard({
   group,
   onMerge,
@@ -67,11 +92,6 @@ function DuplicateGroupCard({
             </div>
           )}
 
-          {!group.sameContent && (
-            <p className="text-[12px] text-muted-foreground pt-1">
-              {t("consistency.conflictHint")}
-            </p>
-          )}
         </div>
       )}
     </div>
@@ -223,16 +243,15 @@ export function ConsistencyPanel({
 
   const duplicateGroups = allGroups.filter((g) => g.sameContent);
   const conflictGroups = allGroups.filter((g) => !g.sameContent);
-  const mismatches = nameMismatches;
 
   const resolvedTab: ConsistencyTab = tab ?? (
     duplicateGroups.length > 0 ? "duplicates" :
     conflictGroups.length > 0 ? "conflicts" :
-    mismatches.length > 0 ? "mismatches" :
+    nameMismatches.length > 0 ? "mismatches" :
     "duplicates"
   );
 
-  if (duplicateGroups.length === 0 && conflictGroups.length === 0 && mismatches.length === 0) {
+  if (duplicateGroups.length === 0 && conflictGroups.length === 0 && nameMismatches.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center gap-2">
         <CheckCircle2 className="h-4 w-4 text-green-500" />
@@ -242,12 +261,6 @@ export function ConsistencyPanel({
   }
 
   const confirmGroup = confirmMerge ? allGroups.find((g) => g.name === confirmMerge) : null;
-
-  const activeContent = () => {
-    if (resolvedTab === "duplicates") return duplicateGroups;
-    if (resolvedTab === "conflicts") return conflictGroups;
-    return null;
-  };
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -295,9 +308,9 @@ export function ConsistencyPanel({
         >
           <PenLine className="h-3 w-3 inline mr-1.5 -mt-0.5" />
           {t("consistency.mismatch")}
-          {mismatches.length > 0 && (
+          {nameMismatches.length > 0 && (
             <span className="ml-1.5 text-[10px] bg-sky-200 dark:bg-sky-800/60 px-1.5 py-0 rounded-full">
-              {mismatches.length}
+              {nameMismatches.length}
             </span>
           )}
         </button>
@@ -305,43 +318,42 @@ export function ConsistencyPanel({
 
       {/* Tab content */}
       <div className="flex-1 overflow-auto pr-1">
-        {resolvedTab === "mismatches" ? (
-          mismatches.length === 0 ? (
-            <div className="flex items-start justify-center pt-[30vh]">
-              <p className="text-sm text-muted-foreground">
-                {t("consistency.noMismatches")}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-[12px] text-muted-foreground">
-                {t("consistency.mismatchHint")}
-              </p>
-              {mismatches.map((m) => (
-                <MismatchEntry key={m.skillId} mismatch={m} />
-              ))}
-            </div>
-          )
-        ) : (
-          (activeContent()?.length ?? 0) === 0 ? (
-            <div className="flex items-start justify-center pt-[30vh]">
-              <p className="text-sm text-muted-foreground">
-                {resolvedTab === "duplicates"
-                  ? t("consistency.noDuplicates")
-                  : t("consistency.noConflicts")}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {activeContent()!.map((group) => (
-                <DuplicateGroupCard
-                  key={group.name}
-                  group={group}
-                  onMerge={group.sameContent ? () => setConfirmMerge(group.name) : undefined}
-                />
-              ))}
-            </div>
-          )
+        {resolvedTab === "duplicates" && (
+          <TabContent
+            hint={t("consistency.duplicateHint")}
+            empty={t("consistency.noDuplicates")}
+            hasItems={duplicateGroups.length > 0}
+          >
+            {duplicateGroups.map((group) => (
+              <DuplicateGroupCard
+                key={group.name}
+                group={group}
+                onMerge={() => setConfirmMerge(group.name)}
+              />
+            ))}
+          </TabContent>
+        )}
+        {resolvedTab === "conflicts" && (
+          <TabContent
+            hint={t("consistency.conflictHint")}
+            empty={t("consistency.noConflicts")}
+            hasItems={conflictGroups.length > 0}
+          >
+            {conflictGroups.map((group) => (
+              <DuplicateGroupCard key={group.name} group={group} />
+            ))}
+          </TabContent>
+        )}
+        {resolvedTab === "mismatches" && (
+          <TabContent
+            hint={t("consistency.mismatchHint")}
+            empty={t("consistency.noMismatches")}
+            hasItems={nameMismatches.length > 0}
+          >
+            {nameMismatches.map((m) => (
+              <MismatchEntry key={m.skillId} mismatch={m} />
+            ))}
+          </TabContent>
         )}
       </div>
 

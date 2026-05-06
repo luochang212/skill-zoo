@@ -1,4 +1,9 @@
 import { Bug, Info, Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { getVersion } from "@tauri-apps/api/app";
+import { useState, useEffect } from "react";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { Button } from "@/components/ui/button";
 
 function GithubIcon({ className }: { className?: string }) {
   return (
@@ -12,11 +17,6 @@ function GithubIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-import { useTranslation } from "react-i18next";
-import { getVersion } from "@tauri-apps/api/app";
-import { useState, useEffect } from "react";
-import { openUrl } from "@tauri-apps/plugin-opener";
-import { Button } from "@/components/ui/button";
 
 const GITHUB_REPO = "luochang212/skill-zoo";
 

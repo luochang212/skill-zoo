@@ -14,10 +14,15 @@ import {
 } from "lucide-react";
 import type { SkillFileNode } from "@/types/skills";
 
+function getExtension(name: string): string {
+  const i = name.lastIndexOf(".");
+  return i === -1 ? "" : name.slice(i + 1).toLowerCase();
+}
+
 /** Pick an icon based on file extension. */
 function getFileIcon(name: string, isSkillMd: boolean) {
   if (isSkillMd) return BookOpen;
-  const ext = name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
+  const ext = getExtension(name);
   switch (ext) {
     case "md":
     case "txt":
@@ -43,7 +48,7 @@ function getFileIcon(name: string, isSkillMd: boolean) {
 /** Color classes for file type icons. */
 function getIconColor(name: string, isSkillMd: boolean): string {
   if (isSkillMd) return "text-primary";
-  const ext = name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
+  const ext = getExtension(name);
   switch (ext) {
     case "py":
       return "text-yellow-600 dark:text-yellow-400";

@@ -24,8 +24,8 @@ interface SkillContentPaneProps {
 const SPLIT_MIN = 20; // min % for each pane
 const SPLIT_DEFAULT = 50; // default split position
 
-/** Lazy wrapper for the file tree — handles query + loading/error states. */
-function SkillFileTreeLazy({ directory }: { directory?: string }) {
+/** File tree panel — handles query + loading/error states. */
+function SkillFileTreePanel({ directory }: { directory?: string }) {
   const { t } = useTranslation();
   const { data: nodes, isLoading, isError } = useSkillFiles(directory ?? null);
 
@@ -171,7 +171,7 @@ export function SkillContentPane({
 
       {/* Tab content */}
       {activeTab === "files" ? (
-        <SkillFileTreeLazy directory={directory} />
+        <SkillFileTreePanel directory={directory} />
       ) : (
       /* Animated dual-pane layout (overview / edit / split) */
       <div ref={panesRef} className="flex-1 min-h-0 min-w-0 flex overflow-hidden" role="tabpanel" style={dragging ? { userSelect: "none" } : undefined}>

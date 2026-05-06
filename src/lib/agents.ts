@@ -1,11 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { skillsApi } from "@/lib/api/skills";
+import type { AgentConfig } from "@/types/skills";
 
-export interface AgentConfig {
-  id: string;
-  label: string;
-  skillsSubdir: string;
-}
+export type { AgentConfig };
 
 const PALETTE = [
   { bg: "bg-orange-50",  text: "text-orange-600",  darkBg: "dark:bg-orange-950/30",  darkText: "dark:text-orange-400" },

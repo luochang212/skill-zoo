@@ -14,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAgentConfigs, getAgentLabel } from "@/lib/agents";
-import { useVisibleAgents, filterVisibleAgents } from "@/hooks/useSettings";
+import { useVisibleAgentOrder } from "@/hooks/useSettings";
 import type { DiscoverableSkill } from "@/types/skills";
 
 interface SkillInstallDialogProps {
@@ -40,7 +40,7 @@ export function SkillInstallDialog({
 }: SkillInstallDialogProps) {
   const { t } = useTranslation();
   const { data: agentConfigs } = useAgentConfigs();
-  const { data: visibleAgentsData } = useVisibleAgents();
+  const visibleAgentOrder = useVisibleAgentOrder();
   const isSingleSkill = skills.length === 1;
 
   const [selectedSkills, setSelectedSkills] = useState<Set<string>>(
@@ -49,25 +49,26 @@ export function SkillInstallDialog({
   const [agents, setAgents] = useState<Set<string>>(new Set(["claude-code"]));
 
   const toggleSkill = (directory: string) => {
-    const next = new Set(selectedSkills);
-    if (next.has(directory)) next.delete(directory);
-    else next.add(directory);
-    setSelectedSkills(next);
+    setSelectedSkills((prev) => {
+      const next = new Set(prev);
+      if (next.has(directory)) next.delete(directory);
+      else next.add(directory);
+      return next;
+    });
   };
 
   const toggleAgent = (agent: string) => {
-    const next = new Set(agents);
-    if (next.has(agent)) next.delete(agent);
-    else next.add(agent);
-    setAgents(next);
+    setAgents((prev) => {
+      const next = new Set(prev);
+      if (next.has(agent)) next.delete(agent);
+      else next.add(agent);
+      return next;
+    });
   };
 
   const handleInstall = () => {
     onInstall(Array.from(selectedSkills), Array.from(agents));
   };
-
-  const agentOrder = agentConfigs?.map((a) => a.id) ?? [];
-  const visibleAgentOrder = filterVisibleAgents(agentOrder, visibleAgentsData);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -75,15 +76,7 @@ export function SkillInstallDialog({
         <DialogHeader>
           <DialogTitle>{t("installDialog.title")}</DialogTitle>
           <DialogDescription>
-            {isSingleSkill ? (
-              <>
-                {t("installDialog.from")} {repoOwner}/{repoName} ({repoBranch})
-              </>
-            ) : (
-              <>
-                {t("installDialog.from")} {repoOwner}/{repoName} ({repoBranch})
-              </>
-            )}
+            {t("installDialog.from")} {repoOwner}/{repoName} ({repoBranch})
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">

@@ -4,7 +4,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { skillsApi } from "@/lib/api/skills";
-import { invalidateFor } from "@/hooks/queryInvalidation";
+import { invalidateFor, type MutationName } from "@/hooks/queryInvalidation";
 import type { InstalledSkill } from "@/types/skills";
 
 export function useInstalledSkills() {
@@ -190,35 +190,26 @@ export function useSearchSkillsSh(query: string | null, limit?: number) {
 // ── Star / Create ──
 
 export function useStarSkill() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (skillId: string) => skillsApi.starSkill(skillId),
-    onMutate: async (skillId) => {
-      await qc.cancelQueries({ queryKey: ["skills", "installed"] });
-      const previous = qc.getQueryData<InstalledSkill[]>(["skills", "installed"]);
-      qc.setQueryData<InstalledSkill[]>(["skills", "installed"], (old) =>
-        old?.map((s) => (s.id === skillId ? { ...s, starred: true } : s))
-      );
-      return { previous };
-    },
-    onError: (_err, _skillId, context) => {
-      if (context?.previous) {
-        qc.setQueryData(["skills", "installed"], context.previous);
-      }
-    },
-    onSettled: () => invalidateFor(qc, "starSkill"),
-  });
+  return useStarMutation(skillsApi.starSkill, true, "starSkill");
 }
 
 export function useUnstarSkill() {
+  return useStarMutation(skillsApi.unstarSkill, false, "unstarSkill");
+}
+
+function useStarMutation(
+  apiFn: (id: string) => Promise<void>,
+  starred: boolean,
+  name: MutationName,
+) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (skillId: string) => skillsApi.unstarSkill(skillId),
+    mutationFn: (skillId: string) => apiFn(skillId),
     onMutate: async (skillId) => {
       await qc.cancelQueries({ queryKey: ["skills", "installed"] });
       const previous = qc.getQueryData<InstalledSkill[]>(["skills", "installed"]);
       qc.setQueryData<InstalledSkill[]>(["skills", "installed"], (old) =>
-        old?.map((s) => (s.id === skillId ? { ...s, starred: false } : s))
+        old?.map((s) => (s.id === skillId ? { ...s, starred } : s))
       );
       return { previous };
     },
@@ -227,7 +218,7 @@ export function useUnstarSkill() {
         qc.setQueryData(["skills", "installed"], context.previous);
       }
     },
-    onSettled: () => invalidateFor(qc, "unstarSkill"),
+    onSettled: () => invalidateFor(qc, name),
   });
 }
 

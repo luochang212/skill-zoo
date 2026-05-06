@@ -4,6 +4,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { settingsApi } from "@/lib/api/settings";
+import { useAgentConfigs } from "@/lib/agents";
 import type { VisibleAgents } from "@/types/skills";
 
 const VISIBLE_AGENTS_KEY = ["settings", "visibleAgents"] as const;
@@ -66,4 +67,12 @@ export function filterVisibleAgents(
 ): string[] {
   const va = getVisibleAgentsOrDefault(visibleAgents);
   return agents.filter((agent) => va[agent] !== false);
+}
+
+/** Combined hook: visible agent order in one call */
+export function useVisibleAgentOrder(): string[] {
+  const { data: agentConfigs } = useAgentConfigs();
+  const { data: visibleAgents } = useVisibleAgents();
+  const agentOrder = agentConfigs?.map((a) => a.id) ?? [];
+  return filterVisibleAgents(agentOrder, visibleAgents);
 }

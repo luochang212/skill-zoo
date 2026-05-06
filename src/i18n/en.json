@@ -139,9 +139,10 @@
     "differentContent": "Different content",
     "mergeToSsot": "Merge to SSOT",
     "viewContent": "View content",
-    "conflictHint": "These skills have different content. Please review them manually before deciding how to proceed.",
+    "duplicateHint": "Identical skills exist in multiple locations. You can merge them into SSOT for unified management.",
+    "conflictHint": "These skills have the same name but different content. Review them and decide which version to keep.",
     "noDuplicates": "No duplicate skills detected",
-    "noConflicts": "No conflicting skills detected",
+    "noConflicts": "All same-named skills have identical content",
     "noIssues": "No consistency issues detected",
     "mergeConfirmTitle": "Confirm Merge Duplicate Skills",
     "mergeConfirmDesc": "All copies of skill \"{{name}}\" will be merged into the SSOT directory.",
@@ -155,8 +156,8 @@
     "duplicate": "Duplicate",
     "conflict": "Conflict",
     "mismatch": "Mismatch",
-    "noMismatches": "No name mismatches detected",
-    "mismatchHint": "The skill name in SKILL.md doesn't match its folder name. Rename the folder to keep them consistent.",
+    "noMismatches": "All skill names match their folders",
+    "mismatchHint": "The name field in SKILL.md doesn't match the folder name. Consider renaming to keep them consistent.",
     "folderName": "Folder"
   },
   "skillHero": {

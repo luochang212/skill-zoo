@@ -22,6 +22,8 @@ const tabKeys: { id: View; key: string }[] = [
   { id: "settings", key: "nav.settings" },
 ];
 
+const LOGO_FONT = '"New York", "Iowan Old Style", "Sitka Text", Cambria, Georgia, serif';
+
 export function Header({
   view,
   onViewChange,
@@ -54,8 +56,7 @@ export function Header({
             <h1
               className="italic tracking-tight leading-tight shrink-0 pl-[5.25rem]"
               style={{
-                fontFamily:
-                  '"New York", "Iowan Old Style", "Sitka Text", Cambria, Georgia, serif',
+                fontFamily: LOGO_FONT,
               }}
             >
               <span className="font-bold text-2xl rainbow-text">
@@ -81,8 +82,7 @@ export function Header({
               <h1
                 className="italic tracking-tight leading-tight"
                 style={{
-                  fontFamily:
-                    '"New York", "Iowan Old Style", "Sitka Text", Cambria, Georgia, serif',
+                  fontFamily: LOGO_FONT,
                 }}
               >
                 <span

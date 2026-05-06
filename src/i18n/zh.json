@@ -139,9 +139,10 @@
     "differentContent": "内容不同",
     "mergeToSsot": "合并到 SSOT",
     "viewContent": "查看内容",
-    "conflictHint": "这些技能内容不同，请手动检查后再决定如何处理。",
+    "duplicateHint": "多个位置存在内容相同的技能，可以合并到 SSOT 统一管理。",
+    "conflictHint": "这些技能名字相同但内容有差异，请检查后决定保留哪个。",
     "noDuplicates": "没有检测到重复技能",
-    "noConflicts": "没有检测到冲突技能",
+    "noConflicts": "所有同名技能内容一致",
     "noIssues": "没有检测到一致性问题",
     "mergeConfirmTitle": "确认合并重复技能",
     "mergeConfirmDesc": "即将合并技能「{{name}}」的所有副本到 SSOT 目录。",
@@ -155,8 +156,8 @@
     "duplicate": "重复",
     "conflict": "冲突",
     "mismatch": "不匹配",
-    "noMismatches": "没有检测到名称不匹配",
-    "mismatchHint": "SKILL.md 中的技能名称与文件夹名不一致。重命名文件夹以保持一致。",
+    "noMismatches": "所有技能名称与文件夹一致",
+    "mismatchHint": "技能文件 SKILL.md 里的 name 和文件夹名对不上，建议重命名使其一致。",
     "folderName": "文件夹"
   },
   "skillHero": {

@@ -3,8 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useInstalledSkills, useStarSkill, useUnstarSkill } from "@/hooks/useSkills";
 import { useConsistencyCheck } from "@/hooks/useSkillIssues";
 import {
-  useVisibleAgents,
-  filterVisibleAgents,
+  useVisibleAgentOrder,
   useHideNonSsot,
 } from "@/hooks/useSettings";
 import { useAgentConfigs } from "@/lib/agents";
@@ -80,7 +79,7 @@ export function InstalledSkills({
   const { duplicateGroups, nameMismatches, issuesMap, consistencyCount } = useConsistencyCheck(skills ?? []);
   const starMutation = useStarSkill();
   const unstarMutation = useUnstarSkill();
-  const { data: visibleAgentsData } = useVisibleAgents();
+  const visibleAgentOrder = useVisibleAgentOrder();
   const { data: hideNonSsot } = useHideNonSsot();
   const { data: agentConfigs } = useAgentConfigs();
 
@@ -236,9 +235,6 @@ export function InstalledSkills({
         return 0;
     }
   });
-
-  const agentOrder = agentConfigs?.map((a) => a.id) ?? [];
-  const visibleAgentOrder = filterVisibleAgents(agentOrder, visibleAgentsData);
 
   return (
     <div className="flex h-full">

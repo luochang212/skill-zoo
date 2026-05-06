@@ -122,10 +122,6 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
     onSelectRepo(repo);
   }, [onSelectRepo, addRecent]);
 
-  const handleSearchSelect = useCallback((repo: DiscoverRepo) => {
-    navigateToRepo(repo);
-  }, [navigateToRepo]);
-
   const handleBannerClick = useCallback(
     async (owner: string, name: string) => {
       const found = repos.find((r) => r.owner === owner && r.name === name);
@@ -154,10 +150,10 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
         setDropdownOpen(false);
       } else if (e.key === "Enter" && repoResult && dropdownOpen && isRepoQuery) {
         e.preventDefault();
-        handleSearchSelect(repoResult);
+        navigateToRepo(repoResult);
       }
     },
-    [repoResult, dropdownOpen, isRepoQuery, handleSearchSelect],
+    [repoResult, dropdownOpen, isRepoQuery, navigateToRepo],
   );
 
   // If user selected a repo, show RepoDetail
@@ -213,7 +209,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
                     <>
                       <button
                         className="w-full text-left px-4 py-2.5 hover:bg-accent/50 transition-colors flex items-center justify-between gap-3"
-                        onClick={() => handleSearchSelect(repoResult)}
+                        onClick={() => navigateToRepo(repoResult)}
                       >
                         <div className="min-w-0">
                           <p className="text-[11px] text-muted-foreground/60 uppercase tracking-wider mb-0.5">

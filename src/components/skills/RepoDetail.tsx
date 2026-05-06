@@ -61,10 +61,12 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
     previewSkill?.directory ?? null,
   );
 
+  const skillsQueryKey = ["repos", "skills", repo.owner, repo.name, repo.branch || undefined] as const;
+
   const handleRefresh = () => {
     setIsRefreshing(true);
     skillsApi.getRepoSkills(repo.owner, repo.name, repo.branch || undefined, true).then((data) => {
-      qc.setQueryData(["repos", "skills", repo.owner, repo.name, repo.branch || undefined], data);
+      qc.setQueryData(skillsQueryKey, data);
     }).catch(() => {
       // Silently ignore — stale data remains, user can retry
     }).finally(() => {
@@ -91,8 +93,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
       return;
     }
     // Optimistic update: mark as uninstalled immediately
-    const queryKey = ["repos", "skills", repo.owner, repo.name, repo.branch || undefined];
-    qc.setQueryData<DiscoverableSkill[]>(queryKey, (old) => {
+    qc.setQueryData<DiscoverableSkill[]>(skillsQueryKey, (old) => {
       if (!old) return old;
       return old.map(s => s.key === pendingRemove.key ? { ...s, installed: false } : s);
     });
@@ -103,7 +104,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
       },
       onError: () => {
         // Rollback on error
-        qc.setQueryData<DiscoverableSkill[]>(queryKey, (old) => {
+        qc.setQueryData<DiscoverableSkill[]>(skillsQueryKey, (old) => {
           if (!old) return old;
           return old.map(s => s.key === pendingRemove.key ? { ...s, installed: true } : s);
         });
@@ -121,8 +122,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
           setInstallSkills(null);
           setSelectedDirs(new Set());
           // Mark installed skills in cache without re-downloading the repo
-          const queryKey = ["repos", "skills", repo.owner, repo.name, repo.branch || undefined];
-          qc.setQueryData<DiscoverableSkill[]>(queryKey, (old) => {
+          qc.setQueryData<DiscoverableSkill[]>(skillsQueryKey, (old) => {
             if (!old) return old;
             const installedDirs = new Set(skillNames);
             return old.map((s) =>
@@ -140,10 +140,12 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
   const selectedInstallable = installableSkills.filter((s) => selectedDirs.has(s.directory));
 
   const toggleDir = (dir: string) => {
-    const next = new Set(selectedDirs);
-    if (next.has(dir)) next.delete(dir);
-    else next.add(dir);
-    setSelectedDirs(next);
+    setSelectedDirs((prev) => {
+      const next = new Set(prev);
+      if (next.has(dir)) next.delete(dir);
+      else next.add(dir);
+      return next;
+    });
   };
 
   const toggleAll = () => {
