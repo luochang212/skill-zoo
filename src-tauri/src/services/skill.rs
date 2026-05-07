@@ -617,7 +617,7 @@ impl SkillService {
             .to_string();
         let mut description: Option<String> = None;
         if let Some(frontmatter) = Self::extract_frontmatter(&content) {
-            if let Ok(meta) = serde_yml::from_str::<serde_yml::Value>(&frontmatter) {
+            if let Ok(meta) = serde_yaml::from_str::<serde_yaml::Value>(&frontmatter) {
                 if let Some(n) = meta.get("name") {
                     let n_str = Self::yaml_value_to_string(n);
                     name = CliService::strip_ansi(&n_str);
@@ -645,7 +645,7 @@ impl SkillService {
     const MAX_SCAN_DEPTH: usize = 20;
 
     /// Convert a YAML value to a string, handling numbers, booleans, and null.
-    fn yaml_value_to_string(v: &serde_yml::Value) -> String {
+    fn yaml_value_to_string(v: &serde_yaml::Value) -> String {
         if let Some(s) = v.as_str() {
             return s.to_string();
         }
