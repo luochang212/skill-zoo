@@ -39,7 +39,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9  # v1
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -72,7 +72,7 @@ jobs:
         with:
           bun-version: latest
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9  # v1
         with:
           targets: ${{ matrix.target }}
 
@@ -85,7 +85,7 @@ jobs:
         run: bun install
 
       - name: Tauri build
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@fce9c6108b31ea247710505d3aaaa893ee6768d4  # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -94,18 +94,22 @@ jobs:
       - name: Create portable zip (Windows)
         if: matrix.target == 'x86_64-pc-windows-msvc'
         shell: pwsh
+        env:
+          TAG_NAME: ${{ github.ref_name }}
         run: |
           $dir = "skill-zoo-portable"
           New-Item -ItemType Directory -Path $dir
           Copy-Item "src-tauri/target/${{ matrix.target }}/release/skill-zoo.exe" "$dir/"
           if (Test-Path "src-tauri/resources/") { Copy-Item "src-tauri/resources/*" "$dir/" -Recurse }
-          Compress-Archive -Path $dir -DestinationPath "src-tauri/target/${{ matrix.target }}/release/bundle/Skill-Zoo-${{ github.ref_name }}-Windows-Portable.zip"
+          Compress-Archive -Path $dir -DestinationPath "src-tauri/target/${{ matrix.target }}/release/bundle/Skill-Zoo-$env:TAG_NAME-Windows-Portable.zip"
 
       - name: Rename artifacts
         shell: bash
+        env:
+          TAG_NAME: ${{ github.ref_name }}
         run: |
           BUNDLE="src-tauri/target/${{ matrix.target }}/release/bundle"
-          VERSION="${{ github.ref_name }}"
+          VERSION="$TAG_NAME"
 
           case "${{ matrix.target }}" in
             aarch64-apple-darwin)
@@ -161,9 +165,11 @@ jobs:
 
       - name: Generate release body
         id: release_body
+        env:
+          TAG_NAME: ${{ github.ref_name }}
         run: |
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
-          VERSION="${{ github.ref_name }}"
+          VERSION="$TAG_NAME"
           if [ -z "$PREV_TAG" ]; then
             COMMITS=$(git log --pretty=format:"- %s" --no-merges)
           else
@@ -177,9 +183,10 @@ jobs:
       - name: Create release and upload assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.ref_name }}
         run: |
-          gh release create "${{ github.ref_name }}" \
-            --title "${{ github.ref_name }}" \
+          gh release create "$TAG_NAME" \
+            --title "$TAG_NAME" \
             --notes-file release-notes.md \
             $(find artifacts -name "Skill-Zoo-*" -type f)
 
@@ -247,7 +254,7 @@ jobs:
           cat Casks/skill-zoo.rb
 
       - name: Create or update PR
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676  # v7
         with:
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: tap
