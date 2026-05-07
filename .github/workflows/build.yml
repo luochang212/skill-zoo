@@ -92,7 +92,7 @@ jobs:
           $dir = "skill-zoo-portable"
           New-Item -ItemType Directory -Path $dir
           Copy-Item "src-tauri/target/${{ matrix.target }}/release/skill-zoo.exe" "$dir/"
-          if (Test-Path "src-tauri/resources/") { Copy-Item "src-tauri/resources/*" "$dir/resources/" -Recurse }
+          if (Test-Path "src-tauri/resources/") { Copy-Item "src-tauri/resources/*" "$dir/" -Recurse }
           Compress-Archive -Path $dir -DestinationPath "src-tauri/target/${{ matrix.target }}/release/bundle/Skill-Zoo-${{ github.ref_name }}-Windows-Portable.zip"
 
       - name: Rename artifacts
