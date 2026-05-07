@@ -49,6 +49,9 @@ Skill Zoo 让你在一个地方**浏览**、**安装**、**编辑**和**同步**
 | 动画 | Framer Motion |
 | 国际化 | i18next |
 | 编辑器 | CodeMirror 6 |
+| 代码检查 | oxlint + clippy |
+| 格式化 | oxfmt + cargo fmt |
+| 测试 | Vitest |
 | 包管理 | Bun |
 
 ## 📦 安装
@@ -129,6 +132,18 @@ bun run tauri dev
 
 # 类型检查
 bun run typecheck
+
+# 代码检查 & 格式化
+bun run lint
+bun run format
+
+# 运行测试
+bun run test
+
+# Rust（后端）
+bun run lint:rs
+bun run format:rs:check
+bun run test:rs
 
 # 生产构建
 bun run tauri build

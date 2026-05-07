@@ -49,6 +49,9 @@ Skill Zoo gives you a single place to **browse**, **install**, **edit**, and **s
 | Animation | Framer Motion |
 | i18n | i18next |
 | Editor | CodeMirror 6 |
+| Lint | oxlint + clippy |
+| Format | oxfmt + cargo fmt |
+| Testing | Vitest |
 | Package Manager | Bun |
 
 ## 📦 Installation
@@ -129,6 +132,18 @@ bun run tauri dev
 
 # Type checking
 bun run typecheck
+
+# Lint and format
+bun run lint
+bun run format
+
+# Run tests
+bun run test
+
+# Rust (backend)
+bun run lint:rs
+bun run format:rs:check
+bun run test:rs
 
 # Build for production
 bun run tauri build
