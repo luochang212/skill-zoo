@@ -9,7 +9,14 @@
     "tauri": "bunx tauri",
     "typecheck": "bunx tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "lint": "oxlint --deny=correctness --deny=suspicious --deny=perf src/",
+    "format": "oxfmt src/",
+    "format:check": "oxfmt --check src/",
+    "lint:rs": "cargo clippy --manifest-path src-tauri/Cargo.toml --features test-helpers -- -D warnings",
+    "format:rs": "cargo fmt --manifest-path src-tauri/Cargo.toml",
+    "format:rs:check": "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check",
+    "test:rs": "cargo test --manifest-path src-tauri/Cargo.toml --features test-helpers"
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.5.0",
@@ -56,6 +63,8 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "jsdom": "^29.1.1",
+    "oxfmt": "^0.48.0",
+    "oxlint": "^1.63.0",
     "postcss": "^8.5.12",
     "tailwindcss": "^4.2.4",
     "tailwindcss-animate": "1.0.7",

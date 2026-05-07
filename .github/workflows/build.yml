@@ -20,6 +20,12 @@ jobs:
       - name: Bun install
         run: bun install
 
+      - name: Lint
+        run: bun run lint
+
+      - name: Format check
+        run: bun run format:check
+
       - name: Run frontend tests
         run: bun run test
 

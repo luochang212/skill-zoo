@@ -10,3 +10,4 @@ archived/
 .worktrees/
 docs/superpowers/
 CLAUDE.md
+.deepsec/
