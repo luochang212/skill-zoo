@@ -175,6 +175,10 @@ jobs:
           else
             COMMITS=$(git log --pretty=format:"- %s" --no-merges ${PREV_TAG}..HEAD)
           fi
+          if [ ! -f RELEASE_BODY.md ]; then
+            echo "RELEASE_BODY.md not found" >&2
+            exit 1
+          fi
           BODY=$(cat RELEASE_BODY.md)
           BODY="${BODY//__VERSION__/$VERSION}"
           BODY="${BODY//__COMMITS__/$COMMITS}"
