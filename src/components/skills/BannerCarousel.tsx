@@ -87,7 +87,7 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
           banners.map(async (b) => {
             const path = await resolveResource(b.image);
             return convertFileSrc(path);
-          })
+          }),
         );
         if (!ignore) {
           setImageUrls(urls);
@@ -145,9 +145,7 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
   if (!banners.length) return null;
 
   if (loading) {
-    return (
-      <div className="w-full h-[280px] mb-6 bg-muted animate-pulse rounded-xl" />
-    );
+    return <div className="w-full h-[280px] mb-6 bg-muted animate-pulse rounded-xl" />;
   }
 
   return (
@@ -236,9 +234,7 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
               key={i}
               onClick={() => goTo(i)}
               className={`h-1.5 rounded-full transition-all duration-300 ${
-                i === current
-                  ? "w-5 bg-white"
-                  : "w-1.5 bg-white/50 hover:bg-white/70"
+                i === current ? "w-5 bg-white" : "w-1.5 bg-white/50 hover:bg-white/70"
               }`}
               aria-label={`Go to banner ${i + 1}`}
             />

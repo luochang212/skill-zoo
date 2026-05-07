@@ -87,9 +87,7 @@ function FileTreeNode({ node, depth }: FileTreeNodeProps) {
   }, [node]);
 
   const Icon = node.isDir ? Folder : getFileIcon(node.name, node.isSkillMd);
-  const iconColor = node.isDir
-    ? "text-muted-foreground"
-    : getIconColor(node.name, node.isSkillMd);
+  const iconColor = node.isDir ? "text-muted-foreground" : getIconColor(node.name, node.isSkillMd);
 
   return (
     <div>
@@ -115,12 +113,7 @@ function FileTreeNode({ node, depth }: FileTreeNodeProps) {
 
         <Icon className={cn("h-3.5 w-3.5 shrink-0", iconColor)} />
 
-        <span
-          className={cn(
-            "truncate min-w-0 flex-1",
-            node.isSkillMd && "font-medium",
-          )}
-        >
+        <span className={cn("truncate min-w-0 flex-1", node.isSkillMd && "font-medium")}>
           {node.name}
         </span>
 

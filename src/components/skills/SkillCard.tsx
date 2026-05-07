@@ -48,7 +48,10 @@ export function SkillCard({
               </CardTitle>
             )}
             {installedSkill?.isMine && (
-              <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 bg-primary text-primary-foreground shrink-0">
+              <Badge
+                variant="secondary"
+                className="text-[9px] px-1.5 py-0 h-4 bg-primary text-primary-foreground shrink-0"
+              >
                 {t("skill.mine")}
               </Badge>
             )}
@@ -74,7 +77,12 @@ export function SkillCard({
         )}
         {!isInstalled && onInstall && (
           <div className="flex gap-2 mt-3">
-            <Button size="sm" variant="default" className="h-8 text-xs rounded-lg" onClick={onInstall}>
+            <Button
+              size="sm"
+              variant="default"
+              className="h-8 text-xs rounded-lg"
+              onClick={onInstall}
+            >
               {t("common.install")}
             </Button>
           </div>

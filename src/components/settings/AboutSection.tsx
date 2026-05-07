@@ -20,9 +20,7 @@ function GithubIcon({ className }: { className?: string }) {
 
 const GITHUB_REPO = "luochang212/skill-zoo";
 
-function buildIssueUrl(
-  template: "bug_report" | "feature_request"
-): string {
+function buildIssueUrl(template: "bug_report" | "feature_request"): string {
   const base = `https://github.com/${GITHUB_REPO}/issues/new`;
   const params = new URLSearchParams({
     template: `${template}.md`,
@@ -49,7 +47,9 @@ export function AboutSection() {
   const [version, setVersion] = useState("");
 
   useEffect(() => {
-    getVersion().then(setVersion).catch(() => {});
+    getVersion()
+      .then(setVersion)
+      .catch(() => {});
   }, []);
 
   return (
@@ -65,8 +65,7 @@ export function AboutSection() {
             <span
               className="text-lg font-bold italic tracking-tight text-primary"
               style={{
-                fontFamily:
-                  '"New York", "Iowan Old Style", Georgia, "Times New Roman", serif',
+                fontFamily: '"New York", "Iowan Old Style", Georgia, "Times New Roman", serif',
               }}
             >
               SZ
@@ -76,12 +75,12 @@ export function AboutSection() {
             <div className="flex items-baseline gap-1.5">
               <h4 className="text-base font-semibold">Skill Zoo</h4>
               {version && (
-                <span className="text-[11px] text-muted-foreground/50 font-mono font-medium">v{version}</span>
+                <span className="text-[11px] text-muted-foreground/50 font-mono font-medium">
+                  v{version}
+                </span>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
-              {t("settings.about.description")}
-            </p>
+            <p className="text-xs text-muted-foreground">{t("settings.about.description")}</p>
           </div>
           <Button
             size="sm"
@@ -96,9 +95,7 @@ export function AboutSection() {
       </div>
 
       <div className="space-y-3">
-        <p className="text-xs text-muted-foreground">
-          {t("settings.feedback.description")}
-        </p>
+        <p className="text-xs text-muted-foreground">{t("settings.feedback.description")}</p>
 
         <div className="flex gap-3">
           <Button
@@ -120,12 +117,9 @@ export function AboutSection() {
             <Sparkles className="h-3.5 w-3.5" />
             {t("settings.feedback.requestFeature")}
           </Button>
-
         </div>
 
-        <p className="text-[11px] text-muted-foreground">
-          {t("settings.feedback.hint")}
-        </p>
+        <p className="text-[11px] text-muted-foreground">{t("settings.feedback.hint")}</p>
       </div>
     </section>
   );

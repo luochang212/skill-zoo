@@ -4,7 +4,7 @@ import { BackButton } from "@/components/ui/BackButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAgentConfigs, getAgentColor, getAgentLabel } from "@/lib/agents";
-import { skillsApi } from "@/lib/api/skills";
+
 import { cn } from "@/lib/utils";
 import type { InstalledSkill } from "@/types/skills";
 import { Settings, Trash2, CircleArrowUp, FolderOpen } from "lucide-react";
@@ -66,9 +66,7 @@ export function SkillHero({
       {/* Name + repo link + actions row */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
-          {onBack && (
-            <BackButton onClick={onBack} title={t("common.back")} />
-          )}
+          {onBack && <BackButton onClick={onBack} title={t("common.back")} />}
           {namespace && (
             <Badge
               variant="secondary"
@@ -77,9 +75,7 @@ export function SkillHero({
               {namespace}
             </Badge>
           )}
-          <h1 className="text-xl font-bold tracking-tight leading-tight truncate">
-            {name}
-          </h1>
+          <h1 className="text-xl font-bold tracking-tight leading-tight truncate">{name}</h1>
           {skill.repoOwner && skill.repoName && (
             <a
               href={`https://github.com/${skill.repoOwner}/${skill.repoName}`}
@@ -93,9 +89,7 @@ export function SkillHero({
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          {onToggleStar && (
-            <StarButton starred={starred ?? false} onToggle={onToggleStar} />
-          )}
+          {onToggleStar && <StarButton starred={starred ?? false} onToggle={onToggleStar} />}
           {onUpdate && (
             <Button
               variant="ghost"
@@ -103,7 +97,15 @@ export function SkillHero({
               className="h-7 w-7"
               onClick={onUpdate}
               disabled={!canUpdate || updatePending || updateSuccess}
-              title={!canUpdate ? t("skillHero.noRepo") : updateSuccess ? t("skillHero.updated") : updatePending ? t("skillHero.updating") : t("skillHero.updateFromGit")}
+              title={
+                !canUpdate
+                  ? t("skillHero.noRepo")
+                  : updateSuccess
+                    ? t("skillHero.updated")
+                    : updatePending
+                      ? t("skillHero.updating")
+                      : t("skillHero.updateFromGit")
+              }
             >
               {updateSuccess ? (
                 <CircleArrowUp className="h-3.5 w-3.5 text-green-600" />
@@ -161,7 +163,10 @@ export function SkillHero({
                 key={agent}
                 className={cn(
                   "px-2.5 py-1 h-6 text-[11px] rounded-lg font-medium",
-                  color.bg, color.text, color.darkBg, color.darkText
+                  color.bg,
+                  color.text,
+                  color.darkBg,
+                  color.darkText,
                 )}
               >
                 {getAgentLabel(agent, agentConfigs)}

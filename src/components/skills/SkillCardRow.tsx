@@ -29,10 +29,7 @@ export function SkillCardRow({
   const { t } = useTranslation();
   const installedSkill = isInstalled ? (skill as InstalledSkill) : null;
 
-  const repoLabel =
-    skill.repoOwner && skill.repoName
-      ? `${skill.repoOwner}/${skill.repoName}`
-      : "";
+  const repoLabel = skill.repoOwner && skill.repoName ? `${skill.repoOwner}/${skill.repoName}` : "";
 
   return (
     <div className="flex items-center gap-4 px-5 py-2 hover:bg-accent/40 transition-colors group last:border-b-0">
@@ -47,12 +44,13 @@ export function SkillCardRow({
             {skill.name}
           </button>
         ) : (
-          <span className="text-[13px] font-medium leading-tight truncate">
-            {skill.name}
-          </span>
+          <span className="text-[13px] font-medium leading-tight truncate">{skill.name}</span>
         )}
         {installedSkill?.isMine && (
-          <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 bg-primary text-primary-foreground shrink-0">
+          <Badge
+            variant="secondary"
+            className="text-[9px] px-1.5 py-0 h-4 bg-primary text-primary-foreground shrink-0"
+          >
             {t("skill.mine")}
           </Badge>
         )}

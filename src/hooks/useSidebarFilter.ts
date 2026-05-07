@@ -14,7 +14,7 @@ export function useSidebarFilter() {
     setCategory((prev) =>
       prev.type === cat.type && JSON.stringify(prev) === JSON.stringify(cat)
         ? { type: "all" }
-        : cat
+        : cat,
     );
   }, []);
 

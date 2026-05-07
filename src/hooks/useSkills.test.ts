@@ -40,7 +40,10 @@ describe("useStarSkill", () => {
   it("optimistically updates starred to true before server responds", async () => {
     let resolveMutation!: () => void;
     vi.mocked(invoke).mockImplementation(
-      () => new Promise<void>((r) => { resolveMutation = r; }),
+      () =>
+        new Promise<void>((r) => {
+          resolveMutation = r;
+        }),
     );
     const { wrapper, queryClient } = createQueryWrapper();
 
@@ -81,7 +84,10 @@ describe("useUnstarSkill", () => {
   it("optimistically updates starred to false before server responds", async () => {
     let resolveMutation!: () => void;
     vi.mocked(invoke).mockImplementation(
-      () => new Promise<void>((r) => { resolveMutation = r; }),
+      () =>
+        new Promise<void>((r) => {
+          resolveMutation = r;
+        }),
     );
     const { wrapper, queryClient } = createQueryWrapper();
 

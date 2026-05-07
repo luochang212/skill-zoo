@@ -29,7 +29,9 @@ export function SkillMaintenanceSettings() {
               <RefreshCw className="h-4 w-4 text-blue-500" />
             </div>
             <div className="space-y-1">
-              <p className="text-sm font-medium leading-none">{t("settings.maintenance.updateAll")}</p>
+              <p className="text-sm font-medium leading-none">
+                {t("settings.maintenance.updateAll")}
+              </p>
               <p className="text-xs text-muted-foreground">
                 {t("settings.maintenance.updateAllDesc")}
               </p>

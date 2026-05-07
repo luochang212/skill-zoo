@@ -49,10 +49,7 @@ export const INVALIDATION_MAP = {
 
 export type MutationName = keyof typeof INVALIDATION_MAP;
 
-export function invalidateFor(
-  queryClient: QueryClient,
-  mutation: MutationName,
-) {
+export function invalidateFor(queryClient: QueryClient, mutation: MutationName) {
   for (const key of INVALIDATION_MAP[mutation]) {
     queryClient.invalidateQueries({ queryKey: [...key] });
   }

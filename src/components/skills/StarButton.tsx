@@ -27,13 +27,11 @@ export function StarButton({ starred, onToggle, className, size = "sm" }: StarBu
         starred
           ? "text-amber-500 hover:text-amber-600"
           : "text-muted-foreground/70 hover:text-amber-400",
-        className
+        className,
       )}
       title={starred ? t("star.unstar") : t("star.star")}
     >
-      <Star
-        className={cn(iconSize, starred && "fill-current")}
-      />
+      <Star className={cn(iconSize, starred && "fill-current")} />
     </button>
   );
 }

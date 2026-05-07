@@ -100,7 +100,11 @@ function FrontmatterCard({ data }: { data: Record<string, unknown> }) {
                     ))}
                   </div>
                 ) : typeof value === "boolean" ? (
-                  <span className={value ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}>
+                  <span
+                    className={
+                      value ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                    }
+                  >
                     {String(value)}
                   </span>
                 ) : (

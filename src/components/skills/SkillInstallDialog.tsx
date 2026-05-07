@@ -44,7 +44,7 @@ export function SkillInstallDialog({
   const isSingleSkill = skills.length === 1;
 
   const [selectedSkills, setSelectedSkills] = useState<Set<string>>(
-    new Set(skills.map((s) => s.directory))
+    new Set(skills.map((s) => s.directory)),
   );
   const [agents, setAgents] = useState<Set<string>>(new Set(["claude-code"]));
 
@@ -138,11 +138,7 @@ export function SkillInstallDialog({
           )}
         </div>
         <DialogFooter>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onOpenChange(false)}
-          >
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
             {t("common.cancel")}
           </Button>
           <Button
@@ -150,7 +146,11 @@ export function SkillInstallDialog({
             onClick={handleInstall}
             disabled={selectedSkills.size === 0 || agents.size === 0 || isPending}
           >
-            {isPending ? t("common.installing") : isSingleSkill ? t("common.install") : t("installDialog.installCount", { count: selectedSkills.size })}
+            {isPending
+              ? t("common.installing")
+              : isSingleSkill
+                ? t("common.install")
+                : t("installDialog.installCount", { count: selectedSkills.size })}
           </Button>
         </DialogFooter>
       </DialogContent>

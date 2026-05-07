@@ -8,7 +8,7 @@ interface HeaderProps {
   view: View;
   onViewChange: (view: View) => void;
   hideTabs?: boolean;
-  skillName?: string;
+
   onSave?: () => void;
   saveDisabled?: boolean;
   savePending?: boolean;
@@ -28,7 +28,7 @@ export function Header({
   view,
   onViewChange,
   hideTabs,
-  skillName,
+
   onSave,
   saveDisabled,
   savePending,
@@ -59,16 +59,17 @@ export function Header({
                 fontFamily: LOGO_FONT,
               }}
             >
-              <span className="font-bold text-2xl rainbow-text">
-                Skill Zoo
-              </span>
+              <span className="font-bold text-2xl rainbow-text">Skill Zoo</span>
             </h1>
             <div className="flex items-center gap-3">
               {showSave && (
                 <Button
                   size="sm"
                   className="h-7 text-[11px]"
-                  onClick={(e) => { e.stopPropagation(); onSave?.(); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSave?.();
+                  }}
                   disabled={saveDisabled || savePending}
                 >
                   {savePending ? t("common.saving") : t("common.save")}
@@ -89,7 +90,7 @@ export function Header({
                   className={cn(
                     "font-bold text-2xl cursor-pointer rainbow-text",
                     !initialDone && "rainbow-text-initial",
-                    animating && "rainbow-text-animate"
+                    animating && "rainbow-text-animate",
                   )}
                   onMouseDown={handleLogoMouseDown}
                   onAnimationEnd={() => {
@@ -99,7 +100,9 @@ export function Header({
                       setAnimating(false);
                     }
                   }}
-                >Skill Zoo</span>
+                >
+                  Skill Zoo
+                </span>
               </h1>
             </div>
             <div className="flex items-center justify-center">
@@ -107,12 +110,15 @@ export function Header({
                 {tabKeys.map((tab) => (
                   <button
                     key={tab.id}
-                    onClick={(e) => { e.stopPropagation(); onViewChange(tab.id); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onViewChange(tab.id);
+                    }}
                     className={cn(
                       "px-4 py-2 h-8 text-sm leading-none rounded-md transition-all duration-200",
                       view === tab.id
                         ? "bg-background text-foreground font-semibold shadow-[0_1px_3px_rgba(0,0,0,0.1),0_1px_2px_rgba(0,0,0,0.06)]"
-                        : "text-muted-foreground font-medium hover:text-foreground"
+                        : "text-muted-foreground font-medium hover:text-foreground",
                     )}
                   >
                     {t(tab.key)}

@@ -19,9 +19,7 @@ export function ViewModeToggle({ value, onChange }: ViewModeToggleProps) {
       <span
         className={cn(
           "p-1.5 rounded-md transition-all duration-200",
-          value === "grid"
-            ? "bg-background text-foreground shadow-sm"
-            : "text-muted-foreground"
+          value === "grid" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground",
         )}
       >
         <LayoutGrid className="h-3.5 w-3.5" />
@@ -29,9 +27,7 @@ export function ViewModeToggle({ value, onChange }: ViewModeToggleProps) {
       <span
         className={cn(
           "p-1.5 rounded-md transition-all duration-200",
-          value === "list"
-            ? "bg-background text-foreground shadow-sm"
-            : "text-muted-foreground"
+          value === "list" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground",
         )}
       >
         <List className="h-3.5 w-3.5" />

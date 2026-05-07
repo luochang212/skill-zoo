@@ -31,14 +31,13 @@ export function ConfigureDialog({
   homeAgent,
 }: ConfigureDialogProps) {
   const { t } = useTranslation();
-  const { data: symlinks, isLoading, isError, error, refetch } = useSymlinkStatus();
+  const { data: symlinks, isLoading, isError, refetch } = useSymlinkStatus();
   const toggleSymlink = useToggleSymlink();
   const visibleAgentOrder = useVisibleAgentOrder();
   const { data: agentConfigs } = useAgentConfigs();
 
   // Find symlinks for this skill
-  const skillSymlinks =
-    symlinks?.filter((s) => s.skillId === skillId) ?? [];
+  const skillSymlinks = symlinks?.filter((s) => s.skillId === skillId) ?? [];
 
   // Build a map of agent -> symlink status
   const symlinkMap = new Map<string, SymlinkStatus>();
@@ -92,10 +91,7 @@ export function ConfigureDialog({
                       {getAgentLabel(agent, agentConfigs ?? [])}
                     </label>
                     {isHomeAgent && (
-                      <Badge
-                        variant="secondary"
-                        className="text-[9px] h-4 px-1.5 font-medium"
-                      >
+                      <Badge variant="secondary" className="text-[9px] h-4 px-1.5 font-medium">
                         {t("configureDialog.linked")}
                       </Badge>
                     )}
@@ -117,8 +113,7 @@ export function ConfigureDialog({
                     onCheckedChange={
                       isHomeAgent
                         ? undefined
-                        : (enabled) =>
-                            toggleSymlink.mutate({ skillId, agent, enabled })
+                        : (enabled) => toggleSymlink.mutate({ skillId, agent, enabled })
                     }
                     disabled={isPending || isHomeAgent}
                     aria-label={`Toggle ${getAgentLabel(agent, agentConfigs ?? [])}`}

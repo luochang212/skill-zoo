@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
 import { useSkillContent, useSaveSkillContent, useInstalledSkills } from "@/hooks/useSkills";
-import type { InstalledSkill } from "@/types/skills";
 
 export function useEditorState() {
   const [open, setOpen] = useState(false);
@@ -11,14 +10,19 @@ export function useEditorState() {
   const [dirty, setDirty] = useState(false);
   const [editTabActive, setEditTabActive] = useState(false);
 
-  const { data: content, isLoading: contentLoading, isError: contentError } = useSkillContent(open ? directory : "");
+  const {
+    data: content,
+    isLoading: contentLoading,
+    isError: contentError,
+  } = useSkillContent(open ? directory : "");
   const saveMutation = useSaveSkillContent();
   const { data: installedSkills } = useInstalledSkills();
 
   // Resolve the full skill object from installed skills list
-  const skill = open && skillId && installedSkills
-    ? installedSkills.find((s) => s.id === skillId) ?? null
-    : null;
+  const skill =
+    open && skillId && installedSkills
+      ? (installedSkills.find((s) => s.id === skillId) ?? null)
+      : null;
 
   // Sync local content when loaded
   useEffect(() => {
@@ -27,18 +31,15 @@ export function useEditorState() {
     }
   }, [open, content, dirty]);
 
-  const openEditor = useCallback(
-    (id: string, dir: string, name: string) => {
-      setSkillId(id);
-      setDirectory(dir);
-      setSkillName(name);
-      setLocalContent("");
-      setDirty(false);
-      setEditTabActive(false);
-      setOpen(true);
-    },
-    []
-  );
+  const openEditor = useCallback((id: string, dir: string, name: string) => {
+    setSkillId(id);
+    setDirectory(dir);
+    setSkillName(name);
+    setLocalContent("");
+    setDirty(false);
+    setEditTabActive(false);
+    setOpen(true);
+  }, []);
 
   const closeEditor = useCallback(() => {
     setOpen(false);
@@ -49,10 +50,7 @@ export function useEditorState() {
 
   const save = useCallback(() => {
     if (!dirty || saveMutation.isPending) return;
-    saveMutation.mutate(
-      { directory, content: localContent },
-      { onSuccess: () => setDirty(false) }
-    );
+    saveMutation.mutate({ directory, content: localContent }, { onSuccess: () => setDirty(false) });
   }, [directory, localContent, dirty, saveMutation]);
 
   const updateContent = useCallback((newContent: string) => {

@@ -1,8 +1,4 @@
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { settingsApi } from "@/lib/api/settings";
 import { useAgentConfigs } from "@/lib/agents";
 import type { VisibleAgents } from "@/types/skills";
@@ -21,8 +17,7 @@ export function useVisibleAgents() {
 export function useUpdateVisibleAgents() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (visibleAgents: VisibleAgents) =>
-      settingsApi.updateVisibleAgents(visibleAgents),
+    mutationFn: (visibleAgents: VisibleAgents) => settingsApi.updateVisibleAgents(visibleAgents),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: VISIBLE_AGENTS_KEY });
       qc.invalidateQueries({ queryKey: ["skills", "symlinks"] });
@@ -54,16 +49,14 @@ export function useUpdateHideNonSsot() {
 }
 
 /** Helper: get visible agents from query data, with fallback to all visible */
-export function getVisibleAgentsOrDefault(
-  data: VisibleAgents | undefined
-): VisibleAgents {
+export function getVisibleAgentsOrDefault(data: VisibleAgents | undefined): VisibleAgents {
   return data ?? {};
 }
 
 /** Helper: filter an array of agent strings by visibility */
 export function filterVisibleAgents(
   agents: string[],
-  visibleAgents: VisibleAgents | undefined
+  visibleAgents: VisibleAgents | undefined,
 ): string[] {
   const va = getVisibleAgentsOrDefault(visibleAgents);
   return agents.filter((agent) => va[agent] !== false);

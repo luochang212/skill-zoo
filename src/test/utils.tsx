@@ -30,11 +30,7 @@ export function createTestQueryClient() {
 export function createQueryWrapper() {
   const queryClient = createTestQueryClient();
   const wrapper = ({ children }: { children: React.ReactNode }) =>
-    React.createElement(
-      QueryClientProvider,
-      { client: queryClient },
-      children,
-    );
+    React.createElement(QueryClientProvider, { client: queryClient }, children);
   return { wrapper, queryClient };
 }
 
@@ -42,9 +38,7 @@ export function createQueryWrapper() {
  * Render a hook with QueryClientProvider.
  * Convenience wrapper around renderHook + createQueryWrapper.
  */
-export function renderHookWithQuery<TResult>(
-  hook: () => TResult,
-) {
+export function renderHookWithQuery<TResult>(hook: () => TResult) {
   const { wrapper, queryClient } = createQueryWrapper();
   return {
     ...renderHook(hook, { wrapper }),

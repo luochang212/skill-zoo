@@ -25,9 +25,7 @@ export function ToggleRow({
         </div>
         <div className="space-y-1">
           <p className="text-sm font-medium leading-none">{title}</p>
-          {description ? (
-            <p className="text-xs text-muted-foreground">{description}</p>
-          ) : null}
+          {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
         </div>
       </div>
       <Switch

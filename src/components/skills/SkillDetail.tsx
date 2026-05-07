@@ -207,23 +207,15 @@ export function SkillDetail({
             <DialogTitle>{t("removeDialog.title")}</DialogTitle>
             <DialogDescription>
               {t("removeDialog.description")}{" "}
-              <span className="font-medium text-foreground">{skillName}</span>?
-              {" "}{t("removeDialog.warning")}
+              <span className="font-medium text-foreground">{skillName}</span>?{" "}
+              {t("removeDialog.warning")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setRemoveConfirmOpen(false)}
-            >
+            <Button variant="outline" size="sm" onClick={() => setRemoveConfirmOpen(false)}>
               {t("common.cancel")}
             </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleRemoveConfirm}
-            >
+            <Button variant="destructive" size="sm" onClick={handleRemoveConfirm}>
               {t("common.remove")}
             </Button>
           </DialogFooter>

@@ -1,9 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useSymlinkStatus, useToggleSymlink } from "@/hooks/useSkills";
-import {
-  useVisibleAgents,
-  getVisibleAgentsOrDefault,
-} from "@/hooks/useSettings";
+import { useVisibleAgents, getVisibleAgentsOrDefault } from "@/hooks/useSettings";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -33,7 +30,7 @@ export function SymlinkPanel() {
       acc[s.skillId].links.push(s);
       return acc;
     },
-    {} as Record<string, { name: string; links: SymlinkStatus[] }>
+    {} as Record<string, { name: string; links: SymlinkStatus[] }>,
   );
 
   return (
@@ -48,37 +45,37 @@ export function SymlinkPanel() {
                 {links
                   .filter((link) => visibleAgents[link.agent] !== false)
                   .map((link) => (
-                  <div
-                    key={`${link.skillId}-${link.agent}`}
-                    className="flex items-center justify-between text-xs"
-                  >
-                    <span className="text-muted-foreground">
-                      {getAgentLabel(link.agent, agentConfigs ?? [])}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      {link.isValid ? (
-                        <Badge variant="secondary" className="text-[10px] h-4 px-1">
-                          {t("symlink.linked")}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-[10px] h-4 px-1">
-                          {link.exists ? t("symlink.broken") : t("symlink.missing")}
-                        </Badge>
-                      )}
-                      <Switch
-                        checked={link.exists}
-                        onCheckedChange={(enabled) =>
-                          toggleSymlink.mutate({
-                            skillId,
-                            agent: link.agent,
-                            enabled,
-                          })
-                        }
-                        className="scale-75"
-                      />
+                    <div
+                      key={`${link.skillId}-${link.agent}`}
+                      className="flex items-center justify-between text-xs"
+                    >
+                      <span className="text-muted-foreground">
+                        {getAgentLabel(link.agent, agentConfigs ?? [])}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {link.isValid ? (
+                          <Badge variant="secondary" className="text-[10px] h-4 px-1">
+                            {t("symlink.linked")}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] h-4 px-1">
+                            {link.exists ? t("symlink.broken") : t("symlink.missing")}
+                          </Badge>
+                        )}
+                        <Switch
+                          checked={link.exists}
+                          onCheckedChange={(enabled) =>
+                            toggleSymlink.mutate({
+                              skillId,
+                              agent: link.agent,
+                              enabled,
+                            })
+                          }
+                          className="scale-75"
+                        />
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </div>
               <Separator className="mt-2" />
             </div>

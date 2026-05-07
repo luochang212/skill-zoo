@@ -41,13 +41,7 @@ function TabContent({
   );
 }
 
-function DuplicateGroupCard({
-  group,
-  onMerge,
-}: {
-  group: DuplicateGroup;
-  onMerge?: () => void;
-}) {
+function DuplicateGroupCard({ group, onMerge }: { group: DuplicateGroup; onMerge?: () => void }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(true);
 
@@ -62,12 +56,8 @@ function DuplicateGroupCard({
         ) : (
           <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
         )}
-        <span className="text-[13px] font-medium flex-1 truncate">
-          {group.name}
-        </span>
-        <span className="text-[11px] text-muted-foreground shrink-0">
-          {group.skills.length}x
-        </span>
+        <span className="text-[13px] font-medium flex-1 truncate">{group.name}</span>
+        <span className="text-[11px] text-muted-foreground shrink-0">{group.skills.length}x</span>
       </button>
 
       {expanded && (
@@ -91,7 +81,6 @@ function DuplicateGroupCard({
               </Button>
             </div>
           )}
-
         </div>
       )}
     </div>
@@ -138,11 +127,12 @@ function MismatchEntry({ mismatch }: { mismatch: NameMismatch }) {
       <div className="px-4 py-3 flex items-center gap-3">
         <PenLine className="h-4 w-4 shrink-0 text-sky-500" />
         <div className="flex-1 min-w-0">
-          <div className="text-[13px] font-medium truncate">
-            {mismatch.skillName}
-          </div>
+          <div className="text-[13px] font-medium truncate">{mismatch.skillName}</div>
           <div className="text-[11px] text-muted-foreground">
-            {t("consistency.folderName")}: <code className="text-[10px] bg-muted px-1 py-0.5 rounded">{mismatch.directory.split("/").pop()}</code>
+            {t("consistency.folderName")}:{" "}
+            <code className="text-[10px] bg-muted px-1 py-0.5 rounded">
+              {mismatch.directory.split("/").pop()}
+            </code>
           </div>
         </div>
         {mismatch.homePath && (
@@ -191,18 +181,14 @@ function MergeConfirmDialog({
         </DialogHeader>
 
         <div className="space-y-2 text-[12px]">
-          <p className="font-medium text-foreground">
-            {t("consistency.mergeStepsLabel")}
-          </p>
+          <p className="font-medium text-foreground">{t("consistency.mergeStepsLabel")}</p>
           <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
             <li>{t("consistency.mergeStep1")}</li>
             <li>{t("consistency.mergeStep2")}</li>
             <li>{t("consistency.mergeStep3")}</li>
           </ol>
 
-          <p className="font-medium text-foreground pt-2">
-            {t("consistency.deleteDirsLabel")}
-          </p>
+          <p className="font-medium text-foreground pt-2">{t("consistency.deleteDirsLabel")}</p>
           <ul className="space-y-0.5 text-muted-foreground">
             {skillDirs.map((dir) => (
               <li key={dir} className="truncate font-mono text-[11px]" title={dir}>
@@ -244,12 +230,15 @@ export function ConsistencyPanel({
   const duplicateGroups = allGroups.filter((g) => g.sameContent);
   const conflictGroups = allGroups.filter((g) => !g.sameContent);
 
-  const resolvedTab: ConsistencyTab = tab ?? (
-    duplicateGroups.length > 0 ? "duplicates" :
-    conflictGroups.length > 0 ? "conflicts" :
-    nameMismatches.length > 0 ? "mismatches" :
-    "duplicates"
-  );
+  const resolvedTab: ConsistencyTab =
+    tab ??
+    (duplicateGroups.length > 0
+      ? "duplicates"
+      : conflictGroups.length > 0
+        ? "conflicts"
+        : nameMismatches.length > 0
+          ? "mismatches"
+          : "duplicates");
 
   if (duplicateGroups.length === 0 && conflictGroups.length === 0 && nameMismatches.length === 0) {
     return (
@@ -360,7 +349,9 @@ export function ConsistencyPanel({
       {confirmGroup && (
         <MergeConfirmDialog
           skillName={confirmGroup.name}
-          skillDirs={confirmGroup.skills.filter((s) => s.origin !== "ssot").map((s) => s.homePath ?? s.directory)}
+          skillDirs={confirmGroup.skills
+            .filter((s) => s.origin !== "ssot")
+            .map((s) => s.homePath ?? s.directory)}
           onConfirm={() => {
             mergeMutation.mutate(confirmGroup.name, {
               onSuccess: () => setConfirmMerge(null),

@@ -26,18 +26,25 @@ export function useConsistencyCheck(skills: InstalledSkill[]) {
     const nameGroups = new Map<string, InstalledSkill[]>();
 
     for (const s of skills) {
-      nameGroups.get(s.name)?.push(s) ?? nameGroups.set(s.name, [s]);
+      const existing = nameGroups.get(s.name);
+      if (existing) {
+        existing.push(s);
+      } else {
+        nameGroups.set(s.name, [s]);
+      }
     }
 
     const duplicateGroups: DuplicateGroup[] = [];
     for (const [name, group] of nameGroups) {
       if (group.length <= 1) continue;
       const nonEmpty = group.filter((s) => s.contentHash);
-      const sameContent = nonEmpty.length > 0 && nonEmpty.every((s) => s.contentHash === nonEmpty[0].contentHash);
+      const sameContent =
+        nonEmpty.length > 0 && nonEmpty.every((s) => s.contentHash === nonEmpty[0].contentHash);
       duplicateGroups.push({ name, skills: group, sameContent });
       for (const s of group) {
         const e = issuesMap.get(s.id) ?? {};
-        if (sameContent) e.isDuplicate = true; else e.hasConflict = true;
+        if (sameContent) e.isDuplicate = true;
+        else e.hasConflict = true;
         issuesMap.set(s.id, e);
       }
     }

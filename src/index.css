@@ -38,21 +38,39 @@
     color: hsl(0 0% 85%);
   }
   .dark .hljs-comment,
-  .dark .hljs-quote { color: hsl(0 0% 55%); }
+  .dark .hljs-quote {
+    color: hsl(0 0% 55%);
+  }
   .dark .hljs-keyword,
-  .dark .hljs-selector-tag { color: hsl(293 70% 68%); }
+  .dark .hljs-selector-tag {
+    color: hsl(293 70% 68%);
+  }
   .dark .hljs-string,
-  .dark .hljs-addition { color: hsl(130 50% 62%); }
+  .dark .hljs-addition {
+    color: hsl(130 50% 62%);
+  }
   .dark .hljs-number,
-  .dark .hljs-literal { color: hsl(25 80% 58%); }
+  .dark .hljs-literal {
+    color: hsl(25 80% 58%);
+  }
   .dark .hljs-title,
-  .dark .hljs-section { color: hsl(207 70% 68%); }
+  .dark .hljs-section {
+    color: hsl(207 70% 68%);
+  }
   .dark .hljs-type,
-  .dark .hljs-built_in { color: hsl(38 80% 58%); }
+  .dark .hljs-built_in {
+    color: hsl(38 80% 58%);
+  }
   .dark .hljs-attr,
-  .dark .hljs-variable { color: hsl(350 65% 65%); }
-  .dark .hljs-deletion { color: hsl(0 65% 60%); }
-  .dark .hljs-meta { color: hsl(0 0% 55%); }
+  .dark .hljs-variable {
+    color: hsl(350 65% 65%);
+  }
+  .dark .hljs-deletion {
+    color: hsl(0 65% 60%);
+  }
+  .dark .hljs-meta {
+    color: hsl(0 0% 55%);
+  }
 }
 
 /* Prose code block tweaks */
@@ -186,14 +204,10 @@
 
 @keyframes theme-circle-expand {
   from {
-    clip-path: circle(
-      0% at var(--theme-transition-x, 50%) var(--theme-transition-y, 50%)
-    );
+    clip-path: circle(0% at var(--theme-transition-x, 50%) var(--theme-transition-y, 50%));
   }
   to {
-    clip-path: circle(
-      150% at var(--theme-transition-x, 50%) var(--theme-transition-y, 50%)
-    );
+    clip-path: circle(150% at var(--theme-transition-x, 50%) var(--theme-transition-y, 50%));
   }
 }
 
@@ -209,22 +223,26 @@
 
 /* ── Rainbow flow animation for Skill Zoo logo ── */
 @keyframes rainbow-flow {
-  0% { background-position: 0% 50%; }
-  100% { background-position: 200% 50%; }
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
 }
 
 @layer components {
   .rainbow-text {
     background: linear-gradient(
       90deg,
-      #C882B4,
-      #EB5F57,
-      #F58B57,
-      #FAC35F,
-      #91C882,
-      #82AADC,
-      #9B82C8,
-      #C882B4
+      #c882b4,
+      #eb5f57,
+      #f58b57,
+      #fac35f,
+      #91c882,
+      #82aadc,
+      #9b82c8,
+      #c882b4
     );
     background-size: 200% 100%;
     -webkit-background-clip: text;

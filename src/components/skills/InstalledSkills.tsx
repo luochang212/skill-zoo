@@ -2,10 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useInstalledSkills, useStarSkill, useUnstarSkill } from "@/hooks/useSkills";
 import { useConsistencyCheck } from "@/hooks/useSkillIssues";
-import {
-  useVisibleAgentOrder,
-  useHideNonSsot,
-} from "@/hooks/useSettings";
+import { useVisibleAgentOrder, useHideNonSsot } from "@/hooks/useSettings";
 import { useAgentConfigs } from "@/lib/agents";
 import { SkillCard } from "@/components/skills/SkillCard";
 import { SkillCardRow } from "@/components/skills/SkillCardRow";
@@ -31,11 +28,7 @@ type SortDirection = "asc" | "desc";
 
 function SortArrow({ active, direction }: { active: boolean; direction: SortDirection }) {
   if (!active) return null;
-  return direction === "asc" ? (
-    <ArrowUp className="h-3 w-3" />
-  ) : (
-    <ArrowDown className="h-3 w-3" />
-  );
+  return direction === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
 }
 
 function ListHeader({
@@ -75,8 +68,10 @@ export function InstalledSkills({
   onCreateSkill,
 }: InstalledSkillsProps) {
   const { t } = useTranslation();
-  const { data: skills, isLoading, isError, error, refetch } = useInstalledSkills();
-  const { duplicateGroups, nameMismatches, issuesMap, consistencyCount } = useConsistencyCheck(skills ?? []);
+  const { data: skills, isLoading, isError, refetch } = useInstalledSkills();
+  const { duplicateGroups, nameMismatches, issuesMap, consistencyCount } = useConsistencyCheck(
+    skills ?? [],
+  );
   const starMutation = useStarSkill();
   const unstarMutation = useUnstarSkill();
   const visibleAgentOrder = useVisibleAgentOrder();
@@ -208,7 +203,7 @@ export function InstalledSkills({
     }
   };
 
-  const sorted = [...filtered].sort((a, b) => {
+  const sorted = filtered.toSorted((a, b) => {
     const dir = sortDirection === "asc" ? 1 : -1;
 
     switch (sortField) {
@@ -244,51 +239,50 @@ export function InstalledSkills({
         consistencyCount={consistencyCount}
         category={category}
         onSelectCategory={onSelectCategory}
-        onCreateSkill={onCreateSkill ?? (() => {})}
       />
 
       {/* Main content */}
       <div className="flex flex-col flex-1 min-w-0 p-6">
         {/* Toolbar — hidden in consistency view since it has its own panel */}
         {category.type !== "consistency" && (
-        <div className="flex items-center gap-3 mb-6">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("installed.searchPlaceholder")}
-            className="h-9 text-[13px] max-w-xs rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none"
-            autoComplete="off"
-            autoCorrect="off"
-            spellCheck={false}
-          />
-          <div className="flex gap-0.5 flex-wrap">
-            <button
-              onClick={() => setAgentFilter("all")}
-              className={`px-2.5 py-1.5 text-xs rounded-lg transition-colors ${
-                agentFilter === "all"
-                  ? "bg-primary/10 text-primary font-medium"
-                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
-              }`}
-            >
-              {t("common.all")}
-            </button>
-            {visibleAgentOrder.map((a) => (
+          <div className="flex items-center gap-3 mb-6">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("installed.searchPlaceholder")}
+              className="h-9 text-[13px] max-w-xs rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+            />
+            <div className="flex gap-0.5 flex-wrap">
               <button
-                key={a}
-                onClick={() => setAgentFilter(a)}
+                onClick={() => setAgentFilter("all")}
                 className={`px-2.5 py-1.5 text-xs rounded-lg transition-colors ${
-                  agentFilter === a
+                  agentFilter === "all"
                     ? "bg-primary/10 text-primary font-medium"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent"
                 }`}
               >
-                {agentConfigs?.find((c) => c.id === a)?.label ?? a}
+                {t("common.all")}
               </button>
-            ))}
+              {visibleAgentOrder.map((a) => (
+                <button
+                  key={a}
+                  onClick={() => setAgentFilter(a)}
+                  className={`px-2.5 py-1.5 text-xs rounded-lg transition-colors ${
+                    agentFilter === a
+                      ? "bg-primary/10 text-primary font-medium"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                  }`}
+                >
+                  {agentConfigs?.find((c) => c.id === a)?.label ?? a}
+                </button>
+              ))}
+            </div>
+            <div className="flex-1" />
+            <ViewModeToggle value={viewMode} onChange={setViewMode} />
           </div>
-          <div className="flex-1" />
-          <ViewModeToggle value={viewMode} onChange={setViewMode} />
-        </div>
         )}
 
         {/* Create skill row (only in "mine" category) */}

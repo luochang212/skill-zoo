@@ -4,7 +4,11 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useTheme, type Theme } from "@/hooks/useTheme";
 
-const themeOptionDefs: { value: Theme; labelKey: string; icon: React.ComponentType<{ className?: string }> }[] = [
+const themeOptionDefs: {
+  value: Theme;
+  labelKey: string;
+  icon: React.ComponentType<{ className?: string }>;
+}[] = [
   { value: "light", labelKey: "settings.theme.light", icon: Sun },
   { value: "dark", labelKey: "settings.theme.dark", icon: Moon },
   { value: "system", labelKey: "settings.theme.system", icon: Monitor },
@@ -28,7 +32,7 @@ export function ThemeSettings() {
               "min-w-[80px] gap-1.5",
               theme === opt.value
                 ? "shadow-sm"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted",
             )}
             onClick={(e) => setTheme(opt.value, e)}
           >

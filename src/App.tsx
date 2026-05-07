@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, Component, type ReactNode } from "react";
-import { useTranslation } from "react-i18next";
+
 import { motion, AnimatePresence } from "framer-motion";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Header } from "@/components/layout/Header";
@@ -14,11 +14,18 @@ import { useSidebarFilter } from "@/hooks/useSidebarFilter";
 import { applyTheme } from "@/hooks/useTheme";
 import type { View, DiscoverRepo } from "@/types/skills";
 
-interface EBProps { children: ReactNode }
-interface EBState { hasError: boolean; error: Error | null }
+interface EBProps {
+  children: ReactNode;
+}
+interface EBState {
+  hasError: boolean;
+  error: Error | null;
+}
 class ErrorBoundary extends Component<EBProps, EBState> {
   state: EBState = { hasError: false, error: null };
-  static getDerivedStateFromError(error: Error) { return { hasError: true, error }; }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error("[ErrorBoundary]", error, info.componentStack);
   }
@@ -28,8 +35,15 @@ class ErrorBoundary extends Component<EBProps, EBState> {
         <div className="flex items-center justify-center h-full p-8">
           <div className="text-center space-y-2">
             <p className="text-red-500 font-bold">Render Error</p>
-            <pre className="text-xs text-muted-foreground whitespace-pre-wrap max-h-60 overflow-auto">{this.state.error?.message}</pre>
-            <button className="text-xs underline" onClick={() => this.setState({ hasError: false, error: null })}>Retry</button>
+            <pre className="text-xs text-muted-foreground whitespace-pre-wrap max-h-60 overflow-auto">
+              {this.state.error?.message}
+            </pre>
+            <button
+              className="text-xs underline"
+              onClick={() => this.setState({ hasError: false, error: null })}
+            >
+              Retry
+            </button>
           </div>
         </div>
       );
@@ -39,7 +53,6 @@ class ErrorBoundary extends Component<EBProps, EBState> {
 }
 
 export default function App() {
-  const { t } = useTranslation();
   const [view, setView] = useState<View>("local");
   const [showCreateSkill, setShowCreateSkill] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<DiscoverRepo | null>(null);
@@ -96,10 +109,13 @@ export default function App() {
     setShowCreateSkill(false);
   }, []);
 
-  const handleCreatedSkill = useCallback((id: string, directory: string, name: string) => {
-    setShowCreateSkill(false);
-    editor.openEditor(id, directory, name);
-  }, [editor]);
+  const handleCreatedSkill = useCallback(
+    (id: string, directory: string, name: string) => {
+      setShowCreateSkill(false);
+      editor.openEditor(id, directory, name);
+    },
+    [editor],
+  );
 
   // Determine what to render in main area
   const renderMain = () => {
@@ -124,21 +140,13 @@ export default function App() {
     }
 
     if (showCreateSkill) {
-      return (
-        <SkillCreateView
-          onClose={handleCloseCreateSkill}
-          onCreated={handleCreatedSkill}
-        />
-      );
+      return <SkillCreateView onClose={handleCloseCreateSkill} onCreated={handleCreatedSkill} />;
     }
 
     return (
       <>
         {view === "discover" && (
-          <BrowseSkills
-            selectedRepo={selectedRepo}
-            onSelectRepo={setSelectedRepo}
-          />
+          <BrowseSkills selectedRepo={selectedRepo} onSelectRepo={setSelectedRepo} />
         )}
         {view === "local" && (
           <InstalledSkills
@@ -159,7 +167,6 @@ export default function App() {
         view={view}
         onViewChange={setView}
         hideTabs={editor.open || showCreateSkill || !!selectedRepo}
-        skillName={editor.skillName}
         onSave={editor.save}
         saveDisabled={!editor.dirty}
         savePending={editor.savePending}

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Eye, EyeOff, FolderOpen, FolderSymlink } from "lucide-react";
+import { FolderOpen, FolderSymlink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -70,9 +70,7 @@ function PathRow({
               </span>
             )}
           </div>
-          <p className="font-mono text-xs text-muted-foreground truncate">
-            {info.path}
-          </p>
+          <p className="font-mono text-xs text-muted-foreground truncate">{info.path}</p>
         </div>
       </div>
       <Button
@@ -118,9 +116,7 @@ export function AgentPathsSettings() {
         <h3 className="text-sm font-medium">{t("settings.agentPaths.title")}</h3>
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        {t("settings.agentPaths.description")}
-      </p>
+      <p className="text-xs text-muted-foreground">{t("settings.agentPaths.description")}</p>
 
       <div className="space-y-3">
         {paths?.map((info) => {
@@ -140,9 +136,7 @@ export function AgentPathsSettings() {
         })}
       </div>
 
-      <p className="text-[11px] text-muted-foreground/70">
-        {t("settings.agentPaths.hiddenHint")}
-      </p>
+      <p className="text-[11px] text-muted-foreground/70">{t("settings.agentPaths.hiddenHint")}</p>
     </section>
   );
 }

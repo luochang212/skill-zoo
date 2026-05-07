@@ -1,8 +1,4 @@
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { skillsApi } from "@/lib/api/skills";
 import { invalidateFor, type MutationName } from "@/hooks/queryInvalidation";
 import type { InstalledSkill } from "@/types/skills";
@@ -43,11 +39,8 @@ export function useSymlinkStatus() {
 export function useInstallSkills() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: {
-      repoUrl: string;
-      skillNames: string[];
-      agents: string[];
-    }) => skillsApi.installSkills(vars.repoUrl, vars.skillNames, vars.agents),
+    mutationFn: (vars: { repoUrl: string; skillNames: string[]; agents: string[] }) =>
+      skillsApi.installSkills(vars.repoUrl, vars.skillNames, vars.agents),
     onSuccess: () => invalidateFor(qc, "installSkills"),
   });
 }
@@ -209,7 +202,7 @@ function useStarMutation(
       await qc.cancelQueries({ queryKey: ["skills", "installed"] });
       const previous = qc.getQueryData<InstalledSkill[]>(["skills", "installed"]);
       qc.setQueryData<InstalledSkill[]>(["skills", "installed"], (old) =>
-        old?.map((s) => (s.id === skillId ? { ...s, starred } : s))
+        old?.map((s) => (s.id === skillId ? { ...s, starred } : s)),
       );
       return { previous };
     },
@@ -225,11 +218,8 @@ function useStarMutation(
 export function useCreateSkill() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: {
-      name: string;
-      content: string;
-      agents: string[];
-    }) => skillsApi.createSkill(vars.name, vars.content, vars.agents),
+    mutationFn: (vars: { name: string; content: string; agents: string[] }) =>
+      skillsApi.createSkill(vars.name, vars.content, vars.agents),
     onSuccess: () => invalidateFor(qc, "createSkill"),
   });
 }

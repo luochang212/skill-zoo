@@ -1,12 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { User, Star, Folder, Layers, ShieldCheck, ChevronDown, ChevronUp } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { InstalledSkill } from "@/types/skills";
 import type { SidebarCategory } from "@/hooks/useSidebarFilter";
 import { cn } from "@/lib/utils";
@@ -16,7 +11,6 @@ interface SkillSidebarProps {
   consistencyCount?: number;
   category: SidebarCategory;
   onSelectCategory: (cat: SidebarCategory) => void;
-  onCreateSkill: () => void;
 }
 
 export function SkillSidebar({
@@ -24,7 +18,6 @@ export function SkillSidebar({
   consistencyCount = 0,
   category,
   onSelectCategory,
-  onCreateSkill,
 }: SkillSidebarProps) {
   const { t } = useTranslation();
   const [reposExpanded, setReposExpanded] = useState(true);
@@ -55,7 +48,9 @@ export function SkillSidebar({
       <div className="w-[220px] h-full shrink-0 border-r border-border/60 bg-background/50 flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-4 py-4">
-          <span className="text-sm font-medium tracking-wide uppercase text-muted-foreground">{t("sidebar.title")}</span>
+          <span className="text-sm font-medium tracking-wide uppercase text-muted-foreground">
+            {t("sidebar.title")}
+          </span>
         </div>
 
         <div className="flex-1 overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
@@ -66,7 +61,7 @@ export function SkillSidebar({
               "w-full px-4 py-2.5 flex items-center text-[13px] transition-colors",
               isActive({ type: "all" })
                 ? "bg-primary/5 text-foreground border-l-2 border-l-primary"
-                : "text-foreground/70 hover:bg-accent/50 hover:text-foreground"
+                : "text-foreground/70 hover:bg-accent/50 hover:text-foreground",
             )}
           >
             <span className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -85,7 +80,7 @@ export function SkillSidebar({
               "w-full px-4 py-2.5 flex items-center text-[13px] transition-colors",
               isActive({ type: "starred" })
                 ? "bg-primary/5 text-foreground border-l-2 border-l-primary"
-                : "text-foreground/70 hover:bg-accent/50 hover:text-foreground"
+                : "text-foreground/70 hover:bg-accent/50 hover:text-foreground",
             )}
           >
             <span className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -104,7 +99,7 @@ export function SkillSidebar({
               "w-full px-4 py-2.5 flex items-center text-[13px] transition-colors",
               isActive({ type: "mine" })
                 ? "bg-primary/5 text-foreground border-l-2 border-l-primary"
-                : "text-foreground/70 hover:bg-accent/50 hover:text-foreground"
+                : "text-foreground/70 hover:bg-accent/50 hover:text-foreground",
             )}
           >
             <span className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -124,7 +119,7 @@ export function SkillSidebar({
                 "w-full px-4 py-2.5 flex items-center text-[13px] transition-colors",
                 isActive({ type: "consistency" })
                   ? "bg-primary/5 text-foreground border-l-2 border-l-primary"
-                  : "text-foreground/70 hover:bg-accent/50 hover:text-foreground"
+                  : "text-foreground/70 hover:bg-accent/50 hover:text-foreground",
               )}
             >
               <span className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -143,7 +138,7 @@ export function SkillSidebar({
               onClick={() => setReposExpanded((v) => !v)}
               className={cn(
                 "w-full px-4 py-2.5 flex items-center text-[13px] transition-colors text-left",
-                "text-foreground/70 hover:bg-accent/50 hover:text-foreground"
+                "text-foreground/70 hover:bg-accent/50 hover:text-foreground",
               )}
             >
               <span className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -159,23 +154,27 @@ export function SkillSidebar({
             <div
               className={cn(
                 "overflow-hidden transition-all duration-200 ease-in-out",
-                reposExpanded ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0"
+                reposExpanded ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0",
               )}
             >
               {repos.map((repo) => (
                 <Tooltip key={`${repo.owner}/${repo.name}`}>
                   <TooltipTrigger asChild>
                     <button
-                      onClick={() => onSelectCategory({ type: "repo", owner: repo.owner, name: repo.name })}
+                      onClick={() =>
+                        onSelectCategory({ type: "repo", owner: repo.owner, name: repo.name })
+                      }
                       className={cn(
                         "w-full px-4 py-2 flex items-center text-[13px] transition-colors pl-8",
                         isActive({ type: "repo", owner: repo.owner, name: repo.name })
                           ? "bg-primary/5 text-foreground border-l-2 border-l-primary"
-                          : "text-foreground/70 hover:bg-accent/50 hover:text-foreground"
+                          : "text-foreground/70 hover:bg-accent/50 hover:text-foreground",
                       )}
                     >
                       <span className="flex items-center min-w-0 flex-1">
-                        <span className="truncate">{repo.owner}/{repo.name}</span>
+                        <span className="truncate">
+                          {repo.owner}/{repo.name}
+                        </span>
                       </span>
                     </button>
                   </TooltipTrigger>

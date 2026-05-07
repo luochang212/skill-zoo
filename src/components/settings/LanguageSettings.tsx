@@ -17,9 +17,7 @@ export function LanguageSettings() {
 
   return (
     <section className="space-y-2">
-      <p className="text-xs text-muted-foreground">
-        {t("settings.language.description")}
-      </p>
+      <p className="text-xs text-muted-foreground">{t("settings.language.description")}</p>
       <div className="inline-flex gap-1 rounded-md border border-border bg-background p-1">
         {languageOptions.map((opt) => (
           <Button
@@ -31,7 +29,7 @@ export function LanguageSettings() {
               "min-w-[80px] gap-1.5",
               currentLang === opt.value
                 ? "shadow-sm"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted",
             )}
             onClick={() => handleLanguageChange(opt.value)}
           >

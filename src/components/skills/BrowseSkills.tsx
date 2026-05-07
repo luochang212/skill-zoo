@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useBanners, useRecommendedRepos, useSearchRepo, useSearchSkillsSh } from "@/hooks/useSkills";
+import {
+  useBanners,
+  useRecommendedRepos,
+  useSearchRepo,
+  useSearchSkillsSh,
+} from "@/hooks/useSkills";
 import { useRecentlyViewed } from "@/hooks/useRecentlyViewed";
 import { skillsApi } from "@/lib/api/skills";
 import { BannerCarousel } from "@/components/skills/BannerCarousel";
@@ -55,7 +60,12 @@ interface BrowseSkillsProps {
 export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) {
   const { t } = useTranslation();
   const { data: banners } = useBanners();
-  const { data: recommendedRepos, isLoading: loadingRepos, isError: reposError, refetch: refetchRepos } = useRecommendedRepos();
+  const {
+    data: recommendedRepos,
+    isLoading: loadingRepos,
+    isError: reposError,
+    refetch: refetchRepos,
+  } = useRecommendedRepos();
   const { items: recentItems, add: addRecent, clear: clearRecent } = useRecentlyViewed();
 
   const [search, setSearch] = useState("");
@@ -66,10 +76,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
   const repos = recommendedRepos ?? [];
 
   // Dedup recently viewed against recommended list
-  const recommendedKeys = useMemo(
-    () => new Set(repos.map((r) => `${r.owner}/${r.name}`)),
-    [repos],
-  );
+  const recommendedKeys = useMemo(() => new Set(repos.map((r) => `${r.owner}/${r.name}`)), [repos]);
   const recentToDisplay = useMemo(
     () => recentItems.filter((r) => !recommendedKeys.has(`${r.owner}/${r.name}`)),
     [recentItems, recommendedKeys],
@@ -92,11 +99,16 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
 
   // Parallel search: skills.sh always, GitHub repo for owner/name or github.com URL
   const isRepoQuery = useMemo(
-    () => /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(debouncedSearch ?? "") || /^https?:\/\/github\.com\//.test(debouncedSearch ?? ""),
+    () =>
+      /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(debouncedSearch ?? "") ||
+      /^https?:\/\/github\.com\//.test(debouncedSearch ?? ""),
     [debouncedSearch],
   );
-  const { data: repoResult, isLoading: searchingRepo } = useSearchRepo(isRepoQuery ? debouncedSearch : null);
-  const { data: skillsShResults, isLoading: searchingSkillsSh } = useSearchSkillsSh(debouncedSearch);
+  const { data: repoResult, isLoading: searchingRepo } = useSearchRepo(
+    isRepoQuery ? debouncedSearch : null,
+  );
+  const { data: skillsShResults, isLoading: searchingSkillsSh } =
+    useSearchSkillsSh(debouncedSearch);
 
   const isSearching = searchingRepo || searchingSkillsSh;
   const skillsList = skillsShResults ?? [];
@@ -114,13 +126,16 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
   }, []);
 
   // Clear search state and navigate to a repo
-  const navigateToRepo = useCallback((repo: DiscoverRepo) => {
-    setDropdownOpen(false);
-    setSearch("");
-    setDebouncedSearch(null);
-    addRecent(repo);
-    onSelectRepo(repo);
-  }, [onSelectRepo, addRecent]);
+  const navigateToRepo = useCallback(
+    (repo: DiscoverRepo) => {
+      setDropdownOpen(false);
+      setSearch("");
+      setDebouncedSearch(null);
+      addRecent(repo);
+      onSelectRepo(repo);
+    },
+    [onSelectRepo, addRecent],
+  );
 
   const handleBannerClick = useCallback(
     async (owner: string, name: string) => {
@@ -161,7 +176,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
     return (
       <div className="flex flex-col h-full">
         <RepoDetail
-          key={selectedRepo.owner + '/' + selectedRepo.name}
+          key={selectedRepo.owner + "/" + selectedRepo.name}
           repo={selectedRepo}
           onBack={handleBackFromRepo}
         />
@@ -232,17 +247,17 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
                     <button
                       key={skill.key}
                       className="w-full text-left px-4 py-2.5 hover:bg-accent/50 transition-colors flex items-center justify-between gap-3"
-                      onClick={() => navigateToRepo({
-                        owner: skill.repoOwner,
-                        name: skill.repoName,
-                        branch: "main",
-                        description: undefined,
-                      })}
+                      onClick={() =>
+                        navigateToRepo({
+                          owner: skill.repoOwner,
+                          name: skill.repoName,
+                          branch: "main",
+                          description: undefined,
+                        })
+                      }
                     >
                       <div className="min-w-0">
-                        <p className="text-[13px] font-medium truncate">
-                          {skill.name}
-                        </p>
+                        <p className="text-[13px] font-medium truncate">{skill.name}</p>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-[11px] text-muted-foreground/70 truncate">
                             {skill.repoOwner}/{skill.repoName}

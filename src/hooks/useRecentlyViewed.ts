@@ -10,14 +10,18 @@ function load(): RecentlyViewedEntry[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) return JSON.parse(stored) as RecentlyViewedEntry[];
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return [];
 }
 
 function save(entries: RecentlyViewedEntry[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 export function useRecentlyViewed() {
@@ -26,9 +30,7 @@ export function useRecentlyViewed() {
   const add = useCallback((repo: DiscoverRepo) => {
     setItems((prev) => {
       const key = `${repo.owner}/${repo.name}`;
-      const filtered = prev.filter(
-        (e) => `${e.owner}/${e.name}` !== key,
-      );
+      const filtered = prev.filter((e) => `${e.owner}/${e.name}` !== key);
       const entry: RecentlyViewedEntry = {
         ...repo,
         viewedAt: Date.now(),
@@ -43,7 +45,9 @@ export function useRecentlyViewed() {
     setItems([]);
     try {
       localStorage.removeItem(STORAGE_KEY);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   return { items, add, clear };

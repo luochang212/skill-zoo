@@ -52,6 +52,16 @@ function SkillFileTreePanel({ directory }: { directory?: string }) {
   );
 }
 
+// Synced scroll helpers for split view — pure functions, no component closure needed
+function getScrollRatio(el: HTMLElement) {
+  const maxScroll = el.scrollHeight - el.clientHeight;
+  return maxScroll > 0 ? el.scrollTop / maxScroll : 0;
+}
+
+function applyScrollRatio(el: HTMLElement, ratio: number) {
+  el.scrollTop = ratio * (el.scrollHeight - el.clientHeight);
+}
+
 export function SkillContentPane({
   content,
   onChange,
@@ -99,15 +109,6 @@ export function SkillContentPane({
   }, [dragging]);
 
   // Synced scroll for split view — percentage-based
-  const getScrollRatio = (el: HTMLElement) => {
-    const maxScroll = el.scrollHeight - el.clientHeight;
-    return maxScroll > 0 ? el.scrollTop / maxScroll : 0;
-  };
-
-  const applyScrollRatio = (el: HTMLElement, ratio: number) => {
-    el.scrollTop = ratio * (el.scrollHeight - el.clientHeight);
-  };
-
   const SYNC_GRACE_MS = 100;
 
   const onEditScroll = useCallback(() => {
@@ -136,25 +137,35 @@ export function SkillContentPane({
       <div className="px-5 py-2 shrink-0 border-b border-border flex items-center" role="tablist">
         <button
           onClick={() => {
-            const next: ContentTab = activeTab === "overview" ? "edit" : activeTab === "edit" ? "split" : activeTab === "split" ? "files" : "overview";
+            const next: ContentTab =
+              activeTab === "overview"
+                ? "edit"
+                : activeTab === "edit"
+                  ? "split"
+                  : activeTab === "split"
+                    ? "files"
+                    : "overview";
             onTabChange(next);
           }}
           className="inline-flex items-center bg-muted rounded-xl p-0.5 gap-0.5 cursor-pointer"
         >
-          {([
+          {[
             { id: "overview" as ContentTab, icon: Eye, key: "skill.view" },
             { id: "edit" as ContentTab, icon: Pencil, key: "skill.edit" },
             { id: "split" as ContentTab, icon: Columns2, key: "skill.split" },
             { id: "files" as ContentTab, icon: FolderTree, key: "skill.files" },
-          ]).map(({ id, icon: Icon, key }) => (
+          ].map(({ id, icon: Icon, key }) => (
             <span
               key={id}
-              onClick={(e) => { e.stopPropagation(); onTabChange(id); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onTabChange(id);
+              }}
               className={cn(
                 "px-2.5 py-1 h-6 text-[11px] rounded-lg font-medium inline-flex items-center gap-1 transition-all duration-200",
                 activeTab === id
                   ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               <Icon className="h-3 w-3" />
@@ -173,81 +184,92 @@ export function SkillContentPane({
       {activeTab === "files" ? (
         <SkillFileTreePanel directory={directory} />
       ) : (
-      /* Animated dual-pane layout (overview / edit / split) */
-      <div ref={panesRef} className="flex-1 min-h-0 min-w-0 flex overflow-hidden" role="tabpanel" style={dragging ? { userSelect: "none" } : undefined}>
-        {/* Left pane — editor (visible in edit & split) */}
+        /* Animated dual-pane layout (overview / edit / split) */
         <div
-          className="h-full min-w-0 overflow-hidden transition-[width] duration-300 ease-in-out"
-          style={{
-            width: activeTab === "overview" ? "0%" : activeTab === "edit" ? "100%" : `${splitPct}%`,
-          }}
+          ref={panesRef}
+          className="flex-1 min-h-0 min-w-0 flex overflow-hidden"
+          role="tabpanel"
+          style={dragging ? { userSelect: "none" } : undefined}
         >
-          <textarea
-            ref={editRef}
-            value={content}
-            onChange={(e) => onChange(e.target.value)}
-            onScroll={onEditScroll}
-            className="w-full h-full resize-none bg-background p-4 font-mono text-[13px] leading-relaxed focus:outline-none"
-            spellCheck={false}
-            aria-label={t("skill.edit")}
-          />
-        </div>
-
-        {/* Divider (visible in split) */}
-        <div
-          className={cn(
-            "shrink-0 cursor-col-resize group relative overflow-hidden transition-[width,background-color] duration-150",
-            "w-0 bg-border",
-            "hover:bg-primary/40",
-            "active:bg-primary/60",
-            dragging && "!bg-primary/60",
-            activeTab === "split" && "w-px hover:w-1",
-            activeTab === "split" && dragging && "!w-1",
-          )}
-          onMouseDown={activeTab === "split" ? onDividerDown : undefined}
-          style={{ alignSelf: "stretch" }}
-          role="separator"
-          aria-orientation="vertical"
-          aria-valuenow={Math.round(splitPct)}
-          aria-valuemin={SPLIT_MIN}
-          aria-valuemax={100 - SPLIT_MIN}
-        />
-
-        {/* Right pane — preview (visible in view & split) */}
-        <div
-          className="h-full min-w-0 overflow-hidden transition-[width] duration-300 ease-in-out"
-          style={{
-            width: activeTab === "overview" ? "100%" : activeTab === "edit" ? "0%" : `${100 - splitPct}%`,
-          }}
-        >
+          {/* Left pane — editor (visible in edit & split) */}
           <div
-            ref={previewViewportRef}
-            onScroll={onPreviewScroll}
-            className="h-full overflow-auto"
+            className="h-full min-w-0 overflow-hidden transition-[width] duration-300 ease-in-out"
+            style={{
+              width:
+                activeTab === "overview" ? "0%" : activeTab === "edit" ? "100%" : `${splitPct}%`,
+            }}
           >
-            <div className="px-5 py-4 pr-6">
-              {(previewContent ?? content) ? (
-                <MarkdownContent content={previewContent ?? content} />
-              ) : isLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="h-5 w-5 border-2 border-muted-foreground/20 border-t-foreground/60 rounded-full animate-spin" />
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                  <p className="text-sm">{t("skill.noContent")}</p>
-                  <p className="text-xs mt-1">
-                    {emptyHint
-                      ? emptyHint
-                      : activeTab === "overview"
-                        ? t("skill.noContentHintSwitch")
-                        : t("skill.noContentHintType")}
-                  </p>
-                </div>
-              )}
+            <textarea
+              ref={editRef}
+              value={content}
+              onChange={(e) => onChange(e.target.value)}
+              onScroll={onEditScroll}
+              className="w-full h-full resize-none bg-background p-4 font-mono text-[13px] leading-relaxed focus:outline-none"
+              spellCheck={false}
+              aria-label={t("skill.edit")}
+            />
+          </div>
+
+          {/* Divider (visible in split) */}
+          <div
+            className={cn(
+              "shrink-0 cursor-col-resize group relative overflow-hidden transition-[width,background-color] duration-150",
+              "w-0 bg-border",
+              "hover:bg-primary/40",
+              "active:bg-primary/60",
+              dragging && "!bg-primary/60",
+              activeTab === "split" && "w-px hover:w-1",
+              activeTab === "split" && dragging && "!w-1",
+            )}
+            onMouseDown={activeTab === "split" ? onDividerDown : undefined}
+            style={{ alignSelf: "stretch" }}
+            role="separator"
+            aria-orientation="vertical"
+            aria-valuenow={Math.round(splitPct)}
+            aria-valuemin={SPLIT_MIN}
+            aria-valuemax={100 - SPLIT_MIN}
+          />
+
+          {/* Right pane — preview (visible in view & split) */}
+          <div
+            className="h-full min-w-0 overflow-hidden transition-[width] duration-300 ease-in-out"
+            style={{
+              width:
+                activeTab === "overview"
+                  ? "100%"
+                  : activeTab === "edit"
+                    ? "0%"
+                    : `${100 - splitPct}%`,
+            }}
+          >
+            <div
+              ref={previewViewportRef}
+              onScroll={onPreviewScroll}
+              className="h-full overflow-auto"
+            >
+              <div className="px-5 py-4 pr-6">
+                {(previewContent ?? content) ? (
+                  <MarkdownContent content={previewContent ?? content} />
+                ) : isLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="h-5 w-5 border-2 border-muted-foreground/20 border-t-foreground/60 rounded-full animate-spin" />
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                    <p className="text-sm">{t("skill.noContent")}</p>
+                    <p className="text-xs mt-1">
+                      {emptyHint
+                        ? emptyHint
+                        : activeTab === "overview"
+                          ? t("skill.noContentHintSwitch")
+                          : t("skill.noContentHintType")}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
       )}
     </div>
   );
