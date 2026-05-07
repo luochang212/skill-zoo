@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.4] — 2026-05-08
+
+### Added
+- oxlint/oxfmt tooling for lint and format, with CI gates.
+
+### Changed
+- Switch from serde_yml to official serde_yaml.
+- Harden CI workflow against supply chain and injection risks.
+- README improvements: Trust & Security, Contributing, lint/format/test commands.
+
+### Fixed
+- RELEASE_BODY.md validation in CI before reading.
+- Windows portable resources copied to exe directory instead of resources/ subfolder.
+
 ## [0.1.3] — 2026-05-05
 
 ### Added
