@@ -2,6 +2,7 @@
 
 use crate::config;
 use crate::error::AppError;
+use crate::persistence::atomic_write;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -42,7 +43,7 @@ impl MetadataStore {
         }
         let json = serde_json::to_string_pretty(self)
             .map_err(|e| AppError::Parse(format!("metadata.json: {e}")))?;
-        std::fs::write(&path, json).map_err(|e| crate::error::io(&path, e))
+        atomic_write(&path, json).map_err(|e| crate::error::io(&path, e))
     }
 
     pub fn get(&self, skill_id: &str) -> SkillMetadata {

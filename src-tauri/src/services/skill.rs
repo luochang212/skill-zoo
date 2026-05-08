@@ -314,7 +314,7 @@ impl SkillService {
     fn save_hash_cache(cache: &HashMap<String, (i64, String)>) {
         let path = Self::hash_cache_path();
         if let Ok(json) = serde_json::to_string_pretty(cache) {
-            let _ = std::fs::write(&path, json);
+            let _ = crate::persistence::atomic_write(&path, json);
         }
     }
 
@@ -351,6 +351,20 @@ impl SkillService {
             skill.is_mine = meta.is_mine;
             skills.push(skill);
         }
+        Ok(skills)
+    }
+
+    /// Read cache + metadata, merge into InstalledSkill list, fill detect_agents.
+    pub fn read_all_skills(
+        skill_cache: &RwLock<SkillCache>,
+        metadata: &RwLock<MetadataStore>,
+    ) -> Result<Vec<InstalledSkill>, AppError> {
+        let mut skills = {
+            let cache = skill_cache.read().map_err(|e: std::sync::PoisonError<_>| AppError::Cli(e.to_string()))?;
+            let meta = metadata.read().map_err(|e: std::sync::PoisonError<_>| AppError::Cli(e.to_string()))?;
+            Self::get_cached_skills(&cache, &meta)?
+        };
+        Self::fill_detect_agents(&mut skills);
         Ok(skills)
     }
 

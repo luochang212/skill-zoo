@@ -6,6 +6,19 @@ use crate::config;
 use crate::error::{self, AppError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::Path;
+
+/// Write `data` to `path` atomically: write to a temp file first, then rename.
+/// On same-filesystem rename is atomic, so a crash never leaves a half-written file.
+pub(crate) fn atomic_write(path: &Path, data: impl AsRef<[u8]>) -> std::io::Result<()> {
+    let tmp_path = path.with_extension("json.tmp");
+    {
+        let mut f = std::fs::File::create(&tmp_path)?;
+        std::io::Write::write_all(&mut f, data.as_ref())?;
+        f.sync_all()?;
+    }
+    std::fs::rename(&tmp_path, path)
+}
 
 /// A single entry in the skills cache — filesystem scan result without user metadata or live `apps`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,7 +55,7 @@ impl SkillCache {
         }
         let json = serde_json::to_string_pretty(self)
             .map_err(|e| AppError::Parse(format!("skills-cache.json: {e}")))?;
-        std::fs::write(&path, json).map_err(|e| error::io(&path, e))
+        atomic_write(&path, json).map_err(|e| error::io(&path, e))
     }
 }
 
@@ -74,7 +87,7 @@ impl Settings {
         }
         let json = serde_json::to_string_pretty(self)
             .map_err(|e| AppError::Parse(format!("settings.json: {e}")))?;
-        std::fs::write(&path, json).map_err(|e| error::io(&path, e))
+        atomic_write(&path, json).map_err(|e| error::io(&path, e))
     }
 
     pub fn get(&self, key: &str) -> Option<&String> {

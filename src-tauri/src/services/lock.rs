@@ -59,7 +59,7 @@ impl SkillLock {
             std::fs::create_dir_all(parent).map_err(AppError::Io)?;
         }
         let content = serde_json::to_string_pretty(self).map_err(|e| AppError::Parse(e.to_string()))?;
-        std::fs::write(&path, &content).map_err(AppError::Io)?;
+        crate::persistence::atomic_write(&path, &content).map_err(AppError::Io)?;
         Ok(())
     }
 }
