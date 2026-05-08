@@ -45,6 +45,17 @@ pub fn run() {
             let app_state = AppState::new(skill_cache, metadata, settings);
             app.manage(app_state);
 
+            // Start filesystem watcher for auto-refresh on external changes
+            let app_handle = app.handle().clone();
+            let state = app.state::<AppState>();
+            match services::watcher::start_skill_watcher(app_handle) {
+                Ok((watcher, task)) => {
+                    state.fs_watcher.lock().unwrap().replace(watcher);
+                    state.watcher_task.lock().unwrap().replace(task);
+                }
+                Err(e) => eprintln!("Failed to start file watcher: {e}"),
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
