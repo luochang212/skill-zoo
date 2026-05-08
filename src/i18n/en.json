@@ -158,7 +158,12 @@
     "mismatch": "Mismatch",
     "noMismatches": "All skill names match their folders",
     "mismatchHint": "The name field in SKILL.md doesn't match the folder name. Consider renaming to keep them consistent.",
-    "folderName": "Folder"
+    "folderName": "Folder",
+    "mergeAllBtn": "Merge All to SSOT",
+    "mergeAllConfirmTitle": "Batch Merge All Duplicates",
+    "mergeAllConfirmDesc": "The following {{count}} duplicate groups will be merged:",
+    "mergeAllGroupLabel": "{{name}} ({{count}} copies)",
+    "merging": "Merging..."
   },
   "skillHero": {
     "updated": "Updated",

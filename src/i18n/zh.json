@@ -158,7 +158,12 @@
     "mismatch": "不匹配",
     "noMismatches": "所有技能名称与文件夹一致",
     "mismatchHint": "技能文件 SKILL.md 里的 name 和文件夹名对不上，建议重命名使其一致。",
-    "folderName": "文件夹"
+    "folderName": "文件夹",
+    "mergeAllBtn": "全部合并到 SSOT",
+    "mergeAllConfirmTitle": "批量合并所有重复技能",
+    "mergeAllConfirmDesc": "即将对以下 {{count}} 组重复技能执行合并操作：",
+    "mergeAllGroupLabel": "{{name}}（{{count}} 个副本）",
+    "merging": "合并中..."
   },
   "skillHero": {
     "updated": "已更新",

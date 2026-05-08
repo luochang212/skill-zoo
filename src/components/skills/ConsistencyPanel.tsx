@@ -225,6 +225,8 @@ export function ConsistencyPanel({
   const { t } = useTranslation();
   const mergeMutation = useMergeDuplicates();
   const [confirmMerge, setConfirmMerge] = useState<string | null>(null);
+  const [batchMergeOpen, setBatchMergeOpen] = useState(false);
+  const [merging, setMerging] = useState(false);
   const [tab, setTab] = useState<ConsistencyTab | null>(null);
 
   const duplicateGroups = allGroups.filter((g) => g.sameContent);
@@ -313,6 +315,15 @@ export function ConsistencyPanel({
             empty={t("consistency.noDuplicates")}
             hasItems={duplicateGroups.length > 0}
           >
+            {duplicateGroups.length > 0 && (
+              <Button
+                size="sm"
+                className="h-8 text-xs rounded-lg"
+                onClick={() => setBatchMergeOpen(true)}
+              >
+                {t("consistency.mergeAllBtn")}
+              </Button>
+            )}
             {duplicateGroups.map((group) => (
               <DuplicateGroupCard
                 key={group.name}
@@ -360,6 +371,73 @@ export function ConsistencyPanel({
           onCancel={() => setConfirmMerge(null)}
           isPending={mergeMutation.isPending}
         />
+      )}
+
+      {/* Batch merge all duplicates dialog */}
+      {batchMergeOpen && (
+        <Dialog open onOpenChange={(open) => !open && setBatchMergeOpen(false)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>{t("consistency.mergeAllConfirmTitle")}</DialogTitle>
+              <DialogDescription>
+                {t("consistency.mergeAllConfirmDesc", { count: duplicateGroups.length })}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2 text-[12px] max-h-60 overflow-auto">
+              {duplicateGroups.map((group) => (
+                <div key={group.name} className="flex items-center gap-2">
+                  <Copy className="h-3 w-3 shrink-0 text-amber-500" />
+                  <span className="flex-1 truncate">
+                    {t("consistency.mergeAllGroupLabel", {
+                      name: group.name,
+                      count: group.skills.length,
+                    })}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-red-500 dark:text-red-400 text-[12px] font-medium">
+              {t("consistency.mergeCannotUndo")}
+            </p>
+
+            <DialogFooter>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setBatchMergeOpen(false)}
+                disabled={merging}
+              >
+                {t("common.cancel")}
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={merging}
+                onClick={async () => {
+                  setMerging(true);
+                  for (const group of duplicateGroups) {
+                    try {
+                      await new Promise<void>((resolve, reject) => {
+                        mergeMutation.mutate(group.name, {
+                          onSuccess: () => resolve(),
+                          onError: reject,
+                        });
+                      });
+                    } catch {
+                      break;
+                    }
+                  }
+                  setMerging(false);
+                  setBatchMergeOpen(false);
+                }}
+              >
+                {merging ? t("consistency.merging") : t("consistency.mergeConfirmBtn")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
