@@ -9,7 +9,13 @@ import { SkillDetail } from "@/components/skills/SkillDetail";
 import { SkillCreateView } from "@/components/skills/SkillCreateView";
 import { SettingsView } from "@/components/settings/SettingsView";
 import { useEditorState } from "@/lib/useEditorState";
-import { useUpdateSkill, useRemoveSkill, useStarSkill, useUnstarSkill, useSkillsWatcher } from "@/hooks/useSkills";
+import {
+  useUpdateSkill,
+  useRemoveSkill,
+  useStarSkill,
+  useUnstarSkill,
+  useSkillsWatcher,
+} from "@/hooks/useSkills";
 import { useSidebarFilter } from "@/hooks/useSidebarFilter";
 import { applyTheme } from "@/hooks/useTheme";
 import type { View, DiscoverRepo } from "@/types/skills";

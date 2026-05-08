@@ -47,9 +47,12 @@ impl SkillLock {
                 dismissed: serde_json::Value::Object(Default::default()),
             });
         }
-        let content =
-            std::fs::read_to_string(&path)
-            .map_err(|e| AppError::Io(std::io::Error::other(format!("Failed to read lock file {}: {e}", path.display()))))?;
+        let content = std::fs::read_to_string(&path).map_err(|e| {
+            AppError::Io(std::io::Error::other(format!(
+                "Failed to read lock file {}: {e}",
+                path.display()
+            )))
+        })?;
         serde_json::from_str(&content).map_err(|e| AppError::Parse(e.to_string()))
     }
 
@@ -58,7 +61,8 @@ impl SkillLock {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(AppError::Io)?;
         }
-        let content = serde_json::to_string_pretty(self).map_err(|e| AppError::Parse(e.to_string()))?;
+        let content =
+            serde_json::to_string_pretty(self).map_err(|e| AppError::Parse(e.to_string()))?;
         crate::persistence::atomic_write(&path, &content).map_err(AppError::Io)?;
         Ok(())
     }
@@ -86,13 +90,7 @@ impl SkillLockEntry {
             }
         }
         if let Some(src) = &self.source {
-            if src.contains('/')
-                && self
-                    .source_type
-                    .as_deref()
-                    .unwrap_or("github")
-                    == "github"
-            {
+            if src.contains('/') && self.source_type.as_deref().unwrap_or("github") == "github" {
                 return Some(format!("https://github.com/{src}"));
             }
         }

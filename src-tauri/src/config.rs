@@ -1,5 +1,5 @@
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -10,14 +10,46 @@ pub struct AgentConfig {
 }
 
 pub const AGENTS: &[AgentConfig] = &[
-    AgentConfig { id: "claude-code", label: "Claude Code", skills_subdir: ".claude" },
-    AgentConfig { id: "codex",       label: "Codex",      skills_subdir: ".codex" },
-    AgentConfig { id: "gemini",      label: "Gemini",     skills_subdir: ".gemini" },
-    AgentConfig { id: "cursor",      label: "Cursor",     skills_subdir: ".cursor" },
-    AgentConfig { id: "trae",        label: "Trae",       skills_subdir: ".trae" },
-    AgentConfig { id: "trae-cn",     label: "Trae CN",    skills_subdir: ".trae-cn" },
-    AgentConfig { id: "hermes",      label: "Hermes",     skills_subdir: ".hermes" },
-    AgentConfig { id: "openclaw",    label: "OpenClaw",   skills_subdir: ".openclaw" },
+    AgentConfig {
+        id: "claude-code",
+        label: "Claude Code",
+        skills_subdir: ".claude",
+    },
+    AgentConfig {
+        id: "codex",
+        label: "Codex",
+        skills_subdir: ".codex",
+    },
+    AgentConfig {
+        id: "gemini",
+        label: "Gemini",
+        skills_subdir: ".gemini",
+    },
+    AgentConfig {
+        id: "cursor",
+        label: "Cursor",
+        skills_subdir: ".cursor",
+    },
+    AgentConfig {
+        id: "trae",
+        label: "Trae",
+        skills_subdir: ".trae",
+    },
+    AgentConfig {
+        id: "trae-cn",
+        label: "Trae CN",
+        skills_subdir: ".trae-cn",
+    },
+    AgentConfig {
+        id: "hermes",
+        label: "Hermes",
+        skills_subdir: ".hermes",
+    },
+    AgentConfig {
+        id: "openclaw",
+        label: "OpenClaw",
+        skills_subdir: ".openclaw",
+    },
 ];
 
 pub fn default_visibility(agent_id: &str) -> bool {

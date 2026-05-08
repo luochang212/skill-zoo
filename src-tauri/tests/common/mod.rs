@@ -1,7 +1,7 @@
 #[allow(unused_imports)]
-pub use skill_zoo_lib::persistence::{SkillCache, SkillCacheEntry};
-#[allow(unused_imports)]
 pub use skill_zoo_lib::persistence::metadata::MetadataStore;
+#[allow(unused_imports)]
+pub use skill_zoo_lib::persistence::{SkillCache, SkillCacheEntry};
 #[allow(unused_imports)]
 pub use skill_zoo_lib::services::lock::{SkillLock, SkillLockEntry};
 #[allow(unused_imports)]

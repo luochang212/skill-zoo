@@ -29,17 +29,14 @@ impl MetadataStore {
                 entries: HashMap::new(),
             });
         }
-        let content = std::fs::read_to_string(&path)
-            .map_err(|e| crate::error::io(&path, e))?;
-        serde_json::from_str(&content)
-            .map_err(|e| AppError::Parse(format!("metadata.json: {e}")))
+        let content = std::fs::read_to_string(&path).map_err(|e| crate::error::io(&path, e))?;
+        serde_json::from_str(&content).map_err(|e| AppError::Parse(format!("metadata.json: {e}")))
     }
 
     pub fn save(&self) -> Result<(), AppError> {
         let path = config::get_app_config_dir().join("metadata.json");
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| crate::error::io(parent, e))?;
+            std::fs::create_dir_all(parent).map_err(|e| crate::error::io(parent, e))?;
         }
         let json = serde_json::to_string_pretty(self)
             .map_err(|e| AppError::Parse(format!("metadata.json: {e}")))?;
@@ -57,18 +54,24 @@ impl MetadataStore {
     }
 
     pub fn set_starred(&mut self, skill_id: &str, starred: bool) {
-        let entry = self.entries.entry(skill_id.to_string()).or_insert(SkillMetadata {
-            starred: false,
-            is_mine: false,
-        });
+        let entry = self
+            .entries
+            .entry(skill_id.to_string())
+            .or_insert(SkillMetadata {
+                starred: false,
+                is_mine: false,
+            });
         entry.starred = starred;
     }
 
     pub fn set_is_mine(&mut self, skill_id: &str, is_mine: bool) {
-        let entry = self.entries.entry(skill_id.to_string()).or_insert(SkillMetadata {
-            starred: false,
-            is_mine: false,
-        });
+        let entry = self
+            .entries
+            .entry(skill_id.to_string())
+            .or_insert(SkillMetadata {
+                starred: false,
+                is_mine: false,
+            });
         entry.is_mine = is_mine;
     }
 

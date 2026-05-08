@@ -415,17 +415,22 @@ export function ConsistencyPanel({
                 size="sm"
                 variant="destructive"
                 disabled={merging}
-                onClick={async () => {
+                onClick={() => {
                   setMerging(true);
-                  for (const group of duplicateGroups) {
-                    try {
-                      await mergeMutation.mutateAsync(group.name);
-                    } catch {
-                      break;
-                    }
-                  }
-                  setMerging(false);
-                  setBatchMergeOpen(false);
+                  duplicateGroups
+                    .reduce(
+                      (chain, group) =>
+                        chain.then(() =>
+                          mergeMutation.mutateAsync(group.name).catch(() => {
+                            /* error already toasted globally by mutation onError */
+                          }),
+                        ),
+                      Promise.resolve(),
+                    )
+                    .finally(() => {
+                      setMerging(false);
+                      setBatchMergeOpen(false);
+                    });
                 }}
               >
                 {merging ? t("consistency.merging") : t("consistency.mergeConfirmBtn")}

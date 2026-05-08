@@ -35,12 +35,14 @@ pub fn run() {
             // Start with empty skill cache so the first get_installed_skills
             // triggers a filesystem rebuild, keeping cache in sync with reality.
             let skill_cache = persistence::SkillCache { skills: Vec::new() };
-            let metadata = persistence::MetadataStore::load().unwrap_or_else(|_| {
-                persistence::MetadataStore { entries: std::collections::HashMap::new() }
-            });
-            let settings = persistence::Settings::load().unwrap_or_else(|_| {
-                persistence::Settings { values: std::collections::HashMap::new() }
-            });
+            let metadata =
+                persistence::MetadataStore::load().unwrap_or_else(|_| persistence::MetadataStore {
+                    entries: std::collections::HashMap::new(),
+                });
+            let settings =
+                persistence::Settings::load().unwrap_or_else(|_| persistence::Settings {
+                    values: std::collections::HashMap::new(),
+                });
 
             let app_state = AppState::new(skill_cache, metadata, settings);
             app.manage(app_state);

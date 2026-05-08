@@ -50,8 +50,7 @@ impl SkillCache {
     pub fn save(&self) -> Result<(), AppError> {
         let path = config::get_app_config_dir().join("skills-cache.json");
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| error::io(parent, e))?;
+            std::fs::create_dir_all(parent).map_err(|e| error::io(parent, e))?;
         }
         let json = serde_json::to_string_pretty(self)
             .map_err(|e| AppError::Parse(format!("skills-cache.json: {e}")))?;
@@ -73,17 +72,14 @@ impl Settings {
                 values: HashMap::new(),
             });
         }
-        let content =
-            std::fs::read_to_string(&path).map_err(|e| error::io(&path, e))?;
-        serde_json::from_str(&content)
-            .map_err(|e| AppError::Parse(format!("settings.json: {e}")))
+        let content = std::fs::read_to_string(&path).map_err(|e| error::io(&path, e))?;
+        serde_json::from_str(&content).map_err(|e| AppError::Parse(format!("settings.json: {e}")))
     }
 
     pub fn save(&self) -> Result<(), AppError> {
         let path = config::get_app_config_dir().join("settings.json");
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| error::io(parent, e))?;
+            std::fs::create_dir_all(parent).map_err(|e| error::io(parent, e))?;
         }
         let json = serde_json::to_string_pretty(self)
             .map_err(|e| AppError::Parse(format!("settings.json: {e}")))?;

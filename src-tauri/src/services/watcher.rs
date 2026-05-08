@@ -28,7 +28,10 @@ fn collect_watch_dirs() -> Vec<PathBuf> {
 pub fn start_skill_watcher(
     app_handle: tauri::AppHandle,
 ) -> Result<
-    (notify::RecommendedWatcher, tauri::async_runtime::JoinHandle<()>),
+    (
+        notify::RecommendedWatcher,
+        tauri::async_runtime::JoinHandle<()>,
+    ),
     Box<dyn std::error::Error>,
 > {
     let watch_dirs = collect_watch_dirs();
@@ -95,12 +98,8 @@ async fn debounced_rebuild_loop(
 
 async fn trigger_rebuild(app_handle: &tauri::AppHandle) {
     let state = app_handle.state::<AppState>();
-    match SkillService::rebuild_cache(
-        &state.skill_cache,
-        &state.metadata,
-        &state.sync_in_progress,
-    )
-    .await
+    match SkillService::rebuild_cache(&state.skill_cache, &state.metadata, &state.sync_in_progress)
+        .await
     {
         Ok(_) => {
             let _ = app_handle.emit("skills-changed", ());

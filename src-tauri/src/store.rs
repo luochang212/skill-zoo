@@ -1,6 +1,6 @@
 use crate::persistence::{MetadataStore, Settings, SkillCache};
-use std::sync::RwLock;
 use std::sync::atomic::AtomicBool;
+use std::sync::RwLock;
 
 pub struct AppState {
     pub skill_cache: RwLock<SkillCache>,

@@ -13,9 +13,7 @@ pub fn set_window_theme(window: tauri::Window, theme: String) -> Result<(), Stri
 }
 
 #[tauri::command]
-pub fn get_settings(
-    state: State<'_, AppState>,
-) -> Result<HashMap<String, String>, String> {
+pub fn get_settings(state: State<'_, AppState>) -> Result<HashMap<String, String>, String> {
     let settings = state.settings.lock().map_err(|e| e.to_string())?;
     Ok(settings.values.clone())
 }
@@ -32,11 +30,11 @@ pub fn update_setting(
 }
 
 #[tauri::command]
-pub fn get_visible_agents(
-    state: State<'_, AppState>,
-) -> Result<HashMap<String, bool>, String> {
+pub fn get_visible_agents(state: State<'_, AppState>) -> Result<HashMap<String, bool>, String> {
     let settings = state.settings.lock().map_err(|e| e.to_string())?;
-    Ok(crate::services::skill::SkillService::get_visible_agents(&settings))
+    Ok(crate::services::skill::SkillService::get_visible_agents(
+        &settings,
+    ))
 }
 
 #[tauri::command]
@@ -64,8 +62,14 @@ pub fn update_visible_agents(
 
     // Clean up symlinks for newly hidden agents
     for agent in crate::config::AGENTS {
-        let was_visible = old_visible.get(agent.id).copied().unwrap_or(crate::config::default_visibility(agent.id));
-        let now_visible = visible_agents.get(agent.id).copied().unwrap_or(crate::config::default_visibility(agent.id));
+        let was_visible = old_visible
+            .get(agent.id)
+            .copied()
+            .unwrap_or(crate::config::default_visibility(agent.id));
+        let now_visible = visible_agents
+            .get(agent.id)
+            .copied()
+            .unwrap_or(crate::config::default_visibility(agent.id));
         if was_visible && !now_visible {
             let _ = crate::services::skill::SkillService::remove_agent_symlinks(agent.id);
         }

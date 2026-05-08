@@ -1,7 +1,10 @@
-use crate::config::{AgentConfig, AgentPathInfo};
 use crate::config;
+use crate::config::{AgentConfig, AgentPathInfo};
 use crate::services::cli::CliService;
-use crate::services::skill::{DiscoverableSkill, InstalledSkill, SkillFileNode, SkillService, SymlinkStatus, is_symlink_or_junction};
+use crate::services::skill::{
+    is_symlink_or_junction, DiscoverableSkill, InstalledSkill, SkillFileNode, SkillService,
+    SymlinkStatus,
+};
 use crate::store::AppState;
 use tauri::{Manager, State};
 
@@ -22,9 +25,7 @@ pub(crate) fn validate_skill_directory(directory: &str) -> Result<(), String> {
             std::path::Component::ParentDir => {
                 return Err("Path traversal (..) is not allowed".into())
             }
-            std::path::Component::RootDir => {
-                return Err("Root directory is not allowed".into())
-            }
+            std::path::Component::RootDir => return Err("Root directory is not allowed".into()),
             _ => {}
         }
     }
@@ -69,9 +70,13 @@ pub async fn install_skills(
     skill_names: Vec<String>,
     agents: Vec<String>,
 ) -> Result<Vec<InstalledSkill>, String> {
-        CliService::add_skills(&repo_url, &skill_names, &agents.first().cloned().unwrap_or_default())
-        .await
-        .map_err(|e| e.to_string())?;
+    CliService::add_skills(
+        &repo_url,
+        &skill_names,
+        &agents.first().cloned().unwrap_or_default(),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
 
     // Discover which skill directories were just installed in SSOT
     let ssot_dir = config::get_agents_skills_dir();
@@ -84,8 +89,14 @@ pub async fn install_skills(
                 let skill_md = e.path().join("SKILL.md");
                 if skill_md.exists() {
                     let matches = skill_names.is_empty()
-                        || skill_names.iter().any(|s| s.to_lowercase() == name.to_lowercase());
-                    if matches { Some(name) } else { None }
+                        || skill_names
+                            .iter()
+                            .any(|s| s.to_lowercase() == name.to_lowercase());
+                    if matches {
+                        Some(name)
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }
@@ -99,12 +110,8 @@ pub async fn install_skills(
     for skill_dir in &installed_dirs {
         let home_path = config::get_agents_skills_dir().join(skill_dir);
         for agent in &agents {
-            let _ = SkillService::toggle_symlink(
-                skill_dir,
-                &home_path.to_string_lossy(),
-                agent,
-                true,
-            );
+            let _ =
+                SkillService::toggle_symlink(skill_dir, &home_path.to_string_lossy(), agent, true);
         }
     }
 
@@ -114,7 +121,10 @@ pub async fn install_skills(
         let _ = SkillService::upsert_cache_entry(&state.skill_cache, entry);
     }
 
-    Ok(SkillService::read_all_skills(&state.skill_cache, &state.metadata).map_err(|e| e.to_string())?)
+    Ok(
+        SkillService::read_all_skills(&state.skill_cache, &state.metadata)
+            .map_err(|e| e.to_string())?,
+    )
 }
 
 #[tauri::command]
@@ -123,16 +133,22 @@ pub async fn get_installed_skills(
     force: Option<bool>,
 ) -> Result<Vec<InstalledSkill>, String> {
     if !force.unwrap_or(false) {
-        let is_empty = state.skill_cache.read().map_err(|e| e.to_string())?.skills.is_empty();
+        let is_empty = state
+            .skill_cache
+            .read()
+            .map_err(|e| e.to_string())?
+            .skills
+            .is_empty();
         if !is_empty {
             return SkillService::read_all_skills(&state.skill_cache, &state.metadata)
                 .map_err(|e| e.to_string());
         }
     }
     // Cache is empty (app just started) or force=true: rebuild from filesystem
-    let mut skills = SkillService::rebuild_cache(&state.skill_cache, &state.metadata, &state.sync_in_progress)
-        .await
-        .map_err(|e| e.to_string())?;
+    let mut skills =
+        SkillService::rebuild_cache(&state.skill_cache, &state.metadata, &state.sync_in_progress)
+            .await
+            .map_err(|e| e.to_string())?;
     SkillService::fill_detect_agents(&mut skills);
     Ok(skills)
 }
@@ -146,14 +162,12 @@ pub async fn update_skill(
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
 
-        CliService::update_skills(Some(&skill.directory))
+    CliService::update_skills(Some(&skill.directory))
         .await
         .map_err(|e| e.to_string())?;
 
-    let entry = SkillService::scan_single_skill(&skill.directory)
-        .map_err(|e| e.to_string())?;
-    SkillService::upsert_cache_entry(&state.skill_cache, entry)
-        .map_err(|e| e.to_string())?;
+    let entry = SkillService::scan_single_skill(&skill.directory).map_err(|e| e.to_string())?;
+    SkillService::upsert_cache_entry(&state.skill_cache, entry).map_err(|e| e.to_string())?;
 
     let skills = SkillService::read_all_skills(&state.skill_cache, &state.metadata)
         .map_err(|e| e.to_string())?;
@@ -164,12 +178,10 @@ pub async fn update_skill(
 }
 
 #[tauri::command]
-pub async fn update_all_skills(
-    state: State<'_, AppState>,
-) -> Result<Vec<InstalledSkill>, String> {
+pub async fn update_all_skills(state: State<'_, AppState>) -> Result<Vec<InstalledSkill>, String> {
     // Run update — partial failures are logged but don't abort. Cache is still
     // refreshed for the skills that updated successfully.
-        if let Err(e) = CliService::update_skills(None).await {
+    if let Err(e) = CliService::update_skills(None).await {
         eprintln!("Update all skills — some failed: {e}");
     }
 
@@ -182,24 +194,23 @@ pub async fn update_all_skills(
         let _ = SkillService::upsert_cache_entry(&state.skill_cache, entry);
     }
 
-    Ok(SkillService::read_all_skills(&state.skill_cache, &state.metadata).map_err(|e| e.to_string())?)
+    Ok(
+        SkillService::read_all_skills(&state.skill_cache, &state.metadata)
+            .map_err(|e| e.to_string())?,
+    )
 }
 
 #[tauri::command]
-pub async fn remove_skill(
-    state: State<'_, AppState>,
-    skill_id: String,
-) -> Result<(), String> {
+pub async fn remove_skill(state: State<'_, AppState>, skill_id: String) -> Result<(), String> {
     let skill = SkillService::find_in_cache(&state.skill_cache, &skill_id)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
 
-        CliService::remove_skill(&skill.directory)
+    CliService::remove_skill(&skill.directory)
         .await
         .map_err(|e| e.to_string())?;
 
-    SkillService::remove_cache_entry(&state.skill_cache, &skill_id)
-        .map_err(|e| e.to_string())?;
+    SkillService::remove_cache_entry(&state.skill_cache, &skill_id).map_err(|e| e.to_string())?;
 
     // Clean up metadata for removed skill
     {
@@ -217,7 +228,11 @@ pub fn read_skill_md(directory: String) -> Result<String, String> {
 
     use crate::config;
     let mut candidates: Vec<std::path::PathBuf> = Vec::new();
-    candidates.push(config::get_agents_skills_dir().join(&directory).join("SKILL.md"));
+    candidates.push(
+        config::get_agents_skills_dir()
+            .join(&directory)
+            .join("SKILL.md"),
+    );
     for agent in config::AGENTS {
         if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
             candidates.push(agent_dir.join(&directory).join("SKILL.md"));
@@ -234,15 +249,20 @@ pub fn read_skill_md(directory: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn write_skill_md(state: State<'_, AppState>, directory: String, content: String) -> Result<(), String> {
+pub fn write_skill_md(
+    state: State<'_, AppState>,
+    directory: String,
+    content: String,
+) -> Result<(), String> {
     validate_skill_directory(&directory)?;
 
     use crate::config;
     let agents_dir = config::get_agents_skills_dir();
     let skill_md = agents_dir.join(&directory).join("SKILL.md");
 
-    
-    let parent = skill_md.parent().ok_or_else(|| "Invalid skill path".to_string())?;
+    let parent = skill_md
+        .parent()
+        .ok_or_else(|| "Invalid skill path".to_string())?;
     std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
 
     std::fs::write(&skill_md, &content).map_err(|e| e.to_string())?;
@@ -256,10 +276,8 @@ pub fn write_skill_md(state: State<'_, AppState>, directory: String, content: St
     }
 
     // Refresh cache to pick up changed name/description/contentHash/updatedAt
-    let entry = SkillService::scan_single_skill(&directory)
-        .map_err(|e| e.to_string())?;
-    SkillService::upsert_cache_entry(&state.skill_cache, entry)
-        .map_err(|e| e.to_string())?;
+    let entry = SkillService::scan_single_skill(&directory).map_err(|e| e.to_string())?;
+    SkillService::upsert_cache_entry(&state.skill_cache, entry).map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -271,9 +289,7 @@ pub fn list_skill_files(directory: String) -> Result<Vec<SkillFileNode>, String>
 }
 
 #[tauri::command]
-pub fn get_symlink_status(
-    state: State<'_, AppState>,
-) -> Result<Vec<SymlinkStatus>, String> {
+pub fn get_symlink_status(state: State<'_, AppState>) -> Result<Vec<SymlinkStatus>, String> {
     let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
     let settings = state.settings.lock().map_err(|e| e.to_string())?;
     Ok(SkillService::get_symlink_status(&cache, &settings))
@@ -306,7 +322,7 @@ pub async fn merge_duplicates_to_ssot(
     state: State<'_, AppState>,
     skill_name: String,
 ) -> Result<(), String> {
-        SkillService::merge_duplicates_to_ssot(&skill_name, &state.skill_cache, &state.metadata)
+    SkillService::merge_duplicates_to_ssot(&skill_name, &state.skill_cache, &state.metadata)
         .map_err(|e| e.to_string())
 }
 
@@ -449,8 +465,8 @@ pub fn get_recommended_repos(app: tauri::AppHandle) -> Result<Vec<DiscoverRepo>,
         .and_then(|path| std::fs::read_to_string(&path).ok())
         .unwrap_or_else(|| include_str!("../../resources/recommended-repos.json").to_string());
 
-    let entries: Vec<RecommendedRepoEntry> =
-        serde_json::from_str(&json_str).map_err(|e| format!("Invalid recommended repos JSON: {e}"))?;
+    let entries: Vec<RecommendedRepoEntry> = serde_json::from_str(&json_str)
+        .map_err(|e| format!("Invalid recommended repos JSON: {e}"))?;
 
     Ok(entries
         .into_iter()
@@ -473,27 +489,32 @@ async fn fetch_github_repo_metadata(owner: &str, name: &str) -> DiscoverRepo {
         .unwrap_or_default();
 
     match client.get(&url).send().await {
-        Ok(resp) if resp.status().is_success() => {
-            match resp.json::<serde_json::Value>().await {
-                Ok(json) => DiscoverRepo {
-                    owner: owner.to_string(),
-                    name: name.to_string(),
-                    branch: json.get("default_branch").and_then(|v| v.as_str()).unwrap_or("main").to_string(),
-                    description: json.get("description").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                    stars: json.get("stargazers_count").and_then(|v| v.as_i64()).map(|n| n as i32),
-                    forks: json.get("forks_count").and_then(|v| v.as_i64()).map(|n| n as i32),
-                },
-                Err(_) => {
-                    DiscoverRepo::simple(owner, name)
-                }
-            }
-        }
-        Ok(_) => {
-            DiscoverRepo::simple(owner, name)
-        }
-        Err(_) => {
-            DiscoverRepo::simple(owner, name)
-        }
+        Ok(resp) if resp.status().is_success() => match resp.json::<serde_json::Value>().await {
+            Ok(json) => DiscoverRepo {
+                owner: owner.to_string(),
+                name: name.to_string(),
+                branch: json
+                    .get("default_branch")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("main")
+                    .to_string(),
+                description: json
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
+                stars: json
+                    .get("stargazers_count")
+                    .and_then(|v| v.as_i64())
+                    .map(|n| n as i32),
+                forks: json
+                    .get("forks_count")
+                    .and_then(|v| v.as_i64())
+                    .map(|n| n as i32),
+            },
+            Err(_) => DiscoverRepo::simple(owner, name),
+        },
+        Ok(_) => DiscoverRepo::simple(owner, name),
+        Err(_) => DiscoverRepo::simple(owner, name),
     }
 }
 
@@ -520,7 +541,8 @@ fn parse_repo_query(query: &str) -> Result<(String, String, String), String> {
             Some(host) => return Err(format!("Expected github.com URL, got host: {host}")),
             None => return Err("Invalid GitHub URL: no host".into()),
         }
-        let segments: Vec<&str> = url.path_segments()
+        let segments: Vec<&str> = url
+            .path_segments()
             .ok_or("Invalid GitHub URL: no path segments")?
             .collect();
 
@@ -581,16 +603,14 @@ pub async fn get_repo_skills(
     validate_repo_segments(&owner, &name, &branch)?;
     let force = force.unwrap_or(false);
 
-    let (mut skills, _truncated) = SkillService::discover_from_repo_capped(&owner, &name, &branch, 500, force)
-        .await
-        .map_err(|e| e.to_string())?;
+    let (mut skills, _truncated) =
+        SkillService::discover_from_repo_capped(&owner, &name, &branch, 500, force)
+            .await
+            .map_err(|e| e.to_string())?;
 
     let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-    let installed_dirs: std::collections::HashSet<String> = cache
-        .skills
-        .iter()
-        .map(|s| s.directory.clone())
-        .collect();
+    let installed_dirs: std::collections::HashSet<String> =
+        cache.skills.iter().map(|s| s.directory.clone()).collect();
 
     for skill in &mut skills {
         skill.installed = installed_dirs.contains(&skill.directory);
@@ -689,11 +709,8 @@ pub async fn search_skills_sh(
 
     // Build installed set from cache
     let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-    let installed_dirs: std::collections::HashSet<String> = cache
-        .skills
-        .iter()
-        .map(|s| s.directory.clone())
-        .collect();
+    let installed_dirs: std::collections::HashSet<String> =
+        cache.skills.iter().map(|s| s.directory.clone()).collect();
 
     let mut skills = Vec::new();
     for s in api_result.skills {
@@ -728,20 +745,14 @@ pub async fn search_skills_sh(
 // ────────────── Star / Unstar / Create ──────────────
 
 #[tauri::command]
-pub fn star_skill(
-    state: State<'_, AppState>,
-    skill_id: String,
-) -> Result<(), String> {
+pub fn star_skill(state: State<'_, AppState>, skill_id: String) -> Result<(), String> {
     let mut metadata = state.metadata.write().map_err(|e| e.to_string())?;
     metadata.set_starred(&skill_id, true);
     metadata.save().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn unstar_skill(
-    state: State<'_, AppState>,
-    skill_id: String,
-) -> Result<(), String> {
+pub fn unstar_skill(state: State<'_, AppState>, skill_id: String) -> Result<(), String> {
     let mut metadata = state.metadata.write().map_err(|e| e.to_string())?;
     metadata.set_starred(&skill_id, false);
     metadata.save().map_err(|e| e.to_string())
@@ -775,10 +786,12 @@ pub async fn create_skill(
         return Err(format!("Skill directory already exists: {name}"));
     }
 
-        std::fs::create_dir_all(&skill_dir).map_err(|e| format!("Failed to create skill directory: {e}"))?;
+    std::fs::create_dir_all(&skill_dir)
+        .map_err(|e| format!("Failed to create skill directory: {e}"))?;
 
     let skill_md_path = skill_dir.join("SKILL.md");
-    std::fs::write(&skill_md_path, &content).map_err(|e| format!("Failed to write SKILL.md: {e}"))?;
+    std::fs::write(&skill_md_path, &content)
+        .map_err(|e| format!("Failed to write SKILL.md: {e}"))?;
 
     for agent in &agents {
         if let Some(_agent_dir) = config::get_agent_skills_dir(agent) {
@@ -787,11 +800,9 @@ pub async fn create_skill(
     }
 
     // Scan and insert into cache incrementally
-    let entry = SkillService::scan_single_skill(&name)
-        .map_err(|e| e.to_string())?;
+    let entry = SkillService::scan_single_skill(&name).map_err(|e| e.to_string())?;
     let entry_id = entry.id.clone();
-    SkillService::upsert_cache_entry(&state.skill_cache, entry)
-        .map_err(|e| e.to_string())?;
+    SkillService::upsert_cache_entry(&state.skill_cache, entry).map_err(|e| e.to_string())?;
 
     // Mark as mine in metadata
     {

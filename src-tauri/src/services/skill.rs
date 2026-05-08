@@ -1,7 +1,7 @@
 use crate::config;
 use crate::error::{self, AppError};
-use crate::persistence::{MetadataStore, Settings, SkillCache, SkillCacheEntry};
 use crate::persistence::metadata::SkillMetadata;
+use crate::persistence::{MetadataStore, Settings, SkillCache, SkillCacheEntry};
 use crate::services::cli::CliService;
 use crate::services::lock::{SkillLock, SkillLockEntry};
 use serde::{Deserialize, Serialize};
@@ -83,8 +83,8 @@ impl From<SkillCacheEntry> for InstalledSkill {
             home_path: e.home_path,
             content_hash: e.content_hash,
             home_agent: e.home_agent,
-            starred: false,  // set by get_cached_skills from metadata
-            is_mine: false,  // set by get_cached_skills from metadata
+            starred: false, // set by get_cached_skills from metadata
+            is_mine: false, // set by get_cached_skills from metadata
             installed_at: e.installed_at,
             updated_at: e.updated_at,
         }
@@ -169,7 +169,11 @@ impl SkillService {
     fn detect_origin(skill_dir: &str) -> &'static str {
         let agents_dir = config::get_agents_skills_dir();
         let ssot_path = agents_dir.join(skill_dir);
-        if ssot_path.exists() { "ssot" } else { "agent" }
+        if ssot_path.exists() {
+            "ssot"
+        } else {
+            "agent"
+        }
     }
 
     /// Determine the physical (non-symlink) home path of a skill.
@@ -231,7 +235,9 @@ impl SkillService {
             hasher.update(b"\0");
             let full_path = root.join(rel_path);
             match std::fs::read(&full_path) {
-                Ok(content) => { hasher.update(&content); }
+                Ok(content) => {
+                    hasher.update(&content);
+                }
                 Err(_) => continue,
             }
             hasher.update(b"\0");
@@ -245,7 +251,9 @@ impl SkillService {
         root: &std::path::Path,
         files: &mut Vec<std::path::PathBuf>,
     ) {
-        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             if is_symlink_or_junction(&path) {
@@ -256,7 +264,9 @@ impl SkillService {
                 }
             } else if path.is_dir() {
                 if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    if name.starts_with('.') { continue; }
+                    if name.starts_with('.') {
+                        continue;
+                    }
                 }
                 Self::collect_files_recursive(&path, root, files);
             } else if path.is_file() {
@@ -271,13 +281,19 @@ impl SkillService {
         let root = std::path::Path::new(path);
         let mut latest: Option<std::time::SystemTime> = None;
         fn walk(dir: &std::path::Path, latest: &mut Option<std::time::SystemTime>) {
-            let Ok(entries) = std::fs::read_dir(dir) else { return };
+            let Ok(entries) = std::fs::read_dir(dir) else {
+                return;
+            };
             for entry in entries.flatten() {
                 let path = entry.path();
                 if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    if name.starts_with('.') { continue; }
+                    if name.starts_with('.') {
+                        continue;
+                    }
                 }
-                if is_symlink_or_junction(&path) && path.is_dir() { continue; }
+                if is_symlink_or_junction(&path) && path.is_dir() {
+                    continue;
+                }
                 if let Ok(meta) = std::fs::metadata(&path) {
                     if let Ok(mtime) = meta.modified() {
                         if latest.is_none_or(|l| mtime > l) {
@@ -360,8 +376,12 @@ impl SkillService {
         metadata: &RwLock<MetadataStore>,
     ) -> Result<Vec<InstalledSkill>, AppError> {
         let mut skills = {
-            let cache = skill_cache.read().map_err(|e: std::sync::PoisonError<_>| AppError::Cli(e.to_string()))?;
-            let meta = metadata.read().map_err(|e: std::sync::PoisonError<_>| AppError::Cli(e.to_string()))?;
+            let cache = skill_cache
+                .read()
+                .map_err(|e: std::sync::PoisonError<_>| AppError::Cli(e.to_string()))?;
+            let meta = metadata
+                .read()
+                .map_err(|e: std::sync::PoisonError<_>| AppError::Cli(e.to_string()))?;
             Self::get_cached_skills(&cache, &meta)?
         };
         Self::fill_detect_agents(&mut skills);
@@ -450,8 +470,12 @@ impl SkillService {
         let mut seen_ids: HashSet<String> = HashSet::new();
         for scan_dir in &scan_dirs {
             Self::scan_dir_recursive_into(
-                scan_dir, entries, &mut seen_ids, &lock_data,
-                scan_dir, hash_cache,
+                scan_dir,
+                entries,
+                &mut seen_ids,
+                &lock_data,
+                scan_dir,
+                hash_cache,
             );
         }
     }
@@ -515,7 +539,9 @@ impl SkillService {
         scan_root: &PathBuf,
         hash_cache: &mut HashMap<String, (i64, String)>,
     ) {
-        let Ok(dir_entries) = std::fs::read_dir(dir) else { return };
+        let Ok(dir_entries) = std::fs::read_dir(dir) else {
+            return;
+        };
         for entry in dir_entries.flatten() {
             let path = entry.path();
             if is_symlink_or_junction(&path) {
@@ -530,7 +556,10 @@ impl SkillService {
             if !path.is_dir() {
                 continue;
             }
-            let dir_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown");
+            let dir_name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("unknown");
             if dir_name.starts_with('.') {
                 continue;
             }
@@ -543,11 +572,11 @@ impl SkillService {
                     .unwrap_or(dir_name)
                     .to_string();
 
-                let lock_entry = lock_data
-                    .as_ref()
-                    .and_then(|lock| {
-                        lock.skills.get(&relative_dir).or_else(|| lock.skills.get(dir_name))
-                    });
+                let lock_entry = lock_data.as_ref().and_then(|lock| {
+                    lock.skills
+                        .get(&relative_dir)
+                        .or_else(|| lock.skills.get(dir_name))
+                });
 
                 let (repo_owner, repo_name, source_url) = lock_entry
                     .map(|entry| {
@@ -560,7 +589,11 @@ impl SkillService {
                 let (yaml_name, description) =
                     Self::parse_skill_md(&skill_md).unwrap_or((dir_name.to_string(), None));
                 let yaml_name = CliService::strip_ansi(&yaml_name);
-                let yaml_name = if yaml_name == dir_name { None } else { Some(yaml_name) };
+                let yaml_name = if yaml_name == dir_name {
+                    None
+                } else {
+                    Some(yaml_name)
+                };
 
                 let is_ssot = config::get_agents_skills_dir() == *scan_root;
                 let id = if is_ssot {
@@ -569,7 +602,8 @@ impl SkillService {
                         _ => format!("ssot:{relative_dir}"),
                     }
                 } else {
-                    let agent_id = Self::detect_agent_for_path(scan_root).expect("scan_root should be SSOT or a known agent directory");
+                    let agent_id = Self::detect_agent_for_path(scan_root)
+                        .expect("scan_root should be SSOT or a known agent directory");
                     format!("agent:{agent_id}:{relative_dir}")
                 };
                 if !seen_ids.insert(id.clone()) {
@@ -614,8 +648,7 @@ impl SkillService {
                 });
             } else {
                 Self::scan_dir_recursive_into(
-                    &path, entries, seen_ids, lock_data,
-                    scan_root, hash_cache,
+                    &path, entries, seen_ids, lock_data, scan_root, hash_cache,
                 );
             }
         }
@@ -721,7 +754,10 @@ impl SkillService {
         }
         let skill_md = dir.join("SKILL.md");
         if skill_md.exists() {
-            let dir_name = dir.file_name().and_then(|n| n.to_str()).unwrap_or("unknown");
+            let dir_name = dir
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("unknown");
             let (_, description) =
                 Self::parse_skill_md(&skill_md).unwrap_or((dir_name.to_string(), None));
             let key = format!("{owner}/{repo}:{dir_name}");
@@ -801,7 +837,9 @@ impl SkillService {
             .as_ref()
             .map(|p| std::path::PathBuf::from(p).join("SKILL.md"))
             .unwrap_or_else(|| {
-                config::get_agents_skills_dir().join(skill_dir).join("SKILL.md")
+                config::get_agents_skills_dir()
+                    .join(skill_dir)
+                    .join("SKILL.md")
             });
 
         if !skill_md.exists() {
@@ -825,20 +863,25 @@ impl SkillService {
 
         let (parsed_name, description) =
             Self::parse_skill_md(&skill_md).unwrap_or((skill_dir.to_string(), None));
-        let name = skill_dir.rsplit('/').next().unwrap_or(skill_dir).to_string();
+        let name = skill_dir
+            .rsplit('/')
+            .next()
+            .unwrap_or(skill_dir)
+            .to_string();
         let parsed_name = CliService::strip_ansi(&parsed_name);
-        let yaml_name = if parsed_name == name { None } else { Some(parsed_name) };
+        let yaml_name = if parsed_name == name {
+            None
+        } else {
+            Some(parsed_name)
+        };
 
         let content_hash = home_path
             .as_ref()
             .and_then(|p| Self::compute_content_hash_cached(p, hash_cache));
         let home_agent = Self::detect_home_agent(&home_path, origin);
         let now = chrono::Utc::now().timestamp();
-        let (installed_at, updated_at) = Self::resolve_timestamps(
-            lock_entry,
-            home_path.as_deref().unwrap_or(skill_dir),
-            now,
-        );
+        let (installed_at, updated_at) =
+            Self::resolve_timestamps(lock_entry, home_path.as_deref().unwrap_or(skill_dir), now);
         // Use the same ID logic as scan_dir_recursive_into
         let is_ssot = origin == "ssot";
         let id = if is_ssot {
@@ -847,7 +890,9 @@ impl SkillService {
                 _ => format!("ssot:{skill_dir}"),
             }
         } else {
-            let ha = home_agent.as_ref().expect("agent-origin skill should have a home_agent");
+            let ha = home_agent
+                .as_ref()
+                .expect("agent-origin skill should have a home_agent");
             format!("agent:{ha}:{skill_dir}")
         };
 
@@ -888,10 +933,7 @@ impl SkillService {
     }
 
     /// Remove a cache entry by skill_id and persist.
-    pub fn remove_cache_entry(
-        cache: &RwLock<SkillCache>,
-        skill_id: &str,
-    ) -> Result<(), AppError> {
+    pub fn remove_cache_entry(cache: &RwLock<SkillCache>, skill_id: &str) -> Result<(), AppError> {
         let mut c = cache
             .write()
             .map_err(|e| AppError::Parse(format!("Cache lock: {e}")))?;
@@ -901,9 +943,7 @@ impl SkillService {
 
     /// Scan multiple skill directories with a shared hash cache for efficiency.
     /// Returns (entries, failed_dirs) — caller decides how to handle failures.
-    pub fn scan_skills_batch(
-        skill_dirs: &[String],
-    ) -> (Vec<SkillCacheEntry>, Vec<String>) {
+    pub fn scan_skills_batch(skill_dirs: &[String]) -> (Vec<SkillCacheEntry>, Vec<String>) {
         let mut hash_cache = Self::load_hash_cache();
         let mut entries = Vec::with_capacity(skill_dirs.len());
         let mut failed = Vec::new();
@@ -940,10 +980,7 @@ impl SkillService {
     //  Symlink status
     // ──────────────────────────────────────────────
 
-    pub fn get_symlink_status(
-        cache: &SkillCache,
-        settings: &Settings,
-    ) -> Vec<SymlinkStatus> {
+    pub fn get_symlink_status(cache: &SkillCache, settings: &Settings) -> Vec<SymlinkStatus> {
         let agents_dir = config::get_agents_skills_dir();
         let visible_agents = Self::get_visible_agents(settings);
         let mut statuses = Vec::new();
@@ -976,7 +1013,9 @@ impl SkillService {
                                 };
                                 resolved.canonicalize().ok()
                             })
-                            .and_then(|resolved| target_path.canonicalize().ok().map(|c| resolved == c))
+                            .and_then(|resolved| {
+                                target_path.canonicalize().ok().map(|c| resolved == c)
+                            })
                             .unwrap_or(false)
                     } else {
                         false
@@ -1006,9 +1045,13 @@ impl SkillService {
             // On Windows: junctions are directories, remove_file fails — must use remove_dir.
             // Both remove_file and remove_dir only delete the link itself, never the target.
             #[cfg(unix)]
-            { std::fs::remove_file(path).map_err(|e| error::io(path, e)) }
+            {
+                std::fs::remove_file(path).map_err(|e| error::io(path, e))
+            }
             #[cfg(windows)]
-            { std::fs::remove_dir(path).map_err(|e| error::io(path, e)) }
+            {
+                std::fs::remove_dir(path).map_err(|e| error::io(path, e))
+            }
         } else if path.is_dir() {
             std::fs::remove_dir_all(path).map_err(|e| error::io(path, e))
         } else if path.exists() {
@@ -1078,8 +1121,7 @@ impl SkillService {
 
         // Delete the entity directory
         if home.exists() && !is_symlink_or_junction(home) {
-            std::fs::remove_dir_all(home)
-                .map_err(|e| crate::error::io(home, e))?;
+            std::fs::remove_dir_all(home).map_err(|e| crate::error::io(home, e))?;
         }
 
         // Clean up symlinks in all agent directories
@@ -1101,8 +1143,8 @@ impl SkillService {
         if !agent_skills_dir.exists() {
             return Ok(());
         }
-        let entries = std::fs::read_dir(&agent_skills_dir)
-            .map_err(|e| error::io(&agent_skills_dir, e))?;
+        let entries =
+            std::fs::read_dir(&agent_skills_dir).map_err(|e| error::io(&agent_skills_dir, e))?;
         for entry in entries.flatten() {
             let path = entry.path();
             if is_symlink_or_junction(&path) && Self::safe_remove(&path).is_err() {
@@ -1131,16 +1173,23 @@ impl SkillService {
             let c = cache
                 .read()
                 .map_err(|e| AppError::Parse(format!("Cache lock: {e}")))?;
-            c.skills.iter().filter(|s| s.name == skill_name).cloned().collect()
+            c.skills
+                .iter()
+                .filter(|s| s.name == skill_name)
+                .cloned()
+                .collect()
         };
 
         if entries.is_empty() {
-            return Err(AppError::NotFound(format!("No skills found with name: {skill_name}")));
+            return Err(AppError::NotFound(format!(
+                "No skills found with name: {skill_name}"
+            )));
         }
 
         // Refuse to merge if content differs (safety check — frontend should
         // already prevent this, but backend must enforce it too).
-        let hashes: Vec<&str> = entries.iter()
+        let hashes: Vec<&str> = entries
+            .iter()
             .filter_map(|e| e.content_hash.as_deref())
             .collect();
         if !hashes.is_empty() && !hashes.iter().all(|h| *h == hashes[0]) {
@@ -1154,7 +1203,8 @@ impl SkillService {
 
         // Collect agents that have a real (non-SSOT) entity being deleted.
         // These are the only agents that need a new symlink after merge.
-        let agents_needing_symlink: Vec<String> = entries.iter()
+        let agents_needing_symlink: Vec<String> = entries
+            .iter()
             .filter(|e| e.origin == "agent")
             .filter_map(|e| e.home_agent.clone())
             .collect::<std::collections::HashSet<_>>()
@@ -1172,12 +1222,8 @@ impl SkillService {
 
         // Copy to SSOT if not already there
         if !dest_dir.exists() {
-            std::fs::create_dir_all(&ssot_dir)
-                .map_err(|e| crate::error::io(&ssot_dir, e))?;
-            Self::copy_dir_recursive(
-                std::path::Path::new(source_path),
-                &dest_dir,
-            )?;
+            std::fs::create_dir_all(&ssot_dir).map_err(|e| crate::error::io(&ssot_dir, e))?;
+            Self::copy_dir_recursive(std::path::Path::new(source_path), &dest_dir)?;
         }
 
         // Phase 1: Remove original non-SSOT directories + their symlinks
@@ -1196,7 +1242,12 @@ impl SkillService {
             if let Some(agent_dir) = config::get_agent_skills_dir(agent_id) {
                 let symlink_path = agent_dir.join(skill_name);
                 if agent_dir.exists() && !symlink_path.exists() {
-                    let _ = Self::toggle_symlink(skill_name, &dest_dir.to_string_lossy(), agent_id, true);
+                    let _ = Self::toggle_symlink(
+                        skill_name,
+                        &dest_dir.to_string_lossy(),
+                        agent_id,
+                        true,
+                    );
                 }
             }
         }
@@ -1238,8 +1289,7 @@ impl SkillService {
 
     fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<(), AppError> {
         if !dst.exists() {
-            std::fs::create_dir_all(dst)
-                .map_err(|e| crate::error::io(dst, e))?;
+            std::fs::create_dir_all(dst).map_err(|e| crate::error::io(dst, e))?;
         }
         for entry in std::fs::read_dir(src).map_err(|e| crate::error::io(src, e))? {
             let entry = entry.map_err(|e| crate::error::io(src, e))?;
@@ -1251,8 +1301,7 @@ impl SkillService {
             if src_path.is_dir() {
                 Self::copy_dir_recursive(&src_path, &dst_path)?;
             } else {
-                std::fs::copy(&src_path, &dst_path)
-                    .map_err(|e| crate::error::io(&src_path, e))?;
+                std::fs::copy(&src_path, &dst_path).map_err(|e| crate::error::io(&src_path, e))?;
             }
         }
         Ok(())
@@ -1292,7 +1341,9 @@ impl SkillService {
     }
 
     fn build_file_tree(dir: &std::path::Path, nodes: &mut Vec<SkillFileNode>) {
-        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
 
         for entry in entries.flatten() {
             let path = entry.path();

@@ -5,7 +5,7 @@
 use crate::config;
 use crate::error::AppError;
 use crate::services::lock::{SkillLock, SkillLockEntry};
-use crate::services::skill::{SkillService, is_symlink_or_junction};
+use crate::services::skill::{is_symlink_or_junction, SkillService};
 use std::path::PathBuf;
 
 pub struct CliService;
@@ -113,14 +113,15 @@ impl CliService {
         let lock = SkillLock::read()?;
 
         let to_update: Vec<(String, SkillLockEntry)> = if let Some(name) = skill_name {
-            let entry = lock
-                .skills
-                .get(name)
-                .cloned()
-                .ok_or_else(|| AppError::NotFound(format!("Skill not found in lock file: {name}")))?;
+            let entry = lock.skills.get(name).cloned().ok_or_else(|| {
+                AppError::NotFound(format!("Skill not found in lock file: {name}"))
+            })?;
             vec![(name.to_string(), entry)]
         } else {
-            lock.skills.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+            lock.skills
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect()
         };
 
         if to_update.is_empty() {
@@ -142,8 +143,7 @@ impl CliService {
             match Self::parse_github_url(source_url) {
                 Ok((owner, repo, _parsed_branch)) => {
                     let effective_branch = branch;
-                    match Self::reinstall_single_skill(name, &owner, &repo, effective_branch)
-                        .await
+                    match Self::reinstall_single_skill(name, &owner, &repo, effective_branch).await
                     {
                         Ok(_) => updated.push(name.clone()),
                         Err(e) => errors.push(format!("{name}: {e}")),
@@ -245,9 +245,7 @@ impl CliService {
                     )));
                 }
                 None => {
-                    return Err(AppError::BadRequest(
-                        "Invalid GitHub URL: no host".into(),
-                    ));
+                    return Err(AppError::BadRequest("Invalid GitHub URL: no host".into()));
                 }
             }
 
@@ -293,8 +291,10 @@ impl CliService {
     }
 
     pub fn cache_zip_path(owner: &str, repo: &str, branch: &str) -> PathBuf {
-        config::get_repo_zip_cache_dir()
-            .join(format!("{owner}--{repo}--{}.zip", Self::sanitize_branch(branch)))
+        config::get_repo_zip_cache_dir().join(format!(
+            "{owner}--{repo}--{}.zip",
+            Self::sanitize_branch(branch)
+        ))
     }
 
     pub async fn ensure_cached_zip(
@@ -321,9 +321,9 @@ impl CliService {
         std::fs::create_dir_all(&cache_dir).map_err(AppError::Io)?;
 
         let url = format!("https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.zip");
-        let response = reqwest::get(&url).await.map_err(|e| {
-            AppError::Cli(format!("Failed to download {owner}/{repo}: {e}"))
-        })?;
+        let response = reqwest::get(&url)
+            .await
+            .map_err(|e| AppError::Cli(format!("Failed to download {owner}/{repo}: {e}")))?;
 
         if !response.status().is_success() {
             return Err(AppError::Cli(format!(
@@ -332,7 +332,9 @@ impl CliService {
             )));
         }
 
-        let bytes = response.bytes().await
+        let bytes = response
+            .bytes()
+            .await
             .map_err(|e| AppError::Cli(format!("Failed to read response: {e}")))?;
 
         const MAX_SIZE: usize = 50 * 1024 * 1024;
@@ -367,7 +369,8 @@ impl CliService {
             .map_err(|e| AppError::Cli(format!("Invalid archive: {e}")))?;
 
         let temp_dir = tempfile::tempdir()?;
-        archive.extract(temp_dir.path())
+        archive
+            .extract(temp_dir.path())
             .map_err(|e| AppError::Cli(format!("Failed to extract archive: {e}")))?;
 
         let root_dir = std::fs::read_dir(temp_dir.path())
@@ -417,10 +420,7 @@ impl CliService {
             if !path.is_dir() {
                 continue;
             }
-            let file_name = path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("");
+            let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
             if file_name.starts_with('.') || file_name == "node_modules" {
                 continue;
             }
@@ -437,10 +437,7 @@ impl CliService {
 
         for entry in entries.flatten() {
             let path = entry.path();
-            let file_name = path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("");
+            let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
             if file_name.starts_with('.')
                 || file_name == "__pycache__"
@@ -482,10 +479,7 @@ impl CliService {
         let source_url = format!("https://github.com/{owner}/{repo}");
 
         for name in skill_names {
-            let existing_installed_at = lock
-                .skills
-                .get(name)
-                .and_then(|e| e.installed_at.clone());
+            let existing_installed_at = lock.skills.get(name).and_then(|e| e.installed_at.clone());
 
             lock.skills.insert(
                 name.clone(),
@@ -567,10 +561,8 @@ mod tests {
 
     #[test]
     fn test_parse_github_url_tree() {
-        let (owner, repo, branch) = CliService::parse_github_url(
-            "https://github.com/anthropics/skills/tree/main",
-        )
-        .unwrap();
+        let (owner, repo, branch) =
+            CliService::parse_github_url("https://github.com/anthropics/skills/tree/main").unwrap();
         assert_eq!(owner, "anthropics");
         assert_eq!(repo, "skills");
         assert_eq!(branch, "main");
@@ -580,5 +572,4 @@ mod tests {
     fn test_parse_github_url_rejects_non_github() {
         assert!(CliService::parse_github_url("https://gitlab.com/foo/bar").is_err());
     }
-
 }
