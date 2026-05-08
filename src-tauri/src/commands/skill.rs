@@ -69,7 +69,7 @@ pub async fn install_skills(
     skill_names: Vec<String>,
     agents: Vec<String>,
 ) -> Result<Vec<InstalledSkill>, String> {
-    CliService::add_skills(&repo_url, &skill_names, &agents.first().cloned().unwrap_or_default())
+        CliService::add_skills(&repo_url, &skill_names, &agents.first().cloned().unwrap_or_default())
         .await
         .map_err(|e| e.to_string())?;
 
@@ -114,14 +114,7 @@ pub async fn install_skills(
         let _ = SkillService::upsert_cache_entry(&state.skill_cache, entry);
     }
 
-    // Return current state
-    let mut skills = {
-        let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-        let metadata = state.metadata.read().map_err(|e| e.to_string())?;
-        SkillService::get_cached_skills(&cache, &metadata).map_err(|e| e.to_string())?
-    };
-    SkillService::fill_detect_agents(&mut skills);
-    Ok(skills)
+    Ok(SkillService::read_all_skills(&state.skill_cache, &state.metadata).map_err(|e| e.to_string())?)
 }
 
 #[tauri::command]
@@ -130,21 +123,10 @@ pub async fn get_installed_skills(
     force: Option<bool>,
 ) -> Result<Vec<InstalledSkill>, String> {
     if !force.unwrap_or(false) {
-        let skills_opt = {
-            let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-            if !cache.skills.is_empty() {
-                let metadata = state.metadata.read().map_err(|e| e.to_string())?;
-                let skills = SkillService::get_cached_skills(&cache, &metadata)
-                    .map_err(|e| e.to_string())?;
-                Some(skills)
-            } else {
-                None
-            }
-        };
-        if let Some(mut skills) = skills_opt {
-            // detect_agents does filesystem I/O — must be outside any lock
-            SkillService::fill_detect_agents(&mut skills);
-            return Ok(skills);
+        let is_empty = state.skill_cache.read().map_err(|e| e.to_string())?.skills.is_empty();
+        if !is_empty {
+            return SkillService::read_all_skills(&state.skill_cache, &state.metadata)
+                .map_err(|e| e.to_string());
         }
     }
     // Cache is empty (app just started) or force=true: rebuild from filesystem
@@ -164,7 +146,7 @@ pub async fn update_skill(
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
 
-    CliService::update_skills(Some(&skill.directory))
+        CliService::update_skills(Some(&skill.directory))
         .await
         .map_err(|e| e.to_string())?;
 
@@ -173,12 +155,8 @@ pub async fn update_skill(
     SkillService::upsert_cache_entry(&state.skill_cache, entry)
         .map_err(|e| e.to_string())?;
 
-    let mut skills = {
-        let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-        let metadata = state.metadata.read().map_err(|e| e.to_string())?;
-        SkillService::get_cached_skills(&cache, &metadata).map_err(|e| e.to_string())?
-    };
-    SkillService::fill_detect_agents(&mut skills);
+    let skills = SkillService::read_all_skills(&state.skill_cache, &state.metadata)
+        .map_err(|e| e.to_string())?;
     skills
         .into_iter()
         .find(|s| s.id == skill_id)
@@ -191,7 +169,7 @@ pub async fn update_all_skills(
 ) -> Result<Vec<InstalledSkill>, String> {
     // Run update — partial failures are logged but don't abort. Cache is still
     // refreshed for the skills that updated successfully.
-    if let Err(e) = CliService::update_skills(None).await {
+        if let Err(e) = CliService::update_skills(None).await {
         eprintln!("Update all skills — some failed: {e}");
     }
 
@@ -204,13 +182,7 @@ pub async fn update_all_skills(
         let _ = SkillService::upsert_cache_entry(&state.skill_cache, entry);
     }
 
-    let mut skills = {
-        let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-        let metadata = state.metadata.read().map_err(|e| e.to_string())?;
-        SkillService::get_cached_skills(&cache, &metadata).map_err(|e| e.to_string())?
-    };
-    SkillService::fill_detect_agents(&mut skills);
-    Ok(skills)
+    Ok(SkillService::read_all_skills(&state.skill_cache, &state.metadata).map_err(|e| e.to_string())?)
 }
 
 #[tauri::command]
@@ -222,7 +194,7 @@ pub async fn remove_skill(
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
 
-    CliService::remove_skill(&skill.directory)
+        CliService::remove_skill(&skill.directory)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -269,6 +241,7 @@ pub fn write_skill_md(state: State<'_, AppState>, directory: String, content: St
     let agents_dir = config::get_agents_skills_dir();
     let skill_md = agents_dir.join(&directory).join("SKILL.md");
 
+    
     let parent = skill_md.parent().ok_or_else(|| "Invalid skill path".to_string())?;
     std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
 
@@ -333,7 +306,7 @@ pub async fn merge_duplicates_to_ssot(
     state: State<'_, AppState>,
     skill_name: String,
 ) -> Result<(), String> {
-    SkillService::merge_duplicates_to_ssot(&skill_name, &state.skill_cache, &state.metadata)
+        SkillService::merge_duplicates_to_ssot(&skill_name, &state.skill_cache, &state.metadata)
         .map_err(|e| e.to_string())
 }
 
@@ -802,7 +775,7 @@ pub async fn create_skill(
         return Err(format!("Skill directory already exists: {name}"));
     }
 
-    std::fs::create_dir_all(&skill_dir).map_err(|e| format!("Failed to create skill directory: {e}"))?;
+        std::fs::create_dir_all(&skill_dir).map_err(|e| format!("Failed to create skill directory: {e}"))?;
 
     let skill_md_path = skill_dir.join("SKILL.md");
     std::fs::write(&skill_md_path, &content).map_err(|e| format!("Failed to write SKILL.md: {e}"))?;
@@ -828,12 +801,8 @@ pub async fn create_skill(
     }
 
     // Return with metadata merged
-    let mut skills = {
-        let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-        let metadata = state.metadata.read().map_err(|e| e.to_string())?;
-        SkillService::get_cached_skills(&cache, &metadata).map_err(|e| e.to_string())?
-    };
-    SkillService::fill_detect_agents(&mut skills);
+    let skills = SkillService::read_all_skills(&state.skill_cache, &state.metadata)
+        .map_err(|e| e.to_string())?;
     skills
         .into_iter()
         .find(|s| s.id == entry_id)
