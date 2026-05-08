@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { listen } from "@tauri-apps/api/event";
 import { skillsApi } from "@/lib/api/skills";
 import { invalidateFor, type MutationName } from "@/hooks/queryInvalidation";
 import type { InstalledSkill } from "@/types/skills";
+import { useEffect } from "react";
 
 export function useInstalledSkills() {
   return useQuery({
@@ -9,6 +11,21 @@ export function useInstalledSkills() {
     queryFn: () => skillsApi.getInstalledSkills(),
     staleTime: 30 * 1000,
   });
+}
+
+export function useSkillsWatcher() {
+  const qc = useQueryClient();
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    (async () => {
+      unlisten = await listen("skills-changed", () => {
+        invalidateFor(qc, "rescanSkills");
+      });
+    })();
+    return () => {
+      unlisten?.();
+    };
+  }, [qc]);
 }
 
 export function useRescanSkills() {
