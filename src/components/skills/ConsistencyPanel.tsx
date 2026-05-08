@@ -419,12 +419,7 @@ export function ConsistencyPanel({
                   setMerging(true);
                   for (const group of duplicateGroups) {
                     try {
-                      await new Promise<void>((resolve, reject) => {
-                        mergeMutation.mutate(group.name, {
-                          onSuccess: () => resolve(),
-                          onError: reject,
-                        });
-                      });
+                      await mergeMutation.mutateAsync(group.name);
                     } catch {
                       break;
                     }
