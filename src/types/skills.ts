@@ -73,6 +73,16 @@ export interface DiscoverRepo {
   forks?: number;
 }
 
+export interface SkillAudit {
+  provider: string;
+  slug: string;
+  status: "pass" | "warn" | "fail";
+  summary: string;
+  riskLevel?: string;
+  auditedAt?: string;
+  categories?: string[];
+}
+
 export interface SkillFileNode {
   name: string;
   path: string;

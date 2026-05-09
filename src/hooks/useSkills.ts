@@ -197,6 +197,18 @@ export function useSearchSkillsSh(query: string | null, limit?: number) {
   });
 }
 
+// ── Security Audit (skills.sh) ──
+
+export function useSkillAudit(owner?: string, repo?: string, slug?: string) {
+  return useQuery({
+    queryKey: ["skills.sh", "audit", owner, repo, slug],
+    queryFn: () => skillsApi.getSkillAudit(owner!, repo!, slug!),
+    enabled: !!owner && !!repo && !!slug,
+    staleTime: 30 * 60 * 1000,
+    retry: 2,
+  });
+}
+
 // ── Star / Create ──
 
 export function useStarSkill() {

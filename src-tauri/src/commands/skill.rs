@@ -742,6 +742,88 @@ pub async fn search_skills_sh(
     Ok(skills)
 }
 
+// ────────────── Security Audit (skills.sh) ──────────────
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillAudit {
+    provider: String,
+    slug: String,
+    status: String,
+    summary: String,
+    risk_level: Option<String>,
+    audited_at: Option<String>,
+    categories: Option<Vec<String>>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SkillAuditApiResponse {
+    #[allow(dead_code)]
+    id: String,
+    audits: Vec<SkillAuditApiEntry>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SkillAuditApiEntry {
+    provider: String,
+    slug: String,
+    status: String,
+    summary: String,
+    risk_level: Option<String>,
+    audited_at: Option<String>,
+    categories: Option<Vec<String>>,
+}
+
+#[tauri::command]
+pub async fn get_skill_audit(
+    owner: String,
+    repo: String,
+    slug: String,
+) -> Result<Vec<SkillAudit>, String> {
+    if owner.is_empty() || repo.is_empty() || slug.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let url = format!("https://skills.sh/api/v1/skills/audit/{owner}/{repo}/{slug}");
+    let client = reqwest::Client::builder()
+        .user_agent("skill-zoo")
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .unwrap_or_default();
+
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Audit request failed: {e}"))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        return Err(format!("Audit API returned status {status}"));
+    }
+
+    let api_result: SkillAuditApiResponse = resp
+        .json()
+        .await
+        .map_err(|e| format!("Failed to read audit response: {e}"))?;
+
+    Ok(api_result
+        .audits
+        .into_iter()
+        .map(|a| SkillAudit {
+            provider: a.provider,
+            slug: a.slug,
+            status: a.status,
+            summary: a.summary,
+            risk_level: a.risk_level,
+            audited_at: a.audited_at,
+            categories: a.categories,
+        })
+        .collect())
+}
+
 // ────────────── Star / Unstar / Create ──────────────
 
 #[tauri::command]

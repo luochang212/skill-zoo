@@ -13,6 +13,7 @@ import {
 import { SkillHero } from "@/components/skills/SkillHero";
 import { ConfigureDialog } from "@/components/skills/ConfigureDialog";
 import { SkillContentPane, type ContentTab } from "@/components/skills/SkillContentPane";
+import { SkillAuditCard } from "@/components/skills/SkillAuditCard";
 import { skillsApi } from "@/lib/api/skills";
 import { AlertTriangle } from "lucide-react";
 import type { InstalledSkill } from "@/types/skills";
@@ -176,6 +177,11 @@ export function SkillDetail({
         <div className="px-5 pt-4 pb-4">
           <h1 className="text-xl font-bold tracking-tight">{skillName}</h1>
         </div>
+      )}
+
+      {/* Security audit */}
+      {skill?.repoOwner && skill.repoName && skill.directory && (
+        <SkillAuditCard owner={skill.repoOwner} repo={skill.repoName} slug={skill.directory} />
       )}
 
       {/* Content pane */}

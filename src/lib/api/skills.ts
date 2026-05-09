@@ -6,6 +6,7 @@ import type {
   DiscoverRepo,
   DiscoverableSkill,
   InstalledSkill,
+  SkillAudit,
   SkillFileNode,
   SymlinkStatus,
 } from "@/types/skills";
@@ -66,6 +67,11 @@ export const skillsApi = {
 
   searchSkillsSh: (query: string, limit?: number) =>
     invoke<DiscoverableSkill[]>("search_skills_sh", { query, limit }),
+
+  // ── Security Audit (skills.sh) ──
+
+  getSkillAudit: (owner: string, repo: string, slug: string) =>
+    invoke<SkillAudit[]>("get_skill_audit", { owner, repo, slug }),
 
   // ── Star / Create ──
 
