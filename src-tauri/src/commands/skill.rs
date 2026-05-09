@@ -121,10 +121,7 @@ pub async fn install_skills(
         let _ = SkillService::upsert_cache_entry(&state.skill_cache, entry);
     }
 
-    Ok(
-        SkillService::read_all_skills(&state.skill_cache, &state.metadata)
-            .map_err(|e| e.to_string())?,
-    )
+    SkillService::read_all_skills(&state.skill_cache, &state.metadata).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -194,10 +191,7 @@ pub async fn update_all_skills(state: State<'_, AppState>) -> Result<Vec<Install
         let _ = SkillService::upsert_cache_entry(&state.skill_cache, entry);
     }
 
-    Ok(
-        SkillService::read_all_skills(&state.skill_cache, &state.metadata)
-            .map_err(|e| e.to_string())?,
-    )
+    SkillService::read_all_skills(&state.skill_cache, &state.metadata).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
