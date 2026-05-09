@@ -167,7 +167,13 @@ export function SkillDetail({
           onConfigure={() => setConfigureOpen(true)}
           onRemove={onRemove ? handleRemoveClick : undefined}
           onToggleStar={onToggleStar}
-          onOpenDir={() => skillsApi.openSkillDir(skill.directory)}
+          onOpenDir={() => {
+            if (skill.homePath) {
+              skillsApi.openSkillPath(skill.homePath);
+            } else {
+              skillsApi.openSkillDir(skill.directory);
+            }
+          }}
           starred={skill.starred}
           updatePending={updatePending}
           removePending={removePending}
