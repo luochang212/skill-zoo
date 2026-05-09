@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.1.5] — 2026-05-09
+
+### Added
+- Security audit panel from skills.sh, displayed on skill detail pages.
+- Batch merge all duplicates button in consistency panel.
+- Filesystem watcher that auto-refreshes UI on skill changes.
+- Atomic write for cache file persistence to prevent corruption.
+
+### Changed
+- Batch merge uses mutateAsync instead of manual promise wrapping.
+- Code formatted with cargo fmt and oxfmt across the project.
+- Lint config, README, and release checklist updated.
+
+### Fixed
+- Open skill folder now uses physical path (homePath) with directory fallback.
+- Dialog zoom animation replaced with pure fade for reliability.
+
 ## [0.1.4] — 2026-05-08
 
 ### Added
