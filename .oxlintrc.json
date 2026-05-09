@@ -3,5 +3,13 @@
     "node_modules",
     "dist",
     "src-tauri"
+  ],
+  "overrides": [
+    {
+      "files": ["src/components/skills/ConsistencyPanel.tsx"],
+      "rules": {
+        "no-await-in-loop": "allow"
+      }
+    }
   ]
 }

@@ -45,6 +45,12 @@ digraph when_release {
 | Step | Command |
 |------|---------|
 | Check existing tags | `git tag --sort=-v:refname \| head -5` |
+| Prerequisites (in order) | fmt → lint:rs → typecheck → lint → format:check → status |
+| Check Rust formatting | `cargo fmt --check` |
+| Check Rust lint | `bun run lint:rs` |
+| Check TypeScript types | `bun run typecheck` |
+| Check frontend lint | `bun run lint` |
+| Check frontend formatting | `bun run format:check` |
 | Check uncommitted changes | `git status --short` |
 | Verify cask URL | `gh api repos/luochang212/homebrew-tap/contents/Casks/skill-zoo.rb --jq '.content' \| base64 -d` |
 | Tag and push | `git push origin main && git tag v<VERSION> && git push origin v<VERSION>` |
@@ -96,8 +102,15 @@ A mismatched URL will 404 for all Homebrew users. If the pattern doesn't match, 
 
 ### 5. Verify Prerequisites
 
-- `git status --short` is clean. Warn user if uncommitted changes exist.
-- `RELEASE_BODY.md` uses `__VERSION__` and `__COMMITS__` placeholders — never hardcoded version numbers.
+Run all checks in order. If any fails, fix and re-run the full sequence until clean — formatting changes can cascade into lint results.
+
+1. `cargo fmt --check` — run `cargo fmt` if diffs appear, then restart from here
+2. `bun run lint:rs` — fix all warnings; fmt may have introduced new ones
+3. `bun run typecheck` — fix all type errors before proceeding
+4. `bun run lint` — fix any lint errors. Note: pre-existing issues unrelated to this release should be noted separately, not silently fixed in the release commit
+5. `bun run format:check` — run `bun run format` if diffs appear. CI also enforces this, but catching it locally avoids a broken tag
+6. `git status --short` is clean after all fixes are committed
+7. `RELEASE_BODY.md` uses `__VERSION__` and `__COMMITS__` placeholders — never hardcoded version numbers
 
 ### 6. Tag and Push
 

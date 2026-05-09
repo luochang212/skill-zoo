@@ -152,7 +152,7 @@ bun run tauri build
 ## 😇 Trust & Security
 
 - **Auditable Code** — 100% open source. Every build runs on GitHub Actions for anyone to inspect.
-- **Connects On Demand** — No background polling. Network requests only happen when you browse or install something.
+- **Connects On Demand** — No background polling. Network only fires on browse or install.
 - **You Stay in Control** — Any operation that touches real files (delete, move, overwrite) asks for confirmation first.
 
 ## 💡 Contributing
