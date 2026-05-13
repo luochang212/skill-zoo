@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { StarButton } from "@/components/skills/StarButton";
 import { BackButton } from "@/components/ui/BackButton";
 import { Badge } from "@/components/ui/badge";
@@ -77,15 +78,14 @@ export function SkillHero({
           )}
           <h1 className="text-xl font-bold tracking-tight leading-tight truncate">{name}</h1>
           {skill.repoOwner && skill.repoName && (
-            <a
-              href={`https://github.com/${skill.repoOwner}/${skill.repoName}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={`${skill.repoOwner}/${skill.repoName} (opens in new tab)`}
-              className="text-[11px] text-muted-foreground hover:text-foreground transition-colors shrink-0"
+            <button
+              type="button"
+              onClick={() => openUrl(`https://github.com/${skill.repoOwner}/${skill.repoName}`)}
+              aria-label={`${skill.repoOwner}/${skill.repoName} (opens in browser)`}
+              className="text-[11px] text-muted-foreground hover:text-foreground transition-colors shrink-0 cursor-pointer"
             >
               {skill.repoOwner}/{skill.repoName}
-            </a>
+            </button>
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">

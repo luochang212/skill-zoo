@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 interface ParsedSkillMd {
   frontmatter: Record<string, unknown> | null;
@@ -129,7 +130,24 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
   return (
     <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none overflow-x-auto">
       {frontmatter && <FrontmatterCard data={frontmatter} />}
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeHighlight]}
+        components={{
+          a: ({ href, children, ...props }) => (
+            <a
+              {...props}
+              href={href}
+              onClick={(e) => {
+                e.preventDefault();
+                if (href) openUrl(href);
+              }}
+            >
+              {children}
+            </a>
+          ),
+        }}
+      >
         {body}
       </ReactMarkdown>
     </div>

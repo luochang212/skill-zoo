@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useRepoSkills,
@@ -205,15 +206,14 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
               )}
             </Button>
           </div>
-          <a
-            href={`https://github.com/${repo.owner}/${repo.name}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="shrink-0 inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+          <button
+            type="button"
+            onClick={() => openUrl(`https://github.com/${repo.owner}/${repo.name}`)}
+            className="shrink-0 inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
           >
             GitHub
             <ExternalLink className="h-3 w-3" />
-          </a>
+          </button>
         </div>
         <div className="ml-11">
           <p className="text-sm text-muted-foreground mt-1">
