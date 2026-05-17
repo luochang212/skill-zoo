@@ -10,14 +10,13 @@ __COMMITS__
 
 | File | Platform |
 | --- | --- |
-| `Skill-Zoo-__VERSION__-macOS-arm64.dmg` | macOS Apple Silicon (M1/M2/M3/M4) |
-| `Skill-Zoo-__VERSION__-macOS-x64.dmg` | macOS Intel |
+| `Skill-Zoo-__VERSION__-macOS.dmg` | macOS (Universal — Intel & Apple Silicon) |
 | `Skill-Zoo-__VERSION__-Windows.exe` | Windows Installer |
 | `Skill-Zoo-__VERSION__-Windows-Portable.zip` | Windows Portable |
 
 ### 📦 Install
 
-**macOS**: Download the `.dmg` matching your chip, open it, and drag `skill-zoo.app` into `Applications`. If you see a warning that the app is damaged or macOS suggests moving it to Trash, open Terminal and run:
+**macOS**: Download the `.dmg`, open it, and drag `skill-zoo.app` into `Applications`. If you see a warning that the app is damaged or macOS suggests moving it to Trash, open Terminal and run:
 
 ```bash
 xattr -d com.apple.quarantine /Applications/skill-zoo.app
@@ -69,14 +68,13 @@ __COMMITS__
 
 | 文件 | 平台 |
 | --- | --- |
-| `Skill-Zoo-__VERSION__-macOS-arm64.dmg` | macOS Apple Silicon (M1/M2/M3/M4) |
-| `Skill-Zoo-__VERSION__-macOS-x64.dmg` | macOS Intel |
+| `Skill-Zoo-__VERSION__-macOS.dmg` | macOS（通用 — Intel 和 Apple Silicon） |
 | `Skill-Zoo-__VERSION__-Windows.exe` | Windows 安装版 |
 | `Skill-Zoo-__VERSION__-Windows-Portable.zip` | Windows 便携版 |
 
 ### 📦 安装方法
 
-**macOS**：下载与你芯片对应的 `.dmg` 文件，打开后将 `skill-zoo.app` 拖入 `Applications` 文件夹。如果 macOS 提示应用已损坏或建议移至废纸篓，请打开终端执行：
+**macOS**：下载 `.dmg` 文件，打开后将 `skill-zoo.app` 拖入 `Applications` 文件夹。如果 macOS 提示应用已损坏或建议移至废纸篓，请打开终端执行：
 
 ```bash
 xattr -d com.apple.quarantine /Applications/skill-zoo.app

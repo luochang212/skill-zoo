@@ -59,12 +59,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: x86_64-apple-darwin
+          - target: universal-apple-darwin
             os: macos-latest
-          - target: aarch64-apple-darwin
-            os: macos-latest
+            rust_targets: "x86_64-apple-darwin,aarch64-apple-darwin"
           - target: x86_64-pc-windows-msvc
             os: windows-latest
+            rust_targets: "x86_64-pc-windows-msvc"
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -77,7 +77,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9  # v1
         with:
           toolchain: stable
-          targets: ${{ matrix.target }}
+          targets: ${{ matrix.rust_targets }}
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -115,13 +115,9 @@ jobs:
           VERSION="$TAG_NAME"
 
           case "${{ matrix.target }}" in
-            aarch64-apple-darwin)
+            universal-apple-darwin)
               DMG=$(find "$BUNDLE" -name "*.dmg" | head -1)
-              mv "$DMG" "$BUNDLE/Skill-Zoo-${VERSION}-macOS-arm64.dmg"
-              ;;
-            x86_64-apple-darwin)
-              DMG=$(find "$BUNDLE" -name "*.dmg" | head -1)
-              mv "$DMG" "$BUNDLE/Skill-Zoo-${VERSION}-macOS-x64.dmg"
+              mv "$DMG" "$BUNDLE/Skill-Zoo-${VERSION}-macOS.dmg"
               ;;
             x86_64-pc-windows-msvc)
               EXE=$(find "$BUNDLE/nsis" -name "*.exe" | head -1)
@@ -148,17 +144,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download aarch64 artifact
+      - name: Download macOS artifact
         uses: actions/download-artifact@v5
         with:
-          name: skill-zoo-aarch64-apple-darwin
-          path: artifacts/aarch64
-
-      - name: Download x86_64 artifact
-        uses: actions/download-artifact@v5
-        with:
-          name: skill-zoo-x86_64-apple-darwin
-          path: artifacts/x86_64
+          name: skill-zoo-universal-apple-darwin
+          path: artifacts/macos
 
       - name: Download Windows artifact
         uses: actions/download-artifact@v5
@@ -203,39 +193,25 @@ jobs:
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
-      - name: Download aarch64 artifact
+      - name: Download macOS artifact
         uses: actions/download-artifact@v5
         with:
-          name: skill-zoo-aarch64-apple-darwin
-          path: artifacts/aarch64
-
-      - name: Download x86_64 artifact
-        uses: actions/download-artifact@v5
-        with:
-          name: skill-zoo-x86_64-apple-darwin
-          path: artifacts/x86_64
+          name: skill-zoo-universal-apple-darwin
+          path: artifacts/macos
 
       - name: Compute SHA256 and extract version
         id: shas
         run: |
           set -euo pipefail
 
-          ARM_DMG=$(find artifacts/aarch64 -name "*.dmg" -type f | head -1)
-          INTEL_DMG=$(find artifacts/x86_64 -name "*.dmg" -type f | head -1)
+          DMG=$(find artifacts/macos -name "*.dmg" -type f | head -1)
 
-          if [ -z "$ARM_DMG" ]; then
-            echo "ERROR: No DMG found in aarch64 artifacts"
-            exit 1
-          fi
-          if [ -z "$INTEL_DMG" ]; then
-            echo "ERROR: No DMG found in x86_64 artifacts"
+          if [ -z "$DMG" ]; then
+            echo "ERROR: No DMG found in macOS artifacts"
             exit 1
           fi
 
-          echo "arm_dmg=$ARM_DMG"
-          echo "intel_dmg=$INTEL_DMG"
-          echo "arm_sha256=$(shasum -a 256 "$ARM_DMG" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
-          echo "intel_sha256=$(shasum -a 256 "$INTEL_DMG" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(shasum -a 256 "$DMG" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout homebrew-tap
@@ -248,15 +224,26 @@ jobs:
       - name: Update cask formula
         run: |
           VERSION="${{ steps.shas.outputs.version }}"
-          ARM_SHA="${{ steps.shas.outputs.arm_sha256 }}"
-          INTEL_SHA="${{ steps.shas.outputs.intel_sha256 }}"
-
+          SHA="${{ steps.shas.outputs.sha256 }}"
           cd tap
+          cat > Casks/skill-zoo.rb << EOF
+          cask "skill-zoo" do
+            version "${VERSION}"
 
-          sed -i "s/version \".*\"/version \"$VERSION\"/" Casks/skill-zoo.rb
-          sed -i "/on_arm do/,/end/ s/sha256 \".*\"/sha256 \"$ARM_SHA\"/" Casks/skill-zoo.rb
-          sed -i "/on_intel do/,/end/ s/sha256 \".*\"/sha256 \"$INTEL_SHA\"/" Casks/skill-zoo.rb
+            url "https://github.com/luochang212/skill-zoo/releases/download/v#{version}/Skill-Zoo-v#{version}-macOS.dmg"
+            sha256 "${SHA}"
 
+            name "Skill Zoo"
+            desc "Local GUI tool for managing AI Agent Skills"
+            homepage "https://github.com/luochang212/skill-zoo"
+
+            app "skill-zoo.app"
+
+            zap trash: [
+              "~/Library/Application Support/com.skillzoo.app",
+            ]
+          end
+          EOF
           echo "Updated Casks/skill-zoo.rb:"
           cat Casks/skill-zoo.rb
 
@@ -271,7 +258,6 @@ jobs:
             Auto-generated by skill-zoo CI.
 
             - **Version:** ${{ steps.shas.outputs.version }}
-            - **aarch64 SHA256:** `${{ steps.shas.outputs.arm_sha256 }}`
-            - **x86_64 SHA256:** `${{ steps.shas.outputs.intel_sha256 }}`
+            - **SHA256:** `${{ steps.shas.outputs.sha256 }}`
           branch: skill-zoo-${{ steps.shas.outputs.version }}
           delete-branch: true
