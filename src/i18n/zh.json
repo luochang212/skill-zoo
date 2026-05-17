@@ -38,7 +38,7 @@
     "recommended": "推荐",
     "skills": "{{count}} 个技能",
     "notSynced": "未同步",
-    "truncated": "显示前 {{shown}} 个技能 (仓库上限: {{limit}})",
+    "truncated": "显示 {{shown}} / {{total}} 个技能（已达上限）",
     "noRepos": "未找到仓库。",
     "searching": "搜索中...",
     "noSkillsToInstall": "没有可安装的技能。",

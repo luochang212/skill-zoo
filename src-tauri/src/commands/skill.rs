@@ -2,8 +2,8 @@ use crate::config;
 use crate::config::{AgentConfig, AgentPathInfo};
 use crate::services::cli::CliService;
 use crate::services::skill::{
-    is_symlink_or_junction, DiscoverableSkill, InstalledSkill, SkillFileNode, SkillService,
-    SymlinkStatus,
+    is_symlink_or_junction, DiscoverableSkill, InstalledSkill, RepoSkillsResult, SkillFileNode,
+    SkillService, SymlinkStatus,
 };
 use crate::store::AppState;
 use tauri::{Manager, State};
@@ -592,13 +592,13 @@ pub async fn get_repo_skills(
     name: String,
     branch: Option<String>,
     force: Option<bool>,
-) -> Result<Vec<DiscoverableSkill>, String> {
+) -> Result<RepoSkillsResult, String> {
     let branch = branch.unwrap_or_else(|| "main".to_string());
     validate_repo_segments(&owner, &name, &branch)?;
     let force = force.unwrap_or(false);
 
-    let (mut skills, _truncated) =
-        SkillService::discover_from_repo_capped(&owner, &name, &branch, 500, force)
+    let (mut skills, total) =
+        SkillService::discover_from_repo_capped(&owner, &name, &branch, 800, force)
             .await
             .map_err(|e| e.to_string())?;
 
@@ -610,7 +610,7 @@ pub async fn get_repo_skills(
         skill.installed = installed_dirs.contains(&skill.directory);
     }
 
-    Ok(skills)
+    Ok(RepoSkillsResult { skills, total })
 }
 
 #[tauri::command]

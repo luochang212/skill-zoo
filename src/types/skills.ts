@@ -35,6 +35,11 @@ export interface DiscoverableSkill {
   installs?: number;
 }
 
+export interface RepoSkillsResult {
+  skills: DiscoverableSkill[];
+  total: number;
+}
+
 export interface SymlinkStatus {
   skillId: string;
   skillName: string;

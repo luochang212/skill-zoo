@@ -6,10 +6,10 @@
     "description": "Public repository for Agent Skills"
   },
   {
-    "owner": "vercel-labs",
-    "name": "skills",
+    "owner": "agentbay-ai",
+    "name": "agentbay-skills",
     "branch": "main",
-    "description": "Skills Catalog for Codex"
+    "description": "A collection of skills for AgentBay"
   },
   {
     "owner": "flutter",
@@ -18,10 +18,10 @@
     "description": "Agent skills for Flutter development — testing, architecture, responsive layouts, routing, localization, and more"
   },
   {
-    "owner": "vercel-labs",
-    "name": "next-skills",
+    "owner": "affaan-m",
+    "name": "everything-claude-code",
     "branch": "main",
-    "description": "Agent skills for Next.js — best practices, RSC patterns, data fetching, async APIs, version upgrades, and caching"
+    "description": "The agent harness performance optimization system. Skills, instincts, memory, security, and research-first development for Claude Code, Codex, Opencode, Cursor and beyond."
   },
   {
     "owner": "vercel-labs",

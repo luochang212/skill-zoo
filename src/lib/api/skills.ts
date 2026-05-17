@@ -6,6 +6,7 @@ import type {
   DiscoverRepo,
   DiscoverableSkill,
   InstalledSkill,
+  RepoSkillsResult,
   SkillAudit,
   SkillFileNode,
   SymlinkStatus,
@@ -55,7 +56,7 @@ export const skillsApi = {
   searchRepo: (query: string) => invoke<DiscoverRepo>("search_repo", { query }),
 
   getRepoSkills: (owner: string, name: string, branch?: string, force?: boolean) =>
-    invoke<DiscoverableSkill[]>("get_repo_skills", { owner, name, branch, force }),
+    invoke<RepoSkillsResult>("get_repo_skills", { owner, name, branch, force }),
 
   previewSkillMd: (owner: string, name: string, branch: string | undefined, skillDir: string) =>
     invoke<string>("preview_skill_md", { owner, name, branch, skillDir }),

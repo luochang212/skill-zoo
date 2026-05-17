@@ -38,7 +38,7 @@
     "recommended": "Recommended",
     "skills": "{{count}} skills",
     "notSynced": "not synced",
-    "truncated": "Showing first {{shown}} skills (repo limit: {{limit}})",
+    "truncated": "Showing {{shown}} of {{total}} skills",
     "noRepos": "No repositories found.",
     "searching": "Searching...",
     "noSkillsToInstall": "No skills to install.",

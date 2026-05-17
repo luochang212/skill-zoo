@@ -45,6 +45,13 @@ pub struct DiscoverableSkill {
     pub installs: Option<u64>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoSkillsResult {
+    pub skills: Vec<DiscoverableSkill>,
+    pub total: usize,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SymlinkStatus {
@@ -793,11 +800,11 @@ impl SkillService {
         branch: &str,
         max_skills: usize,
         force: bool,
-    ) -> Result<(Vec<DiscoverableSkill>, bool), AppError> {
+    ) -> Result<(Vec<DiscoverableSkill>, usize), AppError> {
         let mut skills = Self::discover_from_repo(owner, name, branch, force).await?;
-        let truncated = skills.len() > max_skills;
+        let total = skills.len();
         skills.truncate(max_skills);
-        Ok((skills, truncated))
+        Ok((skills, total))
     }
 
     // ──────────────────────────────────────────────

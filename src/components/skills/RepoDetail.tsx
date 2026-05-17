@@ -157,7 +157,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
     );
   };
 
-  const skillList = skills ?? [];
+  const { skills: skillList, total } = skills ?? { skills: [], total: 0 };
   const installableSkills = skillList.filter((s) => !s.installed);
   const allSelected =
     installableSkills.length > 0 && selectedDirs.size === installableSkills.length;
@@ -180,7 +180,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
     }
   };
 
-  const isTruncated = skillList.length === 500;
+  const isTruncated = total > skillList.length;
 
   return (
     <div className="flex flex-col h-full relative">
@@ -339,7 +339,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
                 <div className="flex items-center gap-2 mt-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40">
                   <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
                   <p className="text-[11px] text-amber-700 dark:text-amber-300">
-                    {t("browse.truncated", { shown: skillList.length, limit: 500 })}
+                    {t("browse.truncated", { shown: skillList.length, total })}
                   </p>
                 </div>
               )}
