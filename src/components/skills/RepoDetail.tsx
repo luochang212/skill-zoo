@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { SkillInstallDialog } from "@/components/skills/SkillInstallDialog";
 import { MarkdownContent } from "@/components/skills/MarkdownContent";
-import type { DiscoverRepo, DiscoverableSkill } from "@/types/skills";
+import type { DiscoverRepo, DiscoverableSkill, RepoSkillsResult } from "@/types/skills";
 import { BackButton } from "@/components/ui/BackButton";
 import { AlertTriangle, Star, GitFork, ExternalLink, Check, RotateCw, Loader } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -118,9 +118,14 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
       return;
     }
     // Optimistic update: mark as uninstalled immediately
-    qc.setQueryData<DiscoverableSkill[]>(skillsQueryKey, (old) => {
+    qc.setQueryData<RepoSkillsResult>(skillsQueryKey, (old) => {
       if (!old) return old;
-      return old.map((s) => (s.key === pendingRemove.key ? { ...s, installed: false } : s));
+      return {
+        ...old,
+        skills: old.skills.map((s) =>
+          s.key === pendingRemove.key ? { ...s, installed: false } : s,
+        ),
+      };
     });
     removeMutation.mutate(skillId, {
       onSuccess: () => {
@@ -129,9 +134,14 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
       },
       onError: () => {
         // Rollback on error
-        qc.setQueryData<DiscoverableSkill[]>(skillsQueryKey, (old) => {
+        qc.setQueryData<RepoSkillsResult>(skillsQueryKey, (old) => {
           if (!old) return old;
-          return old.map((s) => (s.key === pendingRemove.key ? { ...s, installed: true } : s));
+          return {
+            ...old,
+            skills: old.skills.map((s) =>
+              s.key === pendingRemove.key ? { ...s, installed: true } : s,
+            ),
+          };
         });
       },
     });
@@ -147,10 +157,15 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
           setInstallSkills(null);
           setSelectedDirs(new Set());
           // Mark installed skills in cache without re-downloading the repo
-          qc.setQueryData<DiscoverableSkill[]>(skillsQueryKey, (old) => {
+          qc.setQueryData<RepoSkillsResult>(skillsQueryKey, (old) => {
             if (!old) return old;
             const installedDirs = new Set(skillNames);
-            return old.map((s) => (installedDirs.has(s.directory) ? { ...s, installed: true } : s));
+            return {
+              ...old,
+              skills: old.skills.map((s) =>
+                installedDirs.has(s.directory) ? { ...s, installed: true } : s,
+              ),
+            };
           });
         },
       },
