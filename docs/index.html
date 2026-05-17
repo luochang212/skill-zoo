@@ -157,6 +157,11 @@
       0 0 24px var(--glow),
       0 0 80px var(--glow);
   }
+  .hero-zoo:has(.glowing-txt:hover)::after,
+  .hero-zoo:has(.glowing-txt:hover) .hero-grid {
+    animation: none;
+    opacity: .65;
+  }
   @keyframes hero-text-flicker {
     0% { opacity: .85; } 1% { opacity: 1; } 4% { opacity: .1; }
     4.5% { opacity: 1; } 6% { opacity: .1; } 10% { opacity: 1; }
@@ -445,6 +450,7 @@
     margin-bottom: 14px;
     font-size: 18px;
   }
+  .card .icon.icon-sm { display: none; }
   .card h3 { margin-bottom: 8px; font-size: 18px; }
   .card p { font-size: 14px; color: var(--g700); max-width: none; }
   .card.dark-card { background: var(--dark-sur); border-color: var(--d-border); }
@@ -626,6 +632,7 @@
     .card-grid { grid-template-columns: 1fr !important; gap: clamp(8px, 1.5vh, 14px); }
     .card { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; padding: clamp(12px, 2vh, 18px) 16px; }
     .card .icon { margin-bottom: 0; width: 28px; height: 28px; flex-shrink: 0; }
+    .card .icon.icon-sm { display: flex; }
     .card h3 { flex: 1; margin-bottom: 0; font-size: 15px; }
     .card p { flex: 0 0 100%; margin-top: 6px; font-size: 13px; line-height: 1.45; }
 
@@ -959,7 +966,7 @@
 
     <div class="card-grid">
       <div class="card dark-card" style="grid-column:span 2;">
-        <h3 style="display:flex;align-items:center;gap:10px;margin-bottom:12px;" data-i18n="ux-opt-title"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#C5663B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> 乐观更新三阶段</h3>
+        <div class="icon icon-sm" style="background:rgba(197,102,59,.12);color:#C5663B;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div><h3 data-i18n="ux-opt-title">乐观更新三阶段</h3>
         <pre class="no-copy" style="background:rgba(0,0,0,.2);border-color:rgba(255,255,255,.06);"><span style="color:#C5663B;">onMutate:</span>  取消进行中查询 → 快照当前缓存 → 立即修改 UI
 <span style="color:#C5663B;">onError:</span>   回滚至快照状态
 <span style="color:#C5663B;">onSettled:</span> 失效相关查询，触发后台重新获取</pre>
