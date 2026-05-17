@@ -94,8 +94,7 @@ gh api repos/luochang212/homebrew-tap/contents/Casks/skill-zoo.rb --jq '.content
 
 Check that the URL in the cask matches the artifact naming produced by CI:
 ```
-Skill-Zoo-v{VERSION}-macOS-arm64.dmg
-Skill-Zoo-v{VERSION}-macOS-x64.dmg
+Skill-Zoo-v{VERSION}-macOS.dmg
 ```
 
 A mismatched URL will 404 for all Homebrew users. If the pattern doesn't match, fix the cask formula before proceeding.
@@ -126,7 +125,7 @@ git push origin v0.1.2
 
 | Job | Outcome |
 |---|---|
-| **build** | DMGs, NSIS installer, portable zip → renamed to `Skill-Zoo-v{VERSION}-{platform}.{ext}` |
+| **build** | Universal DMG, NSIS installer, portable zip → renamed to `Skill-Zoo-v{VERSION}-{platform}.{ext}` |
 | **create-release** | GitHub Release with substituted release notes + all artifacts |
 | **update-homebrew** | Computes SHA256, updates cask formula, opens PR |
 
