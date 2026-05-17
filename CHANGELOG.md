@@ -1,6 +1,12 @@
 # Changelog
 
-## [0.1.7] — 2026-05-17
+## [0.1.8] — 2026-05-18
+
+### Changed
+- Update release skill to reflect universal macOS DMG.
+
+### Fixed
+- Update optimistic cache types to match RepoSkillsResult.
 
 ### Changed
 - Merge two macOS DMGs (Intel + Apple Silicon) into one universal binary.
