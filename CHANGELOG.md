@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7] — 2026-05-17
+
+### Changed
+- Merge two macOS DMGs (Intel + Apple Silicon) into one universal binary.
+- Soften dark theme colors — raise background/card/border lightness and add a subtle warm tint.
+- Replace repo skills truncation boolean with actual total count, raise cap from 500 to 800.
+
 ## [0.1.6] — 2026-05-17
 
 ### Changed
