@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.9] — 2026-05-18
+
+### Fixed
+- Add `color-scheme` CSS property so native scrollbars render dark in dark mode instead of white.
+
 ## [0.1.8] — 2026-05-18
 
 ### Changed
