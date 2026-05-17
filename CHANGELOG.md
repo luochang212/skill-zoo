@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.6] — 2026-05-17
+
+### Changed
+- Replace app logo with new design across native icons (PNG/ICO/ICNS) and Settings About panel, with rounded corners matching the previous icon's 23% radius ratio.
+- Rewrite docs landing page as bilingual product overview with auto i18n.
+
+### Fixed
+- Use openUrl to open external links in system browser.
+
 ## [0.1.5] — 2026-05-09
 
 ### Added
