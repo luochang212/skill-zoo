@@ -4,6 +4,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { useState, useEffect } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Button } from "@/components/ui/button";
+import logoUrl from "@/assets/logo.png";
 
 function GithubIcon({ className }: { className?: string }) {
   return (
@@ -61,16 +62,7 @@ export function AboutSection() {
 
       <div className="rounded-xl border border-border bg-gradient-to-br from-card/80 to-card/40 p-5 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/20">
-            <span
-              className="text-lg font-bold italic tracking-tight text-primary"
-              style={{
-                fontFamily: '"New York", "Iowan Old Style", Georgia, "Times New Roman", serif',
-              }}
-            >
-              SZ
-            </span>
-          </div>
+          <img src={logoUrl} alt="Skill Zoo" className="h-10 w-10 rounded-xl" />
           <div className="flex-1 min-w-0">
             <div className="flex items-baseline gap-1.5">
               <h4 className="text-base font-semibold">Skill Zoo</h4>
