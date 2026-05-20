@@ -252,8 +252,7 @@
       "downloading": "Downloading...",
       "restartNow": "Restart Now",
       "error": "Could not check for updates",
-      "retry": "Retry",
-      "openReleases": "GitHub Releases"
+      "retry": "Retry"
     },
     "feedback": {
       "title": "Feedback",

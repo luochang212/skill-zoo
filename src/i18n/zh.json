@@ -252,8 +252,7 @@
       "downloading": "下载中...",
       "restartNow": "立即重启",
       "error": "检查更新失败",
-      "retry": "重试",
-      "openReleases": "GitHub Releases"
+      "retry": "重试"
     },
     "feedback": {
       "title": "反馈",
