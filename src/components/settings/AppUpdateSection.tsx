@@ -24,6 +24,20 @@ function GithubIcon({ className }: { className?: string }) {
   );
 }
 
+function GithubButton() {
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className="h-8 text-xs gap-1.5 shrink-0"
+      onClick={() => openUrl(GITHUB_URL)}
+    >
+      <GithubIcon className="h-3.5 w-3.5" />
+      GitHub
+    </Button>
+  );
+}
+
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -35,8 +49,89 @@ type UpdateStatus =
   | "checking"
   | "available"
   | "downloading"
-  | "ready-to-restart"
-  | "error";
+  | "ready-to-restart";
+
+function StatusLabel({
+  status,
+  update,
+  downloaded,
+}: {
+  status: UpdateStatus;
+  update: Update | null;
+  downloaded: number;
+}) {
+  const { t } = useTranslation();
+
+  switch (status) {
+    case "available":
+      return update ? (
+        <span className="text-xs text-muted-foreground">v{update.version}</span>
+      ) : null;
+    case "downloading":
+      return (
+        <span className="text-xs text-muted-foreground">
+          {t("settings.updater.downloading")}
+          {downloaded > 0 ? ` (${formatBytes(downloaded)})` : ""}
+        </span>
+      );
+    default:
+      return null;
+  }
+}
+
+function UpdateButton({
+  status,
+  onCheck,
+  onDownload,
+  onRestart,
+}: {
+  status: UpdateStatus;
+  onCheck: () => void;
+  onDownload: () => void;
+  onRestart: () => void;
+}) {
+  const { t } = useTranslation();
+
+  switch (status) {
+    case "idle":
+      return (
+        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={onCheck}>
+          <RefreshCw className="h-3.5 w-3.5" />
+          {t("settings.updater.checkUpdate")}
+        </Button>
+      );
+    case "checking":
+      return (
+        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" disabled>
+          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+          {t("settings.updater.checking")}
+        </Button>
+      );
+    case "available":
+      return (
+        <Button size="sm" className="h-8 text-xs gap-1.5" onClick={onDownload}>
+          <Download className="h-3.5 w-3.5" />
+          {t("settings.updater.downloadInstall")}
+        </Button>
+      );
+    case "downloading":
+      return (
+        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" disabled>
+          <Download className="h-3.5 w-3.5" />
+          {t("settings.updater.downloadInstall")}
+        </Button>
+      );
+    case "ready-to-restart":
+      return (
+        <Button size="sm" className="h-8 text-xs gap-1.5" onClick={onRestart}>
+          <Rocket className="h-3.5 w-3.5" />
+          {t("settings.updater.restartNow")}
+        </Button>
+      );
+    default:
+      return null;
+  }
+}
 
 export function AppUpdateSection() {
   const { t } = useTranslation();
@@ -45,6 +140,7 @@ export function AppUpdateSection() {
   const [update, setUpdate] = useState<Update | null>(null);
   const [downloaded, setDownloaded] = useState(0);
   const updateRef = useRef<Update | null>(null);
+  const checkingRef = useRef(false);
 
   useEffect(() => {
     invoke<boolean>("is_portable_build")
@@ -53,6 +149,8 @@ export function AppUpdateSection() {
   }, []);
 
   const handleCheck = useCallback(async () => {
+    if (checkingRef.current) return;
+    checkingRef.current = true;
     setStatus("checking");
     try {
       const result = await check();
@@ -65,16 +163,20 @@ export function AppUpdateSection() {
         setStatus("idle");
       }
     } catch {
-      setStatus("error");
+      toast.error(t("settings.updater.checkFailed"));
+      setStatus("idle");
+    } finally {
+      checkingRef.current = false;
     }
-  }, []);
+  }, [t]);
 
   const handleDownload = useCallback(async () => {
-    if (!updateRef.current) return;
+    const current = updateRef.current;
+    if (!current) return;
     setStatus("downloading");
     setDownloaded(0);
     try {
-      await updateRef.current.downloadAndInstall((event) => {
+      await current.downloadAndInstall((event) => {
         switch (event.event) {
           case "Progress":
             setDownloaded((prev) => prev + event.data.chunkLength);
@@ -86,7 +188,8 @@ export function AppUpdateSection() {
       });
       setStatus("ready-to-restart");
     } catch {
-      setStatus("error");
+      toast.error(t("settings.updater.installFailed"));
+      setStatus("available");
     }
   }, []);
 
@@ -101,88 +204,19 @@ export function AppUpdateSection() {
   if (isPortable === null) return null;
 
   if (isPortable) {
-    return (
-      <Button
-        size="sm"
-        variant="outline"
-        className="h-8 text-xs gap-1.5 shrink-0"
-        onClick={() => openUrl(GITHUB_URL)}
-      >
-        <GithubIcon className="h-3.5 w-3.5" />
-        GitHub
-      </Button>
-    );
+    return <GithubButton />;
   }
-
-  const updateAction = () => {
-    switch (status) {
-      case "idle":
-        return (
-          <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={handleCheck}>
-            <RefreshCw className="h-3.5 w-3.5" />
-            {t("settings.updater.checkUpdate")}
-          </Button>
-        );
-      case "checking":
-        return (
-          <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" disabled>
-            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-            {t("settings.updater.checking")}
-          </Button>
-        );
-      case "available":
-        return (
-          <div className="flex items-center gap-2">
-            {update && <span className="text-xs text-muted-foreground">v{update.version}</span>}
-            <Button size="sm" className="h-8 text-xs gap-1.5" onClick={handleDownload}>
-              <Download className="h-3.5 w-3.5" />
-              {t("settings.updater.downloadInstall")}
-            </Button>
-          </div>
-        );
-      case "downloading":
-        return (
-          <span className="text-xs text-muted-foreground">
-            {t("settings.updater.downloading")}
-            {downloaded > 0 ? ` (${formatBytes(downloaded)})` : ""}
-          </span>
-        );
-      case "ready-to-restart":
-        return (
-          <Button size="sm" className="h-8 text-xs gap-1.5" onClick={handleRestart}>
-            <Rocket className="h-3.5 w-3.5" />
-            {t("settings.updater.restartNow")}
-          </Button>
-        );
-      case "error":
-        return (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-destructive">{t("settings.updater.error")}</span>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs gap-1.5"
-              onClick={handleCheck}
-            >
-              {t("settings.updater.retry")}
-            </Button>
-          </div>
-        );
-    }
-  };
 
   return (
     <div className="flex items-center gap-2 shrink-0">
-      <Button
-        size="sm"
-        variant="outline"
-        className="h-8 text-xs gap-1.5"
-        onClick={() => openUrl(GITHUB_URL)}
-      >
-        <GithubIcon className="h-3.5 w-3.5" />
-        GitHub
-      </Button>
-      {updateAction()}
+      <StatusLabel status={status} update={update} downloaded={downloaded} />
+      <GithubButton />
+      <UpdateButton
+        status={status}
+        onCheck={handleCheck}
+        onDownload={handleDownload}
+        onRestart={handleRestart}
+      />
     </div>
   );
 }

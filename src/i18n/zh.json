@@ -248,11 +248,11 @@
       "checkUpdate": "检查更新",
       "checking": "检查中...",
       "upToDate": "Skill Zoo 已是最新版本",
-      "downloadInstall": "下载并安装",
+      "downloadInstall": "立即更新",
       "downloading": "下载中...",
       "restartNow": "立即重启",
-      "error": "检查更新失败",
-      "retry": "重试"
+      "checkFailed": "检查更新失败",
+      "installFailed": "安装失败"
     },
     "feedback": {
       "title": "反馈",

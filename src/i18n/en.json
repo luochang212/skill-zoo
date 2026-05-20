@@ -248,11 +248,11 @@
       "checkUpdate": "Check for Updates",
       "checking": "Checking...",
       "upToDate": "Skill Zoo is up to date",
-      "downloadInstall": "Download & Install",
+      "downloadInstall": "Update Now",
       "downloading": "Downloading...",
       "restartNow": "Restart Now",
-      "error": "Could not check for updates",
-      "retry": "Retry"
+      "checkFailed": "Could not check for updates",
+      "installFailed": "Installation failed"
     },
     "feedback": {
       "title": "Feedback",
