@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.11] — 2026-05-21
+
+### Added
+- GitHub button in About section, always visible alongside update check for installer builds.
+
+### Changed
+- No-update result shows a toast notification instead of replacing the button with static text.
+- Windows installer now the recommended download over portable version in README and release notes.
+
+### Fixed
+- Add `app` bundle target so macOS builds generate `.app.tar.gz` updater artifacts.
+- Strip `.git` suffix from repo names when parsing GitHub URLs (e.g. `anthropics/skills.git`).
+
 ## [0.1.10] — 2026-05-21
 
 ### Added
