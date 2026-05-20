@@ -44,12 +44,7 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-type UpdateStatus =
-  | "idle"
-  | "checking"
-  | "available"
-  | "downloading"
-  | "ready-to-restart";
+type UpdateStatus = "idle" | "checking" | "available" | "downloading" | "ready-to-restart";
 
 function StatusLabel({
   status,
