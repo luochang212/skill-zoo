@@ -47,9 +47,7 @@ function PathRow({
             className="shrink-0"
           />
         ) : (
-          <div className="flex h-5 w-9 shrink-0 items-center justify-center">
-            <FolderSymlink className="h-3.5 w-3.5 text-primary" />
-          </div>
+          <div className="inline-flex h-[24px] w-[44px] shrink-0" />
         )}
 
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-background ring-1 ring-border">

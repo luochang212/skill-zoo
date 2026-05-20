@@ -20,9 +20,10 @@ import { Button } from "@/components/ui/button";
 interface RepoCardProps {
   repo: DiscoverRepo;
   onClick: () => void;
+  hideDescription?: boolean;
 }
 
-function RepoCard({ repo, onClick }: RepoCardProps) {
+function RepoCard({ repo, onClick, hideDescription }: RepoCardProps) {
   return (
     <Card
       className="group rounded-xl hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
@@ -36,7 +37,7 @@ function RepoCard({ repo, onClick }: RepoCardProps) {
         </div>
       </CardHeader>
       <CardContent className="px-4 pb-3 pt-0">
-        {repo.description && (
+        {repo.description && !hideDescription && (
           <p className="text-[13px] text-muted-foreground/80 line-clamp-2 mb-2 leading-relaxed">
             {repo.description}
           </p>
@@ -131,10 +132,12 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
       setDropdownOpen(false);
       setSearch("");
       setDebouncedSearch(null);
-      addRecent(repo);
+      if (!recommendedKeys.has(`${repo.owner}/${repo.name}`)) {
+        addRecent(repo);
+      }
       onSelectRepo(repo);
     },
-    [onSelectRepo, addRecent],
+    [onSelectRepo, addRecent, recommendedKeys],
   );
 
   const handleBannerClick = useCallback(
@@ -307,6 +310,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
                 key={`${entry.owner}/${entry.name}`}
                 repo={entry}
                 onClick={() => navigateToRepo(entry)}
+                hideDescription
               />
             ))}
           </div>

@@ -31,6 +31,11 @@
     "consistency": "一致性",
     "repos": "仓库"
   },
+  "repoLoadStage": {
+    "downloading": "正在下载...",
+    "extracting": "正在解压...",
+    "scanning": "正在扫描技能..."
+  },
   "browse": {
     "searchRepoPlaceholder": "搜索技能或 GitHub 仓库...",
     "installs": "次安装",
@@ -199,6 +204,15 @@
     },
     "maintenance": {
       "title": "技能维护",
+      "checkUpdate": "检查技能更新",
+      "checkUpdateDesc": "连接 GitHub 检查已安装技能是否有新版本",
+      "checkUpdateBtn": "检查更新",
+      "checkingDesc": "正在连接 GitHub 检查更新...",
+      "checkingBtn": "检查中...",
+      "updatesAvailable": "发现更新",
+      "updatesAvailableDesc": "{{count}} 个技能有新版本可更新",
+      "allUpToDate": "所有技能已是最新版本",
+      "checkPartial": "API 限流，仅显示已检查的部分结果",
       "updateAll": "更新全部技能",
       "updateAllDesc": "从 Git 仓库拉取所有已安装技能的最新版本",
       "updating": "更新中…",
@@ -209,7 +223,12 @@
       "rescanBtn": "重新扫描",
       "hideNonSsot": "隐藏非 SSOT 技能",
       "hideNonSsotDesc": "仅显示 Skill Zoo 管理的技能，隐藏用户放在代理目录中的技能",
-      "installedCount": "当前已安装 {{count}} 个技能"
+      "installedCount": "当前已安装 {{count}} 个技能",
+      "clearCache": "清除下载缓存",
+      "clearCacheDesc": "删除已缓存的仓库归档文件以释放磁盘空间",
+      "clearCacheBtn": "清除缓存",
+      "clearing": "清除中…",
+      "openCacheDir": "缓存目录"
     },
     "agentPaths": {
       "title": "Agent 设置",

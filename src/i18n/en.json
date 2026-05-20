@@ -31,6 +31,11 @@
     "consistency": "Consistency",
     "repos": "Repos"
   },
+  "repoLoadStage": {
+    "downloading": "Downloading...",
+    "extracting": "Extracting...",
+    "scanning": "Scanning skills..."
+  },
   "browse": {
     "searchRepoPlaceholder": "Search skills or GitHub repo...",
     "installs": "installs",
@@ -199,6 +204,15 @@
     },
     "maintenance": {
       "title": "Skill Maintenance",
+      "checkUpdate": "Check for Updates",
+      "checkUpdateDesc": "Check installed skills for new versions on GitHub",
+      "checkUpdateBtn": "Check Updates",
+      "checkingDesc": "Connecting to GitHub to check for updates...",
+      "checkingBtn": "Checking...",
+      "updatesAvailable": "Updates Available",
+      "updatesAvailableDesc": "{{count}} skill(s) have new versions",
+      "allUpToDate": "All skills are up to date",
+      "checkPartial": "API rate limited — showing partial results",
       "updateAll": "Update All Skills",
       "updateAllDesc": "Pull the latest version of all installed skills from Git repositories",
       "updating": "Updating…",
@@ -209,7 +223,12 @@
       "rescanBtn": "Rescan",
       "hideNonSsot": "Hide non-SSOT skills",
       "hideNonSsotDesc": "Only show skills managed by Skill Zoo, hide user-placed skills in agent directories",
-      "installedCount": "{{count}} skill(s) currently installed"
+      "installedCount": "{{count}} skill(s) currently installed",
+      "clearCache": "Clear Download Cache",
+      "clearCacheDesc": "Remove cached repository archives to free up disk space",
+      "clearCacheBtn": "Clear Cache",
+      "clearing": "Clearing…",
+      "openCacheDir": "Cache folder"
     },
     "agentPaths": {
       "title": "Agent Settings",

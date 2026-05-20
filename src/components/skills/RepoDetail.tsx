@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useQueryClient } from "@tanstack/react-query";
@@ -10,6 +10,7 @@ import {
   useRemoveSkill,
   useSkillPreview,
 } from "@/hooks/useSkills";
+import { useRepoLoadProgress } from "@/hooks/useRepoLoadStage";
 import { skillsApi } from "@/lib/api/skills";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,39 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
   const [pendingRemove, setPendingRemove] = useState<DiscoverableSkill | null>(null);
   const [previewSkill, setPreviewSkill] = useState<DiscoverableSkill | null>(null);
+
+  // Repo loading progress with debounce
+  const loadProgress = useRepoLoadProgress(repo.owner, repo.name);
+  const [showLoadStage, setShowLoadStage] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  useEffect(() => {
+    if (isLoading) {
+      if (debounceRef.current === null) {
+        debounceRef.current = setTimeout(() => {
+          setShowLoadStage(true);
+        }, 1500);
+      }
+    } else {
+      if (debounceRef.current !== null) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+      setShowLoadStage(false);
+    }
+    return () => {
+      if (debounceRef.current !== null) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+    };
+  }, [isLoading]);
+
+  const formatBytes = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   const {
     data: previewContent,
@@ -220,6 +254,17 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
                 <RotateCw className="h-3.5 w-3.5" />
               )}
             </Button>
+            {showLoadStage && loadProgress && (
+              <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                {t(`repoLoadStage.${loadProgress.stage}`)}
+                {loadProgress.stage === "downloading" && loadProgress.downloaded > 0 && (
+                  <span className="ml-1">
+                    {formatBytes(loadProgress.downloaded)}
+                    {loadProgress.total && <span> / {formatBytes(loadProgress.total)}</span>}
+                  </span>
+                )}
+              </span>
+            )}
           </div>
           <button
             type="button"
