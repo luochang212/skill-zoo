@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.12] — 2026-05-21
+
+### Changed
+- Update section UI refactored into standalone components (`StatusLabel`, `UpdateButton`), error states replaced with toast notifications.
+- "Download & Install" button text shortened to "Update Now".
+
 ## [0.1.11] — 2026-05-21
 
 ### Added
