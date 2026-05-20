@@ -249,7 +249,7 @@ impl CliService {
         })?;
 
         match resp.status().as_u16() {
-            403 | 429 => return Ok(None), // rate limited
+            403 | 429 => Ok(None), // rate limited
             200 => {
                 let json: serde_json::Value = resp
                     .json()

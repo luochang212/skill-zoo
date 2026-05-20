@@ -31,6 +31,12 @@ import { BackButton } from "@/components/ui/BackButton";
 import { AlertTriangle, Star, GitFork, ExternalLink, Check, RotateCw, Loader } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 interface RepoDetailProps {
   repo: DiscoverRepo;
   onBack: () => void;
@@ -92,12 +98,6 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
       }
     };
   }, [isLoading]);
-
-  const formatBytes = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
 
   const {
     data: previewContent,

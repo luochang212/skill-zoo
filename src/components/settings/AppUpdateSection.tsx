@@ -10,6 +10,12 @@ import { Button } from "@/components/ui/button";
 
 const GITHUB_RELEASES = "https://github.com/luochang212/skill-zoo/releases";
 
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 type UpdateStatus =
   | "idle"
   | "checking"
@@ -27,12 +33,6 @@ export function AppUpdateSection() {
   const [downloaded, setDownloaded] = useState(0);
   const [errorMsg, setErrorMsg] = useState("");
   const updateRef = useRef<Update | null>(null);
-
-  const formatBytes = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
 
   useEffect(() => {
     invoke<boolean>("is_portable_build")
@@ -108,12 +108,7 @@ export function AppUpdateSection() {
     switch (status) {
       case "idle":
         return (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs gap-1.5"
-            onClick={handleCheck}
-          >
+          <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={handleCheck}>
             <RefreshCw className="h-3.5 w-3.5" />
             {t("settings.updater.checkUpdate")}
           </Button>
@@ -126,22 +121,12 @@ export function AppUpdateSection() {
           </Button>
         );
       case "up-to-date":
-        return (
-          <p className="text-xs text-muted-foreground">{t("settings.updater.upToDate")}</p>
-        );
+        return <p className="text-xs text-muted-foreground">{t("settings.updater.upToDate")}</p>;
       case "available":
         return (
           <div className="flex items-center gap-2">
-            {update && (
-              <span className="text-xs text-muted-foreground">
-                v{update.version}
-              </span>
-            )}
-            <Button
-              size="sm"
-              className="h-8 text-xs gap-1.5"
-              onClick={handleDownload}
-            >
+            {update && <span className="text-xs text-muted-foreground">v{update.version}</span>}
+            <Button size="sm" className="h-8 text-xs gap-1.5" onClick={handleDownload}>
               <Download className="h-3.5 w-3.5" />
               {t("settings.updater.downloadInstall")}
             </Button>
@@ -156,11 +141,7 @@ export function AppUpdateSection() {
         );
       case "ready-to-restart":
         return (
-          <Button
-            size="sm"
-            className="h-8 text-xs gap-1.5"
-            onClick={handleRestart}
-          >
+          <Button size="sm" className="h-8 text-xs gap-1.5" onClick={handleRestart}>
             <Rocket className="h-3.5 w-3.5" />
             {t("settings.updater.restartNow")}
           </Button>

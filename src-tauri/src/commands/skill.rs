@@ -166,11 +166,8 @@ async fn refresh_commit_sha_for_skill_dir(skill_dir: &str) {
         return;
     };
     let branch = entry.branch.unwrap_or_else(|| "main".to_string());
-    match CliService::fetch_latest_commit_sha(&owner, &name, &branch).await {
-        Ok(Some(sha)) => {
-            let _ = SkillLock::update_commit_sha(skill_dir, &sha);
-        }
-        _ => {}
+    if let Ok(Some(sha)) = CliService::fetch_latest_commit_sha(&owner, &name, &branch).await {
+        let _ = SkillLock::update_commit_sha(skill_dir, &sha);
     }
 }
 
@@ -180,7 +177,7 @@ async fn refresh_commit_shas_after_update_all() {
         Err(_) => return,
     };
     let mut seen: HashSet<(String, String, String)> = HashSet::new();
-    for (_skill_name, entry) in &lock.skills {
+    for entry in lock.skills.values() {
         let (Some(owner), Some(name)) = entry.parse_source_owner_name() else {
             continue;
         };

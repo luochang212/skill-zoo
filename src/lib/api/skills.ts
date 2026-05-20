@@ -99,8 +99,7 @@ export const skillsApi = {
 
   openCacheDir: () => invoke<void>("open_cache_dir"),
 
-  checkSkillUpdates: () =>
-    invoke<CheckUpdatesResult>("check_skill_updates"),
+  checkSkillUpdates: () => invoke<CheckUpdatesResult>("check_skill_updates"),
 };
 
 export interface SkillUpdateStatus {
