@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::RwLock;
+use tauri::Emitter;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -720,8 +721,19 @@ impl SkillService {
         name: &str,
         branch: &str,
         force: bool,
+        app_handle: Option<&tauri::AppHandle>,
     ) -> Result<Vec<DiscoverableSkill>, AppError> {
-        let zip_path = CliService::ensure_cached_zip(owner, name, branch, force).await?;
+        let _ = app_handle.map(|h| h.emit("repo-load-stage", serde_json::json!({
+            "owner": owner, "repo": name, "stage": "downloading"
+        })));
+
+        let zip_path =
+            CliService::ensure_cached_zip_with_progress(owner, name, branch, force, app_handle)
+                .await?;
+
+        let _ = app_handle.map(|h| h.emit("repo-load-stage", serde_json::json!({
+            "owner": owner, "repo": name, "stage": "extracting"
+        })));
 
         let file = std::fs::File::open(&zip_path)?;
         if let Ok(metadata) = file.metadata() {
@@ -736,6 +748,11 @@ impl SkillService {
         let mut archive = zip::ZipArchive::new(file)?;
         let temp_dir = tempfile::tempdir()?;
         archive.extract(temp_dir.path())?;
+
+        let _ = app_handle.map(|h| h.emit("repo-load-stage", serde_json::json!({
+            "owner": owner, "repo": name, "stage": "scanning"
+        })));
+
         let mut skills = Vec::new();
         let root_dir = std::fs::read_dir(temp_dir.path())?
             .flatten()
@@ -800,8 +817,10 @@ impl SkillService {
         branch: &str,
         max_skills: usize,
         force: bool,
+        app_handle: Option<&tauri::AppHandle>,
     ) -> Result<(Vec<DiscoverableSkill>, usize), AppError> {
-        let mut skills = Self::discover_from_repo(owner, name, branch, force).await?;
+        let mut skills =
+            Self::discover_from_repo(owner, name, branch, force, app_handle).await?;
         let total = skills.len();
         skills.truncate(max_skills);
         Ok((skills, total))

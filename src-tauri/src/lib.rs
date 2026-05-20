@@ -32,6 +32,20 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            // Clean up residual .tmp files from interrupted downloads
+            let cache_dir = config::get_repo_zip_cache_dir();
+            if cache_dir.exists() {
+                if let Ok(entries) = std::fs::read_dir(&cache_dir) {
+                    for entry in entries.flatten() {
+                        if let Some(name) = entry.file_name().to_str() {
+                            if name.ends_with(".zip.tmp") {
+                                let _ = std::fs::remove_file(entry.path());
+                            }
+                        }
+                    }
+                }
+            }
+
             // Start with empty skill cache so the first get_installed_skills
             // triggers a filesystem rebuild, keeping cache in sync with reality.
             let skill_cache = persistence::SkillCache { skills: Vec::new() };
@@ -94,6 +108,10 @@ pub fn run() {
             commands::settings::set_window_theme,
             commands::settings::get_visible_agents,
             commands::settings::update_visible_agents,
+            commands::settings::clear_download_cache,
+            commands::settings::get_cache_size,
+            commands::settings::open_cache_dir,
+            commands::settings::check_skill_updates,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

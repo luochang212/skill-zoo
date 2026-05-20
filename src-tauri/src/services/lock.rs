@@ -21,6 +21,8 @@ pub struct SkillLockEntry {
     pub installed_at: Option<String>,
     #[serde(default, rename = "updatedAt")]
     pub updated_at: Option<String>,
+    #[serde(default, rename = "commitSha")]
+    pub commit_sha: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,6 +66,17 @@ impl SkillLock {
         let content =
             serde_json::to_string_pretty(self).map_err(|e| AppError::Parse(e.to_string()))?;
         crate::persistence::atomic_write(&path, &content).map_err(AppError::Io)?;
+        Ok(())
+    }
+}
+
+impl SkillLock {
+    pub fn update_commit_sha(skill_name: &str, sha: &str) -> Result<(), AppError> {
+        let mut lock = Self::read()?;
+        if let Some(entry) = lock.skills.get_mut(skill_name) {
+            entry.commit_sha = Some(sha.to_string());
+            lock.write()?;
+        }
         Ok(())
     }
 }

@@ -25,7 +25,7 @@ chrono = { version = "0.4", features = ["serde"] }
 tauri = { version = "2", features = ["protocol-asset", "tray-icon", "image-png"] }
 tauri-plugin-opener = "2"
 dirs = "6.0"
-reqwest = { version = "0.13", features = ["rustls", "json", "query"] }
+reqwest = { version = "0.13", features = ["rustls", "json", "query", "stream"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync", "process"] }
 futures = "0.3"
 anyhow = "1.0"

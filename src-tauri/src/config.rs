@@ -53,7 +53,7 @@ pub const AGENTS: &[AgentConfig] = &[
 ];
 
 pub fn default_visibility(agent_id: &str) -> bool {
-    !matches!(agent_id, "trae" | "trae-cn" | "codex" | "gemini")
+    !matches!(agent_id, "trae" | "trae-cn" | "gemini")
 }
 
 #[derive(Debug, Clone, Serialize)]

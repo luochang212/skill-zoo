@@ -1,11 +1,13 @@
 use crate::config;
 use crate::config::{AgentConfig, AgentPathInfo};
 use crate::services::cli::CliService;
+use crate::services::lock::SkillLock;
 use crate::services::skill::{
     is_symlink_or_junction, DiscoverableSkill, InstalledSkill, RepoSkillsResult, SkillFileNode,
     SkillService, SymlinkStatus,
 };
 use crate::store::AppState;
+use std::collections::HashSet;
 use tauri::{Manager, State};
 
 /// Validate that a skill directory name does not contain path traversal or
@@ -150,6 +152,58 @@ pub async fn get_installed_skills(
     Ok(skills)
 }
 
+/// Best-effort refresh of commit SHA after update. Fails silently on error or rate-limit.
+async fn refresh_commit_sha_for_skill_dir(skill_dir: &str) {
+    let lock = match SkillLock::read() {
+        Ok(l) => l,
+        Err(_) => return,
+    };
+    let entry = match lock.skills.get(skill_dir).cloned() {
+        Some(e) => e,
+        None => return,
+    };
+    let (Some(owner), Some(name)) = entry.parse_source_owner_name() else {
+        return;
+    };
+    let branch = entry.branch.unwrap_or_else(|| "main".to_string());
+    match CliService::fetch_latest_commit_sha(&owner, &name, &branch).await {
+        Ok(Some(sha)) => {
+            let _ = SkillLock::update_commit_sha(skill_dir, &sha);
+        }
+        _ => {}
+    }
+}
+
+async fn refresh_commit_shas_after_update_all() {
+    let lock = match SkillLock::read() {
+        Ok(l) => l,
+        Err(_) => return,
+    };
+    let mut seen: HashSet<(String, String, String)> = HashSet::new();
+    for (_skill_name, entry) in &lock.skills {
+        let (Some(owner), Some(name)) = entry.parse_source_owner_name() else {
+            continue;
+        };
+        let branch = entry.branch.clone().unwrap_or_else(|| "main".to_string());
+        let key = (owner.clone(), name.clone(), branch.clone());
+        if !seen.insert(key.clone()) {
+            continue;
+        }
+        if let Ok(Some(sha)) =
+            CliService::fetch_latest_commit_sha(&owner, &name, &branch).await
+        {
+            for (sn, e) in &lock.skills {
+                let (Some(o), Some(n)) = e.parse_source_owner_name() else {
+                    continue;
+                };
+                if o == owner && n == name {
+                    let _ = SkillLock::update_commit_sha(sn, &sha);
+                }
+            }
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn update_skill(
     state: State<'_, AppState>,
@@ -162,6 +216,9 @@ pub async fn update_skill(
     CliService::update_skills(Some(&skill.directory))
         .await
         .map_err(|e| e.to_string())?;
+
+    // Best-effort: refresh commit SHA so next check doesn't show false positive
+    refresh_commit_sha_for_skill_dir(&skill.directory).await;
 
     let entry = SkillService::scan_single_skill(&skill.directory).map_err(|e| e.to_string())?;
     SkillService::upsert_cache_entry(&state.skill_cache, entry).map_err(|e| e.to_string())?;
@@ -181,6 +238,9 @@ pub async fn update_all_skills(state: State<'_, AppState>) -> Result<Vec<Install
     if let Err(e) = CliService::update_skills(None).await {
         eprintln!("Update all skills — some failed: {e}");
     }
+
+    // Best-effort: refresh commit SHAs
+    refresh_commit_shas_after_update_all().await;
 
     let dirs: Vec<String> = {
         let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
@@ -587,6 +647,7 @@ pub async fn get_repo_metadata(owner: String, name: String) -> Result<DiscoverRe
 
 #[tauri::command]
 pub async fn get_repo_skills(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     owner: String,
     name: String,
@@ -598,7 +659,7 @@ pub async fn get_repo_skills(
     let force = force.unwrap_or(false);
 
     let (mut skills, total) =
-        SkillService::discover_from_repo_capped(&owner, &name, &branch, 800, force)
+        SkillService::discover_from_repo_capped(&owner, &name, &branch, 800, force, Some(&app))
             .await
             .map_err(|e| e.to_string())?;
 

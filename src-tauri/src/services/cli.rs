@@ -7,6 +7,7 @@ use crate::error::AppError;
 use crate::services::lock::{SkillLock, SkillLockEntry};
 use crate::services::skill::{is_symlink_or_junction, SkillService};
 use std::path::PathBuf;
+use tauri::Emitter;
 
 pub struct CliService;
 
@@ -228,6 +229,38 @@ impl CliService {
         s.to_string()
     }
 
+    // ─── Update check ────────────────────────────────────────────────
+
+    /// Fetch the latest commit SHA for a repo+branch. Returns `None` on rate-limit (403/429).
+    pub async fn fetch_latest_commit_sha(
+        owner: &str,
+        repo: &str,
+        branch: &str,
+    ) -> Result<Option<String>, AppError> {
+        let url = format!("https://api.github.com/repos/{owner}/{repo}/commits/{branch}");
+        let client = reqwest::Client::builder()
+            .user_agent("skill-zoo")
+            .timeout(std::time::Duration::from_secs(15))
+            .build()
+            .unwrap_or_default();
+
+        let resp = client.get(&url).send().await.map_err(|e| {
+            AppError::Cli(format!("Failed to check updates for {owner}/{repo}: {e}"))
+        })?;
+
+        match resp.status().as_u16() {
+            403 | 429 => return Ok(None), // rate limited
+            200 => {
+                let json: serde_json::Value = resp.json().await.map_err(|e| {
+                    AppError::Parse(format!("Invalid response from GitHub: {e}"))
+                })?;
+                let sha = json["sha"].as_str().map(|s| s.to_string());
+                Ok(sha)
+            }
+            _ => Ok(None), // repo not found, branch not found, etc. — skip
+        }
+    }
+
     // ─── Internal helpers ───────────────────────────────────────────
 
     fn parse_github_url(url: &str) -> Result<(String, String, String), AppError> {
@@ -303,6 +336,16 @@ impl CliService {
         branch: &str,
         force: bool,
     ) -> Result<PathBuf, AppError> {
+        Self::ensure_cached_zip_with_progress(owner, repo, branch, force, None).await
+    }
+
+    pub async fn ensure_cached_zip_with_progress(
+        owner: &str,
+        repo: &str,
+        branch: &str,
+        force: bool,
+        app_handle: Option<&tauri::AppHandle>,
+    ) -> Result<PathBuf, AppError> {
         let cache_path = Self::cache_zip_path(owner, repo, branch);
 
         if force {
@@ -321,7 +364,10 @@ impl CliService {
         std::fs::create_dir_all(&cache_dir).map_err(AppError::Io)?;
 
         let url = format!("https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.zip");
-        let response = reqwest::get(&url)
+        let client = reqwest::Client::new();
+        let response = client
+            .get(&url)
+            .send()
             .await
             .map_err(|e| AppError::Cli(format!("Failed to download {owner}/{repo}: {e}")))?;
 
@@ -332,24 +378,53 @@ impl CliService {
             )));
         }
 
-        let bytes = response
-            .bytes()
-            .await
-            .map_err(|e| AppError::Cli(format!("Failed to read response: {e}")))?;
-
-        const MAX_SIZE: usize = 50 * 1024 * 1024;
-        if bytes.len() > MAX_SIZE {
-            return Err(AppError::Cli(format!(
-                "Repository archive exceeds {}MB",
-                MAX_SIZE / (1024 * 1024)
-            )));
-        }
-
+        let total_size = response.content_length();
+        let mut downloaded: u64 = 0;
         let tmp_path = cache_dir.join(format!(
             ".{owner}--{repo}--{}.zip.tmp",
             Self::sanitize_branch(branch)
         ));
-        std::fs::write(&tmp_path, &bytes).map_err(AppError::Io)?;
+        let mut file = std::fs::File::create(&tmp_path).map_err(AppError::Io)?;
+
+        use futures::StreamExt;
+        let mut stream = response.bytes_stream();
+        const MAX_SIZE: u64 = 50 * 1024 * 1024;
+        let mut emit_threshold: u64 = 0;
+
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk
+                .map_err(|e| AppError::Cli(format!("Failed to read download chunk: {e}")))?;
+            downloaded += chunk.len() as u64;
+
+            if downloaded > MAX_SIZE {
+                let _ = std::fs::remove_file(&tmp_path);
+                return Err(AppError::Cli(format!(
+                    "Repository archive exceeds {}MB",
+                    MAX_SIZE / (1024 * 1024)
+                )));
+            }
+
+            use std::io::Write;
+            file.write_all(&chunk).map_err(AppError::Io)?;
+
+            if let Some(handle) = app_handle {
+                if downloaded >= emit_threshold {
+                    let _ = handle.emit(
+                        "repo-download-progress",
+                        serde_json::json!({
+                            "owner": owner,
+                            "repo": repo,
+                            "downloaded": downloaded,
+                            "total": total_size,
+                        }),
+                    );
+                    emit_threshold = downloaded + 256 * 1024; // emit every ~256KB
+                }
+            }
+        }
+
+        // Drop file handle before rename (required on Windows)
+        drop(file);
         std::fs::rename(&tmp_path, &cache_path).map_err(AppError::Io)?;
 
         Ok(cache_path)
@@ -492,6 +567,7 @@ impl CliService {
                     skill_folder_hash: Some(String::new()),
                     installed_at: Some(existing_installed_at.unwrap_or_else(|| now.clone())),
                     updated_at: Some(now.clone()),
+                    commit_sha: lock.skills.get(name).and_then(|e| e.commit_sha.clone()),
                 },
             );
         }
