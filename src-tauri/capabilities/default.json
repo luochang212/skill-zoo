@@ -8,6 +8,9 @@
     "core:window:allow-start-dragging",
     "core:window:allow-toggle-maximize",
     "opener:default",
-    "opener:allow-open-path"
+    "opener:allow-open-path",
+    "updater:default",
+    "process:default",
+    "process:allow-restart"
   ]
 }

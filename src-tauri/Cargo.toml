@@ -14,6 +14,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [features]
 default = []
 test-helpers = []
+portable = []
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -24,6 +25,8 @@ serde_json = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 tauri = { version = "2", features = ["protocol-asset", "tray-icon", "image-png"] }
 tauri-plugin-opener = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 dirs = "6.0"
 reqwest = { version = "0.13", features = ["rustls", "json", "query", "stream"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync", "process"] }

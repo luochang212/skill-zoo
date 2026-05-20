@@ -31,6 +31,7 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             // Clean up residual .tmp files from interrupted downloads
             let cache_dir = config::get_repo_zip_cache_dir();
@@ -72,6 +73,12 @@ pub fn run() {
                 Err(e) => eprintln!("Failed to start file watcher: {e}"),
             }
 
+            // Register updater plugin (skipped for portable builds)
+            #[cfg(all(desktop, not(feature = "portable")))]
+            app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())
+                .expect("Failed to register updater plugin");
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -112,6 +119,7 @@ pub fn run() {
             commands::settings::get_cache_size,
             commands::settings::open_cache_dir,
             commands::settings::check_skill_updates,
+            commands::settings::is_portable_build,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

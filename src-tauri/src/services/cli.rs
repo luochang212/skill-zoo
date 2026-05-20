@@ -251,9 +251,10 @@ impl CliService {
         match resp.status().as_u16() {
             403 | 429 => return Ok(None), // rate limited
             200 => {
-                let json: serde_json::Value = resp.json().await.map_err(|e| {
-                    AppError::Parse(format!("Invalid response from GitHub: {e}"))
-                })?;
+                let json: serde_json::Value = resp
+                    .json()
+                    .await
+                    .map_err(|e| AppError::Parse(format!("Invalid response from GitHub: {e}")))?;
                 let sha = json["sha"].as_str().map(|s| s.to_string());
                 Ok(sha)
             }
@@ -392,8 +393,8 @@ impl CliService {
         let mut emit_threshold: u64 = 0;
 
         while let Some(chunk) = stream.next().await {
-            let chunk = chunk
-                .map_err(|e| AppError::Cli(format!("Failed to read download chunk: {e}")))?;
+            let chunk =
+                chunk.map_err(|e| AppError::Cli(format!("Failed to read download chunk: {e}")))?;
             downloaded += chunk.len() as u64;
 
             if downloaded > MAX_SIZE {

@@ -6,6 +6,11 @@ use std::collections::{HashMap, HashSet};
 use tauri::State;
 
 #[tauri::command]
+pub fn is_portable_build() -> bool {
+    cfg!(feature = "portable")
+}
+
+#[tauri::command]
 pub fn clear_download_cache() -> Result<u64, String> {
     let cache_dir = crate::config::get_repo_zip_cache_dir();
     if !cache_dir.exists() {

@@ -189,9 +189,7 @@ async fn refresh_commit_shas_after_update_all() {
         if !seen.insert(key.clone()) {
             continue;
         }
-        if let Ok(Some(sha)) =
-            CliService::fetch_latest_commit_sha(&owner, &name, &branch).await
-        {
+        if let Ok(Some(sha)) = CliService::fetch_latest_commit_sha(&owner, &name, &branch).await {
             for (sn, e) in &lock.skills {
                 let (Some(o), Some(n)) = e.parse_source_owner_name() else {
                     continue;

@@ -723,17 +723,27 @@ impl SkillService {
         force: bool,
         app_handle: Option<&tauri::AppHandle>,
     ) -> Result<Vec<DiscoverableSkill>, AppError> {
-        let _ = app_handle.map(|h| h.emit("repo-load-stage", serde_json::json!({
-            "owner": owner, "repo": name, "stage": "downloading"
-        })));
+        let _ = app_handle.map(|h| {
+            h.emit(
+                "repo-load-stage",
+                serde_json::json!({
+                    "owner": owner, "repo": name, "stage": "downloading"
+                }),
+            )
+        });
 
         let zip_path =
             CliService::ensure_cached_zip_with_progress(owner, name, branch, force, app_handle)
                 .await?;
 
-        let _ = app_handle.map(|h| h.emit("repo-load-stage", serde_json::json!({
-            "owner": owner, "repo": name, "stage": "extracting"
-        })));
+        let _ = app_handle.map(|h| {
+            h.emit(
+                "repo-load-stage",
+                serde_json::json!({
+                    "owner": owner, "repo": name, "stage": "extracting"
+                }),
+            )
+        });
 
         let file = std::fs::File::open(&zip_path)?;
         if let Ok(metadata) = file.metadata() {
@@ -749,9 +759,14 @@ impl SkillService {
         let temp_dir = tempfile::tempdir()?;
         archive.extract(temp_dir.path())?;
 
-        let _ = app_handle.map(|h| h.emit("repo-load-stage", serde_json::json!({
-            "owner": owner, "repo": name, "stage": "scanning"
-        })));
+        let _ = app_handle.map(|h| {
+            h.emit(
+                "repo-load-stage",
+                serde_json::json!({
+                    "owner": owner, "repo": name, "stage": "scanning"
+                }),
+            )
+        });
 
         let mut skills = Vec::new();
         let root_dir = std::fs::read_dir(temp_dir.path())?
@@ -819,8 +834,7 @@ impl SkillService {
         force: bool,
         app_handle: Option<&tauri::AppHandle>,
     ) -> Result<(Vec<DiscoverableSkill>, usize), AppError> {
-        let mut skills =
-            Self::discover_from_repo(owner, name, branch, force, app_handle).await?;
+        let mut skills = Self::discover_from_repo(owner, name, branch, force, app_handle).await?;
         let total = skills.len();
         skills.truncate(max_skills);
         Ok((skills, total))

@@ -24,7 +24,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: data: https: http:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost https://api.github.com https://github.com",
+      "csp": "default-src 'self'; img-src 'self' asset: data: https: http:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost https://api.github.com https://github.com https://objects.githubusercontent.com https://github-releases.githubusercontent.com",
       "assetProtocol": {
         "enable": true,
         "scope": ["$RESOURCE/**"]
@@ -34,6 +34,7 @@
   "bundle": {
     "active": true,
     "targets": ["dmg", "nsis"],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -44,6 +45,14 @@
     ],
     "resources": {
       "resources": "."
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE0QzQwMzcxQjg4OTU1QjIKUldTeVZZbTRjUVBFcEs1ZDRWSXhuY01FMTBhZ1psTTR6U3VRT0RQY1ZVZXU2a09Nc01GQW5oQWIK",
+      "endpoints": [
+        "https://github.com/luochang212/skill-zoo/releases/latest/download/latest.json"
+      ]
     }
   }
 }
