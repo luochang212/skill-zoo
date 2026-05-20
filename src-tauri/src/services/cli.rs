@@ -297,7 +297,7 @@ impl CliService {
             }
 
             let owner = segments[0].to_string();
-            let name = segments[1].to_string();
+            let name = segments[1].trim_end_matches(".git").to_string();
             let branch = if segments.len() >= 4 && segments[2] == "tree" {
                 segments[3].to_string()
             } else {
@@ -314,7 +314,7 @@ impl CliService {
             }
             Ok((
                 parts[0].to_string(),
-                parts[1].to_string(),
+                parts[1].trim_end_matches(".git").to_string(),
                 "main".to_string(),
             ))
         }
@@ -640,6 +640,23 @@ mod tests {
     fn test_parse_github_url_tree() {
         let (owner, repo, branch) =
             CliService::parse_github_url("https://github.com/anthropics/skills/tree/main").unwrap();
+        assert_eq!(owner, "anthropics");
+        assert_eq!(repo, "skills");
+        assert_eq!(branch, "main");
+    }
+
+    #[test]
+    fn test_parse_github_url_strips_dot_git_full() {
+        let (owner, repo, branch) =
+            CliService::parse_github_url("https://github.com/anthropics/skills.git").unwrap();
+        assert_eq!(owner, "anthropics");
+        assert_eq!(repo, "skills");
+        assert_eq!(branch, "main");
+    }
+
+    #[test]
+    fn test_parse_github_url_strips_dot_git_short() {
+        let (owner, repo, branch) = CliService::parse_github_url("anthropics/skills.git").unwrap();
         assert_eq!(owner, "anthropics");
         assert_eq!(repo, "skills");
         assert_eq!(branch, "main");
