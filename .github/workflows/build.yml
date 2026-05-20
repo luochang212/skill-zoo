@@ -91,6 +91,7 @@ jobs:
         uses: tauri-apps/tauri-action@fce9c6108b31ea247710505d3aaaa893ee6768d4  # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         with:
           args: --target ${{ matrix.target }}
 
@@ -100,6 +101,8 @@ jobs:
         env:
           TAG_NAME: ${{ github.ref_name }}
         run: |
+          # Rebuild with portable feature (no updater plugin)
+          cargo build --release --manifest-path src-tauri/Cargo.toml --target ${{ matrix.target }} --features portable
           $dir = "skill-zoo-portable"
           New-Item -ItemType Directory -Path $dir
           Copy-Item "src-tauri/target/${{ matrix.target }}/release/skill-zoo.exe" "$dir/"
@@ -122,6 +125,32 @@ jobs:
             x86_64-pc-windows-msvc)
               EXE=$(find "$BUNDLE/nsis" -name "*.exe" | head -1)
               mv "$EXE" "$BUNDLE/Skill-Zoo-${VERSION}-Windows.exe"
+              ;;
+          esac
+
+      - name: Rename updater artifacts
+        shell: bash
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          BUNDLE="src-tauri/target/${{ matrix.target }}/release/bundle"
+          VERSION="$TAG_NAME"
+
+          case "${{ matrix.target }}" in
+            universal-apple-darwin)
+              TAR=$(find "$BUNDLE/macos" -name "*.app.tar.gz" 2>/dev/null | head -1)
+              if [ -n "$TAR" ] && [ -f "$TAR" ]; then
+                mv "$TAR" "$BUNDLE/Skill-Zoo-${VERSION}-macOS.app.tar.gz"
+                if [ -f "${TAR}.sig" ]; then
+                  mv "${TAR}.sig" "$BUNDLE/Skill-Zoo-${VERSION}-macOS.app.tar.gz.sig"
+                fi
+              fi
+              ;;
+            x86_64-pc-windows-msvc)
+              EXE_SIG=$(find "$BUNDLE/nsis" -name "*.exe.sig" 2>/dev/null | head -1)
+              if [ -n "$EXE_SIG" ] && [ -f "$EXE_SIG" ]; then
+                mv "$EXE_SIG" "$BUNDLE/Skill-Zoo-${VERSION}-Windows.exe.sig"
+              fi
               ;;
           esac
 
@@ -177,6 +206,39 @@ jobs:
           BODY="${BODY//__COMMITS__/$COMMITS}"
           echo "$BODY" > release-notes.md
 
+      - name: Generate updater manifest
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          VERSION="$TAG_NAME"
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          MACOS_SIG=$(find artifacts/macos -name "*.app.tar.gz.sig" -type f 2>/dev/null | head -1)
+          WINDOWS_SIG=$(find artifacts/windows -name "*.exe.sig" -type f 2>/dev/null | head -1)
+
+          MACOS_SIG_CONTENT=""
+          WINDOWS_SIG_CONTENT=""
+          [ -n "$MACOS_SIG" ] && MACOS_SIG_CONTENT=$(cat "$MACOS_SIG")
+          [ -n "$WINDOWS_SIG" ] && WINDOWS_SIG_CONTENT=$(cat "$WINDOWS_SIG")
+
+          jq -n \
+            --arg version "$VERSION" \
+            --arg pub_date "$PUB_DATE" \
+            --arg macos_sig "$MACOS_SIG_CONTENT" \
+            --arg macos_url "https://github.com/luochang212/skill-zoo/releases/download/${VERSION}/Skill-Zoo-${VERSION}-macOS.app.tar.gz" \
+            --arg windows_sig "$WINDOWS_SIG_CONTENT" \
+            --arg windows_url "https://github.com/luochang212/skill-zoo/releases/download/${VERSION}/Skill-Zoo-${VERSION}-Windows.exe" \
+            '{
+              version: $version,
+              notes: "",
+              pub_date: $pub_date,
+              platforms: {
+                "darwin-x86_64": { signature: $macos_sig, url: $macos_url },
+                "darwin-aarch64": { signature: $macos_sig, url: $macos_url },
+                "windows-x86_64": { signature: $windows_sig, url: $windows_url }
+              }
+            }' > latest.json
+
       - name: Create release and upload assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -185,7 +247,7 @@ jobs:
           gh release create "$TAG_NAME" \
             --title "$TAG_NAME" \
             --notes-file release-notes.md \
-            $(find artifacts -name "Skill-Zoo-*" -type f)
+            $(find artifacts -name "Skill-Zoo-*" -type f) latest.json
 
   update-homebrew:
     name: Update Homebrew Cask

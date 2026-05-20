@@ -244,12 +244,22 @@
       "title": "About",
       "description": "Agent Skill Manager — Unified management for skills in Claude Code, Codex, Cursor, and more"
     },
+    "updater": {
+      "checkUpdate": "Check for Updates",
+      "checking": "Checking...",
+      "upToDate": "Skill Zoo is up to date",
+      "downloadInstall": "Download & Install",
+      "downloading": "Downloading...",
+      "restartNow": "Restart Now",
+      "error": "Could not check for updates",
+      "retry": "Retry",
+      "openReleases": "GitHub Releases"
+    },
     "feedback": {
       "title": "Feedback",
       "description": "Help us improve Skill Zoo!",
       "reportBug": "Report a Bug",
       "requestFeature": "Request a Feature",
-      "releases": "GitHub Releases",
       "hint": "Opens GitHub Issues in your browser with app info pre-filled."
     }
   }
