@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.10] — 2026-05-21
+
+### Added
+- Skill update checking — check installed skills against latest GitHub commits with rate-limit handling.
+- Streaming repo ZIP downloads with progress events and 50 MB size limit.
+- Download cache management (clear cache, view size, open cache directory) in Settings.
+- Software self-update via `tauri-plugin-updater` for macOS DMG and Windows NSIS installer.
+- `AppUpdateSection` in Settings — auto-update flow for installers, GitHub Releases link for portable builds.
+
+### Changed
+- Codex visible by default in agent settings.
+- Skill update and update-all now refresh commit SHA after completion.
+- Windows portable rebuilds with `--features portable` to skip updater plugin registration.
+- CI generates and uploads `latest.json` updater manifest to GitHub Releases.
+
 ## [0.1.9] — 2026-05-18
 
 ### Fixed
