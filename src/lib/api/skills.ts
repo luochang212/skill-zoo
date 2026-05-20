@@ -90,4 +90,30 @@ export const skillsApi = {
 
   mergeDuplicatesToSsot: (skillName: string) =>
     invoke<void>("merge_duplicates_to_ssot", { skillName }),
+
+  // ── Cache ──
+
+  clearDownloadCache: () => invoke<number>("clear_download_cache"),
+
+  getCacheSize: () => invoke<number>("get_cache_size"),
+
+  openCacheDir: () => invoke<void>("open_cache_dir"),
+
+  checkSkillUpdates: () =>
+    invoke<CheckUpdatesResult>("check_skill_updates"),
 };
+
+export interface SkillUpdateStatus {
+  skillName: string;
+  hasUpdate: boolean;
+  currentSha: string | null;
+  latestSha: string | null;
+  repo: string;
+}
+
+export interface CheckUpdatesResult {
+  skills: SkillUpdateStatus[];
+  totalRepos: number;
+  checkedRepos: number;
+  rateLimited: boolean;
+}
