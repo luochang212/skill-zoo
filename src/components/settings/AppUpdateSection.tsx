@@ -31,7 +31,6 @@ export function AppUpdateSection() {
   const [status, setStatus] = useState<UpdateStatus>("idle");
   const [update, setUpdate] = useState<Update | null>(null);
   const [downloaded, setDownloaded] = useState(0);
-  const [errorMsg, setErrorMsg] = useState("");
   const updateRef = useRef<Update | null>(null);
 
   useEffect(() => {
@@ -42,7 +41,6 @@ export function AppUpdateSection() {
 
   const handleCheck = useCallback(async () => {
     setStatus("checking");
-    setErrorMsg("");
     try {
       const result = await check();
       if (result) {
@@ -52,8 +50,7 @@ export function AppUpdateSection() {
       } else {
         setStatus("up-to-date");
       }
-    } catch (e) {
-      setErrorMsg(String(e));
+    } catch {
       setStatus("error");
     }
   }, []);
@@ -74,8 +71,7 @@ export function AppUpdateSection() {
         }
       });
       setStatus("ready-to-restart");
-    } catch (e) {
-      setErrorMsg(String(e));
+    } catch {
       setStatus("error");
     }
   }, []);
@@ -149,9 +145,7 @@ export function AppUpdateSection() {
       case "error":
         return (
           <div className="flex items-center gap-2">
-            <span className="text-xs text-destructive truncate max-w-[160px]">
-              {errorMsg || t("settings.updater.error")}
-            </span>
+            <span className="text-xs text-destructive">{t("settings.updater.error")}</span>
             <Button
               size="sm"
               variant="outline"
