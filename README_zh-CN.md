@@ -78,14 +78,14 @@ brew install --cask skill-zoo
 
 ### Windows
 
-从 [Releases](https://github.com/luochang212/skill-zoo/releases) 下载便携版，解压到任意文件夹，运行 `skill-zoo.exe`。
+从 [Releases](https://github.com/luochang212/skill-zoo/releases) 下载 `.exe` 安装包运行即可。安装程序会自动创建快捷方式并支持自动更新。
 
 > 如果 SmartScreen 弹出警告，点击 **”更多信息”** → **”仍要运行”**。
 
 <details>
-<summary>📦 安装包（备选）</summary>
+<summary>📦 便携版（备选）</summary>
 
-从 [Releases](https://github.com/luochang212/skill-zoo/releases) 下载 `.exe` 安装包运行即可。SmartScreen 同样可能弹出警告，按上述方式处理。
+从 [Releases](https://github.com/luochang212/skill-zoo/releases) 下载便携版 `.zip`，解压到任意文件夹，运行 `skill-zoo.exe`。SmartScreen 同样可能弹出警告，按上述方式处理。
 
 </details>
 

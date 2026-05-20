@@ -78,14 +78,14 @@ You'll also need to run `xattr -d com.apple.quarantine /Applications/skill-zoo.a
 
 ### Windows
 
-Download the portable version from [Releases](https://github.com/luochang212/skill-zoo/releases), extract it to any folder, and run `skill-zoo.exe`.
+Download the `.exe` installer from [Releases](https://github.com/luochang212/skill-zoo/releases) and run it. The installer sets up shortcuts automatically and supports automatic updates.
 
 > If SmartScreen shows a warning, click **"More info"** → **"Run anyway"**.
 
 <details>
-<summary>📦 Installer (alternative)</summary>
+<summary>📦 Portable version (alternative)</summary>
 
-Download the `.exe` installer from [Releases](https://github.com/luochang212/skill-zoo/releases) and run it. SmartScreen may also show a warning — same workaround applies.
+Download the portable `.zip` from [Releases](https://github.com/luochang212/skill-zoo/releases), extract it to any folder, and run `skill-zoo.exe`. SmartScreen may also show a warning — same workaround applies.
 
 </details>
 
