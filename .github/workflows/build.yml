@@ -86,8 +86,6 @@ jobs:
       - name: Configure sccache
         run: |
           echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
-          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
-          echo "SCCACHE_GHA_CACHE_TO=${{ matrix.target }}" >> $GITHUB_ENV
           echo "SCCACHE_CACHE_SIZE=5G" >> $GITHUB_ENV
 
       - uses: Swatinem/rust-cache@v2
