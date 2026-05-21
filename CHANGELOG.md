@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.13] — 2026-05-21
+
+### Added
+- Apple code signing and notarization for macOS releases.
+
+### Changed
+- README updated to reflect signed and notarized macOS app; removed unsigned app workaround.
+
 ## [0.1.12] — 2026-05-21
 
 ### Changed

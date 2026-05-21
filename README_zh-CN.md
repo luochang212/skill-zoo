@@ -60,10 +60,6 @@ Skill Zoo 让你在一个地方**浏览**、**安装**、**编辑**和**同步**
 
 从 [Releases](https://github.com/luochang212/skill-zoo/releases) 页面下载对应芯片的 `.dmg` 文件，打开后将 `skill-zoo.app` 拖入 `Applications` 文件夹。
 
-> 如果提示”skill-zoo 已损坏，无法打开”，请在终端执行 `xattr -d com.apple.quarantine /Applications/skill-zoo.app`。
->
-> **说明：** 我们没有 Apple 开发者账号（$99/年），因此应用无法签名或公证。`xattr -d` 用于移除 macOS 对未签名应用附加的隔离标记，只需执行一次。
-
 <details>
 <summary>🧑‍💻 通过 Homebrew 安装（macOS 开发者）</summary>
 
@@ -71,8 +67,6 @@ Skill Zoo 让你在一个地方**浏览**、**安装**、**编辑**和**同步**
 brew tap luochang212/tap
 brew install --cask skill-zoo
 ```
-
-首次启动同样需要执行 `xattr -d com.apple.quarantine /Applications/skill-zoo.app`。
 
 </details>
 

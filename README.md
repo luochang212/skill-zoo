@@ -60,10 +60,6 @@ Skill Zoo gives you a single place to **browse**, **install**, **edit**, and **s
 
 Download the `.dmg` matching your chip from the [Releases](https://github.com/luochang212/skill-zoo/releases) page, open it, and drag `skill-zoo.app` into `Applications`.
 
-> If you see "skill-zoo" is damaged and can't be opened, run `xattr -d com.apple.quarantine /Applications/skill-zoo.app` in Terminal.
->
-> **Note:** We don't have an Apple Developer account ($99/year), so the app cannot be signed or notarized. `xattr -d` removes the quarantine flag that macOS attaches to unsigned apps, allowing it to launch normally.
-
 <details>
 <summary>🧑‍💻 Install via Homebrew (macOS developers)</summary>
 
@@ -71,8 +67,6 @@ Download the `.dmg` matching your chip from the [Releases](https://github.com/lu
 brew tap luochang212/tap
 brew install --cask skill-zoo
 ```
-
-You'll also need to run `xattr -d com.apple.quarantine /Applications/skill-zoo.app` on first launch.
 
 </details>
 
