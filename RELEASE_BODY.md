@@ -1,10 +1,8 @@
-## Installation Guide
-
-### 🚀 What's New
+## What's New
 
 __COMMITS__
 
-### ⬇️ Download
+## Installation
 
 > Download files are listed in the **Assets** section below.
 
@@ -14,18 +12,12 @@ __COMMITS__
 | `Skill-Zoo-__VERSION__-Windows.exe` | Windows Installer |
 | `Skill-Zoo-__VERSION__-Windows-Portable.zip` | Windows Portable |
 
-### 📦 Install
+### macOS
 
-**macOS**: Download the `.dmg`, open it, and drag `skill-zoo.app` into `Applications`. If you see a warning that the app is damaged or macOS suggests moving it to Trash, open Terminal and run:
-
-```bash
-xattr -d com.apple.quarantine /Applications/skill-zoo.app
-```
-
-> **Note:** We don't have an Apple Developer account ($99/year), so the app cannot be signed or notarized. `xattr -d` removes the quarantine flag that macOS attaches to unsigned apps, allowing it to launch normally. This only needs to be done once.
+Download the `.dmg`, open it, and drag `skill-zoo.app` into `Applications`.
 
 <details>
-<summary>Install via Homebrew (macOS developers)</summary>
+<summary>Homebrew (alternative)</summary>
 
 ```bash
 brew tap luochang212/tap
@@ -38,31 +30,20 @@ Update:
 brew upgrade --cask skill-zoo
 ```
 
-You'll also need to run `xattr -d com.apple.quarantine /Applications/skill-zoo.app` on first launch.
-
 </details>
 
----
+### Windows
 
-**Windows**: Download `Skill-Zoo-__VERSION__-Windows.exe` and run it. The installer sets up shortcuts automatically and supports automatic updates. If SmartScreen shows a warning, click **"More info"** → **"Run anyway"**.
+Download `Skill-Zoo-__VERSION__-Windows.exe` and run it. The installer sets up shortcuts automatically and supports automatic updates. If SmartScreen shows a warning, click **"More info"** → **"Run anyway"**.
 
 <details>
-<summary>Portable version (alternative)</summary>
+<summary>Portable (alternative)</summary>
 
-Download the portable `.zip`, extract it to any folder, and double-click `skill-zoo.exe` to run. SmartScreen may also show a warning — handle it the same way.
+Download `Skill-Zoo-__VERSION__-Windows-Portable.zip`, extract it to any folder, and double-click `skill-zoo.exe` to run. SmartScreen may also show a warning — handle it the same way.
 
 </details>
-
-<details>
-<summary>🇨🇳 中文安装指南</summary>
 
 ## 安装指南
-
-### 🚀 更新内容
-
-__COMMITS__
-
-### ⬇️ 下载
 
 > 下载文件在下方 **Assets** 区域中。
 
@@ -72,18 +53,12 @@ __COMMITS__
 | `Skill-Zoo-__VERSION__-Windows.exe` | Windows 安装版 |
 | `Skill-Zoo-__VERSION__-Windows-Portable.zip` | Windows 便携版 |
 
-### 📦 安装方法
+### macOS
 
-**macOS**：下载 `.dmg` 文件，打开后将 `skill-zoo.app` 拖入 `Applications` 文件夹。如果 macOS 提示应用已损坏或建议移至废纸篓，请打开终端执行：
-
-```bash
-xattr -d com.apple.quarantine /Applications/skill-zoo.app
-```
-
-> **说明**：我们没有 Apple 开发者账号（$99/年），因此应用无法签名或公证。`xattr -d` 会移除 macOS 对未签名应用的隔离标记，使其可以正常启动。此操作只需执行一次。
+下载 `.dmg` 文件，打开后将 `skill-zoo.app` 拖入 `Applications` 文件夹。
 
 <details>
-<summary>通过 Homebrew 安装（macOS 开发者）</summary>
+<summary>Homebrew（备选）</summary>
 
 ```bash
 brew tap luochang212/tap
@@ -96,19 +71,15 @@ brew install --cask skill-zoo
 brew upgrade --cask skill-zoo
 ```
 
-首次启动同样需要执行 `xattr -d com.apple.quarantine /Applications/skill-zoo.app`。
-
 </details>
 
----
+### Windows
 
-**Windows**：下载 `Skill-Zoo-__VERSION__-Windows.exe` 安装包运行即可。安装程序会自动创建快捷方式并支持自动更新。如果出现 SmartScreen 警告，点击 **"更多信息"** → **"仍要运行"**。
+下载 `Skill-Zoo-__VERSION__-Windows.exe` 安装包运行即可。安装程序会自动创建快捷方式并支持自动更新。如果出现 SmartScreen 警告，点击 **"更多信息"** → **"仍要运行"**。
 
 <details>
 <summary>便携版（备选）</summary>
 
-下载便携版 `.zip`，解压到任意文件夹，双击 `skill-zoo.exe` 运行。SmartScreen 可能同样出现警告，处理方式相同。
-
-</details>
+下载 `Skill-Zoo-__VERSION__-Windows-Portable.zip`，解压到任意文件夹，双击 `skill-zoo.exe` 运行。SmartScreen 可能同样出现警告，处理方式相同。
 
 </details>
