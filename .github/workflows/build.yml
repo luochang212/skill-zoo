@@ -117,34 +117,55 @@ jobs:
           CERT_ID=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application" | awk -F'"' '{print $2}')
           echo "APPLE_SIGNING_IDENTITY=$CERT_ID" >> $GITHUB_ENV
 
-      - name: Tauri build (macOS)
+      - name: Tauri build and sign (macOS, no notarization)
         if: matrix.target == 'universal-apple-darwin'
-        timeout-minutes: 180
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
+        run: bun run tauri build --target ${{ matrix.target }}
+
+      - name: Notarize macOS app
+        if: matrix.target == 'universal-apple-darwin'
+        timeout-minutes: 60
+        shell: bash
+        env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
+          APP_PATH=$(find src-tauri/target/universal-apple-darwin/release/bundle/macos -maxdepth 1 -name "*.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "❌ No .app found" >&2
+            exit 1
+          fi
+          echo "Notarizing: $APP_PATH"
+          ditto -c -k --keepParent "$APP_PATH" /tmp/notarize.zip
+
           max_attempts=3
           for attempt in $(seq 1 "$max_attempts"); do
-            echo "=== macOS build/notarization attempt ${attempt}/${max_attempts} ==="
-            if bun run tauri build --target ${{ matrix.target }}; then
-              echo "✅ macOS build/notarization succeeded"
+            echo "=== Notarization attempt ${attempt}/${max_attempts} ==="
+            if xcrun notarytool submit /tmp/notarize.zip \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" \
+              --wait; then
+              echo "✅ Notarization succeeded"
+              xcrun stapler staple "$APP_PATH"
+              echo "✅ Stapled"
+              rm -f /tmp/notarize.zip
               exit 0
             fi
 
             if [ "$attempt" -eq "$max_attempts" ]; then
-              echo "❌ macOS build/notarization failed after ${max_attempts} attempts" >&2
+              echo "❌ Notarization failed after ${max_attempts} attempts" >&2
               exit 1
             fi
 
-            sleep_seconds=$((attempt * 60))
-            echo "⚠️ macOS build failed, retrying in ${sleep_seconds}s..."
+            sleep_seconds=$((attempt * 30))
+            echo "⚠️ Notarization failed, retrying in ${sleep_seconds}s..."
             sleep "$sleep_seconds"
           done
 
