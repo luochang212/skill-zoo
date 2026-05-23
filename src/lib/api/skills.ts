@@ -21,7 +21,7 @@ export const skillsApi = {
 
   updateSkill: (skillId: string) => invoke<InstalledSkill>("update_skill", { skillId }),
 
-  updateAllSkills: () => invoke<InstalledSkill[]>("update_all_skills"),
+  updateAllSkills: () => invoke<UpdateAllResult>("update_all_skills"),
 
   removeSkill: (skillId: string) => invoke<void>("remove_skill", { skillId }),
 
@@ -101,6 +101,13 @@ export const skillsApi = {
 
   checkSkillUpdates: () => invoke<CheckUpdatesResult>("check_skill_updates"),
 };
+
+export interface UpdateAllResult {
+  skills: InstalledSkill[];
+  successCount: number;
+  failCount: number;
+  errors: string[];
+}
 
 export interface SkillUpdateStatus {
   skillName: string;

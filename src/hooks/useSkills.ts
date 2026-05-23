@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
-import { skillsApi } from "@/lib/api/skills";
+import { skillsApi, type UpdateAllResult } from "@/lib/api/skills";
 import { invalidateFor, type MutationName } from "@/hooks/queryInvalidation";
 import type { InstalledSkill } from "@/types/skills";
 import { useEffect } from "react";
@@ -72,7 +72,8 @@ export function useUpdateSkill() {
 
 export function useUpdateAllSkills() {
   const qc = useQueryClient();
-  return useMutation({
+  return useMutation<UpdateAllResult>({
+    mutationKey: ["updateAllSkills"],
     mutationFn: () => skillsApi.updateAllSkills(),
     onSuccess: () => invalidateFor(qc, "updateAllSkills"),
   });

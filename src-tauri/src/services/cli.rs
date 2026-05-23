@@ -6,8 +6,29 @@ use crate::config;
 use crate::error::AppError;
 use crate::services::lock::{SkillLock, SkillLockEntry};
 use crate::services::skill::{is_symlink_or_junction, SkillService};
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tauri::Emitter;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct TreeEntry {
+    path: String,
+    #[serde(rename = "type")]
+    entry_type: String,
+    sha: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RepoTreeResponse {
+    sha: String,
+    tree: Vec<TreeEntry>,
+}
+
+pub struct UpdateResult {
+    pub success_count: usize,
+    pub fail_count: usize,
+    pub errors: Vec<String>,
+}
 
 pub struct CliService;
 
@@ -110,7 +131,7 @@ impl CliService {
     // ─── Update ─────────────────────────────────────────────────────
 
     /// Update one or all installed skills by re-downloading and overwriting.
-    pub async fn update_skills(skill_name: Option<&str>) -> Result<(), AppError> {
+    pub async fn update_skills(skill_name: Option<&str>) -> Result<UpdateResult, AppError> {
         let lock = SkillLock::read()?;
 
         let to_update: Vec<(String, SkillLockEntry)> = if let Some(name) = skill_name {
@@ -126,7 +147,7 @@ impl CliService {
         };
 
         if to_update.is_empty() {
-            return Ok(());
+            return Ok(UpdateResult { success_count: 0, fail_count: 0, errors: vec![] });
         }
 
         let mut updated: Vec<String> = Vec::new();
@@ -144,6 +165,25 @@ impl CliService {
             match Self::parse_github_url(source_url) {
                 Ok((owner, repo, _parsed_branch)) => {
                     let effective_branch = branch;
+
+                    // Check if remote actually changed before re-downloading
+                    let old_sha = entry.commit_sha.clone();
+                    let new_sha = match Self::fetch_repo_tree(&owner, &repo, effective_branch).await
+                    {
+                        Ok(Some(tree)) => {
+                            let skill_path = entry.skill_path.as_deref().unwrap_or("");
+                            Self::get_folder_sha_from_tree(&tree, skill_path)
+                        }
+                        _ => None, // rate-limited or error — proceed with reinstall anyway
+                    };
+
+                    // If we got both SHAs and they match, skip — no update needed
+                    if let (Some(old), Some(new)) = (&old_sha, &new_sha) {
+                        if old == new {
+                            continue;
+                        }
+                    }
+
                     match Self::reinstall_single_skill(name, &owner, &repo, effective_branch).await
                     {
                         Ok(_) => updated.push(name.clone()),
@@ -166,15 +206,11 @@ impl CliService {
             lock.write()?;
         }
 
-        if !errors.is_empty() {
-            return Err(AppError::Cli(format!(
-                "{} skill(s) failed: {}",
-                errors.len(),
-                errors.join("; ")
-            )));
-        }
-
-        Ok(())
+        Ok(UpdateResult {
+            success_count: updated.len(),
+            fail_count: errors.len(),
+            errors,
+        })
     }
 
     // ─── Remove ─────────────────────────────────────────────────────
@@ -231,35 +267,60 @@ impl CliService {
 
     // ─── Update check ────────────────────────────────────────────────
 
-    /// Fetch the latest commit SHA for a repo+branch. Returns `None` on rate-limit (403/429).
-    pub async fn fetch_latest_commit_sha(
+    /// Fetch the repo tree from GitHub's Trees API.
+    /// Returns the tree data (with all folder SHAs), or None on rate-limit/error.
+    pub async fn fetch_repo_tree(
         owner: &str,
         repo: &str,
         branch: &str,
-    ) -> Result<Option<String>, AppError> {
-        let url = format!("https://api.github.com/repos/{owner}/{repo}/commits/{branch}");
+    ) -> Result<Option<RepoTreeResponse>, AppError> {
+        let url = format!(
+            "https://api.github.com/repos/{owner}/{repo}/git/trees/{}?recursive=1",
+            urlencoding::encode(branch)
+        );
         let client = reqwest::Client::builder()
             .user_agent("skill-zoo")
-            .timeout(std::time::Duration::from_secs(15))
+            .timeout(std::time::Duration::from_secs(30))
             .build()
             .unwrap_or_default();
 
-        let resp = client.get(&url).send().await.map_err(|e| {
-            AppError::Cli(format!("Failed to check updates for {owner}/{repo}: {e}"))
-        })?;
+        let resp = client
+            .get(&url)
+            .header("Accept", "application/vnd.github.v3+json")
+            .send()
+            .await
+            .map_err(|e| AppError::Cli(format!("Failed to fetch tree for {owner}/{repo}: {e}")))?;
 
         match resp.status().as_u16() {
             403 | 429 => Ok(None), // rate limited
             200 => {
-                let json: serde_json::Value = resp
-                    .json()
-                    .await
-                    .map_err(|e| AppError::Parse(format!("Invalid response from GitHub: {e}")))?;
-                let sha = json["sha"].as_str().map(|s| s.to_string());
-                Ok(sha)
+                let json: RepoTreeResponse = resp.json().await.map_err(|e| {
+                    AppError::Parse(format!("Invalid tree response from GitHub: {e}"))
+                })?;
+                Ok(Some(json))
             }
             _ => Ok(None), // repo not found, branch not found, etc. — skip
         }
+    }
+
+    /// Get the folder SHA for a specific path from a repo tree.
+    pub fn get_folder_sha_from_tree(tree: &RepoTreeResponse, path: &str) -> Option<String> {
+        // Normalize path (remove SKILL.md suffix)
+        let normalized_path = path
+            .trim_end_matches("/SKILL.md")
+            .trim_end_matches("SKILL.md")
+            .trim_end_matches('/');
+
+        // Root-level skill
+        if normalized_path.is_empty() {
+            return Some(tree.sha.clone());
+        }
+
+        // Find matching tree entry
+        tree.tree
+            .iter()
+            .find(|e| e.entry_type == "tree" && e.path == normalized_path)
+            .map(|e| e.sha.clone())
     }
 
     // ─── Internal helpers ───────────────────────────────────────────

@@ -1,8 +1,8 @@
 use crate::services::cli::CliService;
-use crate::services::lock::SkillLock;
+use crate::services::lock::{SkillLock, SkillLockEntry};
 use crate::store::AppState;
 use serde::Serialize;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use tauri::State;
 
 #[tauri::command]
@@ -174,45 +174,73 @@ pub struct CheckUpdatesResult {
 
 #[tauri::command]
 pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
+    use rand::seq::SliceRandom;
+
     let lock = SkillLock::read().map_err(|e| e.to_string())?;
 
-    // Collect unique (owner, repo, branch) tuples
-    let mut repos: Vec<(String, String, String)> = Vec::new();
-    let mut seen: HashSet<(String, String, String)> = HashSet::new();
+    // Group skills by (owner, repo, branch) to minimize API calls
+    let mut skills_by_repo: HashMap<(String, String, String), Vec<(String, SkillLockEntry)>> =
+        HashMap::new();
 
-    for entry in lock.skills.values() {
+    for (skill_name, entry) in &lock.skills {
         let (owner, name) = entry.parse_source_owner_name();
         let (Some(owner), Some(name)) = (owner, name) else {
             continue;
         };
         let branch = entry.branch.clone().unwrap_or_else(|| "main".to_string());
         let key = (owner.clone(), name.clone(), branch.clone());
-        if seen.insert(key.clone()) {
-            repos.push(key);
-        }
+        skills_by_repo
+            .entry(key)
+            .or_default()
+            .push((skill_name.clone(), entry.clone()));
     }
 
-    let total_repos = repos.len();
+    let total_repos = skills_by_repo.len();
     let mut checked_repos: usize = 0;
     let mut rate_limited = false;
-    // Map: (owner, name) -> latest_sha (None = rate-limited for this repo)
-    let mut latest_shas: HashMap<(String, String), Option<String>> = HashMap::new();
 
-    for (owner, name, branch) in &repos {
+    // Map: skill_name -> (latest_folder_sha, repo_name)
+    let mut skill_shas: HashMap<String, (Option<String>, String)> = HashMap::new();
+
+    // Randomize repo order for fairness when rate-limited
+    let mut repos: Vec<(String, String, String)> =
+        skills_by_repo.keys().cloned().collect();
+    repos.shuffle(&mut rand::thread_rng());
+
+    for (owner, repo, branch) in repos {
         if rate_limited {
             break;
         }
-        match CliService::fetch_latest_commit_sha(owner, name, branch).await {
-            Ok(Some(sha)) => {
-                latest_shas.insert((owner.clone(), name.clone()), Some(sha));
+
+        let repo_key = (owner.clone(), repo.clone(), branch.clone());
+        let Some(skills_in_repo) = skills_by_repo.get(&repo_key) else {
+            continue;
+        };
+
+        match CliService::fetch_repo_tree(&owner, &repo, &branch).await {
+            Ok(Some(tree)) => {
                 checked_repos += 1;
+
+                // One API call → all skills in this repo get their folder SHA
+                for (skill_name, entry) in skills_in_repo {
+                    let skill_path = entry.skill_path.as_deref().unwrap_or("");
+                    let folder_sha = CliService::get_folder_sha_from_tree(&tree, skill_path);
+                    skill_shas.insert(skill_name.clone(), (folder_sha, repo.clone()));
+                }
             }
             Ok(None) => {
-                // rate limited — stop checking, mark this repo as unknown
+                // Rate limited — stop further requests
                 rate_limited = true;
-                latest_shas.insert((owner.clone(), name.clone()), None);
+                for (skill_name, _) in skills_in_repo {
+                    skill_shas.insert(skill_name.clone(), (None, repo.clone()));
+                }
             }
-            Err(_) => continue, // network error — skip this repo
+            Err(_) => {
+                // Network error — skip this repo, don't stop
+                for (skill_name, _) in skills_in_repo {
+                    skill_shas.insert(skill_name.clone(), (None, repo.clone()));
+                }
+            }
         }
     }
 
@@ -222,11 +250,12 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
         let (Some(owner), Some(name)) = entry.parse_source_owner_name() else {
             continue;
         };
-        let repo_key = (owner.clone(), name.clone());
-        let latest_sha = latest_shas.get(&repo_key).cloned().flatten();
+
+        let fallback = (None, format!("{owner}/{name}"));
+        let (latest_sha_opt, repo_name) = skill_shas.get(skill_name).unwrap_or(&fallback);
         let current_sha = entry.commit_sha.clone();
 
-        let has_update = match (&latest_sha, &current_sha) {
+        let has_update = match (latest_sha_opt, &current_sha) {
             (Some(latest), Some(current)) => latest != current,
             _ => false,
         };
@@ -235,22 +264,19 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
             skill_name: skill_name.clone(),
             has_update,
             current_sha,
-            latest_sha,
-            repo: format!("{owner}/{name}"),
+            latest_sha: latest_sha_opt.clone(),
+            repo: repo_name.clone(),
         });
     }
 
     // For skills whose latest SHA we fetched but had no stored SHA,
     // save the latest SHA now (they were up-to-date at install time).
     for (skill_name, entry) in &lock.skills {
-        let (Some(owner), Some(name)) = entry.parse_source_owner_name() else {
-            continue;
-        };
-        let repo_key = (owner, name);
-        if let Some(Some(latest)) = latest_shas.get(&repo_key) {
-            if entry.commit_sha.is_none() {
-                let _ = SkillLock::update_commit_sha(skill_name, latest);
-            }
+        if let (Some((Some(latest), _)), None) = (
+            skill_shas.get(skill_name),
+            entry.commit_sha.as_ref(),
+        ) {
+            let _ = SkillLock::update_commit_sha(skill_name, latest);
         }
     }
 

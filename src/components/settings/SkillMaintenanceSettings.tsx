@@ -1,11 +1,13 @@
 import { FolderOpen, FolderSearch, RefreshCw, Trash2, Wrench } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ToggleRow } from "@/components/ui/toggle-row";
 import { useUpdateAllSkills, useInstalledSkills, useRescanSkills } from "@/hooks/useSkills";
 import { useHideNonSsot, useUpdateHideNonSsot } from "@/hooks/useSettings";
 import { useCheckUpdates } from "@/hooks/useCheckUpdates";
+import { useIsMutationPending } from "@/hooks/usePendingMutation";
 import { skillsApi } from "@/lib/api/skills";
 
 function formatSize(bytes: number) {
@@ -44,7 +46,8 @@ export function SkillMaintenanceSettings() {
   }, [checkMutation.data]);
 
   const hasChecked = checkMutation.data != null;
-  const isChecking = checkMutation.isPending;
+  const isChecking = useIsMutationPending("checkSkillUpdates") || checkMutation.isPending;
+  const isUpdating = useIsMutationPending("updateAllSkills") || updateAllMutation.isPending;
   const rateLimited = checkMutation.data?.rateLimited ?? false;
 
   return (
@@ -87,12 +90,30 @@ export function SkillMaintenanceSettings() {
                 className="h-8 text-xs gap-1.5"
                 onClick={() =>
                   updateAllMutation.mutate(undefined, {
-                    onSuccess: () => checkMutation.reset(),
+                    onSuccess: (result) => {
+                      checkMutation.reset();
+                      if (result.successCount > 0 && result.failCount === 0) {
+                        toast.success(
+                          t("settings.maintenance.updateAllSuccess", {
+                            count: result.successCount,
+                          }),
+                        );
+                      } else if (result.failCount > 0) {
+                        toast.warning(
+                          t("settings.maintenance.updateAllPartial", {
+                            success: result.successCount,
+                            fail: result.failCount,
+                          }),
+                        );
+                      } else {
+                        toast.error(t("settings.maintenance.updateAllFailed"));
+                      }
+                    },
                   })
                 }
-                disabled={updateAllMutation.isPending}
+                disabled={isUpdating}
               >
-                {updateAllMutation.isPending ? (
+                {isUpdating ? (
                   <>
                     <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                     {t("settings.maintenance.updating")}

@@ -7,8 +7,18 @@ use crate::services::skill::{
     SkillService, SymlinkStatus,
 };
 use crate::store::AppState;
+use serde::Serialize;
 use std::collections::HashSet;
 use tauri::{Manager, State};
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateAllResult {
+    pub skills: Vec<InstalledSkill>,
+    pub success_count: usize,
+    pub fail_count: usize,
+    pub errors: Vec<String>,
+}
 
 /// Validate that a skill directory name does not contain path traversal or
 /// other dangerous components.
@@ -166,8 +176,11 @@ async fn refresh_commit_sha_for_skill_dir(skill_dir: &str) {
         return;
     };
     let branch = entry.branch.unwrap_or_else(|| "main".to_string());
-    if let Ok(Some(sha)) = CliService::fetch_latest_commit_sha(&owner, &name, &branch).await {
-        let _ = SkillLock::update_commit_sha(skill_dir, &sha);
+    if let Ok(Some(tree)) = CliService::fetch_repo_tree(&owner, &name, &branch).await {
+        let skill_path = entry.skill_path.as_deref().unwrap_or("");
+        if let Some(sha) = CliService::get_folder_sha_from_tree(&tree, skill_path) {
+            let _ = SkillLock::update_commit_sha(skill_dir, &sha);
+        }
     }
 }
 
@@ -186,13 +199,16 @@ async fn refresh_commit_shas_after_update_all() {
         if !seen.insert(key.clone()) {
             continue;
         }
-        if let Ok(Some(sha)) = CliService::fetch_latest_commit_sha(&owner, &name, &branch).await {
+        if let Ok(Some(tree)) = CliService::fetch_repo_tree(&owner, &name, &branch).await {
             for (sn, e) in &lock.skills {
                 let (Some(o), Some(n)) = e.parse_source_owner_name() else {
                     continue;
                 };
                 if o == owner && n == name {
-                    let _ = SkillLock::update_commit_sha(sn, &sha);
+                    let skill_path = e.skill_path.as_deref().unwrap_or("");
+                    if let Some(sha) = CliService::get_folder_sha_from_tree(&tree, skill_path) {
+                        let _ = SkillLock::update_commit_sha(sn, &sha);
+                    }
                 }
             }
         }
@@ -208,9 +224,13 @@ pub async fn update_skill(
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
 
-    CliService::update_skills(Some(&skill.directory))
+    let result = CliService::update_skills(Some(&skill.directory))
         .await
         .map_err(|e| e.to_string())?;
+
+    if result.fail_count > 0 {
+        return Err(result.errors.join("; "));
+    }
 
     // Best-effort: refresh commit SHA so next check doesn't show false positive
     refresh_commit_sha_for_skill_dir(&skill.directory).await;
@@ -227,12 +247,17 @@ pub async fn update_skill(
 }
 
 #[tauri::command]
-pub async fn update_all_skills(state: State<'_, AppState>) -> Result<Vec<InstalledSkill>, String> {
-    // Run update — partial failures are logged but don't abort. Cache is still
-    // refreshed for the skills that updated successfully.
-    if let Err(e) = CliService::update_skills(None).await {
-        eprintln!("Update all skills — some failed: {e}");
-    }
+pub async fn update_all_skills(
+    state: State<'_, AppState>,
+) -> Result<UpdateAllResult, String> {
+    let update_result = CliService::update_skills(None).await.unwrap_or_else(|e| {
+        eprintln!("Update all skills error: {e}");
+        crate::services::cli::UpdateResult {
+            success_count: 0,
+            fail_count: 0,
+            errors: vec![e.to_string()],
+        }
+    });
 
     // Best-effort: refresh commit SHAs
     refresh_commit_shas_after_update_all().await;
@@ -246,7 +271,16 @@ pub async fn update_all_skills(state: State<'_, AppState>) -> Result<Vec<Install
         let _ = SkillService::upsert_cache_entry(&state.skill_cache, entry);
     }
 
-    SkillService::read_all_skills(&state.skill_cache, &state.metadata).map_err(|e| e.to_string())
+    let skills =
+        SkillService::read_all_skills(&state.skill_cache, &state.metadata)
+            .map_err(|e| e.to_string())?;
+
+    Ok(UpdateAllResult {
+        skills,
+        success_count: update_result.success_count,
+        fail_count: update_result.fail_count,
+        errors: update_result.errors,
+    })
 }
 
 #[tauri::command]
