@@ -157,44 +157,51 @@ impl CliService {
         let mut updated: Vec<String> = Vec::new();
         let mut errors: Vec<String> = Vec::new();
 
+        // Group skills by (owner, repo, branch) so each repo is fetched only once
+        let mut by_repo: std::collections::HashMap<(String, String, String), Vec<(String, SkillLockEntry)>> =
+            std::collections::HashMap::new();
         for (name, entry) in &to_update {
             let source_url = entry.source_url.as_deref().unwrap_or("");
-            let branch = entry.branch.as_deref().unwrap_or("main");
-
             if source_url.is_empty() {
-                // Local skills can't be updated from remote
                 continue;
             }
+            let (owner, repo) = match Self::parse_github_url(source_url) {
+                Ok((o, r, _)) => (o, r),
+                Err(e) => {
+                    errors.push(format!("{name}: {e}"));
+                    continue;
+                }
+            };
+            let branch = entry.branch.clone().unwrap_or_else(|| "main".to_string());
+            by_repo
+                .entry((owner, repo, branch))
+                .or_default()
+                .push((name.clone(), entry.clone()));
+        }
 
-            match Self::parse_github_url(source_url) {
-                Ok((owner, repo, _parsed_branch)) => {
-                    let effective_branch = branch;
+        for ((owner, repo, branch), skills) in &by_repo {
+            let tree = Self::fetch_repo_tree(owner, repo, branch).await;
 
-                    // Check if remote actually changed before re-downloading
-                    let old_sha = entry.commit_sha.clone();
-                    let new_sha = match Self::fetch_repo_tree(&owner, &repo, effective_branch).await
-                    {
-                        Ok(Some(tree)) => {
-                            let skill_path = entry.skill_path.as_deref().unwrap_or("");
-                            Self::get_folder_sha_from_tree(&tree, skill_path)
-                        }
-                        _ => None, // rate-limited or error — proceed with reinstall anyway
-                    };
-
-                    // If we got both SHAs and they match, skip — no update needed
-                    if let (Some(old), Some(new)) = (&old_sha, &new_sha) {
-                        if old == new {
-                            continue;
-                        }
+            for (name, entry) in skills {
+                let old_sha = entry.commit_sha.clone();
+                let new_sha = match &tree {
+                    Ok(Some(t)) => {
+                        let skill_path = entry.skill_path.as_deref().unwrap_or("");
+                        Self::get_folder_sha_from_tree(t, skill_path)
                     }
+                    _ => None,
+                };
 
-                    match Self::reinstall_single_skill(name, &owner, &repo, effective_branch).await
-                    {
-                        Ok(_) => updated.push(name.clone()),
-                        Err(e) => errors.push(format!("{name}: {e}")),
+                if let (Some(old), Some(new)) = (&old_sha, &new_sha) {
+                    if old == new {
+                        continue;
                     }
                 }
-                Err(e) => errors.push(format!("{name}: {e}")),
+
+                match Self::reinstall_single_skill(name, owner, repo, branch).await {
+                    Ok(_) => updated.push(name.clone()),
+                    Err(e) => errors.push(format!("{name}: {e}")),
+                }
             }
         }
 
