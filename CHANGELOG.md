@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0] — 2026-05-24
+
+### Added
+- Download button and install modal for skill marketplace.
+- Persistent file sidebar with editable skill files in the skill editor.
+
+### Changed
+- Top navigation bar replaces previous header layout.
+- All-dark theme: consistent dark palette across every surface.
+- Skill update detection uses folder-level SHA via Git Trees API.
+- Visual polish: color tweaks, nav refinements, IPC flow animation.
+
 ## [0.1.13] — 2026-05-21
 
 ### Added
