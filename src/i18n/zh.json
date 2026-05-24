@@ -149,8 +149,8 @@
     "differentContent": "内容不同",
     "mergeToSsot": "合并到 SSOT",
     "viewContent": "查看内容",
-    "duplicateHint": "多个位置存在内容相同的技能，可以合并到 SSOT 统一管理。",
-    "conflictHint": "这些技能名字相同但内容有差异，请检查后决定保留哪个。",
+    "duplicateHint": "同名同内容：多个位置存在内容相同的技能，可以合并到 SSOT 统一管理。",
+    "conflictHint": "同名不同内容：这些技能名字相同但内容有差异，请检查后决定保留哪个。",
     "noDuplicates": "没有检测到重复技能",
     "noConflicts": "所有同名技能内容一致",
     "noIssues": "没有检测到一致性问题",
@@ -167,7 +167,7 @@
     "conflict": "冲突",
     "mismatch": "不匹配",
     "noMismatches": "所有技能名称与文件夹一致",
-    "mismatchHint": "技能文件 SKILL.md 里的 name 和文件夹名对不上，建议重命名使其一致。",
+    "mismatchHint": "命名不一致：技能文件 SKILL.md 里的 name 和文件夹名对不上，建议重命名使其一致。",
     "folderName": "文件夹",
     "mergeAllBtn": "全部合并到 SSOT",
     "mergeAllConfirmTitle": "批量合并所有重复技能",
@@ -250,7 +250,8 @@
     },
     "about": {
       "title": "关于",
-      "description": "Agent Skill 管理器 — 统一管理 Claude Code、Codex、Cursor 等工具的技能"
+      "description": "Agent Skill 管理器 — 统一管理 Claude Code、Codex、Cursor 等工具的技能",
+      "officialSite": "官方网站"
     },
     "updater": {
       "checkUpdate": "检查更新",
