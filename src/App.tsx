@@ -2,12 +2,22 @@ import { useState, useCallback, useEffect, Component, type ReactNode } from "rea
 
 import { motion, AnimatePresence } from "framer-motion";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useTranslation } from "react-i18next";
 import { Header } from "@/components/layout/Header";
 import { BrowseSkills } from "@/components/skills/BrowseSkills";
 import { InstalledSkills } from "@/components/skills/InstalledSkills";
 import { SkillDetail } from "@/components/skills/SkillDetail";
 import { SkillCreateView } from "@/components/skills/SkillCreateView";
 import { SettingsView } from "@/components/settings/SettingsView";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { useEditorState } from "@/lib/useEditorState";
 import {
   useUpdateSkill,
@@ -59,6 +69,7 @@ class ErrorBoundary extends Component<EBProps, EBState> {
 }
 
 export default function App() {
+  const { t } = useTranslation();
   const [view, setView] = useState<View>("local");
   const [showCreateSkill, setShowCreateSkill] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<DiscoverRepo | null>(null);
@@ -171,29 +182,54 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-background">
-      <Header
-        view={view}
-        onViewChange={setView}
-        hideTabs={editor.open || showCreateSkill || !!selectedRepo}
-        onDragMouseDown={handleDragMouseDown}
-      />
-      <main className="flex-1 min-h-0">
-        <ErrorBoundary>
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={editor.open ? `edit-${editor.skillId}` : showCreateSkill ? "create" : view}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="h-full"
-            >
-              {renderMain()}
-            </motion.div>
-          </AnimatePresence>
-        </ErrorBoundary>
-      </main>
-    </div>
+    <>
+      {editor.pendingOpen && (
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open) editor.cancelSwitch();
+          }}
+        >
+          <DialogContent className="sm:max-w-[380px]">
+            <DialogHeader>
+              <DialogTitle>{t("unsavedDialog.title")}</DialogTitle>
+              <DialogDescription>{t("unsavedDialog.description")}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" size="sm" onClick={editor.cancelSwitch}>
+                {t("unsavedDialog.keepEditing")}
+              </Button>
+              <Button variant="destructive" size="sm" onClick={editor.confirmSwitch}>
+                {t("unsavedDialog.discard")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      <div className="h-screen flex flex-col bg-background">
+        <Header
+          view={view}
+          onViewChange={setView}
+          hideTabs={editor.open || showCreateSkill || !!selectedRepo}
+          onDragMouseDown={handleDragMouseDown}
+        />
+        <main className="flex-1 min-h-0">
+          <ErrorBoundary>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={editor.open ? `edit-${editor.skillId}` : showCreateSkill ? "create" : view}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="h-full"
+              >
+                {renderMain()}
+              </motion.div>
+            </AnimatePresence>
+          </ErrorBoundary>
+        </main>
+      </div>
+    </>
   );
 }

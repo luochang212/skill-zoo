@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useSkillContent, useSaveSkillContent, useInstalledSkills } from "@/hooks/useSkills";
 
 export function useEditorState() {
@@ -8,6 +8,17 @@ export function useEditorState() {
   const [skillName, setSkillName] = useState<string>("");
   const [localContent, setLocalContent] = useState<string>("");
   const [dirty, setDirty] = useState(false);
+  const dirtyRef = useRef(false);
+  const [pendingOpen, setPendingOpen] = useState<{
+    id: string;
+    dir: string;
+    name: string;
+  } | null>(null);
+
+  const markDirty = useCallback((value: boolean) => {
+    dirtyRef.current = value;
+    setDirty(value);
+  }, []);
 
   const {
     data: content,
@@ -30,30 +41,59 @@ export function useEditorState() {
     }
   }, [open, content, dirty]);
 
-  const openEditor = useCallback((id: string, dir: string, name: string) => {
+  const openEditor = useCallback(
+    (id: string, dir: string, name: string) => {
+      if (dirtyRef.current) {
+        setPendingOpen({ id, dir, name });
+        return;
+      }
+      setSkillId(id);
+      setDirectory(dir);
+      setSkillName(name);
+      setLocalContent("");
+      markDirty(false);
+      setOpen(true);
+    },
+    [markDirty],
+  );
+
+  const confirmSwitch = useCallback(() => {
+    if (!pendingOpen) return;
+    const { id, dir, name } = pendingOpen;
+    setPendingOpen(null);
     setSkillId(id);
     setDirectory(dir);
     setSkillName(name);
     setLocalContent("");
-    setDirty(false);
+    markDirty(false);
     setOpen(true);
+  }, [pendingOpen, markDirty]);
+
+  const cancelSwitch = useCallback(() => {
+    setPendingOpen(null);
   }, []);
 
   const closeEditor = useCallback(() => {
     setOpen(false);
-    setDirty(false);
+    markDirty(false);
     setLocalContent("");
-  }, []);
+  }, [markDirty]);
 
   const save = useCallback(() => {
     if (!dirty || saveMutation.isPending) return;
-    saveMutation.mutate({ directory, content: localContent }, { onSuccess: () => setDirty(false) });
-  }, [directory, localContent, dirty, saveMutation]);
+    saveMutation.mutate(
+      { directory, content: localContent },
+      { onSuccess: () => markDirty(false) },
+    );
+  }, [directory, localContent, dirty, saveMutation, markDirty]);
 
-  const updateContent = useCallback((newContent: string) => {
-    setLocalContent(newContent);
-    setDirty(true);
-  }, []);
+  const updateContent = useCallback(
+    (newContent: string) => {
+      setLocalContent(newContent);
+      markDirty(true);
+    },
+    [markDirty],
+  );
 
   return {
     open,
@@ -66,9 +106,12 @@ export function useEditorState() {
     contentError,
     localContent,
     savePending: saveMutation.isPending,
+    pendingOpen,
     openEditor,
     closeEditor,
     save,
     updateContent,
+    confirmSwitch,
+    cancelSwitch,
   };
 }

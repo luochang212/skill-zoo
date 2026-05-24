@@ -177,7 +177,7 @@ impl SkillService {
     fn detect_origin(skill_dir: &str) -> &'static str {
         let agents_dir = config::get_agents_skills_dir();
         let ssot_path = agents_dir.join(skill_dir);
-        if ssot_path.exists() {
+        if ssot_path.is_dir() && !is_symlink_or_junction(&ssot_path) {
             "ssot"
         } else {
             "agent"
@@ -189,7 +189,7 @@ impl SkillService {
         let agents_dir = config::get_agents_skills_dir();
         if origin == "ssot" {
             let ssot_path = agents_dir.join(skill_dir);
-            if ssot_path.exists() {
+            if ssot_path.is_dir() && !is_symlink_or_junction(&ssot_path) {
                 return Some(ssot_path.to_str()?.to_string());
             }
         }
@@ -696,7 +696,6 @@ impl SkillService {
         None
     }
 
-    const MAX_ZIP_SIZE: usize = 50 * 1024 * 1024;
     const MAX_SCAN_DEPTH: usize = 20;
 
     /// Convert a YAML value to a string, handling numbers, booleans, and null.
@@ -747,10 +746,10 @@ impl SkillService {
 
         let file = std::fs::File::open(&zip_path)?;
         if let Ok(metadata) = file.metadata() {
-            if metadata.len() > Self::MAX_ZIP_SIZE as u64 {
+            if metadata.len() > config::MAX_DOWNLOAD_BYTES {
                 return Err(AppError::BadRequest(format!(
                     "Repository ZIP exceeds {}MB limit",
-                    Self::MAX_ZIP_SIZE / (1024 * 1024)
+                    config::MAX_DOWNLOAD_BYTES / (1024 * 1024)
                 )));
             }
         }
@@ -1209,6 +1208,12 @@ impl SkillService {
         cache: &RwLock<SkillCache>,
         metadata: &RwLock<MetadataStore>,
     ) -> Result<(), AppError> {
+        // NOTE: This function reads cache, performs filesystem ops, then
+        // rewrites cache. If the filesystem watcher fires between the read
+        // and the write, the debounced rebuild could restore stale entries.
+        // The watcher's debounce window makes this unlikely in practice. If
+        // it becomes a problem, hold the write lock for the entire operation
+        // and make the filesystem calls lock-free.
         let entries: Vec<SkillCacheEntry> = {
             let c = cache
                 .read()

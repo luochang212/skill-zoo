@@ -4346,7 +4346,6 @@ checksum = "b2aa850e253778c88a04c3d7323b043aeda9d3e30d5971937c1855769763678e"
 name = "skill-zoo"
 version = "0.2.0"
 dependencies = [
- "anyhow",
  "chrono",
  "dirs",
  "futures",
@@ -4372,7 +4371,6 @@ dependencies = [
  "tokio",
  "url",
  "urlencoding",
- "uuid",
  "zip 8.6.0",
 ]
 

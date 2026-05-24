@@ -188,6 +188,12 @@
     "title": "安全审计",
     "unavailable": "无法加载安全审计数据。"
   },
+  "unsavedDialog": {
+    "title": "未保存的更改",
+    "description": "你有未保存的更改。切换到其他技能将丢弃这些编辑。",
+    "discard": "丢弃",
+    "keepEditing": "继续编辑"
+  },
   "star": {
     "star": "收藏",
     "unstar": "取消收藏"

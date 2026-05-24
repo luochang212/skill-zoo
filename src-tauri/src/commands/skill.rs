@@ -1,5 +1,6 @@
 use crate::config;
 use crate::config::{AgentConfig, AgentPathInfo};
+use crate::persistence::atomic_write;
 use crate::services::cli::CliService;
 use crate::services::lock::SkillLock;
 use crate::services::skill::{
@@ -9,6 +10,10 @@ use crate::services::skill::{
 use crate::store::AppState;
 use serde::Serialize;
 use std::collections::HashSet;
+use std::sync::LazyLock;
+use tauri_plugin_opener::OpenerExt;
+
+use regex::Regex;
 use tauri::{Manager, State};
 
 #[derive(Debug, Serialize)]
@@ -44,8 +49,11 @@ pub(crate) fn validate_skill_directory(directory: &str) -> Result<(), String> {
     Ok(())
 }
 
+static SKILL_NAME_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$").unwrap());
+
 fn validate_skill_name(name: &str) -> Result<(), String> {
-    let re = regex::Regex::new(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$").unwrap();
+    let re = &SKILL_NAME_RE;
     if !re.is_match(name) {
         return Err(
             "Invalid skill name: must start with a letter or digit and contain only letters, digits, hyphens, underscores, and dots".into()
@@ -54,8 +62,11 @@ fn validate_skill_name(name: &str) -> Result<(), String> {
     Ok(())
 }
 
+static REPO_SEGMENT_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9_.-]+$").unwrap());
+
 fn validate_repo_segments(owner: &str, name: &str, branch: &str) -> Result<(), String> {
-    let id_re = regex::Regex::new(r"^[a-zA-Z0-9_.-]+$").unwrap();
+    let id_re = &REPO_SEGMENT_RE;
     if !id_re.is_match(owner) || !id_re.is_match(name) {
         return Err("Invalid owner or repository name format".into());
     }
@@ -345,7 +356,7 @@ pub fn write_skill_md(
         .ok_or_else(|| "Invalid skill path".to_string())?;
     std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
 
-    std::fs::write(&skill_md, &content).map_err(|e| e.to_string())?;
+    atomic_write(&skill_md, &content).map_err(|e| e.to_string())?;
 
     // Update lock file timestamp so resolve_timestamps reflects the edit.
     if let Ok(mut lock) = crate::services::lock::SkillLock::read() {
@@ -407,14 +418,17 @@ pub async fn merge_duplicates_to_ssot(
 }
 
 #[tauri::command]
-pub fn open_skill_dir(directory: String) -> Result<(), String> {
+pub fn open_skill_dir(app_handle: tauri::AppHandle, directory: String) -> Result<(), String> {
     validate_skill_directory(&directory)?;
     use crate::config;
     let dir = config::get_agents_skills_dir().join(&directory);
     if !dir.exists() {
         return Err(format!("Directory does not exist: {}", dir.display()));
     }
-    open_in_system(&dir)
+    app_handle
+        .opener()
+        .open_path(dir.to_string_lossy(), None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 /// Read a text file at an absolute skill path (UTF-8 only).
@@ -470,7 +484,7 @@ pub fn write_skill_file_path(
     if !is_under_known_dir {
         return Err("Path is not under a known skill directory".into());
     }
-    std::fs::write(p, content).map_err(|e| e.to_string())?;
+    atomic_write(p, content).map_err(|e| e.to_string())?;
 
     // Derive skill directory name from the path so we can update the lock + cache.
     // The skill dir is the first component after the known skill root.
@@ -526,7 +540,7 @@ pub fn write_skill_file_path(
 /// Open an absolute skill path in the file manager.
 /// Validates that the path is under a known skill directory (SSOT or agent).
 #[tauri::command]
-pub fn open_skill_path(path: String) -> Result<(), String> {
+pub fn open_skill_path(app_handle: tauri::AppHandle, path: String) -> Result<(), String> {
     if path.is_empty() || path.contains('\0') {
         return Err("Invalid path".into());
     }
@@ -548,36 +562,14 @@ pub fn open_skill_path(path: String) -> Result<(), String> {
     if !p.exists() {
         return Err(format!("Path does not exist: {}", p.display()));
     }
-    open_in_system(p)
-}
-
-fn open_in_system(path: &std::path::Path) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(path)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("explorer")
-            .arg(path)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-    #[cfg(target_os = "linux")]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(path)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-    Ok(())
+    app_handle
+        .opener()
+        .open_path(path, None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn open_skills_dir(agent: String) -> Result<(), String> {
+pub fn open_skills_dir(app_handle: tauri::AppHandle, agent: String) -> Result<(), String> {
     use crate::config;
     let dir = if agent == "ssot" {
         config::get_agents_skills_dir()
@@ -589,7 +581,10 @@ pub fn open_skills_dir(agent: String) -> Result<(), String> {
     if !dir.exists() {
         return Err(format!("Directory does not exist: {}", dir.display()));
     }
-    open_in_system(&dir)
+    app_handle
+        .opener()
+        .open_path(dir.to_string_lossy(), None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 // ────────────── Banners ──────────────
@@ -669,10 +664,7 @@ pub fn get_recommended_repos(app: tauri::AppHandle) -> Result<Vec<DiscoverRepo>,
 
 async fn fetch_github_repo_metadata(owner: &str, name: &str) -> DiscoverRepo {
     let url = format!("https://api.github.com/repos/{owner}/{name}");
-    let client = reqwest::Client::builder()
-        .user_agent("skill-zoo")
-        .build()
-        .unwrap_or_default();
+    let client = config::http_client();
 
     match client.get(&url).send().await {
         Ok(resp) if resp.status().is_success() => match resp.json::<serde_json::Value>().await {
@@ -872,14 +864,11 @@ pub async fn search_skills_sh(
     let limit = limit.unwrap_or(20);
     let url = "https://skills.sh/api/search";
 
-    let client = reqwest::Client::builder()
-        .user_agent("skill-zoo")
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .unwrap_or_default();
+    let client = config::http_client();
 
     let resp = client
         .get(url)
+        .timeout(std::time::Duration::from_secs(10))
         .query(&[("q", query.as_str()), ("limit", &limit.to_string())])
         .send()
         .await
@@ -974,14 +963,11 @@ pub async fn get_skill_audit(
     }
 
     let url = format!("https://skills.sh/api/v1/skills/audit/{owner}/{repo}/{slug}");
-    let client = reqwest::Client::builder()
-        .user_agent("skill-zoo")
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .unwrap_or_default();
+    let client = config::http_client();
 
     let resp = client
         .get(&url)
+        .timeout(std::time::Duration::from_secs(10))
         .send()
         .await
         .map_err(|e| format!("Audit request failed: {e}"))?;

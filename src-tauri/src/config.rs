@@ -1,5 +1,18 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::OnceLock;
+
+pub const MAX_DOWNLOAD_BYTES: u64 = 50 * 1024 * 1024;
+
+pub fn http_client() -> &'static reqwest::Client {
+    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+    CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .user_agent("skill-zoo")
+            .build()
+            .expect("Failed to create HTTP client")
+    })
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -24,6 +37,11 @@ pub const AGENTS: &[AgentConfig] = &[
         id: "gemini",
         label: "Gemini",
         skills_subdir: ".gemini",
+    },
+    AgentConfig {
+        id: "opencode",
+        label: "OpenCode",
+        skills_subdir: ".opencode",
     },
     AgentConfig {
         id: "cursor",
@@ -53,7 +71,7 @@ pub const AGENTS: &[AgentConfig] = &[
 ];
 
 pub fn default_visibility(agent_id: &str) -> bool {
-    !matches!(agent_id, "trae" | "trae-cn" | "gemini")
+    !matches!(agent_id, "trae" | "trae-cn" | "gemini" | "opencode")
 }
 
 #[derive(Debug, Clone, Serialize)]

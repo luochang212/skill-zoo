@@ -188,6 +188,12 @@
     "title": "Security Audit",
     "unavailable": "Unable to load security audit data."
   },
+  "unsavedDialog": {
+    "title": "Unsaved Changes",
+    "description": "You have unsaved changes. Switching to another skill will discard your edits.",
+    "discard": "Discard",
+    "keepEditing": "Keep Editing"
+  },
   "star": {
     "star": "Star",
     "unstar": "Unstar"

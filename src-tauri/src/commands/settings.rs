@@ -4,6 +4,7 @@ use crate::store::AppState;
 use serde::Serialize;
 use std::collections::HashMap;
 use tauri::State;
+use tauri_plugin_opener::OpenerExt;
 
 #[tauri::command]
 pub fn is_portable_build() -> bool {
@@ -48,31 +49,13 @@ pub fn get_cache_size() -> Result<u64, String> {
 }
 
 #[tauri::command]
-pub fn open_cache_dir() -> Result<(), String> {
+pub fn open_cache_dir(app_handle: tauri::AppHandle) -> Result<(), String> {
     let cache_dir = crate::config::get_repo_zip_cache_dir();
     std::fs::create_dir_all(&cache_dir).map_err(|e| e.to_string())?;
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(&cache_dir)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("explorer")
-            .arg(&cache_dir)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-    #[cfg(target_os = "linux")]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(&cache_dir)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-    Ok(())
+    app_handle
+        .opener()
+        .open_path(cache_dir.to_string_lossy(), None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

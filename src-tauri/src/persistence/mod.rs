@@ -11,7 +11,8 @@ use std::path::Path;
 /// Write `data` to `path` atomically: write to a temp file first, then rename.
 /// On same-filesystem rename is atomic, so a crash never leaves a half-written file.
 pub(crate) fn atomic_write(path: &Path, data: impl AsRef<[u8]>) -> std::io::Result<()> {
-    let tmp_path = path.with_extension("json.tmp");
+    let tmp_name = format!("{}.tmp", path.file_name().unwrap().to_str().unwrap());
+    let tmp_path = path.with_file_name(&tmp_name);
     {
         let mut f = std::fs::File::create(&tmp_path)?;
         std::io::Write::write_all(&mut f, data.as_ref())?;

@@ -282,15 +282,12 @@ impl CliService {
             "https://api.github.com/repos/{owner}/{repo}/git/trees/{}?recursive=1",
             urlencoding::encode(branch)
         );
-        let client = reqwest::Client::builder()
-            .user_agent("skill-zoo")
-            .timeout(std::time::Duration::from_secs(30))
-            .build()
-            .unwrap_or_default();
+        let client = config::http_client();
 
         let resp = client
             .get(&url)
             .header("Accept", "application/vnd.github.v3+json")
+            .timeout(std::time::Duration::from_secs(30))
             .send()
             .await
             .map_err(|e| AppError::Cli(format!("Failed to fetch tree for {owner}/{repo}: {e}")))?;
@@ -430,7 +427,7 @@ impl CliService {
         std::fs::create_dir_all(&cache_dir).map_err(AppError::Io)?;
 
         let url = format!("https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.zip");
-        let client = reqwest::Client::new();
+        let client = config::http_client();
         let response = client
             .get(&url)
             .send()
@@ -454,7 +451,6 @@ impl CliService {
 
         use futures::StreamExt;
         let mut stream = response.bytes_stream();
-        const MAX_SIZE: u64 = 50 * 1024 * 1024;
         let mut emit_threshold: u64 = 0;
 
         while let Some(chunk) = stream.next().await {
@@ -462,11 +458,11 @@ impl CliService {
                 chunk.map_err(|e| AppError::Cli(format!("Failed to read download chunk: {e}")))?;
             downloaded += chunk.len() as u64;
 
-            if downloaded > MAX_SIZE {
+            if downloaded > config::MAX_DOWNLOAD_BYTES {
                 let _ = std::fs::remove_file(&tmp_path);
                 return Err(AppError::Cli(format!(
                     "Repository archive exceeds {}MB",
-                    MAX_SIZE / (1024 * 1024)
+                    config::MAX_DOWNLOAD_BYTES / (1024 * 1024)
                 )));
             }
 
