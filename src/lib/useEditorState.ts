@@ -8,7 +8,6 @@ export function useEditorState() {
   const [skillName, setSkillName] = useState<string>("");
   const [localContent, setLocalContent] = useState<string>("");
   const [dirty, setDirty] = useState(false);
-  const [editTabActive, setEditTabActive] = useState(false);
 
   const {
     data: content,
@@ -37,7 +36,6 @@ export function useEditorState() {
     setSkillName(name);
     setLocalContent("");
     setDirty(false);
-    setEditTabActive(false);
     setOpen(true);
   }, []);
 
@@ -45,7 +43,6 @@ export function useEditorState() {
     setOpen(false);
     setDirty(false);
     setLocalContent("");
-    setEditTabActive(false);
   }, []);
 
   const save = useCallback(() => {
@@ -56,10 +53,6 @@ export function useEditorState() {
   const updateContent = useCallback((newContent: string) => {
     setLocalContent(newContent);
     setDirty(true);
-  }, []);
-
-  const setEditActive = useCallback((isEdit: boolean) => {
-    setEditTabActive(isEdit);
   }, []);
 
   return {
@@ -73,11 +66,9 @@ export function useEditorState() {
     contentError,
     localContent,
     savePending: saveMutation.isPending,
-    editTabActive,
     openEditor,
     closeEditor,
     save,
     updateContent,
-    setEditActive,
   };
 }

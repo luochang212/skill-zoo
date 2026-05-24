@@ -32,6 +32,11 @@ export const skillsApi = {
 
   listSkillFiles: (directory: string) => invoke<SkillFileNode[]>("list_skill_files", { directory }),
 
+  readSkillFilePath: (path: string) => invoke<string>("read_skill_file_path", { path }),
+
+  writeSkillFilePath: (path: string, content: string) =>
+    invoke<void>("write_skill_file_path", { path, content }),
+
   getSymlinkStatus: () => invoke<SymlinkStatus[]>("get_symlink_status"),
 
   toggleSymlink: (skillId: string, agent: string, enabled: boolean) =>

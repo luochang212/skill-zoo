@@ -32,6 +32,9 @@ interface SkillDetailProps {
   updatePending?: boolean;
   removePending?: boolean;
   onTabChange?: (tab: ContentTab) => void;
+  onSave?: () => void;
+  savePending?: boolean;
+  dirty?: boolean;
 }
 
 export function SkillDetail({
@@ -48,6 +51,9 @@ export function SkillDetail({
   updatePending,
   removePending,
   onTabChange,
+  onSave,
+  savePending,
+  dirty,
 }: SkillDetailProps) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<ContentTab>("overview");
@@ -199,6 +205,9 @@ export function SkillDetail({
         isLoading={isLoading}
         updatedAt={skill?.updatedAt != null ? String(skill.updatedAt) : undefined}
         directory={skill?.directory}
+        onSave={onSave}
+        savePending={savePending}
+        dirty={dirty}
       />
 
       {/* Configure dialog */}

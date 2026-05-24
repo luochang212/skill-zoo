@@ -141,7 +141,9 @@ export default function App() {
           onToggleStar={handleToggleStar}
           updatePending={updateMutation.isPending}
           removePending={removeMutation.isPending}
-          onTabChange={(tab) => editor.setEditActive(tab === "edit" || tab === "split")}
+          onSave={editor.save}
+          savePending={editor.savePending}
+          dirty={editor.dirty}
         />
       );
     }
@@ -174,10 +176,6 @@ export default function App() {
         view={view}
         onViewChange={setView}
         hideTabs={editor.open || showCreateSkill || !!selectedRepo}
-        onSave={editor.save}
-        saveDisabled={!editor.dirty}
-        savePending={editor.savePending}
-        showSave={editor.editTabActive}
         onDragMouseDown={handleDragMouseDown}
       />
       <main className="flex-1 min-h-0">

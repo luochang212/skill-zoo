@@ -73,19 +73,24 @@ function getIconColor(name: string, isSkillMd: boolean): string {
 interface FileTreeNodeProps {
   node: SkillFileNode;
   depth: number;
+  selectedPath?: string;
+  onSelectFile?: (node: SkillFileNode) => void;
 }
 
-function FileTreeNode({ node, depth }: FileTreeNodeProps) {
+function FileTreeNode({ node, depth, selectedPath, onSelectFile }: FileTreeNodeProps) {
   const [expanded, setExpanded] = useState(depth === 0);
 
   const handleClick = useCallback(() => {
     if (node.isDir) {
       setExpanded((v) => !v);
+    } else if (onSelectFile) {
+      onSelectFile(node);
     } else {
       skillsApi.openSkillPath(node.path).catch(() => {});
     }
-  }, [node]);
+  }, [node, onSelectFile]);
 
+  const isSelected = !node.isDir && node.path === selectedPath;
   const Icon = node.isDir ? Folder : getFileIcon(node.name, node.isSkillMd);
   const iconColor = node.isDir ? "text-muted-foreground" : getIconColor(node.name, node.isSkillMd);
 
@@ -95,7 +100,7 @@ function FileTreeNode({ node, depth }: FileTreeNodeProps) {
         onClick={handleClick}
         className={cn(
           "w-full flex items-center gap-1.5 py-1 pr-2 text-[13px] text-left transition-colors group",
-          "hover:bg-accent/50",
+          isSelected ? "bg-primary/15 text-foreground font-medium" : "hover:bg-accent/50",
           !node.isDir && "cursor-pointer",
         )}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
@@ -116,20 +121,19 @@ function FileTreeNode({ node, depth }: FileTreeNodeProps) {
         <span className={cn("truncate min-w-0 flex-1", node.isSkillMd && "font-medium")}>
           {node.name}
         </span>
-
-        {/* SKILL.md badge */}
-        {node.isSkillMd && (
-          <span className="text-[10px] px-1.5 py-0 rounded bg-primary/10 text-primary font-medium shrink-0">
-            main
-          </span>
-        )}
       </button>
 
       {/* Children — rendered when expanded */}
       {node.isDir && expanded && node.children && (
         <div>
           {node.children.map((child) => (
-            <FileTreeNode key={child.path} node={child} depth={depth + 1} />
+            <FileTreeNode
+              key={child.path}
+              node={child}
+              depth={depth + 1}
+              selectedPath={selectedPath}
+              onSelectFile={onSelectFile}
+            />
           ))}
         </div>
       )}
@@ -139,9 +143,11 @@ function FileTreeNode({ node, depth }: FileTreeNodeProps) {
 
 interface SkillFileTreeProps {
   nodes: SkillFileNode[];
+  selectedPath?: string;
+  onSelectFile?: (node: SkillFileNode) => void;
 }
 
-export function SkillFileTree({ nodes }: SkillFileTreeProps) {
+export function SkillFileTree({ nodes, selectedPath, onSelectFile }: SkillFileTreeProps) {
   const { t } = useTranslation();
 
   if (nodes.length === 0) {
@@ -156,7 +162,13 @@ export function SkillFileTree({ nodes }: SkillFileTreeProps) {
     <ScrollArea className="h-full">
       <div className="py-1">
         {nodes.map((node) => (
-          <FileTreeNode key={node.path} node={node} depth={0} />
+          <FileTreeNode
+            key={node.path}
+            node={node}
+            depth={0}
+            selectedPath={selectedPath}
+            onSelectFile={onSelectFile}
+          />
         ))}
       </div>
     </ScrollArea>

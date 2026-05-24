@@ -420,6 +420,112 @@ pub fn open_skill_dir(directory: String) -> Result<(), String> {
     open_in_system(&dir)
 }
 
+/// Read a text file at an absolute skill path (UTF-8 only).
+/// Returns Err("BINARY_FILE") for non-UTF-8 files.
+#[tauri::command]
+pub fn read_skill_file_path(path: String) -> Result<String, String> {
+    if path.is_empty() || path.contains('\0') {
+        return Err("Invalid path".into());
+    }
+    let p = std::path::Path::new(&path);
+    if !p.is_absolute() {
+        return Err("Path must be absolute".into());
+    }
+    let agents_dir = config::get_agents_skills_dir();
+    let is_under_known_dir = p.starts_with(&agents_dir)
+        || config::AGENTS.iter().any(|agent| {
+            config::get_agent_skills_dir(agent.id)
+                .map(|d| p.starts_with(&d))
+                .unwrap_or(false)
+        });
+    if !is_under_known_dir {
+        return Err("Path is not under a known skill directory".into());
+    }
+    if !p.is_file() {
+        return Err(format!("Not a file: {}", p.display()));
+    }
+    let bytes = std::fs::read(p).map_err(|e| e.to_string())?;
+    String::from_utf8(bytes).map_err(|_| "BINARY_FILE".to_string())
+}
+
+/// Write content to a text file at an absolute skill path.
+/// Also updates the skill's lock timestamp and cache so updatedAt reflects the change.
+#[tauri::command]
+pub fn write_skill_file_path(
+    state: State<'_, AppState>,
+    path: String,
+    content: String,
+) -> Result<(), String> {
+    if path.is_empty() || path.contains('\0') {
+        return Err("Invalid path".into());
+    }
+    let p = std::path::Path::new(&path);
+    if !p.is_absolute() {
+        return Err("Path must be absolute".into());
+    }
+    let agents_dir = config::get_agents_skills_dir();
+    let is_under_known_dir = p.starts_with(&agents_dir)
+        || config::AGENTS.iter().any(|agent| {
+            config::get_agent_skills_dir(agent.id)
+                .map(|d| p.starts_with(&d))
+                .unwrap_or(false)
+        });
+    if !is_under_known_dir {
+        return Err("Path is not under a known skill directory".into());
+    }
+    std::fs::write(p, content).map_err(|e| e.to_string())?;
+
+    // Derive skill directory name from the path so we can update the lock + cache.
+    // The skill dir is the first component after the known skill root.
+    let skill_dir: Option<String> = {
+        let mut candidate = None;
+        if let Ok(rel) = p.strip_prefix(&agents_dir) {
+            candidate = rel.components().next().and_then(|c| {
+                if let std::path::Component::Normal(s) = c {
+                    s.to_str().map(|s| s.to_string())
+                } else {
+                    None
+                }
+            });
+        }
+        if candidate.is_none() {
+            for agent in config::AGENTS {
+                if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
+                    if let Ok(rel) = p.strip_prefix(&agent_dir) {
+                        candidate = rel.components().next().and_then(|c| {
+                            if let std::path::Component::Normal(s) = c {
+                                s.to_str().map(|s| s.to_string())
+                            } else {
+                                None
+                            }
+                        });
+                        if candidate.is_some() {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        candidate
+    };
+
+    if let Some(dir) = skill_dir {
+        // Update lock file timestamp
+        if let Ok(mut lock) = crate::services::lock::SkillLock::read() {
+            if let Some(entry) = lock.skills.get_mut(&dir) {
+                entry.updated_at = Some(chrono::Utc::now().to_rfc3339());
+                let _ = lock.write();
+            }
+        }
+        // Refresh cache so updatedAt is reflected in the frontend
+        if let Ok(entry) = SkillService::scan_single_skill(&dir) {
+            let _ = SkillService::upsert_cache_entry(&state.skill_cache, entry);
+        }
+    }
+
+    Ok(())
+}
+
 /// Open an absolute skill path in the file manager.
 /// Validates that the path is under a known skill directory (SSOT or agent).
 #[tauri::command]

@@ -1,18 +1,12 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import type { View } from "@/types/skills";
 
 interface HeaderProps {
   view: View;
   onViewChange: (view: View) => void;
   hideTabs?: boolean;
-
-  onSave?: () => void;
-  saveDisabled?: boolean;
-  savePending?: boolean;
-  showSave?: boolean;
   onDragMouseDown?: (e: React.MouseEvent) => void;
 }
 
@@ -28,11 +22,6 @@ export function Header({
   view,
   onViewChange,
   hideTabs,
-
-  onSave,
-  saveDisabled,
-  savePending,
-  showSave = true,
   onDragMouseDown,
 }: HeaderProps) {
   const { t } = useTranslation();
@@ -61,21 +50,6 @@ export function Header({
             >
               <span className="font-bold text-2xl rainbow-text">Skill Zoo</span>
             </h1>
-            <div className="flex items-center gap-3">
-              {showSave && (
-                <Button
-                  size="sm"
-                  className="h-7 text-[11px]"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSave?.();
-                  }}
-                  disabled={saveDisabled || savePending}
-                >
-                  {savePending ? t("common.saving") : t("common.save")}
-                </Button>
-              )}
-            </div>
           </div>
         ) : (
           <nav className="grid grid-cols-[1fr_auto_1fr] items-center h-full">

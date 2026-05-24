@@ -129,6 +129,27 @@ export function useSaveSkillContent() {
   });
 }
 
+export function useSkillFileContent(path: string | null) {
+  return useQuery({
+    queryKey: ["skills", "file", path],
+    queryFn: () => skillsApi.readSkillFilePath(path!),
+    enabled: !!path,
+    retry: false,
+  });
+}
+
+export function useSaveSkillFileContent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ path, content }: { path: string; content: string }) =>
+      skillsApi.writeSkillFilePath(path, content),
+    onSuccess: (_, { path }) => {
+      qc.invalidateQueries({ queryKey: ["skills", "file", path] });
+      invalidateFor(qc, "saveSkillFileContent");
+    },
+  });
+}
+
 // ── Discover (repo-driven) ──
 
 export function useBanners() {
