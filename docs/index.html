@@ -15,22 +15,22 @@
     />
     <style>
       :root {
-        --bg: #1a1a1e;
-        --ink: #e4e2da;
-        --surface: #232327;
-        --dark: #141416;
-        --dark-sur: #1d1d22;
+        --bg: #1f1f24;
+        --ink: #e6e4dc;
+        --surface: #28282e;
+        --dark: #18181c;
+        --dark-sur: #222228;
         --copper: #e07848;
         --copper-d: #b85c32;
         --steel: #3a9ec0;
         --sage: #72b05c;
-        --g100: #202024;
-        --g200: #2c2c32;
-        --g300: #3c3c44;
-        --g500: #86869a;
-        --g700: #c4c4cc;
-        --d-border: #2a2a32;
-        --d-muted: #78788e;
+        --g100: #242428;
+        --g200: #323238;
+        --g300: #42424a;
+        --g500: #8e8ea2;
+        --g700: #c8c8d0;
+        --d-border: #2e2e38;
+        --d-muted: #7c7c94;
 
         --serif:
           ui-serif, Georgia, "Times New Roman", "Noto Serif CJK SC",
@@ -406,7 +406,11 @@
         display: flex;
         align-items: center;
         padding: 64px 24px;
-        background: var(--bg);
+        background: radial-gradient(
+          ellipse 80% 60% at 40% 40%,
+          #26262e 0%,
+          var(--bg) 100%
+        );
         color: var(--ink);
       }
       .sec-inner {
@@ -415,7 +419,11 @@
         width: 100%;
       }
       .sec.dark {
-        background: linear-gradient(160deg, #111114 0%, var(--dark) 100%);
+        background: radial-gradient(
+          ellipse 80% 60% at 60% 50%,
+          #1e1e24 0%,
+          var(--dark) 100%
+        );
         color: #d8d6ce;
       }
 
@@ -902,7 +910,7 @@
         position: relative;
       }
       .dark pre {
-        background: #0b0b12;
+        background: #141418;
         border-color: var(--d-border);
       }
       .copy-btn {
@@ -997,9 +1005,9 @@
 
       /* ── Footer ── */
       footer {
-        background: #07070d;
+        background: var(--bg);
         color: var(--d-muted);
-        padding: 16px 24px;
+        padding: 22px 24px;
         text-align: center;
         font-size: 13px;
         border-top: 1px solid rgba(255, 255, 255, 0.07);
@@ -1501,7 +1509,7 @@
         left: 0;
         right: 0;
         z-index: 500;
-        background: rgba(18, 18, 24, 0.82);
+        background: rgba(31, 31, 36, 0.68);
         backdrop-filter: saturate(1.4) blur(12px);
         -webkit-backdrop-filter: saturate(1.4) blur(12px);
         border-bottom: 1px solid rgba(255, 255, 255, 0.07);
@@ -1517,12 +1525,12 @@
       }
       .top-nav-brand {
         font-family: "Geist Mono", "Geist Sans", ui-monospace, monospace;
-        font-size: 15px;
+        font-size: 17px;
         font-weight: 600;
         color: #ffffff;
         text-decoration: none;
         letter-spacing: -0.01em;
-        margin-right: 36px;
+        margin-right: auto;
         flex-shrink: 0;
       }
       .top-nav-brand .brand-caret {
@@ -1531,18 +1539,15 @@
       .top-nav-gh {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
+        gap: 5px;
         font-size: 12.5px;
         font-weight: 400;
         font-family: var(--sans);
-        color: rgba(255, 255, 255, 0.5);
+        color: rgba(255, 255, 255, 0.45);
         text-decoration: none;
-        padding: 6px 10px;
-        border-radius: 6px;
-        transition:
-          color 0.15s,
-          background 0.15s;
-        margin-left: 12px;
+        padding: 4px 0;
+        transition: color 0.15s;
+        margin-left: 16px;
       }
       .top-nav-gh svg {
         width: 15px;
@@ -1550,11 +1555,10 @@
         flex-shrink: 0;
       }
       .top-nav-gh:hover {
-        color: rgba(255, 255, 255, 0.88);
-        background: rgba(255, 255, 255, 0.06);
+        color: rgba(255, 255, 255, 0.9);
       }
       .top-nav-dl {
-        margin-left: auto;
+        margin-left: 16px;
         flex-shrink: 0;
         padding: 0 18px;
         height: 34px;
@@ -1615,7 +1619,7 @@
         left: 0;
         right: 0;
         z-index: 499;
-        background: rgba(18, 18, 24, 0.97);
+        background: rgba(31, 31, 36, 0.92);
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
         border-bottom: 1px solid rgba(255, 255, 255, 0.07);
@@ -1650,7 +1654,7 @@
         color: rgba(255, 255, 255, 0.92);
         background: rgba(255, 255, 255, 0.06);
       }
-        @media (max-width: 768px) {
+      @media (max-width: 768px) {
         .top-nav-gh {
           display: none;
         }
@@ -1936,9 +1940,7 @@
     <!-- ═══════════ TOP NAV ═══════════ -->
     <nav class="top-nav" id="top-nav">
       <div class="top-nav-inner">
-        <a href="#" class="top-nav-brand"
-          >Skill Zoo<span class="brand-caret">_</span></a
-        >
+        <a href="#" class="top-nav-brand">Skill Zoo</a>
         <button
           class="top-nav-dl"
           id="nav-dl-btn"
@@ -2238,7 +2240,15 @@
               stroke="#C5663B"
               stroke-width="1.5"
               stroke-dasharray="6 4"
-            />
+            >
+              <animate
+                attributeName="stroke-dashoffset"
+                from="0"
+                to="20"
+                dur="1.5s"
+                repeatCount="indefinite"
+              />
+            </rect>
             <text
               x="430"
               y="136"
@@ -2293,6 +2303,57 @@
               stroke-width="1.2"
               marker-end="url(#arr1)"
             />
+            <!-- Flowing dot: Frontend → IPC -->
+            <circle r="2.5" fill="#C5663B" opacity="0.9">
+              <animate
+                attributeName="cx"
+                from="260"
+                to="316"
+                dur="1.8s"
+                repeatCount="indefinite"
+              />
+              <animate
+                attributeName="cy"
+                from="160"
+                to="160"
+                dur="1.8s"
+                repeatCount="indefinite"
+              />
+              <animate
+                attributeName="opacity"
+                values="0;0.9;0.9;0"
+                keyTimes="0;0.15;0.85;1"
+                dur="1.8s"
+                repeatCount="indefinite"
+              />
+            </circle>
+            <circle r="2.5" fill="#C5663B" opacity="0.9">
+              <animate
+                attributeName="cx"
+                from="260"
+                to="316"
+                dur="1.8s"
+                begin="0.6s"
+                repeatCount="indefinite"
+              />
+              <animate
+                attributeName="cy"
+                from="160"
+                to="160"
+                dur="1.8s"
+                begin="0.6s"
+                repeatCount="indefinite"
+              />
+              <animate
+                attributeName="opacity"
+                values="0;0.9;0.9;0"
+                keyTimes="0;0.15;0.85;1"
+                dur="1.8s"
+                begin="0.6s"
+                repeatCount="indefinite"
+              />
+            </circle>
+
             <line
               x1="544"
               y1="160"
@@ -2302,6 +2363,59 @@
               stroke-width="1.2"
               marker-end="url(#arr2)"
             />
+            <!-- Flowing dot: IPC → Backend -->
+            <circle r="2.5" fill="#C5663B" opacity="0.9">
+              <animate
+                attributeName="cx"
+                from="544"
+                to="600"
+                dur="1.8s"
+                begin="0.3s"
+                repeatCount="indefinite"
+              />
+              <animate
+                attributeName="cy"
+                from="160"
+                to="160"
+                dur="1.8s"
+                begin="0.3s"
+                repeatCount="indefinite"
+              />
+              <animate
+                attributeName="opacity"
+                values="0;0.9;0.9;0"
+                keyTimes="0;0.15;0.85;1"
+                dur="1.8s"
+                begin="0.3s"
+                repeatCount="indefinite"
+              />
+            </circle>
+            <circle r="2.5" fill="#C5663B" opacity="0.9">
+              <animate
+                attributeName="cx"
+                from="544"
+                to="600"
+                dur="1.8s"
+                begin="0.9s"
+                repeatCount="indefinite"
+              />
+              <animate
+                attributeName="cy"
+                from="160"
+                to="160"
+                dur="1.8s"
+                begin="0.9s"
+                repeatCount="indefinite"
+              />
+              <animate
+                attributeName="opacity"
+                values="0;0.9;0.9;0"
+                keyTimes="0;0.15;0.85;1"
+                dur="1.8s"
+                begin="0.9s"
+                repeatCount="indefinite"
+              />
+            </circle>
 
             <rect
               x="600"
@@ -3709,13 +3823,12 @@
         });
       });
 
-      // Nav download button clicks through to hero download
+      // Nav download button scrolls to second page
       if (NAV_DL_BTN) {
         NAV_DL_BTN.addEventListener("click", () => {
           document
             .getElementById("report")
             .scrollIntoView({ behavior: "smooth" });
-          setTimeout(() => DL_BTN.click(), 400);
         });
       }
     </script>
