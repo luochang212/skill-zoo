@@ -147,7 +147,11 @@ impl CliService {
         };
 
         if to_update.is_empty() {
-            return Ok(UpdateResult { success_count: 0, fail_count: 0, errors: vec![] });
+            return Ok(UpdateResult {
+                success_count: 0,
+                fail_count: 0,
+                errors: vec![],
+            });
         }
 
         let mut updated: Vec<String> = Vec::new();

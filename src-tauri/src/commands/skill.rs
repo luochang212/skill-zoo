@@ -247,9 +247,7 @@ pub async fn update_skill(
 }
 
 #[tauri::command]
-pub async fn update_all_skills(
-    state: State<'_, AppState>,
-) -> Result<UpdateAllResult, String> {
+pub async fn update_all_skills(state: State<'_, AppState>) -> Result<UpdateAllResult, String> {
     let update_result = CliService::update_skills(None).await.unwrap_or_else(|e| {
         eprintln!("Update all skills error: {e}");
         crate::services::cli::UpdateResult {
@@ -271,9 +269,8 @@ pub async fn update_all_skills(
         let _ = SkillService::upsert_cache_entry(&state.skill_cache, entry);
     }
 
-    let skills =
-        SkillService::read_all_skills(&state.skill_cache, &state.metadata)
-            .map_err(|e| e.to_string())?;
+    let skills = SkillService::read_all_skills(&state.skill_cache, &state.metadata)
+        .map_err(|e| e.to_string())?;
 
     Ok(UpdateAllResult {
         skills,

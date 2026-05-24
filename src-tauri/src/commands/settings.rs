@@ -203,8 +203,7 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
     let mut skill_shas: HashMap<String, (Option<String>, String)> = HashMap::new();
 
     // Randomize repo order for fairness when rate-limited
-    let mut repos: Vec<(String, String, String)> =
-        skills_by_repo.keys().cloned().collect();
+    let mut repos: Vec<(String, String, String)> = skills_by_repo.keys().cloned().collect();
     repos.shuffle(&mut rand::thread_rng());
 
     for (owner, repo, branch) in repos {
@@ -272,10 +271,9 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
     // For skills whose latest SHA we fetched but had no stored SHA,
     // save the latest SHA now (they were up-to-date at install time).
     for (skill_name, entry) in &lock.skills {
-        if let (Some((Some(latest), _)), None) = (
-            skill_shas.get(skill_name),
-            entry.commit_sha.as_ref(),
-        ) {
+        if let (Some((Some(latest), _)), None) =
+            (skill_shas.get(skill_name), entry.commit_sha.as_ref())
+        {
             let _ = SkillLock::update_commit_sha(skill_name, latest);
         }
     }
