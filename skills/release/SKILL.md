@@ -45,7 +45,7 @@ digraph when_release {
 | Step | Command |
 |------|---------|
 | Check existing tags | `git tag --sort=-v:refname \| head -5` |
-| Prerequisites (in order) | fmt → lint:rs → typecheck → lint → format:check → status |
+| Prerequisites (in order) | fmt → lint:rs → test → typecheck → lint → format:check → status |
 | Check Rust formatting | `cargo fmt --check --manifest-path src-tauri/Cargo.toml` |
 | Check Rust lint | `bun run lint:rs` |
 | Check TypeScript types | `bun run typecheck` |
@@ -64,7 +64,7 @@ Ask the user. Check `git tag --sort=-v:refname | head -5` for context. Version m
 
 ### 2. Update CHANGELOG.md
 
-Before tagging, move the `[Unreleased]` section to a new version entry:
+Add a new version section before the previous release entry:
 
 ```markdown
 ## [X.Y.Z] — YYYY-MM-DD
@@ -107,11 +107,12 @@ Run all checks in order. If any fails, fix and re-run the full sequence until cl
 
 1. `cargo fmt --check --manifest-path src-tauri/Cargo.toml` — run `cargo fmt --manifest-path src-tauri/Cargo.toml` if diffs appear, then restart from here
 2. `bun run lint:rs` — fix all warnings; fmt may have introduced new ones
-3. `bun run typecheck` — fix all type errors before proceeding
-4. `bun run lint` — fix any lint errors. Note: pre-existing issues unrelated to this release should be noted separately, not silently fixed in the release commit
-5. `bun run format:check` — run `bun run format` if diffs appear. CI also enforces this, but catching it locally avoids a broken tag
-6. `git status --short` is clean after all fixes are committed
-7. `RELEASE_BODY.md` uses `__VERSION__` and `__COMMITS__` placeholders — never hardcoded version numbers
+3. `cargo test --manifest-path src-tauri/Cargo.toml --features test-helpers` — fix any test failures before proceeding
+4. `bun run typecheck` — fix all type errors before proceeding
+5. `bun run lint` — fix any lint errors. Note: pre-existing issues unrelated to this release should be noted separately, not silently fixed in the release commit
+6. `bun run format:check` — run `bun run format` if diffs appear. CI also enforces this, but catching it locally avoids a broken tag
+7. `git status --short` is clean after all fixes are committed
+8. `RELEASE_BODY.md` uses `__VERSION__` and `__COMMITS__` placeholders — never hardcoded version numbers
 
 ### 6. Tag and Push
 
