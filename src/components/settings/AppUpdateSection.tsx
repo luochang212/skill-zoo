@@ -226,8 +226,8 @@ export function AppUpdateSection() {
 
   return (
     <div className="flex items-center gap-2 shrink-0">
-      <WebsiteButton />
       <StatusLabel status={status} update={update} downloaded={downloaded} />
+      <WebsiteButton />
       <GithubButton />
       <UpdateButton
         status={status}
