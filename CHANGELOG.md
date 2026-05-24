@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.2] — 2026-05-25
+
+### Changed
+- Release skill now includes Cargo.lock regeneration and cargo test in prerequisites.
+- `.claude` directory added to `.gitignore`.
+
+### Fixed
+- version.json is now updated by the release skill instead of CI, avoiding tag-push conflicts.
+- cargo fmt path corrected in release skill documentation.
+
 ## [0.2.1] — 2026-05-25
 
 ### Added
