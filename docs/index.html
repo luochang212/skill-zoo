@@ -1,602 +1,1021 @@
 <!doctype html>
 <html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Skill Zoo · 产品概览</title>
-<link rel="icon" type="image/png" href="favicon.png">
-<link href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/style.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-mono/style.css" rel="stylesheet">
-<style>
-  :root {
-    --bg:       #F9F8F4;
-    --ink:      #121215;
-    --surface:  #FFFFFF;
-    --dark:     #0F0F12;
-    --dark-sur: #1A1A20;
-    --copper:   #C5663B;
-    --copper-d: #A04F2C;
-    --steel:    #4A7C96;
-    --sage:     #6B8B5D;
-    --g100:     #EDEBE5;
-    --g200:     #E2E0D9;
-    --g300:     #CECBC2;
-    --g500:     #7B7972;
-    --g700:     #3D3C38;
-    --d-border: #2E2E34;
-    --d-muted:  #8B8A84;
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Skill Zoo · 产品概览</title>
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/style.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-mono/style.css"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #1a1a1e;
+        --ink: #e4e2da;
+        --surface: #232327;
+        --dark: #141416;
+        --dark-sur: #1d1d22;
+        --copper: #e07848;
+        --copper-d: #b85c32;
+        --steel: #3a9ec0;
+        --sage: #72b05c;
+        --g100: #202024;
+        --g200: #2c2c32;
+        --g300: #3c3c44;
+        --g500: #86869a;
+        --g700: #c4c4cc;
+        --d-border: #2a2a32;
+        --d-muted: #78788e;
 
-    --serif: ui-serif, Georgia, "Times New Roman", "Noto Serif CJK SC", "Source Han Serif SC", serif;
-    --sans:  system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", sans-serif;
-    --mono:  ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", Consolas, monospace;
-    --hero-bg: #0a0a0b;
-    --glow: hsl(186 100% 69%);
-  }
+        --serif:
+          ui-serif, Georgia, "Times New Roman", "Noto Serif CJK SC",
+          "Source Han Serif SC", serif;
+        --sans:
+          system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans CJK SC",
+          "PingFang SC", "Microsoft YaHei", sans-serif;
+        --mono:
+          ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", Consolas,
+          monospace;
+        --hero-bg: #0a0a0b;
+        --glow: hsl(186 100% 69%);
+      }
 
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html { scroll-behavior: smooth; }
-  body {
-    background: var(--bg);
-    color: var(--ink);
-    font-family: var(--sans);
-    font-size: 15px;
-    line-height: 1.65;
-    -webkit-font-smoothing: antialiased;
-  }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--sans);
+        font-size: 15px;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+      }
 
-  /* ── Hero (Skill Zoo brand) ── */
-  .hero-zoo {
-    height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    background: var(--hero-bg);
-    position: relative;
-    overflow: hidden;
-  }
-  .hero-zoo::before {
-    content: '';
-    position: absolute; inset: 0;
-    pointer-events: none;
-    background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(14,116,144,.15) 0%, transparent 70%);
-  }
-  .hero-zoo::after {
-    content: '';
-    position: absolute; inset: 0;
-    pointer-events: none;
-    background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(14,116,144,.24) 0%, transparent 70%);
-    mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 25%, transparent 70%);
-    -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 25%, transparent 70%);
-    animation: hero-bg-flicker 6s linear infinite;
-  }
-  @keyframes hero-bg-flicker {
-    0% { opacity: .45; } 1% { opacity: .85; } 4% { opacity: .1; }
-    4.5% { opacity: .85; } 6% { opacity: .1; } 10% { opacity: .85; }
-    12.5% { opacity: .22; } 15% { opacity: .85; } 55% { opacity: .45; }
-    56% { opacity: .12; } 58.5% { opacity: .65; } 100% { opacity: .65; }
-  }
-  /* Grid: 60px tile with bevel edges + 20px sub-grid + intersection dots */
-  .hero-zoo .hero-grid {
-    position: absolute; inset: 0;
-    pointer-events: none;
-    background-image:
+      /* ── Hero (Skill Zoo brand) ── */
+      .hero-zoo {
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        background: var(--hero-bg);
+        position: relative;
+        overflow: hidden;
+      }
+      .hero-zoo::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: radial-gradient(
+          ellipse 60% 50% at 50% 50%,
+          rgba(14, 116, 144, 0.15) 0%,
+          transparent 70%
+        );
+      }
+      .hero-zoo::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: radial-gradient(
+          ellipse 60% 50% at 50% 50%,
+          rgba(14, 116, 144, 0.24) 0%,
+          transparent 70%
+        );
+        mask-image: radial-gradient(
+          ellipse 70% 70% at 50% 50%,
+          black 25%,
+          transparent 70%
+        );
+        -webkit-mask-image: radial-gradient(
+          ellipse 70% 70% at 50% 50%,
+          black 25%,
+          transparent 70%
+        );
+        animation: hero-bg-flicker 6s linear infinite;
+      }
+      @keyframes hero-bg-flicker {
+        0% {
+          opacity: 0.45;
+        }
+        1% {
+          opacity: 0.85;
+        }
+        4% {
+          opacity: 0.1;
+        }
+        4.5% {
+          opacity: 0.85;
+        }
+        6% {
+          opacity: 0.1;
+        }
+        10% {
+          opacity: 0.85;
+        }
+        12.5% {
+          opacity: 0.22;
+        }
+        15% {
+          opacity: 0.85;
+        }
+        55% {
+          opacity: 0.45;
+        }
+        56% {
+          opacity: 0.12;
+        }
+        58.5% {
+          opacity: 0.65;
+        }
+        100% {
+          opacity: 0.65;
+        }
+      }
+      /* Grid: 60px tile with bevel edges + 20px sub-grid + intersection dots */
+      .hero-zoo .hero-grid {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background-image:
       /* bevel highlight — top & left tile edges */
-      linear-gradient(to bottom, rgba(255,255,255,.025) 1.5px, transparent 1.5px),
-      linear-gradient(to right, rgba(255,255,255,.025) 1.5px, transparent 1.5px),
-      /* bevel shadow — bottom & right tile edges */
-      linear-gradient(to bottom, transparent 58.5px, rgba(0,0,0,.08) 58.5px),
-      linear-gradient(to right, transparent 58.5px, rgba(0,0,0,.08) 58.5px),
-      /* grout lines */
-      linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px),
-      /* fine sub-grid */
-      linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px),
-      /* intersection dots */
-      radial-gradient(circle, rgba(255,255,255,.07) 1.2px, transparent 1.2px);
-    background-size:
-      60px 60px,
-      60px 60px,
-      60px 60px,
-      60px 60px,
-      60px 60px,
-      60px 60px,
-      20px 20px,
-      20px 20px,
-      60px 60px;
-    mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 25%, transparent 70%);
-    -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 25%, transparent 70%);
-    animation: hero-bg-flicker 6s linear infinite;
-  }
-  /* Grain overlay for texture depth */
-  .hero-zoo .hero-grain {
-    position: absolute; inset: 0;
-    pointer-events: none;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
-    opacity: 0.55;
-    mix-blend-mode: overlay;
-  }
-  .hero-zoo .hero-entrance {
-    position: relative; z-index: 1;
-    animation: hero-enter .8s cubic-bezier(.16,1,.3,1) both;
-  }
-  .hero-zoo .hero-entrance.hero-sub {
-    animation: hero-enter .8s cubic-bezier(.16,1,.3,1) .15s both;
-  }
-  @keyframes hero-enter {
-    from { opacity: 0; transform: translateY(24px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  .hero-zoo .glowing-txt {
-    color: var(--glow);
-    font-family: 'Geist Sans', system-ui, sans-serif;
-    font-size: clamp(3em, 10vw, 7em);
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-shadow:
-      0 0 4px rgba(255,255,255,.15),
-      0 0 20px var(--glow),
-      0 0 60px var(--glow);
-    animation: hero-text-flicker 6s linear infinite;
-    cursor: default;
-    user-select: none;
-  }
-  .hero-zoo .faulty-letter {
-    animation: hero-faulty-flicker 4s linear infinite;
-  }
-  .hero-zoo .glowing-txt:hover,
-  .hero-zoo .glowing-txt:hover .faulty-letter {
-    animation: none;
-  }
-  .hero-zoo .glowing-txt:hover .faulty-letter { opacity: 1; }
-  .hero-zoo .glowing-txt:hover {
-    opacity: 1;
-    text-shadow:
-      0 0 6px rgba(255,255,255,.40),
-      0 0 24px var(--glow),
-      0 0 80px var(--glow);
-  }
-  .hero-zoo:has(.glowing-txt:hover)::after,
-  .hero-zoo:has(.glowing-txt:hover) .hero-grid {
-    animation: none;
-    opacity: .65;
-  }
-  @keyframes hero-text-flicker {
-    0% { opacity: .85; } 1% { opacity: 1; } 4% { opacity: .1; }
-    4.5% { opacity: 1; } 6% { opacity: .1; } 10% { opacity: 1; }
-    12.5% { opacity: .3; } 15% { opacity: 1; } 55% { opacity: .7; }
-    56% { opacity: .2; } 58.5% { opacity: .9; } 100% { opacity: .9; }
-  }
-  @keyframes hero-faulty-flicker {
-    0% { opacity: .9; } 1% { opacity: .1; } 2% { opacity: .5; }
-    17% { opacity: .5; } 18% { opacity: .1; } 19% { opacity: 1; }
-    76% { opacity: .5; } 77.5% { opacity: .4; } 79.5% { opacity: 1; } 100% { opacity: 1; }
-  }
-  .hero-zoo .hero-subtitle {
-    position: relative; z-index: 1;
-    margin-top: 24px;
-    font-size: 15px;
-    color: #71717a;
-    letter-spacing: 1.5px;
-  }
-  .hero-zoo .scroll-hint {
-    position: absolute;
-    bottom: 36px; left: 50%;
-    transform: translateX(-50%);
-    z-index: 2;
-    display: flex; flex-direction: column; align-items: center; gap: 6px;
-    cursor: pointer; text-decoration: none;
-    animation: hero-bounce 2s ease-in-out infinite;
-  }
-  .hero-zoo .scroll-hint span {
-    font-size: 10px; color: #71717a; letter-spacing: 3px; text-transform: uppercase;
-    user-select: none;
-  }
-  .hero-zoo .scroll-hint svg {
-    width: 20px; height: 20px; stroke: var(--glow); fill: none; stroke-width: 2;
-    filter: drop-shadow(0 0 6px var(--glow));
-  }
-  @keyframes hero-bounce {
-    0%, 100% { transform: translateX(-50%) translateY(0); }
-    50% { transform: translateX(-50%) translateY(10px); }
-  }
-  /* Pause hero animations when off-screen */
-  .hero-zoo.paused::after,
-  .hero-zoo.paused .hero-grid,
-  .hero-zoo.paused .glowing-txt,
-  .hero-zoo.paused .faulty-letter {
-    animation-play-state: paused;
-  }
-  /* ── Section shell ── */
-  .sec {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    padding: 64px 24px;
-  }
-  .sec-inner { max-width: 1040px; margin: 0 auto; width: 100%; }
-  .sec.dark { background: var(--dark); color: #E8E5DE; }
+          linear-gradient(
+            to bottom,
+            rgba(255, 255, 255, 0.025) 1.5px,
+            transparent 1.5px
+          ),
+          linear-gradient(
+            to right,
+            rgba(255, 255, 255, 0.025) 1.5px,
+            transparent 1.5px
+          ),
+          /* bevel shadow — bottom & right tile edges */
+          linear-gradient(
+              to bottom,
+              transparent 58.5px,
+              rgba(0, 0, 0, 0.08) 58.5px
+            ),
+          linear-gradient(
+            to right,
+            transparent 58.5px,
+            rgba(0, 0, 0, 0.08) 58.5px
+          ),
+          /* grout lines */
+          linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+          linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.06) 1px,
+            transparent 1px
+          ),
+          /* fine sub-grid */
+          linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+          linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.025) 1px,
+            transparent 1px
+          ),
+          /* intersection dots */
+          radial-gradient(
+              circle,
+              rgba(255, 255, 255, 0.07) 1.2px,
+              transparent 1.2px
+            );
+        background-size:
+          60px 60px,
+          60px 60px,
+          60px 60px,
+          60px 60px,
+          60px 60px,
+          60px 60px,
+          20px 20px,
+          20px 20px,
+          60px 60px;
+        mask-image: radial-gradient(
+          ellipse 70% 70% at 50% 50%,
+          black 25%,
+          transparent 70%
+        );
+        -webkit-mask-image: radial-gradient(
+          ellipse 70% 70% at 50% 50%,
+          black 25%,
+          transparent 70%
+        );
+        animation: hero-bg-flicker 6s linear infinite;
+      }
+      /* Grain overlay for texture depth */
+      .hero-zoo .hero-grain {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+        opacity: 0.55;
+        mix-blend-mode: overlay;
+      }
+      .hero-zoo .hero-entrance {
+        position: relative;
+        z-index: 1;
+        animation: hero-enter 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+      .hero-zoo .hero-entrance.hero-sub {
+        animation: hero-enter 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+      }
+      @keyframes hero-enter {
+        from {
+          opacity: 0;
+          transform: translateY(24px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .hero-zoo .glowing-txt {
+        color: var(--glow);
+        font-family: "Geist Sans", system-ui, sans-serif;
+        font-size: clamp(3em, 10vw, 7em);
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-shadow:
+          0 0 4px rgba(255, 255, 255, 0.15),
+          0 0 20px var(--glow),
+          0 0 60px var(--glow);
+        animation: hero-text-flicker 6s linear infinite;
+        cursor: default;
+        user-select: none;
+      }
+      .hero-zoo .faulty-letter {
+        animation: hero-faulty-flicker 4s linear infinite;
+      }
+      .hero-zoo .glowing-txt:hover,
+      .hero-zoo .glowing-txt:hover .faulty-letter {
+        animation: none;
+      }
+      .hero-zoo .glowing-txt:hover .faulty-letter {
+        opacity: 1;
+      }
+      .hero-zoo .glowing-txt:hover {
+        opacity: 1;
+        text-shadow:
+          0 0 6px rgba(255, 255, 255, 0.4),
+          0 0 24px var(--glow),
+          0 0 80px var(--glow);
+      }
+      .hero-zoo:has(.glowing-txt:hover)::after,
+      .hero-zoo:has(.glowing-txt:hover) .hero-grid {
+        animation: none;
+        opacity: 0.65;
+      }
+      @keyframes hero-text-flicker {
+        0% {
+          opacity: 0.85;
+        }
+        1% {
+          opacity: 1;
+        }
+        4% {
+          opacity: 0.1;
+        }
+        4.5% {
+          opacity: 1;
+        }
+        6% {
+          opacity: 0.1;
+        }
+        10% {
+          opacity: 1;
+        }
+        12.5% {
+          opacity: 0.3;
+        }
+        15% {
+          opacity: 1;
+        }
+        55% {
+          opacity: 0.7;
+        }
+        56% {
+          opacity: 0.2;
+        }
+        58.5% {
+          opacity: 0.9;
+        }
+        100% {
+          opacity: 0.9;
+        }
+      }
+      @keyframes hero-faulty-flicker {
+        0% {
+          opacity: 0.9;
+        }
+        1% {
+          opacity: 0.1;
+        }
+        2% {
+          opacity: 0.5;
+        }
+        17% {
+          opacity: 0.5;
+        }
+        18% {
+          opacity: 0.1;
+        }
+        19% {
+          opacity: 1;
+        }
+        76% {
+          opacity: 0.5;
+        }
+        77.5% {
+          opacity: 0.4;
+        }
+        79.5% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+      .hero-zoo .hero-subtitle {
+        position: relative;
+        z-index: 1;
+        margin-top: 24px;
+        font-size: 15px;
+        color: #71717a;
+        letter-spacing: 1.5px;
+      }
+      .hero-zoo .scroll-hint {
+        position: absolute;
+        bottom: 36px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        text-decoration: none;
+        animation: hero-bounce 2s ease-in-out infinite;
+      }
+      .hero-zoo .scroll-hint span {
+        font-size: 10px;
+        color: #71717a;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        user-select: none;
+      }
+      .hero-zoo .scroll-hint svg {
+        width: 20px;
+        height: 20px;
+        stroke: var(--glow);
+        fill: none;
+        stroke-width: 2;
+        filter: drop-shadow(0 0 6px var(--glow));
+      }
+      @keyframes hero-bounce {
+        0%,
+        100% {
+          transform: translateX(-50%) translateY(0);
+        }
+        50% {
+          transform: translateX(-50%) translateY(10px);
+        }
+      }
+      /* Pause hero animations when off-screen */
+      .hero-zoo.paused::after,
+      .hero-zoo.paused .hero-grid,
+      .hero-zoo.paused .glowing-txt,
+      .hero-zoo.paused .faulty-letter {
+        animation-play-state: paused;
+      }
+      /* ── Section shell ── */
+      .sec {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        padding: 64px 24px;
+        background: var(--bg);
+        color: var(--ink);
+      }
+      .sec-inner {
+        max-width: 1040px;
+        margin: 0 auto;
+        width: 100%;
+      }
+      .sec.dark {
+        background: linear-gradient(160deg, #111114 0%, var(--dark) 100%);
+        color: #d8d6ce;
+      }
 
-  /* ── Typography ── */
-  .eyebrow {
-    font-family: var(--mono);
-    font-size: 11px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--g500);
-    margin-bottom: 14px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .eyebrow::before { content: ""; width: 20px; height: 1.5px; background: var(--copper); }
-  .dark .eyebrow { color: var(--d-muted); }
-  .dark .eyebrow::before { background: var(--copper); }
+      /* ── Typography ── */
+      .eyebrow {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--g500);
+        margin-bottom: 14px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .eyebrow::before {
+        content: "";
+        width: 20px;
+        height: 1.5px;
+        background: var(--copper);
+      }
+      .dark .eyebrow {
+        color: var(--d-muted);
+      }
+      .dark .eyebrow::before {
+        background: var(--copper);
+      }
 
-  h1 {
-    font-family: var(--serif);
-    font-weight: 500;
-    font-size: clamp(42px, 6.5vw, 72px);
-    line-height: 1.05;
-    letter-spacing: -0.02em;
-    margin-bottom: 18px;
-  }
-  h2 {
-    font-family: var(--serif);
-    font-weight: 500;
-    font-size: clamp(26px, 3.8vw, 36px);
-    line-height: 1.18;
-    letter-spacing: -0.012em;
-    margin-bottom: 14px;
-  }
-  h3 {
-    font-family: var(--serif);
-    font-weight: 500;
-    font-size: 19px;
-    line-height: 1.3;
-    letter-spacing: -0.008em;
-  }
-  p { max-width: 620px; }
-  .lead {
-    font-size: 17px;
-    color: var(--g700);
-    line-height: 1.7;
-    max-width: 680px;
-    text-wrap: balance;
-  }
-  .dark .lead { color: #B8B6AF; }
+      h1 {
+        font-family: var(--serif);
+        font-weight: 500;
+        font-size: clamp(42px, 6.5vw, 72px);
+        line-height: 1.05;
+        letter-spacing: -0.02em;
+        margin-bottom: 18px;
+      }
+      h2 {
+        font-family: var(--serif);
+        font-weight: 500;
+        font-size: clamp(26px, 3.8vw, 36px);
+        line-height: 1.18;
+        letter-spacing: -0.012em;
+        margin-bottom: 14px;
+      }
+      h3 {
+        font-family: var(--serif);
+        font-weight: 500;
+        font-size: 19px;
+        line-height: 1.3;
+        letter-spacing: -0.008em;
+      }
+      p {
+        max-width: 620px;
+      }
+      .lead {
+        font-size: 17px;
+        color: var(--g700);
+        line-height: 1.7;
+        max-width: 680px;
+        text-wrap: balance;
+      }
+      .dark .lead {
+        color: #b8b6af;
+      }
 
-  /* ── Hero (Product Report header) ── */
-  .hero-report {
-    background: radial-gradient(ellipse 80% 60% at 30% 40%, #1A1A25 0%, #0F0F12 100%);
-    color: #E8E5DE;
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    padding: 64px clamp(24px, 5vw, 64px);
-    position: relative;
-    overflow: hidden;
-  }
-  .hero-report::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
-    opacity: 0.6;
-    pointer-events: none;
-  }
-  .hero-report-inner { max-width: clamp(960px, 88vw, 1400px); margin: 0 auto; width: 100%; position: relative; z-index: 2; }
-  .hero-report-grid {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: min(4vw, 64px);
-  }
-  .hero-report-grid > div:first-child { flex: 0 0 clamp(260px, 26vw, 360px); }
-  .hero-report-grid > div:last-child { flex: 1 1 auto; min-width: 0; max-width: clamp(400px, 54vw, 800px); }
-  .hero-report h1 { font-size: clamp(32px, 4.5vw, 48px); margin-bottom: 10px; color: #FFFFFF; }
-  .hero-report h1 em { font-style: italic; color: var(--copper); }
-  .hero-report .lead { font-size: 15px; color: #B8B6AF; margin-bottom: 24px; }
-  .hero-report-fig svg { width: 100%; height: auto; }
+      /* ── Hero (Product Report header) ── */
+      .hero-report {
+        background: radial-gradient(
+          ellipse 80% 60% at 30% 40%,
+          #1a1a25 0%,
+          #0f0f12 100%
+        );
+        color: #e8e5de;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        padding: 64px clamp(24px, 5vw, 64px);
+        position: relative;
+        overflow: hidden;
+      }
+      .hero-report::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+        opacity: 0.6;
+        pointer-events: none;
+      }
+      .hero-report-inner {
+        max-width: clamp(960px, 88vw, 1400px);
+        margin: 0 auto;
+        width: 100%;
+        position: relative;
+        z-index: 2;
+      }
+      .hero-report-grid {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: min(4vw, 64px);
+      }
+      .hero-report-grid > div:first-child {
+        flex: 0 0 clamp(260px, 26vw, 360px);
+      }
+      .hero-report-grid > div:last-child {
+        flex: 1 1 auto;
+        min-width: 0;
+        max-width: clamp(400px, 54vw, 800px);
+      }
+      .hero-report h1 {
+        font-size: clamp(32px, 4.5vw, 48px);
+        margin-bottom: 10px;
+        color: #ffffff;
+      }
+      .hero-report h1 em {
+        font-style: italic;
+        color: var(--copper);
+      }
+      .hero-report .lead {
+        font-size: 15px;
+        color: #b8b6af;
+        margin-bottom: 24px;
+      }
+      .hero-report-fig svg {
+        width: 100%;
+        height: auto;
+      }
 
-  /* ── Carousel (inside hero-report) ── */
-  .carousel-wrapper {
-    perspective: 1800px;
-    width: 100%;
-    position: relative;
-    overflow: visible;
-  }
-  .carousel {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    transform-style: preserve-3d;
-  }
-  .carousel-card {
-    position: absolute;
-    top: 50%; left: 50%;
-    aspect-ratio: 2200 / 1405;
-    border-radius: 14px;
-    overflow: hidden;
-    border: 1px solid rgba(255,255,255,.12);
-    cursor: pointer;
-    transition: transform .7s cubic-bezier(.25,.8,.25,1), opacity .7s cubic-bezier(.25,.8,.25,1), box-shadow .7s cubic-bezier(.25,.8,.25,1);
-    transform-style: preserve-3d;
-    will-change: transform, opacity;
-    backface-visibility: hidden;
-    -webkit-backface-visibility: hidden;
-  }
-  .carousel-card img {
-    width: 100%; height: 100%;
-    object-fit: cover;
-    display: block;
-  }
-  .carousel-dots { display: flex; justify-content: center; gap: 6px; width: 100%; margin-top: 12px; }
-  .carousel-dots button {
-    width: 6px; height: 6px;
-    border-radius: 50%; border: none;
-    background: rgba(255,255,255,.15);
-    cursor: pointer; transition: background .3s, width .3s, border-radius .3s;
-  }
-  .carousel-dots button.active {
-    background: var(--copper);
-    width: 20px; border-radius: 3px;
-  }
+      /* ── Carousel (inside hero-report) ── */
+      .carousel-wrapper {
+        perspective: 1800px;
+        width: 100%;
+        position: relative;
+        overflow: visible;
+      }
+      .carousel {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        transform-style: preserve-3d;
+      }
+      .carousel-card {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        aspect-ratio: 2200 / 1405;
+        border-radius: 14px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        cursor: pointer;
+        transition:
+          transform 0.7s cubic-bezier(0.25, 0.8, 0.25, 1),
+          opacity 0.7s cubic-bezier(0.25, 0.8, 0.25, 1),
+          box-shadow 0.7s cubic-bezier(0.25, 0.8, 0.25, 1);
+        transform-style: preserve-3d;
+        will-change: transform, opacity;
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
+      }
+      .carousel-card img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .carousel-dots {
+        display: flex;
+        justify-content: center;
+        gap: 6px;
+        width: 100%;
+        margin-top: 12px;
+      }
+      .carousel-dots button {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        border: none;
+        background: rgba(255, 255, 255, 0.15);
+        cursor: pointer;
+        transition:
+          background 0.3s,
+          width 0.3s,
+          border-radius 0.3s;
+      }
+      .carousel-dots button.active {
+        background: var(--copper);
+        width: 20px;
+        border-radius: 3px;
+      }
 
-  /* ── GitHub button ── */
-  .gh-btn {
-    position: fixed; top: 20px; right: 20px;
-    width: 38px; height: 38px;
-    border-radius: 50%;
-    background: rgba(255,255,255,.07);
-    border: 1px solid rgba(255,255,255,.12);
-    color: #B8B6AF;
-    cursor: pointer;
-    text-decoration: none;
-    display: flex; align-items: center; justify-content: center;
-    z-index: 200;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    transition: all 180ms;
-  }
-  .gh-btn:hover { background: rgba(255,255,255,.14); color: #fff; border-color: rgba(255,255,255,.25); }
-  .gh-btn svg { opacity: 0.7; transition: opacity 180ms; }
-  .gh-btn:hover svg { opacity: 1; }
+      /* ── GitHub button ── */
+      .gh-btn {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.07);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #b8b6af;
+        cursor: pointer;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 200;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        transition: all 180ms;
+      }
+      .gh-btn:hover {
+        background: rgba(255, 255, 255, 0.14);
+        color: #fff;
+        border-color: rgba(255, 255, 255, 0.25);
+      }
+      .gh-btn svg {
+        opacity: 0.7;
+        transition: opacity 180ms;
+      }
+      .gh-btn:hover svg {
+        opacity: 1;
+      }
 
-  /* ── Hero download buttons ── */
-  .hero-dl {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 28px;
-    flex-wrap: wrap;
-  }
-  .hero-dl-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 18px;
-    border-radius: 8px;
-    border: 1px solid var(--d-border);
-    background: rgba(255,255,255,.04);
-    color: #D4D1C8;
-    text-decoration: none;
-    font-family: var(--sans);
-    font-size: 14px;
-    transition: all 200ms ease;
-  }
-  .hero-dl-btn:hover {
-    border-color: var(--copper);
-    color: #fff;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 16px rgba(197,102,59,.25);
-  }
-  .hero-dl-btn:first-child {
-    background: var(--copper);
-    border-color: var(--copper);
-    color: #fff;
-    font-weight: 600;
-  }
-  .hero-dl-btn:first-child:hover {
-    background: var(--copper-d);
-    border-color: var(--copper-d);
-    box-shadow: 0 6px 24px rgba(197,102,59,.35);
-  }
-  .hero-dl-btn:first-child svg { color: #fff; }
-  .hero-dl-btn svg { flex-shrink: 0; color: var(--copper); transition: transform 200ms ease; }
-  .hero-dl-btn:hover svg { transform: translateY(-1px); }
-  .hero-dl-btn .hero-dl-name { font-weight: 500; }
-  .hero-dl-btn:first-child .hero-dl-name { font-weight: 600; }
-  /* ── Counter animation ── */
-  .count-up { font-variant-numeric: tabular-nums; }
+      /* ── Hero download buttons ── */
+      .hero-dl {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 28px;
+        flex-wrap: wrap;
+      }
+      .hero-dl-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 18px;
+        border-radius: 8px;
+        border: 1px solid var(--d-border);
+        background: rgba(255, 255, 255, 0.04);
+        color: #d4d1c8;
+        text-decoration: none;
+        font-family: var(--sans);
+        font-size: 14px;
+        transition: all 200ms ease;
+      }
+      .hero-dl-btn:hover {
+        border-color: var(--copper);
+        color: #fff;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(197, 102, 59, 0.25);
+      }
+      .hero-dl-btn:first-child {
+        background: var(--copper);
+        border-color: var(--copper);
+        color: #fff;
+        font-weight: 600;
+      }
+      .hero-dl-btn:first-child:hover {
+        background: var(--copper-d);
+        border-color: var(--copper-d);
+        box-shadow: 0 6px 24px rgba(197, 102, 59, 0.35);
+      }
+      .hero-dl-btn:first-child svg {
+        color: #fff;
+      }
+      .hero-dl-btn svg {
+        flex-shrink: 0;
+        color: var(--copper);
+        transition: transform 200ms ease;
+      }
+      .hero-dl-btn:hover svg {
+        transform: translateY(-1px);
+      }
+      .hero-dl-btn .hero-dl-name {
+        font-weight: 500;
+      }
+      .hero-dl-btn:first-child .hero-dl-name {
+        font-weight: 600;
+      }
+      /* ── Counter animation ── */
+      .count-up {
+        font-variant-numeric: tabular-nums;
+      }
 
-  /* ── Pills ── */
-  .pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
-  .pill {
-    font-family: var(--mono);
-    font-size: 11px;
-    padding: 5px 12px;
-    border-radius: 20px;
-    border: 1px solid var(--d-border);
-    color: #B8B6AF;
-    background: rgba(255,255,255,.03);
-  }
-  .pill.highlight { border-color: var(--copper); color: var(--copper); background: rgba(197,102,59,.08); }
+      /* ── Pills ── */
+      .pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 18px;
+      }
+      .pill {
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 5px 12px;
+        border-radius: 20px;
+        border: 1px solid var(--d-border);
+        color: #b8b6af;
+        background: rgba(255, 255, 255, 0.03);
+      }
+      .pill.highlight {
+        border-color: var(--copper);
+        color: var(--copper);
+        background: rgba(197, 102, 59, 0.08);
+      }
 
-  /* ── Card grid ── */
-  .card-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-    gap: 18px;
-    margin-top: 28px;
-  }
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--g200);
-    border-radius: 12px;
-    padding: 26px 24px 22px;
-    transition: transform 180ms ease, box-shadow 180ms ease;
-    position: relative;
-  }
-  .card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 28px rgba(0,0,0,.06);
-  }
-  .card .icon {
-    width: 40px; height: 40px;
-    border-radius: 10px;
-    display: flex; align-items: center; justify-content: center;
-    margin-bottom: 14px;
-    font-size: 18px;
-  }
-  .card .icon.icon-sm { display: none; }
-  .card h3 { margin-bottom: 8px; font-size: 18px; }
-  .card p { font-size: 14px; color: var(--g700); max-width: none; }
-  .card.dark-card { background: var(--dark-sur); border-color: var(--d-border); }
-  .card.dark-card h3 { color: #fff; }
-  .card.dark-card p { color: #B8B6AF; }
+      /* ── Card grid ── */
+      .card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+        gap: 18px;
+        margin-top: 28px;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--g200);
+        border-radius: 12px;
+        padding: 26px 24px 22px;
+        transition:
+          transform 180ms ease,
+          box-shadow 180ms ease,
+          border-color 180ms ease;
+        position: relative;
+      }
+      .card:hover {
+        transform: translateY(-3px);
+        box-shadow:
+          0 8px 32px rgba(0, 0, 0, 0.4),
+          0 0 0 1px rgba(208, 113, 74, 0.12);
+        border-color: var(--g300);
+      }
+      .card .icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 14px;
+        font-size: 18px;
+      }
+      .card .icon.icon-sm {
+        display: none;
+      }
+      .card h3 {
+        margin-bottom: 8px;
+        font-size: 18px;
+      }
+      .card p {
+        font-size: 14px;
+        color: var(--g700);
+        max-width: none;
+      }
+      .card.dark-card {
+        background: var(--dark-sur);
+        border-color: var(--d-border);
+      }
+      .card.dark-card h3 {
+        color: #fff;
+      }
+      .card.dark-card p {
+        color: #b8b6af;
+      }
 
-  /* ── Stat row ── */
-  .stat-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 28px;
-    margin: 32px 0;
-  }
-  .stat-num {
-    font-family: var(--serif);
-    font-size: clamp(36px, 5vw, 52px);
-    font-weight: 500;
-    letter-spacing: -0.02em;
-    color: var(--copper);
-    line-height: 1;
-  }
-  .stat-label { font-size: 13px; color: var(--g500); margin-top: 6px; }
+      /* ── Stat row ── */
+      .stat-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 28px;
+        margin: 32px 0;
+      }
+      .stat-num {
+        font-family: var(--serif);
+        font-size: clamp(36px, 5vw, 52px);
+        font-weight: 500;
+        letter-spacing: -0.02em;
+        color: var(--copper);
+        line-height: 1;
+      }
+      .stat-label {
+        font-size: 13px;
+        color: var(--g500);
+        margin-top: 6px;
+      }
 
-  /* ── Numbered list ── */
-  .num-list { margin-top: 28px; display: flex; flex-direction: column; gap: 32px; }
-  .num-item { display: grid; grid-template-columns: 56px 1fr; gap: 24px; }
-  .num-circle {
-    width: 48px; height: 48px;
-    border-radius: 50%;
-    background: var(--copper);
-    color: #fff;
-    display: flex; align-items: center; justify-content: center;
-    font-family: var(--serif);
-    font-size: 22px;
-    font-weight: 500;
-    flex-shrink: 0;
-  }
-  .dark .num-circle { background: var(--copper); }
-  .num-item h3 { margin-bottom: 6px; }
-  .num-item p { font-size: 14.5px; color: var(--g700); max-width: 560px; }
-  .dark .num-item p { color: #B8B6AF; }
+      /* ── Numbered list ── */
+      .num-list {
+        margin-top: 28px;
+        display: flex;
+        flex-direction: column;
+        gap: 32px;
+      }
+      .num-item {
+        display: grid;
+        grid-template-columns: 56px 1fr;
+        gap: 24px;
+      }
+      .num-circle {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: var(--copper);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--serif);
+        font-size: 22px;
+        font-weight: 500;
+        flex-shrink: 0;
+      }
+      .dark .num-circle {
+        background: var(--copper);
+      }
+      .num-item h3 {
+        margin-bottom: 6px;
+      }
+      .num-item p {
+        font-size: 14.5px;
+        color: var(--g700);
+        max-width: 560px;
+      }
+      .dark .num-item p {
+        color: #b8b6af;
+      }
 
-  /* ── Architecture SVG ── */
-  .arch-diagram { margin: 32px 0; text-align: center; }
-  .arch-diagram svg { max-width: 100%; height: auto; }
+      /* ── Architecture SVG ── */
+      .arch-diagram {
+        margin: 32px 0;
+        text-align: center;
+      }
+      .arch-diagram svg {
+        max-width: 100%;
+        height: auto;
+      }
 
-  /* ── Table ── */
-  .tbl-wrap { overflow-x: auto; margin: 28px 0; }
-  table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--g200); }
-  th { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--g500); font-weight: 500; padding-bottom: 10px; }
-  .dark table th { color: var(--d-muted); }
-  .dark table td { border-color: var(--d-border); }
-  .dark table { color: #D4D1C8; }
+      /* ── Table ── */
+      .tbl-wrap {
+        overflow-x: auto;
+        margin: 28px 0;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--g200);
+      }
+      th {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--g500);
+        font-weight: 500;
+        padding-bottom: 10px;
+      }
+      .dark table th {
+        color: var(--d-muted);
+      }
+      .dark table td {
+        border-color: var(--d-border);
+      }
+      .dark table {
+        color: #d0cec6;
+      }
 
-  /* ── Code block ── */
-  pre {
-    background: var(--g100);
-    border: 1px solid var(--g200);
-    border-radius: 10px;
-    padding: 18px 20px;
-    overflow-x: auto;
-    font-family: var(--mono);
-    font-size: 13px;
-    line-height: 1.6;
-    margin: 18px 0;
-    position: relative;
-  }
-  .dark pre { background: var(--dark-sur); border-color: var(--d-border); }
-  .copy-btn {
-    position: absolute;
-    top: 10px; right: 10px;
-    font-family: var(--mono);
-    font-size: 10px;
-    padding: 4px 10px;
-    border-radius: 6px;
-    border: 1px solid var(--g300);
-    background: var(--surface);
-    color: var(--g500);
-    cursor: pointer;
-    transition: all 120ms;
-  }
-  .copy-btn:hover { border-color: var(--copper); color: var(--copper); }
-  .copy-btn.copied { border-color: var(--sage); color: var(--sage); }
+      /* ── Code block ── */
+      pre {
+        background: var(--g100);
+        border: 1px solid var(--g200);
+        border-radius: 10px;
+        padding: 18px 20px;
+        overflow-x: auto;
+        font-family: var(--mono);
+        font-size: 13px;
+        line-height: 1.6;
+        margin: 18px 0;
+        position: relative;
+      }
+      .dark pre {
+        background: #0b0b12;
+        border-color: var(--d-border);
+      }
+      .copy-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        font-family: var(--mono);
+        font-size: 10px;
+        padding: 4px 10px;
+        border-radius: 6px;
+        border: 1px solid var(--g300);
+        background: var(--surface);
+        color: var(--g500);
+        cursor: pointer;
+        transition: all 120ms;
+      }
+      .copy-btn:hover {
+        border-color: var(--copper);
+        color: var(--copper);
+      }
+      .copy-btn.copied {
+        border-color: var(--sage);
+        color: var(--sage);
+      }
 
-  /* ── Collapsible details ── */
-  details {
-    border: 1px solid var(--g200);
-    border-radius: 10px;
-    background: var(--surface);
-    margin: 14px 0;
-    overflow: hidden;
-    max-width: 680px;
-  }
-  .dark details { border-color: var(--d-border); background: var(--dark-sur); }
-  summary {
-    list-style: none;
-    cursor: pointer;
-    padding: 15px 18px;
-    font-family: var(--serif);
-    font-size: 16px;
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-  }
-  summary::-webkit-details-marker { display: none; }
-  summary::before {
-    content: "▸";
-    color: var(--copper);
-    font-family: var(--sans);
-    font-size: 11px;
-    transition: transform 140ms;
-  }
-  details[open] summary::before { transform: rotate(90deg); }
-  details .body { padding: 0 18px 16px; font-size: 14px; color: var(--g700); }
-  .dark details .body { color: #B8B6AF; }
+      /* ── Collapsible details ── */
+      details {
+        border: 1px solid var(--g200);
+        border-radius: 10px;
+        background: var(--surface);
+        margin: 14px 0;
+        overflow: hidden;
+        max-width: 680px;
+      }
+      .dark details {
+        border-color: var(--d-border);
+        background: var(--dark-sur);
+      }
+      summary {
+        list-style: none;
+        cursor: pointer;
+        padding: 15px 18px;
+        font-family: var(--serif);
+        font-size: 16px;
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+      }
+      summary::-webkit-details-marker {
+        display: none;
+      }
+      summary::before {
+        content: "▸";
+        color: var(--copper);
+        font-family: var(--sans);
+        font-size: 11px;
+        transition: transform 140ms;
+      }
+      details[open] summary::before {
+        transform: rotate(90deg);
+      }
+      details .body {
+        padding: 0 18px 16px;
+        font-size: 14px;
+        color: var(--g700);
+      }
+      .dark details .body {
+        color: #b8b6af;
+      }
 
-  /* ── Tag / badge ── */
-  .tag {
-    display: inline-block;
-    font-family: var(--mono);
-    font-size: 10px;
-    padding: 3px 8px;
-    border-radius: 5px;
-    border: 1px solid var(--g300);
-    color: var(--g500);
-    background: var(--g100);
-  }
-  .tag.green { border-color: var(--sage); color: var(--sage); background: rgba(107,139,93,.06); }
-  .tag.copper { border-color: var(--copper); color: var(--copper); background: rgba(197,102,59,.06); }
+      /* ── Tag / badge ── */
+      .tag {
+        display: inline-block;
+        font-family: var(--mono);
+        font-size: 10px;
+        padding: 3px 8px;
+        border-radius: 5px;
+        border: 1px solid var(--g300);
+        color: var(--g500);
+        background: var(--g100);
+      }
+      .tag.green {
+        border-color: var(--sage);
+        color: var(--sage);
+        background: rgba(107, 139, 93, 0.06);
+      }
+      .tag.copper {
+        border-color: var(--copper);
+        color: var(--copper);
+        background: rgba(197, 102, 59, 0.06);
+      }
 
-  /* ── Footer ── */
-  footer {
-    background: #0F0F12;
-    color: var(--d-muted);
-    padding: 16px 24px;
-    text-align: center;
-    font-size: 13px;
-    border-top: 1px solid rgba(255,255,255,.06);
-  }
-  footer a { color: var(--d-muted); text-decoration: none; transition: color .2s; }
-  footer a:hover { color: var(--copper); }
+      /* ── Footer ── */
+      footer {
+        background: #07070d;
+        color: var(--d-muted);
+        padding: 16px 24px;
+        text-align: center;
+        font-size: 13px;
+        border-top: 1px solid rgba(255, 255, 255, 0.07);
+      }
+      footer a {
+        color: var(--d-muted);
+        text-decoration: none;
+        transition: color 0.2s;
+      }
+      footer a:hover {
+        color: var(--copper);
+      }
 
-  /* ── Responsive ── */
+      /* ── Responsive ── */
 
-  /*
+      /*
    * Mobile strategy:
    * - Consistent px: clamp(16px, 5vw, 32px) left/right
    * - Vertical: clamp(24px, 4vh, 48px) top/bottom
@@ -604,707 +1023,2701 @@
    * - Hide verbose secondary content
    */
 
-  /* Tablet: 860px — hero-report stacks */
-  @media (max-width: 860px) {
-    .hero-report { min-height: 100svh; padding: clamp(32px, 6vh, 56px) clamp(16px, 5vw, 48px); }
-    .hero-report-grid { flex-direction: column; gap: clamp(16px, 3vh, 32px); }
-    .hero-report-grid > div:first-child { flex: 0 0 auto; max-width: 100%; }
-    .hero-report-grid > div:last-child { max-width: 100%; }
-    .hero-report-fig { max-width: 460px; }
-  }
+      /* Tablet: 860px — hero-report stacks */
+      @media (max-width: 860px) {
+        .hero-report {
+          min-height: 100svh;
+          padding: clamp(32px, 6vh, 56px) clamp(16px, 5vw, 48px);
+        }
+        .hero-report-grid {
+          flex-direction: column;
+          gap: clamp(16px, 3vh, 32px);
+        }
+        .hero-report-grid > div:first-child {
+          flex: 0 0 auto;
+          max-width: 100%;
+        }
+        .hero-report-grid > div:last-child {
+          max-width: 100%;
+        }
+        .hero-report-fig {
+          max-width: 460px;
+        }
+      }
 
-  /* Tablet: 768px — all sections adapt */
-  @media (max-width: 768px) {
-    /* ── Hero zoo ── */
-    .hero-zoo .glowing-txt { font-size: 2.2em; letter-spacing: 0.06em; }
-    .hero-zoo .hero-subtitle { font-size: 13px; letter-spacing: 1px; text-align: center; padding: 0 16px; }
-    .hero-zoo .scroll-hint { bottom: 20px; }
+      /* Tablet: 768px — all sections adapt */
+      @media (max-width: 768px) {
+        /* ── Hero zoo ── */
+        .hero-zoo .glowing-txt {
+          font-size: 2.2em;
+          letter-spacing: 0.06em;
+        }
+        .hero-zoo .hero-subtitle {
+          font-size: 13px;
+          letter-spacing: 1px;
+          text-align: center;
+          padding: 0 16px;
+        }
+        .hero-zoo .scroll-hint {
+          bottom: 20px;
+        }
 
-    /* ── All content sections ── */
-    .sec { min-height: auto; padding: clamp(32px, 8vh, 64px) clamp(20px, 5vw, 32px); }
-    h1 { font-size: clamp(32px, 7vw, 42px); }
-    h2 { font-size: clamp(22px, 4.5vw, 28px); margin-bottom: clamp(8px, 2vh, 16px); }
-    .lead { font-size: 15px; max-width: 100%; }
-    .eyebrow { margin-bottom: 8px; }
-    .sec-inner > h2 { margin-bottom: clamp(16px, 3vh, 32px); }
+        /* ── All content sections ── */
+        .sec {
+          min-height: auto;
+          padding: clamp(32px, 8vh, 64px) clamp(20px, 5vw, 32px);
+        }
+        h1 {
+          font-size: clamp(32px, 7vw, 42px);
+        }
+        h2 {
+          font-size: clamp(22px, 4.5vw, 28px);
+          margin-bottom: clamp(8px, 2vh, 16px);
+        }
+        .lead {
+          font-size: 15px;
+          max-width: 100%;
+        }
+        .eyebrow {
+          margin-bottom: 8px;
+        }
+        .sec-inner > h2 {
+          margin-bottom: clamp(16px, 3vh, 32px);
+        }
 
-    /* ── Cards: single column, icon+title inline ── */
-    .card-grid { grid-template-columns: 1fr !important; gap: clamp(8px, 1.5vh, 14px); }
-    .card { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; padding: clamp(12px, 2vh, 18px) 16px; }
-    .card .icon { margin-bottom: 0; width: 28px; height: 28px; flex-shrink: 0; }
-    .card .icon.icon-sm { display: flex; }
-    .card h3 { flex: 1; margin-bottom: 0; font-size: 15px; }
-    .card p { flex: 0 0 100%; margin-top: 6px; font-size: 13px; line-height: 1.45; }
+        /* ── Cards: single column, icon+title inline ── */
+        .card-grid {
+          grid-template-columns: 1fr !important;
+          gap: clamp(8px, 1.5vh, 14px);
+        }
+        .card {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          column-gap: 12px;
+          padding: clamp(12px, 2vh, 18px) 16px;
+        }
+        .card .icon {
+          margin-bottom: 0;
+          width: 28px;
+          height: 28px;
+          flex-shrink: 0;
+        }
+        .card .icon.icon-sm {
+          display: flex;
+        }
+        .card h3 {
+          flex: 1;
+          margin-bottom: 0;
+          font-size: 15px;
+        }
+        .card p {
+          flex: 0 0 100%;
+          margin-top: 6px;
+          font-size: 13px;
+          line-height: 1.45;
+        }
 
-    /* ── Stat row ── */
-    .stat-row { grid-template-columns: repeat(2, 1fr); gap: clamp(8px, 2vh, 20px); }
-    .stat-num { font-size: clamp(32px, 6vw, 44px); }
-    .stat-label { font-size: 12px; }
+        /* ── Stat row ── */
+        .stat-row {
+          grid-template-columns: repeat(2, 1fr);
+          gap: clamp(8px, 2vh, 20px);
+        }
+        .stat-num {
+          font-size: clamp(32px, 6vw, 44px);
+        }
+        .stat-label {
+          font-size: 12px;
+        }
 
-    /* ── Architecture: tighter bottom ── */
-    #arch.sec { padding-bottom: clamp(8px, 2vh, 20px); }
-    .arch-diagram svg { max-height: clamp(180px, 30vh, 260px); }
+        /* ── Architecture: tighter bottom ── */
+        #arch.sec {
+          padding-bottom: clamp(8px, 2vh, 20px);
+        }
+        .arch-diagram svg {
+          max-height: clamp(180px, 30vh, 260px);
+        }
 
-    /* ── Design philosophy: number + title inline ── */
-    .num-list { gap: clamp(12px, 2.5vh, 24px); }
-    .num-item { display: flex; align-items: flex-start; gap: 14px; }
-    .num-circle { width: 32px; height: 32px; font-size: 17px; flex-shrink: 0; }
-    .num-item h3 { font-size: 15px; margin-bottom: 4px; }
-    .num-item p { font-size: 13px; line-height: 1.45; }
+        /* ── Design philosophy: number + title inline ── */
+        .num-list {
+          gap: clamp(12px, 2.5vh, 24px);
+        }
+        .num-item {
+          display: flex;
+          align-items: flex-start;
+          gap: 14px;
+        }
+        .num-circle {
+          width: 32px;
+          height: 32px;
+          font-size: 17px;
+          flex-shrink: 0;
+        }
+        .num-item h3 {
+          font-size: 15px;
+          margin-bottom: 4px;
+        }
+        .num-item p {
+          font-size: 13px;
+          line-height: 1.45;
+        }
 
-    /* ── UX: collapse 2-col card, hide code block, hide least important card ── */
-    .card[style*="span 2"], .card.dark-card[style*="span 2"] { grid-column: span 1 !important; }
+        /* ── UX: collapse 2-col card, hide code block, hide least important card ── */
+        .card[style*="span 2"],
+        .card.dark-card[style*="span 2"] {
+          grid-column: span 1 !important;
+        }
 
-    /* ── Hero report: compact height, hide carousel & GitHub icon ── */
-    .hero-report { min-height: auto; padding: clamp(56px, 12vh, 96px) clamp(16px, 5vw, 32px); }
-    .hero-report-fig { display: none; }
-    .gh-btn { display: none; }
-    .hero-dl { gap: 10px; margin-top: 20px; justify-content: flex-start; }
-    .hero-dl-btn { font-size: 13px; padding: 8px 16px; }
+        /* ── Hero report: compact height, hide carousel & GitHub icon ── */
+        .hero-report {
+          min-height: auto;
+          padding: clamp(56px, 12vh, 96px) clamp(16px, 5vw, 32px);
+        }
+        .hero-report-fig {
+          display: none;
+        }
+        .gh-btn {
+          display: none;
+        }
+        .hero-dl {
+          gap: 10px;
+          margin-top: 20px;
+          justify-content: flex-start;
+        }
+        .hero-dl-btn {
+          font-size: 13px;
+          padding: 8px 16px;
+        }
 
-    /* ── Hide secondary ── */
-    .tech-tags { display: none; }
-    .tag { font-size: 9px; padding: 2px 6px; }
-  }
+        /* ── Hide secondary ── */
+        .tech-tags {
+          display: none;
+        }
+        .tag {
+          font-size: 9px;
+          padding: 2px 6px;
+        }
+      }
 
-  /* Phone: 600px */
-  @media (max-width: 600px) {
-    .cmd-list { grid-template-columns: 1fr; }
-    /* Hide verbose UX code block */
-    .card.dark-card pre.no-copy { display: none; }
-  }
+      /* Phone: 600px */
+      @media (max-width: 600px) {
+        .cmd-list {
+          grid-template-columns: 1fr;
+        }
+        /* Hide verbose UX code block */
+        .card.dark-card pre.no-copy {
+          display: none;
+        }
+      }
 
-  /* Phone: 480px — compact */
-  @media (max-width: 480px) {
-    .hero-zoo .glowing-txt { font-size: 1.75em; letter-spacing: 0.04em; }
-    .hero-zoo .hero-subtitle { font-size: 12px; }
-    .hero-zoo .scroll-hint span { font-size: 9px; letter-spacing: 2px; }
+      /* Phone: 480px — compact */
+      @media (max-width: 480px) {
+        .hero-zoo .glowing-txt {
+          font-size: 1.75em;
+          letter-spacing: 0.04em;
+        }
+        .hero-zoo .hero-subtitle {
+          font-size: 12px;
+        }
+        .hero-zoo .scroll-hint span {
+          font-size: 9px;
+          letter-spacing: 2px;
+        }
 
-    .hero-report { padding: clamp(40px, 10vh, 64px) 16px; }
-    .hero-report h1 { font-size: clamp(26px, 8vw, 34px); }
-    .hero-report .lead { font-size: 14px; }
-    .hero-report-fig { max-width: 100%; }
-    .hero-dl-btn { font-size: 13px; padding: 8px 14px; }
+        .hero-report {
+          padding: clamp(40px, 10vh, 64px) 16px;
+        }
+        .hero-report h1 {
+          font-size: clamp(26px, 8vw, 34px);
+        }
+        .hero-report .lead {
+          font-size: 14px;
+        }
+        .hero-report-fig {
+          max-width: 100%;
+        }
+        .hero-dl-btn {
+          font-size: 13px;
+          padding: 8px 14px;
+        }
 
-    .sec { padding: clamp(28px, 7vh, 48px) 16px; }
-    h1 { font-size: 26px; }
-    h2 { font-size: 20px; }
-    .lead { font-size: 14px; }
+        .sec {
+          padding: clamp(28px, 7vh, 48px) 16px;
+        }
+        h1 {
+          font-size: 26px;
+        }
+        h2 {
+          font-size: 20px;
+        }
+        .lead {
+          font-size: 14px;
+        }
 
-    .stat-num { font-size: 30px; }
-    .stat-label { font-size: 11px; }
-    .arch-diagram svg { max-height: 150px; }
+        .stat-num {
+          font-size: 30px;
+        }
+        .stat-label {
+          font-size: 11px;
+        }
+        .arch-diagram svg {
+          max-height: 150px;
+        }
 
-    .card { padding: 12px 14px; }
-    .card h3 { font-size: 14px; }
-    .card p { font-size: 12px; }
-    .card .icon { width: 24px; height: 24px; }
+        .card {
+          padding: 12px 14px;
+        }
+        .card h3 {
+          font-size: 14px;
+        }
+        .card p {
+          font-size: 12px;
+        }
+        .card .icon {
+          width: 24px;
+          height: 24px;
+        }
 
-    .num-circle { width: 28px; height: 28px; font-size: 15px; }
-    .num-item h3 { font-size: 14px; }
-    .num-item p { font-size: 12px; }
+        .num-circle {
+          width: 28px;
+          height: 28px;
+          font-size: 15px;
+        }
+        .num-item h3 {
+          font-size: 14px;
+        }
+        .num-item p {
+          font-size: 12px;
+        }
 
-    pre { font-size: 11px; padding: 10px 12px; }
-  }
+        pre {
+          font-size: 11px;
+          padding: 10px 12px;
+        }
+      }
 
-  /* Small phone: 400px */
-  @media (max-width: 400px) {
-    .hero-zoo .glowing-txt { font-size: 1.45em; }
-    .sec { padding: 24px 14px; }
-    .stat-row { grid-template-columns: 1fr; gap: 10px; }
-    .hero-dl-btn { min-width: 120px; font-size: 13px; padding: 8px 14px; }
-  }
+      /* Small phone: 400px */
+      @media (max-width: 400px) {
+        .hero-zoo .glowing-txt {
+          font-size: 1.45em;
+        }
+        .sec {
+          padding: 24px 14px;
+        }
+        .stat-row {
+          grid-template-columns: 1fr;
+          gap: 10px;
+        }
+        .hero-dl-btn {
+          min-width: 120px;
+          font-size: 13px;
+          padding: 8px 14px;
+        }
+      }
 
-  /* Short viewport */
-  @media (max-height: 700px) {
-    .sec { padding-top: clamp(16px, 3vh, 32px); padding-bottom: clamp(16px, 3vh, 32px); }
-    .stat-num { font-size: clamp(26px, 5vw, 38px); }
-    .arch-diagram svg { max-height: 150px; }
-    .eyebrow { margin-bottom: 4px; }
-    h2 { margin-bottom: 6px; }
-  }
+      /* Short viewport */
+      @media (max-height: 700px) {
+        .sec {
+          padding-top: clamp(16px, 3vh, 32px);
+          padding-bottom: clamp(16px, 3vh, 32px);
+        }
+        .stat-num {
+          font-size: clamp(26px, 5vw, 38px);
+        }
+        .arch-diagram svg {
+          max-height: 150px;
+        }
+        .eyebrow {
+          margin-bottom: 4px;
+        }
+        h2 {
+          margin-bottom: 6px;
+        }
+      }
 
-  /* ── Tabs ── */
-  .tab-bar { display: flex; gap: 4px; margin-bottom: 28px; border-bottom: 1px solid var(--g200); padding-bottom: 0; }
-  .dark .tab-bar { border-color: var(--d-border); }
-  .tab-btn {
-    font-family: var(--mono);
-    font-size: 12px;
-    padding: 9px 16px;
-    border: none;
-    background: none;
-    color: var(--g500);
-    cursor: pointer;
-    border-radius: 8px 8px 0 0;
-    transition: all 140ms;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-  }
-  .tab-btn:hover { color: var(--ink); }
-  .dark .tab-btn:hover { color: #E8E5DE; }
-  .tab-btn.active { color: var(--copper); border-bottom-color: var(--copper); }
-  .tab-panel { display: none; }
-  .tab-panel.active { display: block; }
+      /* ── Tabs ── */
+      .tab-bar {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 28px;
+        border-bottom: 1px solid var(--g200);
+        padding-bottom: 0;
+      }
+      .dark .tab-bar {
+        border-color: var(--d-border);
+      }
+      .tab-btn {
+        font-family: var(--mono);
+        font-size: 12px;
+        padding: 9px 16px;
+        border: none;
+        background: none;
+        color: var(--g500);
+        cursor: pointer;
+        border-radius: 8px 8px 0 0;
+        transition: all 140ms;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+      }
+      .tab-btn:hover {
+        color: var(--ink);
+      }
+      .dark .tab-btn:hover {
+        color: #e8e5de;
+      }
+      .tab-btn.active {
+        color: var(--copper);
+        border-bottom-color: var(--copper);
+      }
+      .tab-panel {
+        display: none;
+      }
+      .tab-panel.active {
+        display: block;
+      }
 
-  /* ── Deps pills (interactive) ── */
-  .dep-group { margin-bottom: 18px; }
-  .dep-group .dep-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--g500); margin-bottom: 8px; }
-  .dark .dep-group .dep-label { color: var(--d-muted); }
-  .dep-pills { display: flex; flex-wrap: wrap; gap: 6px; }
-  .dep-pill {
-    font-family: var(--mono);
-    font-size: 11px;
-    padding: 5px 11px;
-    border-radius: 6px;
-    border: 1px solid var(--g300);
-    background: var(--surface);
-    color: var(--g700);
-    cursor: default;
-    position: relative;
-    transition: all 120ms;
-    text-decoration: none;
-  }
-  .dep-pill:hover { border-color: var(--copper); color: var(--copper); transform: translateY(-1px); }
-  .dep-pill .ver { font-size: 9px; color: var(--g500); margin-left: 4px; }
-  .dark .dep-pill { background: var(--dark-sur); border-color: var(--d-border); color: #D4D1C8; }
-  .dark .dep-pill:hover { border-color: var(--copper); color: var(--copper); }
+      /* ── Deps pills (interactive) ── */
+      .dep-group {
+        margin-bottom: 18px;
+      }
+      .dep-group .dep-label {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--g500);
+        margin-bottom: 8px;
+      }
+      .dark .dep-group .dep-label {
+        color: var(--d-muted);
+      }
+      .dep-pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .dep-pill {
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 5px 11px;
+        border-radius: 6px;
+        border: 1px solid var(--g300);
+        background: var(--surface);
+        color: var(--g700);
+        cursor: default;
+        position: relative;
+        transition: all 120ms;
+        text-decoration: none;
+      }
+      .dep-pill:hover {
+        border-color: var(--copper);
+        color: var(--copper);
+        transform: translateY(-1px);
+      }
+      .dep-pill .ver {
+        font-size: 9px;
+        color: var(--g500);
+        margin-left: 4px;
+      }
+      .dark .dep-pill {
+        background: var(--dark-sur);
+        border-color: var(--d-border);
+        color: #d4d1c8;
+      }
+      .dark .dep-pill:hover {
+        border-color: var(--copper);
+        color: var(--copper);
+      }
 
-  /* ── Command accordion ── */
-  .cmd-group { margin-bottom: 12px; }
-  .cmd-group summary {
-    list-style: none;
-    cursor: pointer;
-    font-family: var(--serif);
-    font-size: 15px;
-    padding: 12px 0;
-    border-bottom: 1px solid var(--g200);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .cmd-group summary::-webkit-details-marker { display: none; }
-  .cmd-group summary::before {
-    content: "▸";
-    color: var(--copper);
-    font-family: var(--sans);
-    font-size: 10px;
-    transition: transform 140ms;
-  }
-  .cmd-group[open] summary::before { transform: rotate(90deg); }
-  .cmd-group .cmd-count {
-    font-family: var(--mono);
-    font-size: 10px;
-    color: var(--g500);
-    margin-left: auto;
-    background: var(--g100);
-    padding: 2px 7px;
-    border-radius: 10px;
-  }
-  .dark .cmd-group summary { border-color: var(--d-border); }
-  .dark .cmd-group .cmd-count { background: var(--dark-sur); color: var(--d-muted); }
-  .cmd-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 10px 0 10px 18px; }
-  .cmd-item { font-family: var(--mono); font-size: 12px; color: var(--g700); padding: 4px 0; }
-  .dark .cmd-item { color: #C8C5BD; }
+      /* ── Command accordion ── */
+      .cmd-group {
+        margin-bottom: 12px;
+      }
+      .cmd-group summary {
+        list-style: none;
+        cursor: pointer;
+        font-family: var(--serif);
+        font-size: 15px;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--g200);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .cmd-group summary::-webkit-details-marker {
+        display: none;
+      }
+      .cmd-group summary::before {
+        content: "▸";
+        color: var(--copper);
+        font-family: var(--sans);
+        font-size: 10px;
+        transition: transform 140ms;
+      }
+      .cmd-group[open] summary::before {
+        transform: rotate(90deg);
+      }
+      .cmd-group .cmd-count {
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--g500);
+        margin-left: auto;
+        background: var(--g100);
+        padding: 2px 7px;
+        border-radius: 10px;
+      }
+      .dark .cmd-group summary {
+        border-color: var(--d-border);
+      }
+      .dark .cmd-group .cmd-count {
+        background: var(--dark-sur);
+        color: var(--d-muted);
+      }
+      .cmd-list {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        padding: 10px 0 10px 18px;
+      }
+      .cmd-item {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--g700);
+        padding: 4px 0;
+      }
+      .dark .cmd-item {
+        color: #c8c5bd;
+      }
 
-  /* ── Counter animation ── */
-  .count-up { font-variant-numeric: tabular-nums; }
+      /* ── Counter animation ── */
+      .count-up {
+        font-variant-numeric: tabular-nums;
+      }
 
-  /* ── Print ── */
-  @media print {
-    .sec.dark { background: #fff; color: #000; }
-    .hero-zoo { background: #fff; color: #000; }
-    .hero-report { background: #fff; color: #000; }
-    .card:hover { transform: none; box-shadow: none; }
-  }
-</style>
-</head>
-<body>
+      /* ── Top Nav ── */
+      .top-nav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 500;
+        background: rgba(18, 18, 24, 0.82);
+        backdrop-filter: saturate(1.4) blur(12px);
+        -webkit-backdrop-filter: saturate(1.4) blur(12px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        padding: 0 28px;
+      }
+      .top-nav-inner {
+        max-width: 1100px;
+        margin: 0 auto;
+        height: 60px;
+        display: flex;
+        align-items: center;
+        gap: 0;
+      }
+      .top-nav-brand {
+        font-family: "Geist Mono", "Geist Sans", ui-monospace, monospace;
+        font-size: 15px;
+        font-weight: 600;
+        color: #ffffff;
+        text-decoration: none;
+        letter-spacing: -0.01em;
+        margin-right: 36px;
+        flex-shrink: 0;
+      }
+      .top-nav-brand .brand-caret {
+        color: var(--glow);
+      }
+      .top-nav-gh {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12.5px;
+        font-weight: 400;
+        font-family: var(--sans);
+        color: rgba(255, 255, 255, 0.5);
+        text-decoration: none;
+        padding: 6px 10px;
+        border-radius: 6px;
+        transition:
+          color 0.15s,
+          background 0.15s;
+        margin-left: 12px;
+      }
+      .top-nav-gh svg {
+        width: 15px;
+        height: 15px;
+        flex-shrink: 0;
+      }
+      .top-nav-gh:hover {
+        color: rgba(255, 255, 255, 0.88);
+        background: rgba(255, 255, 255, 0.06);
+      }
+      .top-nav-dl {
+        margin-left: auto;
+        flex-shrink: 0;
+        padding: 0 18px;
+        height: 34px;
+        border-radius: 0;
+        border: 1px solid rgba(255, 255, 255, 0.9);
+        font-size: 12px;
+        font-weight: 500;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        font-family: "Geist Mono", "Geist Sans", ui-monospace, monospace;
+        background: #ffffff;
+        color: #12121a;
+        cursor: pointer;
+        transition:
+          background 0.15s,
+          border-color 0.15s,
+          color 0.15s;
+      }
+      .top-nav-dl:hover {
+        background: rgba(255, 255, 255, 0.88);
+        border-color: rgba(255, 255, 255, 0.88);
+      }
+      .top-nav-dl:active {
+        transform: translateY(1px);
+      }
+      /* Hamburger */
+      .top-nav-toggle {
+        display: none;
+        flex-direction: column;
+        gap: 4.5px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 4px;
+        margin-left: auto;
+      }
+      .top-nav-toggle span {
+        display: block;
+        width: 20px;
+        height: 1.5px;
+        background: rgba(255, 255, 255, 0.65);
+        border-radius: 1px;
+        transition: all 0.2s;
+      }
+      .top-nav-toggle[aria-expanded="true"] span:nth-child(1) {
+        transform: translateY(6px) rotate(45deg);
+      }
+      .top-nav-toggle[aria-expanded="true"] span:nth-child(2) {
+        opacity: 0;
+      }
+      .top-nav-toggle[aria-expanded="true"] span:nth-child(3) {
+        transform: translateY(-6px) rotate(-45deg);
+      }
+      /* Mobile drawer */
+      .nav-drawer {
+        position: fixed;
+        top: 60px;
+        left: 0;
+        right: 0;
+        z-index: 499;
+        background: rgba(18, 18, 24, 0.97);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        padding: 8px 16px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        animation: slideDown 0.18s ease;
+      }
+      .nav-drawer[hidden] {
+        display: none;
+      }
+      @keyframes slideDown {
+        from {
+          opacity: 0;
+          transform: translateY(-8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .nav-drawer a {
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.65);
+        text-decoration: none;
+        padding: 10px 12px;
+        border-radius: 6px;
+        transition: all 0.15s;
+      }
+      .nav-drawer a:hover {
+        color: rgba(255, 255, 255, 0.92);
+        background: rgba(255, 255, 255, 0.06);
+      }
+        @media (max-width: 768px) {
+        .top-nav-gh {
+          display: none;
+        }
+        .top-nav-dl {
+          display: none;
+        }
+        .top-nav-toggle {
+          display: flex;
+        }
+      }
 
-<!-- ═══════════ HERO ═══════════ -->
-<section class="hero-zoo" id="hero-zoo">
-  <div class="hero-grid"></div>
-  <div class="hero-grain"></div>
-  <div class="hero-entrance">
-    <h1 class="glowing-txt">SK<span class="faulty-letter">I</span>LL ZOO</h1>
-  </div>
-  <p class="hero-subtitle hero-entrance hero-sub" data-i18n="hero-subtitle">为 AI 编程助手打造的 Skill 桌面管理工具</p>
-  <a href="#arch" class="scroll-hint">
-    <span data-i18n="scroll">Scroll</span>
-    <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12l7 7 7-7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  </a>
-</section>
+      /* ── Print ── */
+      /* ── Install Modal ── */
+      .modal-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        background: rgba(0, 0, 0, 0.45);
+        backdrop-filter: blur(8px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        animation: fadeIn 0.18s ease;
+      }
+      .modal-overlay[hidden] {
+        display: none;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      .modal-card {
+        background: var(--surface);
+        border: 1px solid var(--g200);
+        border-radius: 20px;
+        padding: 32px;
+        max-width: 520px;
+        width: 100%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow:
+          0 4px 24px rgba(0, 0, 0, 0.12),
+          0 0 0 1px rgba(0, 0, 0, 0.04);
+        animation: slideUp 0.22s ease;
+        position: relative;
+      }
+      @keyframes slideUp {
+        from {
+          opacity: 0;
+          transform: translateY(12px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .dark .modal-card {
+        background: var(--dark-sur);
+        border-color: var(--d-border);
+      }
+      .modal-close {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+        border: none;
+        background: var(--g100);
+        font-size: 18px;
+        color: var(--g500);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.15s;
+      }
+      .modal-close:hover {
+        background: var(--g200);
+        color: var(--ink);
+      }
+      .dark .modal-close {
+        background: var(--d-border);
+        color: var(--d-muted);
+      }
+      .dark .modal-close:hover {
+        color: #e8e6dd;
+      }
+      .modal-title {
+        font-family: var(--serif);
+        font-size: 20px;
+        font-weight: 600;
+        margin: 0 0 20px;
+        padding-right: 40px;
+      }
+      /* OS tabs */
+      .modal-os-tabs {
+        display: flex;
+        gap: 0;
+        margin-bottom: 20px;
+      }
+      .modal-os-tab {
+        flex: 1;
+        padding: 8px 0;
+        font-size: 13px;
+        font-weight: 500;
+        border: none;
+        border-bottom: 2px solid var(--g200);
+        background: none;
+        color: var(--g500);
+        cursor: pointer;
+        transition: all 0.15s;
+        font-family: var(--sans);
+      }
+      .modal-os-tab.active {
+        border-color: var(--copper);
+        color: var(--ink);
+      }
+      .dark .modal-os-tab {
+        border-color: var(--d-border);
+        color: var(--d-muted);
+      }
+      .dark .modal-os-tab.active {
+        border-color: var(--copper);
+        color: #e8e6dd;
+      }
+      /* Download link row */
+      .modal-dl-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 16px;
+        background: var(--g100);
+        border-radius: 12px;
+        margin-bottom: 20px;
+        font-size: 13px;
+      }
+      .dark .modal-dl-row {
+        background: rgba(255, 255, 255, 0.04);
+      }
+      .modal-dl-link {
+        font-weight: 600;
+        color: var(--copper);
+        text-decoration: none;
+        font-family: var(--mono);
+        font-size: 12px;
+        word-break: break-all;
+      }
+      .modal-dl-link:hover {
+        text-decoration: underline;
+      }
+      .modal-dl-file {
+        color: var(--g500);
+        font-size: 11px;
+      }
+      .modal-dl-retry {
+        color: var(--g500);
+        font-size: 12px;
+      }
+      /* Install steps */
+      .modal-steps {
+        margin-bottom: 20px;
+      }
+      .modal-step {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 14px;
+        font-size: 13px;
+        line-height: 1.55;
+      }
+      .modal-step-num {
+        width: 24px;
+        height: 24px;
+        border-radius: 12px;
+        background: var(--copper);
+        color: #fff;
+        font-size: 11px;
+        font-weight: 600;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .modal-step p {
+        margin: 0;
+      }
+      .modal-step code {
+        font-family: var(--mono);
+        font-size: 11px;
+        background: var(--g100);
+        padding: 1px 5px;
+        border-radius: 4px;
+      }
+      .dark .modal-step code {
+        background: rgba(255, 255, 255, 0.06);
+      }
+      /* Alternative section */
+      .modal-alt {
+        padding: 16px;
+        background: var(--g100);
+        border-radius: 12px;
+        margin-bottom: 16px;
+        font-size: 13px;
+      }
+      .dark .modal-alt {
+        background: rgba(255, 255, 255, 0.04);
+      }
+      .modal-alt h4 {
+        font-size: 12px;
+        font-weight: 600;
+        margin: 0 0 8px;
+        color: var(--g700);
+      }
+      .dark .modal-alt h4 {
+        color: var(--d-muted);
+      }
+      .modal-alt pre {
+        margin: 0;
+        padding: 10px 12px;
+        background: var(--surface);
+        border-radius: 8px;
+        font-size: 11px;
+        font-family: var(--mono);
+        overflow-x: auto;
+        border: 1px solid var(--g200);
+      }
+      .dark .modal-alt pre {
+        background: var(--dark-sur);
+        border-color: var(--d-border);
+      }
+      .modal-footer {
+        text-align: center;
+        font-size: 12px;
+      }
+      .modal-footer a {
+        color: var(--g500);
+      }
+      .modal-footer a:hover {
+        color: var(--ink);
+      }
+      .dark .modal-footer a:hover {
+        color: #e8e6dd;
+      }
+      /* Platform badge on download button */
+      .dl-platform {
+        font-size: 10px;
+        font-weight: 400;
+        opacity: 0.7;
+        margin-left: 6px;
+      }
+      .hero-dl-btn.download-trigger {
+        cursor: pointer;
+        border: none;
+        font-family: inherit;
+      }
 
-<!-- ═══════════ ARCHITECTURE ═══════════ -->
-<section class="sec" id="arch">
-  <div class="sec-inner">
-    <div class="eyebrow" data-i18n="arch-eyebrow">架构</div>
-    <h2 data-i18n="arch-title">技术架构</h2>
-    <p class="lead" data-i18n="arch-lead">三层结构：React 前端通过 Tauri IPC 与 Rust 后端通信。前端零文件系统、零网络访问，所有交互走类型化 Rust 命令；后端管理文件系统与外部服务。</p>
+      @media print {
+        .sec.dark {
+          background: #fff;
+          color: #000;
+        }
+        .hero-zoo {
+          background: #fff;
+          color: #000;
+        }
+        .hero-report {
+          background: #fff;
+          color: #000;
+        }
+        .card:hover {
+          transform: none;
+          box-shadow: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ═══════════ TOP NAV ═══════════ -->
+    <nav class="top-nav" id="top-nav">
+      <div class="top-nav-inner">
+        <a href="#" class="top-nav-brand"
+          >Skill Zoo<span class="brand-caret">_</span></a
+        >
+        <button
+          class="top-nav-dl"
+          id="nav-dl-btn"
+          data-i18n-header="nav-download"
+        >
+          DOWNLOAD
+        </button>
+        <a
+          href="https://github.com/luochang212/skill-zoo"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="top-nav-gh"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"
+            />
+          </svg>
+          GitHub
+        </a>
+        <button
+          class="top-nav-toggle"
+          id="nav-toggle"
+          aria-label="Menu"
+          aria-expanded="false"
+        >
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+      <!-- Mobile drawer -->
+      <div class="nav-drawer" id="nav-drawer" hidden>
+        <a
+          href="https://github.com/luochang212/skill-zoo"
+          target="_blank"
+          rel="noopener noreferrer"
+          >GitHub</a
+        >
+      </div>
+    </nav>
 
-    <div class="stat-row">
-      <div><div class="stat-num">33</div><div class="stat-label" data-i18n="stat-commands">Tauri IPC 命令</div></div>
-      <div><div class="stat-num">2</div><div class="stat-label" data-i18n="stat-langs">平台语言 (TS + Rust)</div></div>
-      <div><div class="stat-num">8</div><div class="stat-label" data-i18n="stat-agents">Agent 类型支持</div></div>
-      <div><div class="stat-num">0</div><div class="stat-label" data-i18n="stat-shell">外部 shell 依赖</div></div>
-    </div>
+    <!-- ═══════════ HERO ═══════════ -->
+    <section class="hero-zoo" id="hero-zoo">
+      <div class="hero-grid"></div>
+      <div class="hero-grain"></div>
+      <div class="hero-entrance">
+        <h1 class="glowing-txt">
+          SK<span class="faulty-letter">I</span>LL ZOO
+        </h1>
+      </div>
+      <p class="hero-subtitle hero-entrance hero-sub" data-i18n="hero-subtitle">
+        为 AI 编程助手打造的 Skill 桌面管理工具
+      </p>
+      <a href="#report" class="scroll-hint">
+        <span data-i18n="scroll">Scroll</span>
+        <svg viewBox="0 0 24 24">
+          <path
+            d="M12 5v14M5 12l7 7 7-7"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </a>
+    </section>
 
-    <div class="arch-diagram">
-      <svg viewBox="0 0 860 320" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="30" y="20" width="230" height="280" rx="14" fill="#fff" stroke="#E2E0D9" stroke-width="1.5"/>
-        <text x="145" y="56" text-anchor="middle" font-family="ui-serif,Georgia,serif" font-size="16" font-weight="500" fill="#121215">Frontend</text>
-        <text x="145" y="80" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10" fill="#7B7972">React 19 · TypeScript</text>
-
-        <rect x="50" y="100" width="190" height="32" rx="8" fill="#EDEBE5" stroke="#E2E0D9" stroke-width="0.8"/>
-        <text x="145" y="121" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10" fill="#3D3C38">TanStack Query</text>
-        <rect x="50" y="140" width="190" height="32" rx="8" fill="#EDEBE5" stroke="#E2E0D9" stroke-width="0.8"/>
-        <text x="145" y="161" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10" fill="#3D3C38">shadcn/ui + Tailwind</text>
-        <rect x="50" y="180" width="190" height="32" rx="8" fill="#EDEBE5" stroke="#E2E0D9" stroke-width="0.8"/>
-        <text x="145" y="201" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10" fill="#3D3C38">i18next · Framer Motion</text>
-
-        <text x="145" y="242" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9.5" fill="#7B7972">UI state → useState</text>
-        <text x="145" y="259" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9.5" fill="#7B7972">Server state → React Query</text>
-
-        <rect x="316" y="100" width="228" height="120" rx="14" fill="rgba(197,102,59,0.04)" stroke="#C5663B" stroke-width="1.5" stroke-dasharray="6 4"/>
-        <text x="430" y="136" text-anchor="middle" font-family="ui-serif,Georgia,serif" font-size="16" font-weight="500" fill="#C5663B">Tauri IPC</text>
-        <text x="430" y="159" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10" fill="#C5663B" opacity="0.7">类型化 Rust 命令</text>
-        <text x="430" y="180" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9.5" fill="#C5663B" opacity="0.5">安全边界</text>
-        <text x="430" y="198" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9.5" fill="#C5663B" opacity="0.5">前端零文件系统/网络访问</text>
-
-        <line x1="260" y1="160" x2="316" y2="160" stroke="#C5663B" stroke-width="1.2" marker-end="url(#arr1)"/>
-        <line x1="544" y1="160" x2="600" y2="160" stroke="#C5663B" stroke-width="1.2" marker-end="url(#arr2)"/>
-
-        <rect x="600" y="20" width="230" height="280" rx="14" fill="#fff" stroke="#E2E0D9" stroke-width="1.5"/>
-        <text x="715" y="56" text-anchor="middle" font-family="ui-serif,Georgia,serif" font-size="16" font-weight="500" fill="#121215">Backend</text>
-        <text x="715" y="80" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10" fill="#7B7972">Tauri v2 · Rust</text>
-
-        <rect x="620" y="100" width="190" height="32" rx="8" fill="#EDEBE5" stroke="#E2E0D9" stroke-width="0.8"/>
-        <text x="715" y="121" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10" fill="#3D3C38">CliService</text>
-        <rect x="620" y="140" width="190" height="32" rx="8" fill="#EDEBE5" stroke="#E2E0D9" stroke-width="0.8"/>
-        <text x="715" y="161" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10" fill="#3D3C38">Consistency Checker</text>
-
-        <rect x="620" y="180" width="90" height="36" rx="8" fill="#EDEBE5" stroke="#CECBC2" stroke-width="0.8"/>
-        <text x="665" y="203" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9.5" fill="#7B7972">GitHub API</text>
-        <rect x="720" y="180" width="90" height="36" rx="8" fill="#EDEBE5" stroke="#CECBC2" stroke-width="0.8"/>
-        <text x="765" y="203" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9.5" fill="#7B7972">skills.sh API</text>
-
-        <text x="715" y="246" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9.5" fill="#7B7972">notify crate · Symlink</text>
-        <text x="715" y="264" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9.5" fill="#7B7972">SHA-256 · AtomicBool · RwLock</text>
-
-        <defs>
-          <marker id="arr1" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
-            <path d="M0,0 L8,4 L0,8 L2,4 Z" fill="#C5663B"/>
-          </marker>
-          <marker id="arr2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
-            <path d="M0,0 L8,4 L0,8 L2,4 Z" fill="#C5663B"/>
-          </marker>
-        </defs>
-      </svg>
-    </div>
-  </div>
-</section>
-
-<!-- ═══════════ FEATURES ═══════════ -->
-<section class="sec dark" id="features">
-  <div class="sec-inner">
-    <div class="eyebrow" data-i18n="feat-eyebrow">功能</div>
-    <h2 data-i18n="feat-title">功能体系</h2>
-    <p class="lead" style="max-width:760px" data-i18n="feat-lead">覆盖 Skill 的完整生命周期，从发现、安装到编辑、维护。6 大功能模块提供完整管理体验。</p>
-
-    <div class="card-grid">
-      <div class="card dark-card"><div class="icon" style="background:rgba(197,102,59,.12);color:#C5663B;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg></div><h3 data-i18n="feat-discover">发现与浏览</h3><p data-i18n="feat-discover-d">3D 透视卡片轮播展示精选仓库，自动播放，悬停暂停。最近访问记录与推荐仓库列表，多个入口帮你发现感兴趣的 Skill。</p></div>
-      <div class="card dark-card"><div class="icon" style="background:rgba(74,124,150,.12);color:#4A7C96;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div><h3 data-i18n="feat-install">仓库详情与安装</h3><p data-i18n="feat-install-d">支持批量勾选安装，右侧滑出预览面板即时查看 SKILL.md。支持强制刷新下载，ZIP 缓存 24 小时 TTL。</p></div>
-      <div class="card dark-card"><div class="icon" style="background:rgba(107,139,93,.12);color:#6B8B5D;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 6a2 2 0 012-2h5l2 2h9a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg></div><h3 data-i18n="feat-local">本地 Skill 管理</h3><p data-i18n="feat-local-d">侧边栏分类（收藏/我的/仓库分组），网格与列表双视图，支持按名称、仓库、更新时间排序及关键字搜索。</p></div>
-      <div class="card dark-card"><div class="icon" style="background:rgba(197,102,59,.12);color:#C5663B;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M17 3a2.8 2.8 0 014 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></div><h3 data-i18n="feat-editor">Skill 编辑器</h3><p data-i18n="feat-editor-d">四标签页：Markdown 渲染、文本编辑、可拖拽分屏、文件树浏览。YAML frontmatter 自动解析为信息表格，内含安全审计面板。</p></div>
-      <div class="card dark-card"><div class="icon" style="background:rgba(74,124,150,.12);color:#4A7C96;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></div><h3 data-i18n="feat-create">Skill 创建</h3><p data-i18n="feat-create-d">从零创建新 Skill，分屏实时预览编辑效果。自动写入 SSOT 目录并为选中 Agent 创建符号链接。</p></div>
-      <div class="card dark-card"><div class="icon" style="background:rgba(74,124,150,.12);color:#4A7C96;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v3m0 16v3M4.2 4.2l2.1 2.1m11.4 11.4l2.1 2.1M1 12h3m16 0h3M4.2 19.8l2.1-2.1m11.4-11.4l2.1-2.1"/></svg></div><h3 data-i18n="feat-settings">全局设置</h3><p data-i18n="feat-settings-d">主题切换、语言运行时切换、Agent 路径可见性管理，以及 Skill 批量更新与重新扫描，所有配置集中管理。</p></div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══════════ DESIGN DECISIONS ═══════════ -->
-<section class="sec">
-  <div class="sec-inner">
-    <div class="eyebrow" data-i18n="design-eyebrow">设计哲学</div>
-    <h2 data-i18n="design-title">核心产品设计决策</h2>
-    <p class="lead" data-i18n="design-lead">三项核心原则定义了 Skill Zoo 的架构方向与实现边界。</p>
-
-    <div class="num-list">
-      <div class="num-item">
-        <div class="num-circle">1</div>
-        <div>
-          <h3 data-i18n="d1-title">文件系统是唯一的真实来源</h3>
-          <p data-i18n="d1-desc">缓存从文件系统重建，而非反过来。用户拖入文件夹即发现，<code style="font-family:var(--mono);font-size:13px;">rm</code> 即感知。<code>notify</code> crate 实时监听变化，1.5 秒防抖后自动重建缓存并推送事件至前端。</p>
-          <div style="margin-top:8px;"><span class="tag">notify crate</span> <span class="tag green">SHA-256 哈希缓存</span> <span class="tag">skills-changed 事件</span></div>
+    <!-- ═══════════ PRODUCT OVERVIEW ═══════════ -->
+    <header class="hero-report" id="report">
+      <div class="hero-report-inner">
+        <div class="hero-report-grid">
+          <div>
+            <div class="eyebrow" data-i18n="overview-eyebrow">
+              产品概览 · 2026
+            </div>
+            <h1><em>Skill Zoo</em></h1>
+            <p class="lead" data-i18n="overview-lead">
+              为 AI 编程助手打造的 Skill
+              桌面管理工具，覆盖发现、安装、编辑到维护的完整工作流。基于 Tauri
+              v2 构建，轻量、离线、安全。
+            </p>
+            <div class="hero-dl">
+              <button
+                class="hero-dl-btn download-trigger"
+                id="dl-btn"
+                title="Download Skill Zoo"
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                <span class="hero-dl-name" data-i18n="dl-download">下载</span>
+                <span class="dl-platform" id="dl-platform"></span>
+              </button>
+              <a
+                class="hero-dl-btn"
+                href="https://github.com/luochang212/skill-zoo"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"
+                  />
+                </svg>
+                <span class="hero-dl-name" data-i18n="dl-source">查看源码</span>
+              </a>
+            </div>
+          </div>
+          <div class="hero-report-fig">
+            <div class="carousel-wrapper" id="carousel-wrapper">
+              <div class="carousel" id="carousel"></div>
+            </div>
+            <div class="carousel-dots" id="carousel-dots"></div>
+          </div>
         </div>
       </div>
-      <div class="num-item">
-        <div class="num-circle">2</div>
-        <div>
-          <h3 data-i18n="d2-title">SSOT + 符号链接架构</h3>
-          <p data-i18n="d2-desc"><code>~/.agents/skills/</code> 为规范存储。Agent 目录仅含符号链接，永不存放副本。远程安装复制至 SSOT 后链接；用户本地 Skill 保留原位不动，防止副本漂移。</p>
-          <div style="margin-top:8px;"><span class="tag">detect_home_path</span> <span class="tag green">seen_ids 去重</span> <span class="tag">symlink / junction</span></div>
+    </header>
+
+    <!-- ═══════════ ARCHITECTURE ═══════════ -->
+    <section class="sec" id="arch">
+      <div class="sec-inner">
+        <div class="eyebrow" data-i18n="arch-eyebrow">架构</div>
+        <h2 data-i18n="arch-title">技术架构</h2>
+        <p class="lead" data-i18n="arch-lead">
+          三层结构：React 前端通过 Tauri IPC 与 Rust
+          后端通信。前端零文件系统、零网络访问，所有交互走类型化 Rust
+          命令；后端管理文件系统与外部服务。
+        </p>
+
+        <div class="stat-row">
+          <div>
+            <div class="stat-num">33</div>
+            <div class="stat-label" data-i18n="stat-commands">
+              Tauri IPC 命令
+            </div>
+          </div>
+          <div>
+            <div class="stat-num">2</div>
+            <div class="stat-label" data-i18n="stat-langs">
+              平台语言 (TS + Rust)
+            </div>
+          </div>
+          <div>
+            <div class="stat-num">8</div>
+            <div class="stat-label" data-i18n="stat-agents">Agent 类型支持</div>
+          </div>
+          <div>
+            <div class="stat-num">0</div>
+            <div class="stat-label" data-i18n="stat-shell">外部 shell 依赖</div>
+          </div>
+        </div>
+
+        <div class="arch-diagram">
+          <svg
+            viewBox="0 0 860 320"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <rect
+              x="30"
+              y="20"
+              width="230"
+              height="280"
+              rx="14"
+              fill="#fff"
+              stroke="#E2E0D9"
+              stroke-width="1.5"
+            />
+            <text
+              x="145"
+              y="56"
+              text-anchor="middle"
+              font-family="ui-serif,Georgia,serif"
+              font-size="16"
+              font-weight="500"
+              fill="#121215"
+            >
+              Frontend
+            </text>
+            <text
+              x="145"
+              y="80"
+              text-anchor="middle"
+              font-family="ui-monospace,monospace"
+              font-size="10"
+              fill="#7B7972"
+            >
+              React 19 · TypeScript
+            </text>
+
+            <rect
+              x="50"
+              y="100"
+              width="190"
+              height="32"
+              rx="8"
+              fill="#EDEBE5"
+              stroke="#E2E0D9"
+              stroke-width="0.8"
+            />
+            <text
+              x="145"
+              y="121"
+              text-anchor="middle"
+              font-family="ui-monospace,monospace"
+              font-size="10"
+              fill="#3D3C38"
+            >
+              TanStack Query
+            </text>
+            <rect
+              x="50"
+              y="140"
+              width="190"
+              height="32"
+              rx="8"
+              fill="#EDEBE5"
+              stroke="#E2E0D9"
+              stroke-width="0.8"
+            />
+            <text
+              x="145"
+              y="161"
+              text-anchor="middle"
+              font-family="ui-monospace,monospace"
+              font-size="10"
+              fill="#3D3C38"
+            >
+              shadcn/ui + Tailwind
+            </text>
+            <rect
+              x="50"
+              y="180"
+              width="190"
+              height="32"
+              rx="8"
+              fill="#EDEBE5"
+              stroke="#E2E0D9"
+              stroke-width="0.8"
+            />
+            <text
+              x="145"
+              y="201"
+              text-anchor="middle"
+              font-family="ui-monospace,monospace"
+              font-size="10"
+              fill="#3D3C38"
+            >
+              i18next · Framer Motion
+            </text>
+
+            <text
+              x="145"
+              y="242"
+              text-anchor="middle"
+              font-family="ui-monospace,monospace"
+              font-size="9.5"
+              fill="#7B7972"
+            >
+              UI state → useState
+            </text>
+            <text
+              x="145"
+              y="259"
+              text-anchor="middle"
+              font-family="ui-monospace,monospace"
+              font-size="9.5"
+              fill="#7B7972"
+            >
+              Server state → React Query
+            </text>
+
+            <rect
+              x="316"
+              y="100"
+              width="228"
+              height="120"
+              rx="14"
+              fill="rgba(197,102,59,0.04)"
+              stroke="#C5663B"
+              stroke-width="1.5"
+              stroke-dasharray="6 4"
+            />
+            <text
+              x="430"
+              y="136"
+              text-anchor="middle"
+              font-family="ui-serif,Georgia,serif"
+              font-size="16"
+              font-weight="500"
+              fill="#C5663B"
+            >
+              Tauri IPC
+            </text>
+            <text
+              x="430"
+              y="159"
+              text-anchor="middle"
+              font-family="ui-monospace,monospace"
+              font-size="10"
+              fill="#C5663B"
+              opacity="0.7"
+            >
+              类型化 Rust 命令
+            </text>
+            <text
+              x="430"
+              y="180"
+              text-anchor="middle"
+              font-family="ui-monospace,monospace"
+              font-size="9.5"
+              fill="#C5663B"
+              opacity="0.5"
+            >
+              安全边界
+            </text>
+            <text
+              x="430"
+              y="198"
+              text-anchor="middle"
+              font-family="ui-monospace,monospace"
+              font-size="9.5"
+              fill="#C5663B"
+              opacity="0.5"
+            >
+              前端零文件系统/网络访问
+            </text>
+
+            <line
+              x1="260"
+              y1="160"
+              x2="316"
+              y2="160"
+              stroke="#C5663B"
+              stroke-width="1.2"
+              marker-end="url(#arr1)"
+            />
+            <line
+              x1="544"
+              y1="160"
+              x2="600"
+              y2="160"
+              stroke="#C5663B"
+              stroke-width="1.2"
+              marker-end="url(#arr2)"
+            />
+
+            <rect
+              x="600"
+              y="20"
+              width="230"
+              height="280"
+              rx="14"
+              fill="#fff"
+              stroke="#E2E0D9"
+              stroke-width="1.5"
+            />
+            <text
+              x="715"
+              y="56"
+              text-anchor="middle"
+              font-family="ui-serif,Georgia,serif"
+              font-size="16"
+              font-weight="500"
+              fill="#121215"
+            >
+              Backend
+            </text>
+            <text
+              x="715"
+              y="80"
+              text-anchor="middle"
+              font-family="ui-monospace,monospace"
+              font-size="10"
+              fill="#7B7972"
+            >
+              Tauri v2 · Rust
+            </text>
+
+            <rect
+              x="620"
+              y="100"
+              width="190"
+              height="32"
+              rx="8"
+              fill="#EDEBE5"
+              stroke="#E2E0D9"
+              stroke-width="0.8"
+            />
+            <text
+              x="715"
+              y="121"
+              text-anchor="middle"
+              font-family="ui-monospace,monospace"
+              font-size="10"
+              fill="#3D3C38"
+            >
+              CliService
+            </text>
+            <rect
+              x="620"
+              y="140"
+              width="190"
+              height="32"
+              rx="8"
+              fill="#EDEBE5"
+              stroke="#E2E0D9"
+              stroke-width="0.8"
+            />
+            <text
+              x="715"
+              y="161"
+              text-anchor="middle"
+              font-family="ui-monospace,monospace"
+              font-size="10"
+              fill="#3D3C38"
+            >
+              Consistency Checker
+            </text>
+
+            <rect
+              x="620"
+              y="180"
+              width="90"
+              height="36"
+              rx="8"
+              fill="#EDEBE5"
+              stroke="#CECBC2"
+              stroke-width="0.8"
+            />
+            <text
+              x="665"
+              y="203"
+              text-anchor="middle"
+              font-family="ui-monospace,monospace"
+              font-size="9.5"
+              fill="#7B7972"
+            >
+              GitHub API
+            </text>
+            <rect
+              x="720"
+              y="180"
+              width="90"
+              height="36"
+              rx="8"
+              fill="#EDEBE5"
+              stroke="#CECBC2"
+              stroke-width="0.8"
+            />
+            <text
+              x="765"
+              y="203"
+              text-anchor="middle"
+              font-family="ui-monospace,monospace"
+              font-size="9.5"
+              fill="#7B7972"
+            >
+              skills.sh API
+            </text>
+
+            <text
+              x="715"
+              y="246"
+              text-anchor="middle"
+              font-family="ui-monospace,monospace"
+              font-size="9.5"
+              fill="#7B7972"
+            >
+              notify crate · Symlink
+            </text>
+            <text
+              x="715"
+              y="264"
+              text-anchor="middle"
+              font-family="ui-monospace,monospace"
+              font-size="9.5"
+              fill="#7B7972"
+            >
+              SHA-256 · AtomicBool · RwLock
+            </text>
+
+            <defs>
+              <marker
+                id="arr1"
+                markerWidth="8"
+                markerHeight="8"
+                refX="7"
+                refY="4"
+                orient="auto"
+              >
+                <path d="M0,0 L8,4 L0,8 L2,4 Z" fill="#C5663B" />
+              </marker>
+              <marker
+                id="arr2"
+                markerWidth="8"
+                markerHeight="8"
+                refX="7"
+                refY="4"
+                orient="auto"
+              >
+                <path d="M0,0 L8,4 L0,8 L2,4 Z" fill="#C5663B" />
+              </marker>
+            </defs>
+          </svg>
         </div>
       </div>
-      <div class="num-item">
-        <div class="num-circle">3</div>
-        <div>
-          <h3 data-i18n="d3-title">Tauri IPC 是唯一桥梁</h3>
-          <p data-i18n="d3-desc">前端零文件系统访问、零 GitHub API 调用、零 git 执行。所有外部交互通过 33 个类型化 Rust Tauri 命令完成。路径遍历严格验证，拒绝绝对路径与 <code>..</code>。</p>
-          <div style="margin-top:8px;"><span class="tag">33 Tauri 命令</span> <span class="tag green">CSP 限制</span> <span class="tag">路径验证</span></div>
+    </section>
+
+    <!-- ═══════════ FEATURES ═══════════ -->
+    <section class="sec dark" id="features">
+      <div class="sec-inner">
+        <div class="eyebrow" data-i18n="feat-eyebrow">功能</div>
+        <h2 data-i18n="feat-title">功能体系</h2>
+        <p class="lead" style="max-width: 760px" data-i18n="feat-lead">
+          覆盖 Skill 的完整生命周期，从发现、安装到编辑、维护。6
+          大功能模块提供完整管理体验。
+        </p>
+
+        <div class="card-grid">
+          <div class="card dark-card">
+            <div
+              class="icon"
+              style="background: rgba(197, 102, 59, 0.12); color: #c5663b"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              >
+                <circle cx="11" cy="11" r="7" />
+                <line x1="21" y1="21" x2="16.5" y2="16.5" />
+              </svg>
+            </div>
+            <h3 data-i18n="feat-discover">发现与浏览</h3>
+            <p data-i18n="feat-discover-d">
+              3D
+              透视卡片轮播展示精选仓库，自动播放，悬停暂停。最近访问记录与推荐仓库列表，多个入口帮你发现感兴趣的
+              Skill。
+            </p>
+          </div>
+          <div class="card dark-card">
+            <div
+              class="icon"
+              style="background: rgba(74, 124, 150, 0.12); color: #4a7c96"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              >
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 17l10 5 10-5" />
+                <path d="M2 12l10 5 10-5" />
+              </svg>
+            </div>
+            <h3 data-i18n="feat-install">仓库详情与安装</h3>
+            <p data-i18n="feat-install-d">
+              支持批量勾选安装，右侧滑出预览面板即时查看
+              SKILL.md。支持强制刷新下载，ZIP 缓存 24 小时 TTL。
+            </p>
+          </div>
+          <div class="card dark-card">
+            <div
+              class="icon"
+              style="background: rgba(107, 139, 93, 0.12); color: #6b8b5d"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              >
+                <path
+                  d="M2 6a2 2 0 012-2h5l2 2h9a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"
+                />
+              </svg>
+            </div>
+            <h3 data-i18n="feat-local">本地 Skill 管理</h3>
+            <p data-i18n="feat-local-d">
+              侧边栏分类（收藏/我的/仓库分组），网格与列表双视图，支持按名称、仓库、更新时间排序及关键字搜索。
+            </p>
+          </div>
+          <div class="card dark-card">
+            <div
+              class="icon"
+              style="background: rgba(197, 102, 59, 0.12); color: #c5663b"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              >
+                <path d="M17 3a2.8 2.8 0 014 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+              </svg>
+            </div>
+            <h3 data-i18n="feat-editor">Skill 编辑器</h3>
+            <p data-i18n="feat-editor-d">
+              四标签页：Markdown 渲染、文本编辑、可拖拽分屏、文件树浏览。YAML
+              frontmatter 自动解析为信息表格，内含安全审计面板。
+            </p>
+          </div>
+          <div class="card dark-card">
+            <div
+              class="icon"
+              style="background: rgba(74, 124, 150, 0.12); color: #4a7c96"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              >
+                <circle cx="12" cy="12" r="9" />
+                <line x1="12" y1="8" x2="12" y2="16" />
+                <line x1="8" y1="12" x2="16" y2="12" />
+              </svg>
+            </div>
+            <h3 data-i18n="feat-create">Skill 创建</h3>
+            <p data-i18n="feat-create-d">
+              从零创建新 Skill，分屏实时预览编辑效果。自动写入 SSOT 目录并为选中
+              Agent 创建符号链接。
+            </p>
+          </div>
+          <div class="card dark-card">
+            <div
+              class="icon"
+              style="background: rgba(74, 124, 150, 0.12); color: #4a7c96"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path
+                  d="M12 1v3m0 16v3M4.2 4.2l2.1 2.1m11.4 11.4l2.1 2.1M1 12h3m16 0h3M4.2 19.8l2.1-2.1m11.4-11.4l2.1-2.1"
+                />
+              </svg>
+            </div>
+            <h3 data-i18n="feat-settings">全局设置</h3>
+            <p data-i18n="feat-settings-d">
+              主题切换、语言运行时切换、Agent 路径可见性管理，以及 Skill
+              批量更新与重新扫描，所有配置集中管理。
+            </p>
+          </div>
         </div>
       </div>
-    </div>
-  </div>
-</section>
+    </section>
 
-<!-- ═══════════ UX ═══════════ -->
-<section class="sec dark">
-  <div class="sec-inner">
-    <div class="eyebrow" data-i18n="ux-eyebrow">用户体验</div>
-    <h2 data-i18n="ux-title">用户体验优化</h2>
-    <p class="lead" data-i18n="ux-lead">从乐观更新到骨架屏，从 3D 动画到错误恢复，每个细节都经过精心设计。</p>
+    <!-- ═══════════ DESIGN DECISIONS ═══════════ -->
+    <section class="sec">
+      <div class="sec-inner">
+        <div class="eyebrow" data-i18n="design-eyebrow">设计哲学</div>
+        <h2 data-i18n="design-title">核心产品设计决策</h2>
+        <p class="lead" data-i18n="design-lead">
+          三项核心原则定义了 Skill Zoo 的架构方向与实现边界。
+        </p>
 
-    <div class="card-grid">
-      <div class="card dark-card" style="grid-column:span 2;">
-        <div class="icon icon-sm" style="background:rgba(197,102,59,.12);color:#C5663B;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div><h3 data-i18n="ux-opt-title">乐观更新三阶段</h3>
-        <pre class="no-copy" style="background:rgba(0,0,0,.2);border-color:rgba(255,255,255,.06);"><span style="color:#C5663B;">onMutate:</span>  取消进行中查询 → 快照当前缓存 → 立即修改 UI
+        <div class="num-list">
+          <div class="num-item">
+            <div class="num-circle">1</div>
+            <div>
+              <h3 data-i18n="d1-title">文件系统是唯一的真实来源</h3>
+              <p data-i18n="d1-desc">
+                缓存从文件系统重建，而非反过来。用户拖入文件夹即发现，<code
+                  style="font-family: var(--mono); font-size: 13px"
+                  >rm</code
+                >
+                即感知。<code>notify</code> crate 实时监听变化，1.5
+                秒防抖后自动重建缓存并推送事件至前端。
+              </p>
+              <div style="margin-top: 8px">
+                <span class="tag">notify crate</span>
+                <span class="tag green">SHA-256 哈希缓存</span>
+                <span class="tag">skills-changed 事件</span>
+              </div>
+            </div>
+          </div>
+          <div class="num-item">
+            <div class="num-circle">2</div>
+            <div>
+              <h3 data-i18n="d2-title">SSOT + 符号链接架构</h3>
+              <p data-i18n="d2-desc">
+                <code>~/.agents/skills/</code> 为规范存储。Agent
+                目录仅含符号链接，永不存放副本。远程安装复制至 SSOT
+                后链接；用户本地 Skill 保留原位不动，防止副本漂移。
+              </p>
+              <div style="margin-top: 8px">
+                <span class="tag">detect_home_path</span>
+                <span class="tag green">seen_ids 去重</span>
+                <span class="tag">symlink / junction</span>
+              </div>
+            </div>
+          </div>
+          <div class="num-item">
+            <div class="num-circle">3</div>
+            <div>
+              <h3 data-i18n="d3-title">Tauri IPC 是唯一桥梁</h3>
+              <p data-i18n="d3-desc">
+                前端零文件系统访问、零 GitHub API 调用、零 git
+                执行。所有外部交互通过 33 个类型化 Rust Tauri
+                命令完成。路径遍历严格验证，拒绝绝对路径与 <code>..</code>。
+              </p>
+              <div style="margin-top: 8px">
+                <span class="tag">33 Tauri 命令</span>
+                <span class="tag green">CSP 限制</span>
+                <span class="tag">路径验证</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ UX ═══════════ -->
+    <section class="sec dark">
+      <div class="sec-inner">
+        <div class="eyebrow" data-i18n="ux-eyebrow">用户体验</div>
+        <h2 data-i18n="ux-title">用户体验优化</h2>
+        <p class="lead" data-i18n="ux-lead">
+          从乐观更新到骨架屏，从 3D 动画到错误恢复，每个细节都经过精心设计。
+        </p>
+
+        <div class="card-grid">
+          <div class="card dark-card" style="grid-column: span 2">
+            <div
+              class="icon icon-sm"
+              style="background: rgba(197, 102, 59, 0.12); color: #c5663b"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              >
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+              </svg>
+            </div>
+            <h3 data-i18n="ux-opt-title">乐观更新三阶段</h3>
+            <pre
+              class="no-copy"
+              style="
+                background: rgba(0, 0, 0, 0.2);
+                border-color: rgba(255, 255, 255, 0.06);
+              "
+            ><span style="color:#C5663B;">onMutate:</span>  取消进行中查询 → 快照当前缓存 → 立即修改 UI
 <span style="color:#C5663B;">onError:</span>   回滚至快照状态
 <span style="color:#C5663B;">onSettled:</span> 失效相关查询，触发后台重新获取</pre>
-        <p style="margin-top:10px;" data-i18n="ux-opt-desc">以收藏为例：点击星标瞬间 UI 已更新，API 在后台发出。请求失败则快照回滚，用户看到的始终是正确状态。mutation 错误由 sonner toast 短暂弹出，不打断当前操作。</p>
-      </div>
-      <div class="card dark-card"><div class="icon" style="background:rgba(197,102,59,.12);color:#C5663B;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.7-4 3-9 3s-9-1.3-9-3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/></svg></div><h3 data-i18n="ux-cache-title">多级缓存策略</h3><p data-i18n="ux-cache-desc">ZIP 24h TTL、SHA-256 按 mtime 缓存、React Query staleTime/gcTime，层层减少不必要网络请求。</p></div>
-      <div class="card dark-card"><div class="icon" style="background:rgba(74,124,150,.12);color:#4A7C96;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><h3 data-i18n="ux-skeleton-title">精确骨架屏</h3><p data-i18n="ux-skeleton-desc">骨架屏精确镜像真实布局：侧边栏 4 行变宽占位 + 6 个卡片，而非粗糙的全局 spinner。Hero 区域独立骨架屏防止布局偏移。</p></div>
-      <div class="card dark-card"><div class="icon" style="background:rgba(107,139,93,.12);color:#6B8B5D;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.5 8.5A9 9 0 005.5 15.5"/><path d="M3.5 15.5A9 9 0 0018.5 8.5"/></svg></div><h3 data-i18n="ux-sync-title">文件系统实时同步</h3><p data-i18n="ux-sync-desc">后端 notify crate 监听文件变化，1.5s 防抖后推送 events。用户在终端修改 Skill 文件后无需手动刷新。</p></div>
-      <div class="card dark-card"><div class="icon" style="background:rgba(197,102,59,.12);color:#C5663B;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg></div><h3 data-i18n="ux-min-title">最低可见时长</h3><p data-i18n="ux-min-desc">即使重新扫描只需 200ms，加载状态也会持续至少 800ms，避免一闪而过，让每次操作都感觉真实可靠。</p></div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══════════ I18N + ERROR + SECURITY ═══════════ -->
-<section class="sec">
-  <div class="sec-inner">
-    <div class="eyebrow" data-i18n="robust-eyebrow">稳定性</div>
-    <h2 data-i18n="robust-title">国际化、错误处理与安全</h2>
-    <p class="lead" data-i18n="robust-lead">从多语言支持到异常恢复，从数据校验到路径防护，每一层都经过仔细考量。</p>
-
-    <div class="card-grid" style="grid-template-columns:repeat(3, 1fr);margin-top:48px;">
-      <div class="card"><div class="icon" style="background:rgba(197,102,59,.08);color:#C5663B;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15 15 0 010 20"/></svg></div><h3 data-i18n="robust-i18n">国际化 (i18n)</h3><p data-i18n="robust-i18n-d">翻译资源构建时编译为 JS 模块，不依赖运行时网络，离线也能即时切换语言。用户选择持久化到 localStorage，下次启动自动恢复。检测顺序：localStorage → 浏览器语言 → 默认英文。</p></div>
-      <div class="card"><div class="icon" style="background:rgba(74,124,150,.08);color:#4A7C96;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><h3 data-i18n="robust-error">分层错误处理</h3><p data-i18n="robust-error-d">渲染崩溃与数据错误走两套独立恢复路径。ErrorBoundary 兜底组件异常，显示"重试"按钮而非白屏；每个页面自行接管 API 失败，一个页面出错，其余照常可用。</p></div>
-      <div class="card"><div class="icon" style="background:rgba(107,139,93,.08);color:#6B8B5D;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div><h3 data-i18n="robust-security">安全措施</h3><p data-i18n="robust-security-d">SHA-256 校验文件完整性并去重，写入走原子路径防止崩溃丢数据。CSP 限制脚本来源，路径遍历严格验证，破坏性操作必经确认。ZIP 下载强制 50MB 上限，内置 skills.sh 安全审计面板。</p></div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══════════ PRODUCT OVERVIEW ═══════════ -->
-<header class="hero-report" id="report">
-  <a class="gh-btn" href="https://github.com/luochang212/skill-zoo" target="_blank" title="View on GitHub">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-  </a>
-  <div class="hero-report-inner">
-    <div class="hero-report-grid">
-      <div>
-        <div class="eyebrow" data-i18n="overview-eyebrow">产品概览 · 2026</div>
-        <h1><em>Skill Zoo</em></h1>
-        <p class="lead" data-i18n="overview-lead">为 AI 编程助手打造的 Skill 桌面管理工具，覆盖发现、安装、编辑到维护的完整工作流。基于 Tauri v2 构建，轻量、离线、安全。</p>
-        <div class="hero-dl">
-          <a class="hero-dl-btn" href="https://github.com/luochang212/skill-zoo/releases" target="_blank" rel="noopener noreferrer">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            <span class="hero-dl-name" data-i18n="dl-download">下载</span>
-          </a>
-          <a class="hero-dl-btn" href="https://github.com/luochang212/skill-zoo" target="_blank" rel="noopener noreferrer">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
-            <span class="hero-dl-name" data-i18n="dl-source">查看源码</span>
-          </a>
-        </div>
-        </div>
-        <div class="hero-report-fig">
-          <div class="carousel-wrapper" id="carousel-wrapper">
-            <div class="carousel" id="carousel"></div>
+            <p style="margin-top: 10px" data-i18n="ux-opt-desc">
+              以收藏为例：点击星标瞬间 UI 已更新，API
+              在后台发出。请求失败则快照回滚，用户看到的始终是正确状态。mutation
+              错误由 sonner toast 短暂弹出，不打断当前操作。
+            </p>
           </div>
-          <div class="carousel-dots" id="carousel-dots"></div>
+          <div class="card dark-card">
+            <div
+              class="icon"
+              style="background: rgba(197, 102, 59, 0.12); color: #c5663b"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              >
+                <ellipse cx="12" cy="5" rx="9" ry="3" />
+                <path d="M21 12c0 1.7-4 3-9 3s-9-1.3-9-3" />
+                <path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5" />
+              </svg>
+            </div>
+            <h3 data-i18n="ux-cache-title">多级缓存策略</h3>
+            <p data-i18n="ux-cache-desc">
+              ZIP 24h TTL、SHA-256 按 mtime 缓存、React Query
+              staleTime/gcTime，层层减少不必要网络请求。
+            </p>
+          </div>
+          <div class="card dark-card">
+            <div
+              class="icon"
+              style="background: rgba(74, 124, 150, 0.12); color: #4a7c96"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              >
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+                <rect x="14" y="14" width="7" height="7" rx="1" />
+              </svg>
+            </div>
+            <h3 data-i18n="ux-skeleton-title">精确骨架屏</h3>
+            <p data-i18n="ux-skeleton-desc">
+              骨架屏精确镜像真实布局：侧边栏 4 行变宽占位 + 6
+              个卡片，而非粗糙的全局 spinner。Hero 区域独立骨架屏防止布局偏移。
+            </p>
+          </div>
+          <div class="card dark-card">
+            <div
+              class="icon"
+              style="background: rgba(107, 139, 93, 0.12); color: #6b8b5d"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              >
+                <path d="M1 4v6h6" />
+                <path d="M23 20v-6h-6" />
+                <path d="M20.5 8.5A9 9 0 005.5 15.5" />
+                <path d="M3.5 15.5A9 9 0 0018.5 8.5" />
+              </svg>
+            </div>
+            <h3 data-i18n="ux-sync-title">文件系统实时同步</h3>
+            <p data-i18n="ux-sync-desc">
+              后端 notify crate 监听文件变化，1.5s 防抖后推送
+              events。用户在终端修改 Skill 文件后无需手动刷新。
+            </p>
+          </div>
+          <div class="card dark-card">
+            <div
+              class="icon"
+              style="background: rgba(197, 102, 59, 0.12); color: #c5663b"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              >
+                <circle cx="12" cy="12" r="9" />
+                <polyline points="12 7 12 12 16 14" />
+              </svg>
+            </div>
+            <h3 data-i18n="ux-min-title">最低可见时长</h3>
+            <p data-i18n="ux-min-desc">
+              即使重新扫描只需 200ms，加载状态也会持续至少
+              800ms，避免一闪而过，让每次操作都感觉真实可靠。
+            </p>
+          </div>
         </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ I18N + ERROR + SECURITY ═══════════ -->
+    <section class="sec">
+      <div class="sec-inner">
+        <div class="eyebrow" data-i18n="robust-eyebrow">稳定性</div>
+        <h2 data-i18n="robust-title">国际化、错误处理与安全</h2>
+        <p class="lead" data-i18n="robust-lead">
+          从多语言支持到异常恢复，从数据校验到路径防护，每一层都经过仔细考量。
+        </p>
+
+        <div
+          class="card-grid"
+          style="grid-template-columns: repeat(3, 1fr); margin-top: 48px"
+        >
+          <div class="card">
+            <div
+              class="icon"
+              style="background: rgba(197, 102, 59, 0.08); color: #c5663b"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              >
+                <circle cx="12" cy="12" r="9" />
+                <line x1="2" y1="12" x2="22" y2="12" />
+                <path d="M12 2a15 15 0 010 20" />
+              </svg>
+            </div>
+            <h3 data-i18n="robust-i18n">国际化 (i18n)</h3>
+            <p data-i18n="robust-i18n-d">
+              翻译资源构建时编译为 JS
+              模块，不依赖运行时网络，离线也能即时切换语言。用户选择持久化到
+              localStorage，下次启动自动恢复。检测顺序：localStorage →
+              浏览器语言 → 默认英文。
+            </p>
+          </div>
+          <div class="card">
+            <div
+              class="icon"
+              style="background: rgba(74, 124, 150, 0.08); color: #4a7c96"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              >
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+            </div>
+            <h3 data-i18n="robust-error">分层错误处理</h3>
+            <p data-i18n="robust-error-d">
+              渲染崩溃与数据错误走两套独立恢复路径。ErrorBoundary
+              兜底组件异常，显示"重试"按钮而非白屏；每个页面自行接管 API
+              失败，一个页面出错，其余照常可用。
+            </p>
+          </div>
+          <div class="card">
+            <div
+              class="icon"
+              style="background: rgba(107, 139, 93, 0.08); color: #6b8b5d"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              >
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0110 0v4" />
+              </svg>
+            </div>
+            <h3 data-i18n="robust-security">安全措施</h3>
+            <p data-i18n="robust-security-d">
+              SHA-256 校验文件完整性并去重，写入走原子路径防止崩溃丢数据。CSP
+              限制脚本来源，路径遍历严格验证，破坏性操作必经确认。ZIP 下载强制
+              50MB 上限，内置 skills.sh 安全审计面板。
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ FOOTER ═══════════ -->
+    <footer>
+      <p style="max-width: none">
+        &copy; 2026
+        <a href="https://github.com/luochang212/skill-zoo" target="_blank"
+          >Skill Zoo</a
+        >
+        · MIT License
+      </p>
+    </footer>
+
+    <!-- ═══════════ INSTALL MODAL ═══════════ -->
+    <div class="modal-overlay" id="install-modal" hidden>
+      <div class="modal-card">
+        <button class="modal-close" id="modal-close" aria-label="Close">
+          &times;
+        </button>
+        <h2 class="modal-title" data-i18n="install-title">
+          Installing Skill Zoo
+        </h2>
+        <div class="modal-os-tabs" id="os-tabs">
+          <button
+            class="modal-os-tab active"
+            data-os="macos"
+            data-i18n="install-os-macos"
+          >
+            macOS
+          </button>
+          <button
+            class="modal-os-tab"
+            data-os="windows"
+            data-i18n="install-os-windows"
+          >
+            Windows
+          </button>
+        </div>
+        <div class="modal-dl-row">
+          <span class="modal-dl-file" id="dl-filename"
+            >Skill-Zoo-v0.0.0-macOS.dmg</span
+          >
+          <span
+            class="modal-dl-retry"
+            data-i18n="install-retry"
+            style="margin-left: auto"
+            >Download didn't start?</span
+          >
+          <a
+            class="modal-dl-link"
+            id="dl-manual"
+            href="#"
+            data-i18n="install-manual-click"
+            >Click here</a
+          >
+        </div>
+        <div class="modal-steps" id="modal-steps">
+          <!-- Populated by JS for active OS -->
+        </div>
+        <div class="modal-alt" id="modal-alt">
+          <!-- Populated by JS for active OS -->
+        </div>
+        <div class="modal-footer">
+          <a
+            href="https://github.com/luochang212/skill-zoo/releases"
+            target="_blank"
+            data-i18n="install-all-releases"
+            >View all releases on GitHub</a
+          >
+        </div>
+      </div>
     </div>
-  </div>
-</header>
 
-<!-- ═══════════ FOOTER ═══════════ -->
-<footer>
-  <p style="max-width:none;">&copy; 2026 <a href="https://github.com/luochang212/skill-zoo" target="_blank">Skill Zoo</a> · MIT License</p>
-</footer>
+    <script>
+      // ── i18n ──
+      const T = {
+        "hero-subtitle": {
+          zh: "为 AI 编程助手打造的 Skill 桌面管理工具",
+          en: "Desktop skill manager for AI coding assistants",
+        },
+        scroll: { zh: "Scroll", en: "Scroll" },
+        // Architecture
+        "arch-eyebrow": { zh: "架构", en: "Architecture" },
+        "arch-title": { zh: "技术架构", en: "Technical Architecture" },
+        "arch-lead": {
+          zh: "三层结构：React 前端通过 Tauri IPC 与 Rust 后端通信。前端零文件系统、零网络访问，所有交互走类型化 Rust 命令；后端管理文件系统与外部服务。",
+          en: "Three-layer structure: React frontend communicates with Rust backend via Tauri IPC. Zero filesystem and network access from the frontend — all interactions go through typed Rust commands; the backend manages filesystem and external services.",
+        },
+        "stat-commands": { zh: "Tauri IPC 命令", en: "Tauri IPC Commands" },
+        "stat-langs": {
+          zh: "平台语言 (TS + Rust)",
+          en: "Languages (TS + Rust)",
+        },
+        "stat-agents": { zh: "Agent 类型支持", en: "Agent Types" },
+        "stat-shell": { zh: "外部 shell 依赖", en: "External Shell Deps" },
+        // Features
+        "feat-eyebrow": { zh: "功能", en: "Features" },
+        "feat-title": { zh: "功能体系", en: "Feature System" },
+        "feat-lead": {
+          zh: "覆盖 Skill 的完整生命周期，从发现、安装到编辑、维护。6 大功能模块提供完整管理体验。",
+          en: "Covering the full Skill lifecycle: discover, install, edit, and maintain. Six modules for a complete management experience.",
+        },
+        "feat-discover": { zh: "发现与浏览", en: "Discover & Browse" },
+        "feat-discover-d": {
+          zh: "3D 透视卡片轮播展示精选仓库，自动播放，悬停暂停。最近访问记录与推荐仓库列表，多个入口帮你发现感兴趣的 Skill。",
+          en: "3D perspective card carousel showcasing curated repos with auto-play. Recent visits and recommended repos help you discover skills.",
+        },
+        "feat-install": { zh: "仓库详情与安装", en: "Repo Details & Install" },
+        "feat-install-d": {
+          zh: "支持批量勾选安装，右侧滑出预览面板即时查看 SKILL.md。支持强制刷新下载，ZIP 缓存 24 小时 TTL。",
+          en: "Batch-select to install, slide-out preview panel for SKILL.md. Force-refresh downloads with 24h ZIP cache TTL.",
+        },
+        "feat-local": { zh: "本地 Skill 管理", en: "Local Skill Management" },
+        "feat-local-d": {
+          zh: "侧边栏分类（收藏/我的/仓库分组），网格与列表双视图，支持按名称、仓库、更新时间排序及关键字搜索。",
+          en: "Sidebar categories (favorites/mine/by repo), grid and list views, sort by name, repo, update time, and keyword search.",
+        },
+        "feat-editor": { zh: "Skill 编辑器", en: "Skill Editor" },
+        "feat-editor-d": {
+          zh: "四标签页：Markdown 渲染、文本编辑、可拖拽分屏、文件树浏览。YAML frontmatter 自动解析为信息表格，内含安全审计面板。",
+          en: "Four tabs: Markdown preview, text editor, draggable split view, file tree. YAML frontmatter parsed into info table with built-in security audit.",
+        },
+        "feat-create": { zh: "Skill 创建", en: "Skill Creation" },
+        "feat-create-d": {
+          zh: "从零创建新 Skill，分屏实时预览编辑效果。自动写入 SSOT 目录并为选中 Agent 创建符号链接。",
+          en: "Create new skills from scratch with live split-pane preview. Auto-writes to SSOT directory and creates symlinks for selected agents.",
+        },
+        "feat-settings": { zh: "全局设置", en: "Global Settings" },
+        "feat-settings-d": {
+          zh: "主题切换、语言运行时切换、Agent 路径可见性管理，以及 Skill 批量更新与重新扫描，所有配置集中管理。",
+          en: "Theme, language runtime, agent path visibility, batch skill updates and rescan — all settings in one place.",
+        },
+        // Design Philosophy
+        "design-eyebrow": { zh: "设计哲学", en: "Design Philosophy" },
+        "design-title": { zh: "核心产品设计决策", en: "Core Design Decisions" },
+        "design-lead": {
+          zh: "三项核心原则定义了 Skill Zoo 的架构方向与实现边界。",
+          en: "Three core principles define Skill Zoo's architectural direction and implementation boundaries.",
+        },
+        "d1-title": {
+          zh: "文件系统是唯一的真实来源",
+          en: "Filesystem is the single source of truth",
+        },
+        "d1-desc": {
+          zh: "缓存从文件系统重建，而非反过来。用户拖入文件夹即发现，rm 即感知。notify crate 实时监听变化，1.5 秒防抖后自动重建缓存并推送事件至前端。",
+          en: "Cache is rebuilt from filesystem, not the other way around. Drag in a folder to discover, rm to remove. The notify crate watches for changes, rebuilds cache after 1.5s debounce, and pushes events to the frontend.",
+        },
+        "d2-title": {
+          zh: "SSOT + 符号链接架构",
+          en: "SSOT + Symlink Architecture",
+        },
+        "d2-desc": {
+          zh: "~/.agents/skills/ 为规范存储。Agent 目录仅含符号链接，永不存放副本。远程安装复制至 SSOT 后链接；用户本地 Skill 保留原位不动，防止副本漂移。",
+          en: "~/.agents/skills/ is the canonical store. Agent directories contain only symlinks, never copies. Remote installs copy to SSOT then link; local skills stay in place, preventing copy drift.",
+        },
+        "d3-title": {
+          zh: "Tauri IPC 是唯一桥梁",
+          en: "Tauri IPC is the only bridge",
+        },
+        "d3-desc": {
+          zh: "前端零文件系统访问、零 GitHub API 调用、零 git 执行。所有外部交互通过 33 个类型化 Rust Tauri 命令完成。路径遍历严格验证，拒绝绝对路径与 ..。",
+          en: "Zero filesystem access, zero GitHub API calls, zero git execution from the frontend. All external interaction goes through 33 typed Rust Tauri commands. Path traversal is strictly validated — absolute paths and .. are rejected.",
+        },
+        // UX
+        "ux-eyebrow": { zh: "用户体验", en: "User Experience" },
+        "ux-title": { zh: "用户体验优化", en: "UX Optimizations" },
+        "ux-lead": {
+          zh: "从乐观更新到骨架屏，从 3D 动画到错误恢复，每个细节都经过精心设计。",
+          en: "From optimistic updates to skeleton screens, from 3D animations to error recovery — every detail is carefully crafted.",
+        },
+        "ux-opt-title": {
+          zh: "乐观更新三阶段",
+          en: "Optimistic Update — Three Stages",
+        },
+        "ux-opt-desc": {
+          zh: "以收藏为例：点击星标瞬间 UI 已更新，API 在后台发出。请求失败则快照回滚，用户看到的始终是正确状态。mutation 错误由 sonner toast 短暂弹出，不打断当前操作。",
+          en: "Example with favorites: UI updates instantly on star click, API fires in background. On failure, snapshot rollback ensures users always see the correct state. Mutation errors briefly surface via sonner toast without interrupting workflow.",
+        },
+        "ux-cache-title": { zh: "多级缓存策略", en: "Multi-level Caching" },
+        "ux-cache-desc": {
+          zh: "ZIP 24h TTL、SHA-256 按 mtime 缓存、React Query staleTime/gcTime，层层减少不必要网络请求。",
+          en: "ZIP 24h TTL, SHA-256 cache by mtime, React Query staleTime/gcTime — layers of caching to reduce unnecessary network requests.",
+        },
+        "ux-skeleton-title": {
+          zh: "精确骨架屏",
+          en: "Precise Skeleton Screens",
+        },
+        "ux-skeleton-desc": {
+          zh: "骨架屏精确镜像真实布局：侧边栏 4 行变宽占位 + 6 个卡片，而非粗糙的全局 spinner。Hero 区域独立骨架屏防止布局偏移。",
+          en: "Skeleton screens mirror the exact layout: sidebar with 4 staggered rows + 6 cards, not a crude global spinner. Independent hero skeleton prevents layout shift.",
+        },
+        "ux-sync-title": { zh: "文件系统实时同步", en: "Real-time FS Sync" },
+        "ux-sync-desc": {
+          zh: "后端 notify crate 监听文件变化，1.5s 防抖后推送 events。用户在终端修改 Skill 文件后无需手动刷新。",
+          en: "Backend notify crate watches file changes, pushes events after 1.5s debounce. No manual refresh needed after editing skill files in the terminal.",
+        },
+        "ux-min-title": { zh: "最低可见时长", en: "Minimum Visible Duration" },
+        "ux-min-desc": {
+          zh: "即使重新扫描只需 200ms，加载状态也会持续至少 800ms，避免一闪而过，让每次操作都感觉真实可靠。",
+          en: "Even when rescan takes only 200ms, loading state persists for at least 800ms to avoid flickers, making every operation feel tangible.",
+        },
+        // i18n & Security
+        "robust-eyebrow": { zh: "稳定性", en: "Robustness" },
+        "robust-title": {
+          zh: "国际化、错误处理与安全",
+          en: "i18n, Error Handling & Security",
+        },
+        "robust-lead": {
+          zh: "从多语言支持到异常恢复，从数据校验到路径防护，每一层都经过仔细考量。",
+          en: "From multi-language support to error recovery, from data validation to path protection — every layer is carefully considered.",
+        },
+        "robust-i18n": {
+          zh: "国际化 (i18n)",
+          en: "Internationalization (i18n)",
+        },
+        "robust-i18n-d": {
+          zh: "翻译资源构建时编译为 JS 模块，不依赖运行时网络，离线也能即时切换语言。用户选择持久化到 localStorage，下次启动自动恢复。检测顺序：localStorage → 浏览器语言 → 默认英文。",
+          en: "Translation resources compiled to JS modules at build time. No runtime network dependency — switch languages instantly offline. User preference persisted to localStorage. Detection order: localStorage → browser language → default English.",
+        },
+        "robust-error": { zh: "分层错误处理", en: "Layered Error Handling" },
+        "robust-error-d": {
+          zh: '渲染崩溃与数据错误走两套独立恢复路径。ErrorBoundary 兜底组件异常，显示"重试"按钮而非白屏；每个页面自行接管 API 失败，一个页面出错，其余照常可用。',
+          en: 'Render crashes and data errors take independent recovery paths. ErrorBoundary catches component exceptions with a "Retry" button instead of a white screen. Each page handles its own API failures — one broken page never takes down the rest.',
+        },
+        "robust-security": { zh: "安全措施", en: "Security Measures" },
+        "robust-security-d": {
+          zh: "SHA-256 校验文件完整性并去重，写入走原子路径防止崩溃丢数据。CSP 限制脚本来源，路径遍历严格验证，破坏性操作必经确认。ZIP 下载强制 50MB 上限，内置 skills.sh 安全审计面板。",
+          en: "SHA-256 integrity checks with dedup, atomic writes prevent data loss on crash. CSP restricts script sources, path traversal is validated, destructive operations require confirmation. ZIP downloads capped at 50MB, built-in skills.sh security audit panel.",
+        },
+        // Product Overview
+        "overview-eyebrow": {
+          zh: "产品概览 · 2026",
+          en: "Product Overview · 2026",
+        },
 
+        "overview-lead": {
+          zh: "为 AI 编程助手打造的 Skill 桌面管理工具，覆盖发现、安装、编辑到维护的完整工作流。基于 Tauri v2 构建，轻量、离线、安全。",
+          en: "Desktop skill manager for AI coding assistants, covering the full workflow from discovery and installation to editing and maintenance. Built on Tauri v2 — lightweight, offline, and secure.",
+        },
+        "dl-download": { zh: "下载", en: "Download" },
+        "dl-source": { zh: "查看源码", en: "View Source" },
+        // Install Modal
+        "install-title": { zh: "安装 Skill Zoo", en: "Installing Skill Zoo" },
+        "install-os-macos": { zh: "macOS", en: "macOS" },
+        "install-os-windows": { zh: "Windows", en: "Windows" },
+        "install-retry": { zh: "下载未开始？", en: "Download didn't start?" },
+        "install-manual-click": { zh: "点此手动下载", en: "Click here" },
+        "install-all-releases": {
+          zh: "在 GitHub 查看所有版本",
+          en: "View all releases on GitHub",
+        },
+        // macOS steps
+        "install-mac-step1": {
+          zh: "打开下载的 <code>.dmg</code> 文件",
+          en: "Open the downloaded <code>.dmg</code> file",
+        },
+        "install-mac-step2": {
+          zh: "将 <strong>Skill Zoo</strong> 拖入 <code>Applications</code> 文件夹",
+          en: "Drag <strong>Skill Zoo</strong> into the <code>Applications</code> folder",
+        },
+        "install-mac-step3": {
+          zh: "首次打开：若提示「无法验证开发者」，请在 Finder 中右键 (或 Ctrl-单击) 选择<strong>打开</strong>，然后再次点击打开",
+          en: 'First launch: if you see "unidentified developer", <strong>right-click</strong> (or Ctrl-click) the app in Finder, select <strong>Open</strong>, then click Open again',
+        },
+        "install-mac-alt-title": {
+          zh: "或通过 Homebrew 安装",
+          en: "Or install via Homebrew",
+        },
+        // Windows steps
+        "install-win-step1": {
+          zh: "运行下载的 <code>.exe</code> 安装程序",
+          en: "Run the downloaded <code>.exe</code> installer",
+        },
+        "install-win-step2": {
+          zh: "按安装向导完成安装",
+          en: "Follow the installation wizard",
+        },
+        "install-win-step3": {
+          zh: "若 SmartScreen 警告，点击「更多信息」→「仍要运行」",
+          en: "If SmartScreen warns, click <strong>More info</strong> → <strong>Run anyway</strong>",
+        },
+        "install-win-alt-title": {
+          zh: "或使用便携版",
+          en: "Or use the portable version",
+        },
+        "install-win-alt-desc": {
+          zh: "下载便携版 .zip，解压到任意文件夹，双击 <code>skill-zoo.exe</code> 即可运行，无需安装。",
+          en: "Download the portable .zip, extract anywhere, and run <code>skill-zoo.exe</code> — no installation needed.",
+        },
+      };
 
-<script>
-  // ── i18n ──
-  const T = {
-    'hero-subtitle':    { zh: '为 AI 编程助手打造的 Skill 桌面管理工具', en: 'Desktop skill manager for AI coding assistants' },
-    'scroll':           { zh: 'Scroll', en: 'Scroll' },
-    // Architecture
-    'arch-eyebrow':     { zh: '架构', en: 'Architecture' },
-    'arch-title':       { zh: '技术架构', en: 'Technical Architecture' },
-    'arch-lead':        { zh: '三层结构：React 前端通过 Tauri IPC 与 Rust 后端通信。前端零文件系统、零网络访问，所有交互走类型化 Rust 命令；后端管理文件系统与外部服务。', en: 'Three-layer structure: React frontend communicates with Rust backend via Tauri IPC. Zero filesystem and network access from the frontend — all interactions go through typed Rust commands; the backend manages filesystem and external services.' },
-    'stat-commands':    { zh: 'Tauri IPC 命令', en: 'Tauri IPC Commands' },
-    'stat-langs':       { zh: '平台语言 (TS + Rust)', en: 'Languages (TS + Rust)' },
-    'stat-agents':      { zh: 'Agent 类型支持', en: 'Agent Types' },
-    'stat-shell':       { zh: '外部 shell 依赖', en: 'External Shell Deps' },
-    // Features
-    'feat-eyebrow':     { zh: '功能', en: 'Features' },
-    'feat-title':       { zh: '功能体系', en: 'Feature System' },
-    'feat-lead':        { zh: '覆盖 Skill 的完整生命周期，从发现、安装到编辑、维护。6 大功能模块提供完整管理体验。', en: 'Covering the full Skill lifecycle: discover, install, edit, and maintain. Six modules for a complete management experience.' },
-    'feat-discover':    { zh: '发现与浏览', en: 'Discover & Browse' },
-    'feat-discover-d':  { zh: '3D 透视卡片轮播展示精选仓库，自动播放，悬停暂停。最近访问记录与推荐仓库列表，多个入口帮你发现感兴趣的 Skill。', en: '3D perspective card carousel showcasing curated repos with auto-play. Recent visits and recommended repos help you discover skills.' },
-    'feat-install':     { zh: '仓库详情与安装', en: 'Repo Details & Install' },
-    'feat-install-d':   { zh: '支持批量勾选安装，右侧滑出预览面板即时查看 SKILL.md。支持强制刷新下载，ZIP 缓存 24 小时 TTL。', en: 'Batch-select to install, slide-out preview panel for SKILL.md. Force-refresh downloads with 24h ZIP cache TTL.' },
-    'feat-local':       { zh: '本地 Skill 管理', en: 'Local Skill Management' },
-    'feat-local-d':     { zh: '侧边栏分类（收藏/我的/仓库分组），网格与列表双视图，支持按名称、仓库、更新时间排序及关键字搜索。', en: 'Sidebar categories (favorites/mine/by repo), grid and list views, sort by name, repo, update time, and keyword search.' },
-    'feat-editor':      { zh: 'Skill 编辑器', en: 'Skill Editor' },
-    'feat-editor-d':    { zh: '四标签页：Markdown 渲染、文本编辑、可拖拽分屏、文件树浏览。YAML frontmatter 自动解析为信息表格，内含安全审计面板。', en: 'Four tabs: Markdown preview, text editor, draggable split view, file tree. YAML frontmatter parsed into info table with built-in security audit.' },
-    'feat-create':      { zh: 'Skill 创建', en: 'Skill Creation' },
-    'feat-create-d':    { zh: '从零创建新 Skill，分屏实时预览编辑效果。自动写入 SSOT 目录并为选中 Agent 创建符号链接。', en: 'Create new skills from scratch with live split-pane preview. Auto-writes to SSOT directory and creates symlinks for selected agents.' },
-    'feat-settings':    { zh: '全局设置', en: 'Global Settings' },
-    'feat-settings-d':  { zh: '主题切换、语言运行时切换、Agent 路径可见性管理，以及 Skill 批量更新与重新扫描，所有配置集中管理。', en: 'Theme, language runtime, agent path visibility, batch skill updates and rescan — all settings in one place.' },
-    // Design Philosophy
-    'design-eyebrow':   { zh: '设计哲学', en: 'Design Philosophy' },
-    'design-title':     { zh: '核心产品设计决策', en: 'Core Design Decisions' },
-    'design-lead':      { zh: '三项核心原则定义了 Skill Zoo 的架构方向与实现边界。', en: 'Three core principles define Skill Zoo\'s architectural direction and implementation boundaries.' },
-    'd1-title':         { zh: '文件系统是唯一的真实来源', en: 'Filesystem is the single source of truth' },
-    'd1-desc':          { zh: '缓存从文件系统重建，而非反过来。用户拖入文件夹即发现，rm 即感知。notify crate 实时监听变化，1.5 秒防抖后自动重建缓存并推送事件至前端。', en: 'Cache is rebuilt from filesystem, not the other way around. Drag in a folder to discover, rm to remove. The notify crate watches for changes, rebuilds cache after 1.5s debounce, and pushes events to the frontend.' },
-    'd2-title':         { zh: 'SSOT + 符号链接架构', en: 'SSOT + Symlink Architecture' },
-    'd2-desc':          { zh: '~/.agents/skills/ 为规范存储。Agent 目录仅含符号链接，永不存放副本。远程安装复制至 SSOT 后链接；用户本地 Skill 保留原位不动，防止副本漂移。', en: '~/.agents/skills/ is the canonical store. Agent directories contain only symlinks, never copies. Remote installs copy to SSOT then link; local skills stay in place, preventing copy drift.' },
-    'd3-title':         { zh: 'Tauri IPC 是唯一桥梁', en: 'Tauri IPC is the only bridge' },
-    'd3-desc':          { zh: '前端零文件系统访问、零 GitHub API 调用、零 git 执行。所有外部交互通过 33 个类型化 Rust Tauri 命令完成。路径遍历严格验证，拒绝绝对路径与 ..。', en: 'Zero filesystem access, zero GitHub API calls, zero git execution from the frontend. All external interaction goes through 33 typed Rust Tauri commands. Path traversal is strictly validated — absolute paths and .. are rejected.' },
-    // UX
-    'ux-eyebrow':       { zh: '用户体验', en: 'User Experience' },
-    'ux-title':         { zh: '用户体验优化', en: 'UX Optimizations' },
-    'ux-lead':          { zh: '从乐观更新到骨架屏，从 3D 动画到错误恢复，每个细节都经过精心设计。', en: 'From optimistic updates to skeleton screens, from 3D animations to error recovery — every detail is carefully crafted.' },
-    'ux-opt-title':     { zh: '乐观更新三阶段', en: 'Optimistic Update — Three Stages' },
-    'ux-opt-desc':      { zh: '以收藏为例：点击星标瞬间 UI 已更新，API 在后台发出。请求失败则快照回滚，用户看到的始终是正确状态。mutation 错误由 sonner toast 短暂弹出，不打断当前操作。', en: 'Example with favorites: UI updates instantly on star click, API fires in background. On failure, snapshot rollback ensures users always see the correct state. Mutation errors briefly surface via sonner toast without interrupting workflow.' },
-    'ux-cache-title':   { zh: '多级缓存策略', en: 'Multi-level Caching' },
-    'ux-cache-desc':    { zh: 'ZIP 24h TTL、SHA-256 按 mtime 缓存、React Query staleTime/gcTime，层层减少不必要网络请求。', en: 'ZIP 24h TTL, SHA-256 cache by mtime, React Query staleTime/gcTime — layers of caching to reduce unnecessary network requests.' },
-    'ux-skeleton-title':{ zh: '精确骨架屏', en: 'Precise Skeleton Screens' },
-    'ux-skeleton-desc': { zh: '骨架屏精确镜像真实布局：侧边栏 4 行变宽占位 + 6 个卡片，而非粗糙的全局 spinner。Hero 区域独立骨架屏防止布局偏移。', en: 'Skeleton screens mirror the exact layout: sidebar with 4 staggered rows + 6 cards, not a crude global spinner. Independent hero skeleton prevents layout shift.' },
-    'ux-sync-title':    { zh: '文件系统实时同步', en: 'Real-time FS Sync' },
-    'ux-sync-desc':     { zh: '后端 notify crate 监听文件变化，1.5s 防抖后推送 events。用户在终端修改 Skill 文件后无需手动刷新。', en: 'Backend notify crate watches file changes, pushes events after 1.5s debounce. No manual refresh needed after editing skill files in the terminal.' },
-    'ux-min-title':     { zh: '最低可见时长', en: 'Minimum Visible Duration' },
-    'ux-min-desc':      { zh: '即使重新扫描只需 200ms，加载状态也会持续至少 800ms，避免一闪而过，让每次操作都感觉真实可靠。', en: 'Even when rescan takes only 200ms, loading state persists for at least 800ms to avoid flickers, making every operation feel tangible.' },
-    // i18n & Security
-    'robust-eyebrow':   { zh: '稳定性', en: 'Robustness' },
-    'robust-title':     { zh: '国际化、错误处理与安全', en: 'i18n, Error Handling & Security' },
-    'robust-lead':      { zh: '从多语言支持到异常恢复，从数据校验到路径防护，每一层都经过仔细考量。', en: 'From multi-language support to error recovery, from data validation to path protection — every layer is carefully considered.' },
-    'robust-i18n':      { zh: '国际化 (i18n)', en: 'Internationalization (i18n)' },
-    'robust-i18n-d':    { zh: '翻译资源构建时编译为 JS 模块，不依赖运行时网络，离线也能即时切换语言。用户选择持久化到 localStorage，下次启动自动恢复。检测顺序：localStorage → 浏览器语言 → 默认英文。', en: 'Translation resources compiled to JS modules at build time. No runtime network dependency — switch languages instantly offline. User preference persisted to localStorage. Detection order: localStorage → browser language → default English.' },
-    'robust-error':     { zh: '分层错误处理', en: 'Layered Error Handling' },
-    'robust-error-d':   { zh: '渲染崩溃与数据错误走两套独立恢复路径。ErrorBoundary 兜底组件异常，显示"重试"按钮而非白屏；每个页面自行接管 API 失败，一个页面出错，其余照常可用。', en: 'Render crashes and data errors take independent recovery paths. ErrorBoundary catches component exceptions with a "Retry" button instead of a white screen. Each page handles its own API failures — one broken page never takes down the rest.' },
-    'robust-security':  { zh: '安全措施', en: 'Security Measures' },
-    'robust-security-d':{ zh: 'SHA-256 校验文件完整性并去重，写入走原子路径防止崩溃丢数据。CSP 限制脚本来源，路径遍历严格验证，破坏性操作必经确认。ZIP 下载强制 50MB 上限，内置 skills.sh 安全审计面板。', en: 'SHA-256 integrity checks with dedup, atomic writes prevent data loss on crash. CSP restricts script sources, path traversal is validated, destructive operations require confirmation. ZIP downloads capped at 50MB, built-in skills.sh security audit panel.' },
-    // Product Overview
-    'overview-eyebrow': { zh: '产品概览 · 2026', en: 'Product Overview · 2026' },
+      const HTML_KEYS = new Set(["footer"]);
 
-    'overview-lead':    { zh: '为 AI 编程助手打造的 Skill 桌面管理工具，覆盖发现、安装、编辑到维护的完整工作流。基于 Tauri v2 构建，轻量、离线、安全。', en: 'Desktop skill manager for AI coding assistants, covering the full workflow from discovery and installation to editing and maintenance. Built on Tauri v2 — lightweight, offline, and secure.' },
-    'dl-download':      { zh: '下载', en: 'Download' },
-    'dl-source':        { zh: '查看源码', en: 'View Source' },
-  };
-
-  const HTML_KEYS = new Set(['footer']);
-
-  function detectLang() {
-    const params = new URLSearchParams(location.search);
-    if (params.get('lang') === 'zh') return 'zh';
-    if (params.get('lang') === 'en') return 'en';
-    if (localStorage.getItem('lang')) return localStorage.getItem('lang');
-    const langs = navigator.languages || [navigator.language];
-    for (const l of langs) {
-      if (l.toLowerCase().startsWith('zh')) return 'zh';
-    }
-    return 'en';
-  }
-
-  function applyTranslations() {
-    const lang = detectLang();
-    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
-    document.title = lang === 'zh' ? 'Skill Zoo · 产品概览' : 'Skill Zoo · Product Overview';
-
-    document.querySelectorAll('[data-i18n]').forEach(el => {
-      const key = el.dataset.i18n;
-      if (HTML_KEYS.has(key)) return;
-      if (T[key] && T[key][lang]) el.textContent = T[key][lang];
-    });
-
-    // Footer (mixed HTML)
-    const footer = document.querySelector('footer p');
-    if (footer) {
-      footer.innerHTML = lang === 'zh'
-        ? '&copy; 2026 <a href="https://github.com/luochang212/skill-zoo" target="_blank">Skill Zoo</a> · MIT License'
-        : '&copy; 2026 <a href="https://github.com/luochang212/skill-zoo" target="_blank">Skill Zoo</a> · MIT License';
-    }
-  }
-
-  applyTranslations();
-
-  // ── Hero: pause animations when off-screen ──
-  const heroZoo = document.getElementById('hero-zoo');
-  const heroObserver = new IntersectionObserver(entries => {
-    entries.forEach(entry => {
-      heroZoo.classList.toggle('paused', !entry.isIntersecting);
-    });
-  }, { threshold: 0.3 });
-  heroObserver.observe(heroZoo);
-
-  // ── 3D Cover Flow carousel ──
-  const sources = [
-    { src: './screenshots/screenshot-1.webp', alt: 'Skill Zoo main interface' },
-    { src: './screenshots/screenshot-2.webp', alt: 'Skill detail view' },
-    { src: './screenshots/screenshot-3.webp', alt: 'Settings page' },
-  ];
-  const ASPECT = 2200 / 1405;
-  const isMobile = window.innerWidth < 768;
-  const MAX_CARD_W = Math.min(isMobile ? 600 : 800, window.innerWidth * (isMobile ? 0.92 : 0.40));
-  const carousel = document.getElementById('carousel');
-  const wrapper = document.getElementById('carousel-wrapper');
-  const dotsContainer = document.getElementById('carousel-dots');
-  let current = 0, carouselTimer;
-
-  const cards = sources.map((s, i) => {
-    const card = document.createElement('div');
-    card.className = 'carousel-card';
-    card.innerHTML = `<img src="${s.src}" alt="${s.alt}" draggable="false">`;
-    card.addEventListener('click', () => { if (i !== current) goTo(i); });
-    carousel.appendChild(card);
-    const dot = document.createElement('button');
-    dot.dataset.idx = i;
-    dot.addEventListener('click', () => goTo(i));
-    dotsContainer.appendChild(dot);
-    return { card, dot };
-  });
-
-  function getStyle(diff, cardW) {
-    const abs = Math.abs(diff);
-    const sign = diff < 0 ? -1 : 1;
-    if (abs === 0) {
-      return { x: 0, scale: 1, ry: 0, z: 120, opacity: 1, zIdx: 20, shadow: '0 1px 3px rgba(0,0,0,0.06), 0 8px 20px rgba(0,0,0,0.08), 0 22px 50px rgba(0,0,0,0.12)' };
-    }
-    if (abs === 1) {
-      return { x: sign * cardW * 0.32, scale: 0.78, ry: sign * -22, z: -50, opacity: 0.55, zIdx: 10, shadow: '0 2px 6px rgba(0,0,0,0.05), 0 6px 18px rgba(0,0,0,0.07)' };
-    }
-    return { x: sign * cardW * 0.48, scale: 0.62, ry: sign * -15, z: -110, opacity: 0, zIdx: 5, shadow: '0 2px 8px rgba(0,0,0,0.03)' };
-  }
-
-  function carouselLayout() {
-    const n = cards.length;
-    const cardW = Math.min(wrapper.clientWidth * (isMobile ? 0.92 : 0.85), MAX_CARD_W);
-    const cardH = cardW / ASPECT;
-    wrapper.style.height = `${Math.max(cardH + 60, 280)}px`;
-    cards.forEach(({ card, dot }, i) => {
-      let diff = (i - current + n) % n;
-      if (diff > n / 2) diff -= n;
-      const s = getStyle(diff, cardW);
-      card.style.width = `${cardW}px`;
-      card.style.marginLeft = `${-cardW / 2}px`;
-      card.style.marginTop = `${-cardH / 2}px`;
-      card.style.transform = `translateX(${s.x}px) scale(${s.scale}) rotateY(${s.ry}deg) translateZ(${s.z}px)`;
-      card.style.zIndex = s.zIdx;
-      card.style.opacity = s.opacity;
-      card.style.boxShadow = s.shadow;
-      dot.classList.toggle('active', i === current);
-    });
-  }
-
-  function goTo(idx) {
-    clearInterval(carouselTimer);
-    current = idx;
-    carouselLayout();
-    carouselTimer = setInterval(() => goTo((current + 1) % cards.length), 8000);
-  }
-
-  carouselLayout();
-  carouselTimer = setInterval(() => goTo((current + 1) % cards.length), 8000);
-
-  let carouselResizePending = false;
-  window.addEventListener('resize', () => {
-    if (!carouselResizePending) {
-      carouselResizePending = true;
-      requestAnimationFrame(() => { carouselLayout(); carouselResizePending = false; });
-    }
-  });
-
-  // Carousel touch/swipe
-  let touchStartX = 0, touchStartY = 0, touchMoved = false;
-  wrapper.addEventListener('touchstart', e => {
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-    touchMoved = false;
-  }, { passive: true });
-  wrapper.addEventListener('touchmove', e => {
-    const dx = Math.abs(e.touches[0].clientX - touchStartX);
-    const dy = Math.abs(e.touches[0].clientY - touchStartY);
-    if (dx > dy) { touchMoved = true; e.preventDefault(); }
-  }, { passive: false });
-  wrapper.addEventListener('touchend', e => {
-    if (!touchMoved) return;
-    const dx = e.changedTouches[0].clientX - touchStartX;
-    if (Math.abs(dx) < 50) return;
-    goTo(dx < 0 ? (current + 1) % cards.length : (current - 1 + cards.length) % cards.length);
-  });
-
-  // Smooth scroll for anchor links
-  document.querySelectorAll('a[href^="#"]').forEach(a => {
-    a.addEventListener('click', e => {
-      const t = document.querySelector(a.getAttribute('href'));
-      if (t) { e.preventDefault(); t.scrollIntoView({ behavior: 'smooth' }); }
-    });
-  });
-
-  // Copy buttons
-  document.querySelectorAll('pre:not(.no-copy)').forEach(pre => {
-    const btn = document.createElement('button');
-    btn.className = 'copy-btn';
-    btn.textContent = 'Copy';
-    btn.addEventListener('click', () => {
-      navigator.clipboard.writeText(pre.textContent.trim()).then(() => {
-        btn.textContent = 'Copied!';
-        btn.classList.add('copied');
-        setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1800);
-      });
-    });
-    pre.appendChild(btn);
-  });
-
-  // Tab switcher
-  const tabBtns = document.querySelectorAll('#depTabs .tab-btn');
-  tabBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      tabBtns.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-      document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
-    });
-  });
-
-  // Animated counters
-  const animated = new Set();
-  const observer = new IntersectionObserver(entries => {
-    entries.forEach(entry => {
-      if (!entry.isIntersecting) return;
-      const el = entry.target;
-      const num = el.querySelector('.stat-num');
-      if (!num || animated.has(num)) return;
-      animated.add(num);
-      const target = parseInt(num.textContent);
-      if (isNaN(target)) return;
-      const duration = 800;
-      const start = performance.now();
-      function tick(now) {
-        const p = Math.min((now - start) / duration, 1);
-        const eased = 1 - Math.pow(1 - p, 3);
-        num.textContent = Math.round(target * eased);
-        if (p < 1) requestAnimationFrame(tick);
-        else num.textContent = target;
+      function detectLang() {
+        const params = new URLSearchParams(location.search);
+        if (params.get("lang") === "zh") return "zh";
+        if (params.get("lang") === "en") return "en";
+        if (localStorage.getItem("lang")) return localStorage.getItem("lang");
+        const langs = navigator.languages || [navigator.language];
+        for (const l of langs) {
+          if (l.toLowerCase().startsWith("zh")) return "zh";
+        }
+        return "en";
       }
-      requestAnimationFrame(tick);
-    });
-  }, { threshold: 0.5 });
-  observer.observe(document.querySelector('.stat-row'));
 
-	</script>
+      function applyTranslations() {
+        const lang = detectLang();
+        document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+        document.title =
+          lang === "zh"
+            ? "Skill Zoo · 产品概览"
+            : "Skill Zoo · Product Overview";
 
-</body>
+        document.querySelectorAll("[data-i18n]").forEach((el) => {
+          const key = el.dataset.i18n;
+          if (HTML_KEYS.has(key)) return;
+          if (T[key] && T[key][lang]) el.textContent = T[key][lang];
+        });
+
+        // Footer (mixed HTML)
+        const footer = document.querySelector("footer p");
+        if (footer) {
+          footer.innerHTML =
+            lang === "zh"
+              ? '&copy; 2026 <a href="https://github.com/luochang212/skill-zoo" target="_blank">Skill Zoo</a> · MIT License'
+              : '&copy; 2026 <a href="https://github.com/luochang212/skill-zoo" target="_blank">Skill Zoo</a> · MIT License';
+        }
+      }
+
+      applyTranslations();
+
+      // ── Hero: pause animations when off-screen ──
+      const heroZoo = document.getElementById("hero-zoo");
+      const heroObserver = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            heroZoo.classList.toggle("paused", !entry.isIntersecting);
+          });
+        },
+        { threshold: 0.3 },
+      );
+      heroObserver.observe(heroZoo);
+
+      // ── 3D Cover Flow carousel ──
+      const sources = [
+        {
+          src: "./screenshots/screenshot-1.webp",
+          alt: "Skill Zoo main interface",
+        },
+        { src: "./screenshots/screenshot-2.webp", alt: "Skill detail view" },
+        { src: "./screenshots/screenshot-3.webp", alt: "Settings page" },
+      ];
+      const ASPECT = 2200 / 1405;
+      const isMobile = window.innerWidth < 768;
+      const MAX_CARD_W = Math.min(
+        isMobile ? 600 : 800,
+        window.innerWidth * (isMobile ? 0.92 : 0.4),
+      );
+      const carousel = document.getElementById("carousel");
+      const wrapper = document.getElementById("carousel-wrapper");
+      const dotsContainer = document.getElementById("carousel-dots");
+      let current = 0,
+        carouselTimer;
+
+      const cards = sources.map((s, i) => {
+        const card = document.createElement("div");
+        card.className = "carousel-card";
+        card.innerHTML = `<img src="${s.src}" alt="${s.alt}" draggable="false">`;
+        card.addEventListener("click", () => {
+          if (i !== current) goTo(i);
+        });
+        carousel.appendChild(card);
+        const dot = document.createElement("button");
+        dot.dataset.idx = i;
+        dot.addEventListener("click", () => goTo(i));
+        dotsContainer.appendChild(dot);
+        return { card, dot };
+      });
+
+      function getStyle(diff, cardW) {
+        const abs = Math.abs(diff);
+        const sign = diff < 0 ? -1 : 1;
+        if (abs === 0) {
+          return {
+            x: 0,
+            scale: 1,
+            ry: 0,
+            z: 120,
+            opacity: 1,
+            zIdx: 20,
+            shadow:
+              "0 1px 3px rgba(0,0,0,0.06), 0 8px 20px rgba(0,0,0,0.08), 0 22px 50px rgba(0,0,0,0.12)",
+          };
+        }
+        if (abs === 1) {
+          return {
+            x: sign * cardW * 0.32,
+            scale: 0.78,
+            ry: sign * -22,
+            z: -50,
+            opacity: 0.55,
+            zIdx: 10,
+            shadow: "0 2px 6px rgba(0,0,0,0.05), 0 6px 18px rgba(0,0,0,0.07)",
+          };
+        }
+        return {
+          x: sign * cardW * 0.48,
+          scale: 0.62,
+          ry: sign * -15,
+          z: -110,
+          opacity: 0,
+          zIdx: 5,
+          shadow: "0 2px 8px rgba(0,0,0,0.03)",
+        };
+      }
+
+      function carouselLayout() {
+        const n = cards.length;
+        const cardW = Math.min(
+          wrapper.clientWidth * (isMobile ? 0.92 : 0.85),
+          MAX_CARD_W,
+        );
+        const cardH = cardW / ASPECT;
+        wrapper.style.height = `${Math.max(cardH + 60, 280)}px`;
+        cards.forEach(({ card, dot }, i) => {
+          let diff = (i - current + n) % n;
+          if (diff > n / 2) diff -= n;
+          const s = getStyle(diff, cardW);
+          card.style.width = `${cardW}px`;
+          card.style.marginLeft = `${-cardW / 2}px`;
+          card.style.marginTop = `${-cardH / 2}px`;
+          card.style.transform = `translateX(${s.x}px) scale(${s.scale}) rotateY(${s.ry}deg) translateZ(${s.z}px)`;
+          card.style.zIndex = s.zIdx;
+          card.style.opacity = s.opacity;
+          card.style.boxShadow = s.shadow;
+          dot.classList.toggle("active", i === current);
+        });
+      }
+
+      function goTo(idx) {
+        clearInterval(carouselTimer);
+        current = idx;
+        carouselLayout();
+        carouselTimer = setInterval(
+          () => goTo((current + 1) % cards.length),
+          8000,
+        );
+      }
+
+      carouselLayout();
+      carouselTimer = setInterval(
+        () => goTo((current + 1) % cards.length),
+        8000,
+      );
+
+      let carouselResizePending = false;
+      window.addEventListener("resize", () => {
+        if (!carouselResizePending) {
+          carouselResizePending = true;
+          requestAnimationFrame(() => {
+            carouselLayout();
+            carouselResizePending = false;
+          });
+        }
+      });
+
+      // Carousel touch/swipe
+      let touchStartX = 0,
+        touchStartY = 0,
+        touchMoved = false;
+      wrapper.addEventListener(
+        "touchstart",
+        (e) => {
+          touchStartX = e.touches[0].clientX;
+          touchStartY = e.touches[0].clientY;
+          touchMoved = false;
+        },
+        { passive: true },
+      );
+      wrapper.addEventListener(
+        "touchmove",
+        (e) => {
+          const dx = Math.abs(e.touches[0].clientX - touchStartX);
+          const dy = Math.abs(e.touches[0].clientY - touchStartY);
+          if (dx > dy) {
+            touchMoved = true;
+            e.preventDefault();
+          }
+        },
+        { passive: false },
+      );
+      wrapper.addEventListener("touchend", (e) => {
+        if (!touchMoved) return;
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        if (Math.abs(dx) < 50) return;
+        goTo(
+          dx < 0
+            ? (current + 1) % cards.length
+            : (current - 1 + cards.length) % cards.length,
+        );
+      });
+
+      // Smooth scroll for anchor links
+      document.querySelectorAll('a[href^="#"]').forEach((a) => {
+        a.addEventListener("click", (e) => {
+          const t = document.querySelector(a.getAttribute("href"));
+          if (t) {
+            e.preventDefault();
+            t.scrollIntoView({ behavior: "smooth" });
+          }
+        });
+      });
+
+      // Copy buttons
+      document.querySelectorAll("pre:not(.no-copy)").forEach((pre) => {
+        const btn = document.createElement("button");
+        btn.className = "copy-btn";
+        btn.textContent = "Copy";
+        btn.addEventListener("click", () => {
+          navigator.clipboard.writeText(pre.textContent.trim()).then(() => {
+            btn.textContent = "Copied!";
+            btn.classList.add("copied");
+            setTimeout(() => {
+              btn.textContent = "Copy";
+              btn.classList.remove("copied");
+            }, 1800);
+          });
+        });
+        pre.appendChild(btn);
+      });
+
+      // Tab switcher
+      const tabBtns = document.querySelectorAll("#depTabs .tab-btn");
+      tabBtns.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          tabBtns.forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          document
+            .querySelectorAll(".tab-panel")
+            .forEach((p) => p.classList.remove("active"));
+          document
+            .getElementById("panel-" + btn.dataset.tab)
+            .classList.add("active");
+        });
+      });
+
+      // Animated counters
+      const animated = new Set();
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            const el = entry.target;
+            const num = el.querySelector(".stat-num");
+            if (!num || animated.has(num)) return;
+            animated.add(num);
+            const target = parseInt(num.textContent);
+            if (isNaN(target)) return;
+            const duration = 800;
+            const start = performance.now();
+            function tick(now) {
+              const p = Math.min((now - start) / duration, 1);
+              const eased = 1 - Math.pow(1 - p, 3);
+              num.textContent = Math.round(target * eased);
+              if (p < 1) requestAnimationFrame(tick);
+              else num.textContent = target;
+            }
+            requestAnimationFrame(tick);
+          });
+        },
+        { threshold: 0.5 },
+      );
+      observer.observe(document.querySelector(".stat-row"));
+
+      // ── Download + Install Modal ──
+      const REPO = "luochang212/skill-zoo";
+      const DL_BTN = document.getElementById("dl-btn");
+      const MODAL = document.getElementById("install-modal");
+      const MODAL_CLOSE = document.getElementById("modal-close");
+      const OS_TABS = document.getElementById("os-tabs");
+      const DL_FILENAME = document.getElementById("dl-filename");
+      const DL_MANUAL = document.getElementById("dl-manual");
+      const MODAL_STEPS = document.getElementById("modal-steps");
+      const MODAL_ALT = document.getElementById("modal-alt");
+      const PLATFORM_SPAN = document.getElementById("dl-platform");
+
+      let activeOS = "macos";
+      let cachedVersion = null;
+      let downloadURL = null;
+
+      function detectOS() {
+        const ua = navigator.userAgent || "";
+        if (ua.includes("Mac") || ua.includes("macOS")) return "macos";
+        if (ua.includes("Windows") || ua.includes("Win")) return "windows";
+        return "macos";
+      }
+
+      async function fetchVersion() {
+        try {
+          const res = await fetch("./version.json");
+          if (!res.ok) return null;
+          const data = await res.json();
+          return data.version || null;
+        } catch (_) {
+          return null;
+        }
+      }
+
+      function getDownloadUrl(os, version) {
+        const v = version || cachedVersion || "v0.0.0";
+        const base = `https://github.com/${REPO}/releases/download/${v}`;
+        if (os === "macos") return `${base}/Skill-Zoo-${v}-macOS.dmg`;
+        return `${base}/Skill-Zoo-${v}-Windows.exe`;
+      }
+
+      function getPortableUrl(version) {
+        const v = version || cachedVersion || "v0.0.0";
+        return `https://github.com/${REPO}/releases/download/${v}/Skill-Zoo-${v}-Windows-Portable.zip`;
+      }
+
+      function getFilename(os, version) {
+        const v = version || cachedVersion || "v0.0.0";
+        return os === "macos"
+          ? `Skill-Zoo-${v}-macOS.dmg`
+          : `Skill-Zoo-${v}-Windows.exe`;
+      }
+
+      function getLang() {
+        return detectLang();
+      }
+
+      function buildStepsHTML(os) {
+        const lang = getLang();
+        if (os === "macos") {
+          return [
+            { key: "install-mac-step1" },
+            { key: "install-mac-step2" },
+            { key: "install-mac-step3" },
+          ]
+            .map((s, i) => {
+              const text = (T[s.key] && T[s.key][lang]) || s.key;
+              return `<div class="modal-step"><div class="modal-step-num">${i + 1}</div><p>${text}</p></div>`;
+            })
+            .join("");
+        }
+        // Windows
+        return [
+          { key: "install-win-step1" },
+          { key: "install-win-step2" },
+          { key: "install-win-step3" },
+        ]
+          .map((s, i) => {
+            const text = (T[s.key] && T[s.key][lang]) || s.key;
+            return `<div class="modal-step"><div class="modal-step-num">${i + 1}</div><p>${text}</p></div>`;
+          })
+          .join("");
+      }
+
+      function buildAltHTML(os) {
+        const lang = getLang();
+        if (os === "macos") {
+          const title =
+            (T["install-mac-alt-title"] && T["install-mac-alt-title"][lang]) ||
+            "Or install via Homebrew";
+          return `<h4>${title}</h4><pre class="no-copy"><code>brew tap luochang212/tap && brew install --cask skill-zoo</code></pre>`;
+        }
+        const title =
+          (T["install-win-alt-title"] && T["install-win-alt-title"][lang]) ||
+          "Or use the portable version";
+        const desc =
+          (T["install-win-alt-desc"] && T["install-win-alt-desc"][lang]) || "";
+        const portableUrl = getPortableUrl(cachedVersion);
+        return `<h4>${title}</h4><p style="margin:0 0 8px;">${desc}</p><a href="${portableUrl}" style="font-size:13px;color:var(--copper);">${getFilename("windows", cachedVersion).replace(".exe", "-Portable.zip")}</a>`;
+      }
+
+      function refreshModal(os) {
+        activeOS = os;
+        // Tabs
+        OS_TABS.querySelectorAll(".modal-os-tab").forEach((t) => {
+          t.classList.toggle("active", t.dataset.os === os);
+        });
+        // Filename row
+        DL_FILENAME.textContent = getFilename(os, cachedVersion);
+        downloadURL = getDownloadUrl(os, cachedVersion);
+        DL_MANUAL.href = downloadURL;
+        // Steps
+        MODAL_STEPS.innerHTML = buildStepsHTML(os);
+        // Alt
+        MODAL_ALT.innerHTML = buildAltHTML(os);
+        // Retranslate dynamic content via data-i18n attributes
+        applyTranslations();
+        // Then fix up any hardcoded text in steps/alt that data-i18n doesn't cover
+        // (steps use innerHTML from T dict, so they're already translated)
+      }
+
+      function openModal(os) {
+        refreshModal(os);
+        MODAL.removeAttribute("hidden");
+        document.body.style.overflow = "hidden";
+      }
+
+      function closeModal() {
+        MODAL.setAttribute("hidden", "");
+        document.body.style.overflow = "";
+      }
+
+      // OS tab clicks
+      OS_TABS.addEventListener("click", (e) => {
+        const tab = e.target.closest(".modal-os-tab");
+        if (!tab) return;
+        refreshModal(tab.dataset.os);
+      });
+
+      // Close on overlay click or close button
+      MODAL.addEventListener("click", (e) => {
+        if (e.target === MODAL) closeModal();
+      });
+      MODAL_CLOSE.addEventListener("click", closeModal);
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && !MODAL.hasAttribute("hidden")) closeModal();
+      });
+
+      // Init: detect OS, pre-fetch version, update button label
+      (async () => {
+        const os = detectOS();
+        activeOS = os;
+        PLATFORM_SPAN.textContent = os === "macos" ? "macOS" : "Windows";
+
+        const v = await fetchVersion();
+        if (v) cachedVersion = v;
+      })();
+
+      // Download button click
+      DL_BTN.addEventListener("click", async (e) => {
+        e.preventDefault();
+        const os = detectOS();
+        activeOS = os;
+
+        if (!cachedVersion) cachedVersion = await fetchVersion();
+
+        downloadURL = getDownloadUrl(os, cachedVersion);
+        openModal(os);
+
+        if (downloadURL) {
+          const a = document.createElement("a");
+          a.href = downloadURL;
+          a.download = "";
+          a.style.display = "none";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+      });
+
+      // ── Top Nav ──
+      const NAV_TOGGLE = document.getElementById("nav-toggle");
+      const NAV_DRAWER = document.getElementById("nav-drawer");
+      const NAV_LINKS = document.querySelectorAll("[data-nav-link]");
+      const NAV_DL_BTN = document.getElementById("nav-dl-btn");
+
+      NAV_TOGGLE.addEventListener("click", () => {
+        const open = NAV_TOGGLE.getAttribute("aria-expanded") === "true";
+        NAV_TOGGLE.setAttribute("aria-expanded", !open);
+        if (open) {
+          NAV_DRAWER.setAttribute("hidden", "");
+        } else {
+          NAV_DRAWER.removeAttribute("hidden");
+        }
+      });
+
+      NAV_LINKS.forEach((link) => {
+        link.addEventListener("click", () => {
+          NAV_TOGGLE.setAttribute("aria-expanded", "false");
+          NAV_DRAWER.setAttribute("hidden", "");
+        });
+      });
+
+      // Nav download button clicks through to hero download
+      if (NAV_DL_BTN) {
+        NAV_DL_BTN.addEventListener("click", () => {
+          document
+            .getElementById("report")
+            .scrollIntoView({ behavior: "smooth" });
+          setTimeout(() => DL_BTN.click(), 400);
+        });
+      }
+    </script>
+  </body>
 </html>
