@@ -180,22 +180,20 @@ impl CliService {
         }
 
         for ((owner, repo, branch), skills) in &by_repo {
-            let tree = Self::fetch_repo_tree(owner, repo, branch).await;
+            let tree = match Self::fetch_repo_tree(owner, repo, branch).await {
+                Ok(Some(t)) => t,
+                _ => continue, // rate-limited or error — skip entire repo
+            };
 
             for (name, entry) in skills {
-                let old_sha = entry.commit_sha.clone();
-                let new_sha = match &tree {
-                    Ok(Some(t)) => {
-                        let skill_path = entry.skill_path.as_deref().unwrap_or("");
-                        Self::get_folder_sha_from_tree(t, skill_path)
-                    }
-                    _ => None,
-                };
+                let old_sha = entry.commit_sha.as_deref();
+                let skill_path = entry.skill_path.as_deref().unwrap_or("");
+                let new_sha = Self::get_folder_sha_from_tree(&tree, skill_path);
 
-                if let (Some(old), Some(new)) = (&old_sha, &new_sha) {
-                    if old == new {
-                        continue;
-                    }
+                // Only reinstall when we can confirm the SHA actually changed
+                match (old_sha, new_sha.as_deref()) {
+                    (Some(old), Some(new)) if old != new => {}
+                    _ => continue,
                 }
 
                 match Self::reinstall_single_skill(name, owner, repo, branch).await {
