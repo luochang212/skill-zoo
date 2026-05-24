@@ -79,13 +79,12 @@ Commit the changelog update before proceeding.
 Update `src-tauri/Cargo.toml` and `docs/version.json` to match the release version:
 
 ```bash
-# Cargo.toml
 sed -i '' 's/^version = ".*"/version = "X.Y.Z"/' src-tauri/Cargo.toml
-# version.json (frontend reads this at runtime)
+cargo check --manifest-path src-tauri/Cargo.toml  # regenerates Cargo.lock
 echo '{"version":"vX.Y.Z"}' > docs/version.json
 ```
 
-Commit these changes before proceeding.
+Commit Cargo.toml, Cargo.lock, and version.json together before proceeding.
 
 ### 4. Verify Cask URL Pattern
 
@@ -149,3 +148,4 @@ git push origin v0.1.2
 | Forgetting to check cask URL before releasing | Run the `gh api` command in Quick Reference. CI won't fix a broken URL pattern. |
 | Releasing with uncommitted changes | `git status --short` must be empty. Uncommitted changes won't be included in the release. |
 | Letting CI update `docs/version.json` | `version.json` is updated in Step 3 **before** tagging. CI must NOT touch it — the step was removed from the workflow. |
+| Forgetting to regenerate `Cargo.lock` | After editing `Cargo.toml` version, run `cargo check --manifest-path src-tauri/Cargo.toml` to sync Cargo.lock. `sed` alone won't update it. |
