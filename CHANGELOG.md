@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.1] — 2026-05-25
+
+### Added
+- OpenCode agent support.
+- Unsaved changes dialog when switching skills in the editor.
+- Official site button in the About section.
+
+### Changed
+- Consistency panel hints now have bold labels ("Same name, same content:", "Same name, different content:", "Name mismatch:").
+- Update detection only reinstalls when a confirmed SHA difference exists, avoiding unnecessary downloads.
+- Repository tree fetches are deduplicated by grouping skills per repo, reducing GitHub API calls.
+
+### Fixed
+- Atomic write temp files now preserve the original extension, preventing potential conflicts.
+
 ## [0.2.0] — 2026-05-24
 
 ### Added
