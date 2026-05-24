@@ -18,12 +18,7 @@ const tabKeys: { id: View; key: string }[] = [
 
 const LOGO_FONT = '"New York", "Iowan Old Style", "Sitka Text", Cambria, Georgia, serif';
 
-export function Header({
-  view,
-  onViewChange,
-  hideTabs,
-  onDragMouseDown,
-}: HeaderProps) {
+export function Header({ view, onViewChange, hideTabs, onDragMouseDown }: HeaderProps) {
   const { t } = useTranslation();
   const [animating, setAnimating] = useState(false);
   const [initialDone, setInitialDone] = useState(false);

@@ -41,9 +41,7 @@ export const INVALIDATION_MAP = {
     ["skills", "content"],
     ["skills", "installed"],
   ],
-  saveSkillFileContent: [
-    ["skills", "installed"],
-  ],
+  saveSkillFileContent: [["skills", "installed"]],
   mergeDuplicates: [
     ["skills", "installed"],
     ["skills", "symlinks"],
