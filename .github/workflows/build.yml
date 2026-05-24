@@ -409,3 +409,10 @@ jobs:
             - **SHA256:** `${{ steps.shas.outputs.sha256 }}`
           branch: skill-zoo-${{ steps.shas.outputs.version }}
           delete-branch: true
+
+      - name: Auto-merge PR
+        run: |
+          sleep 5
+          gh pr merge --merge --repo luochang212/homebrew-tap skill-zoo-${{ steps.shas.outputs.version }}
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

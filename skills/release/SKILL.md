@@ -52,11 +52,11 @@ digraph when_release {
 | Check frontend lint | `bun run lint` |
 | Check frontend formatting | `bun run format:check` |
 | Check uncommitted changes | `git status --short` |
-| Verify cask URL | `gh api repos/luochang212/homebrew-tap/contents/Casks/skill-zoo.rb --jq '.content' \| base64 -d` |
 | Tag and push | `git push origin main && git tag v<VERSION> && git push origin v<VERSION>` |
-| Monitor CI | https://github.com/luochang212/skill-zoo/actions |
 
 ## Core Pattern
+
+All file changes (CHANGELOG, Cargo.toml, Cargo.lock, version.json) are made and committed together in a single commit. Do not commit after each step.
 
 ### 1. Confirm Version
 
@@ -72,7 +72,7 @@ Add a new version section before the previous release entry:
 
 Use today's date. Group changes under **Added**, **Changed**, **Fixed** headings. Review commits since the last tag with `git log --oneline v<LAST>..HEAD` to ensure nothing is missed.
 
-Commit the changelog update before proceeding.
+Do NOT commit yet — all changes go into one commit in Step 4.
 
 ### 3. Update Version Files
 
@@ -84,26 +84,11 @@ cargo check --manifest-path src-tauri/Cargo.toml  # regenerates Cargo.lock
 echo '{"version":"vX.Y.Z"}' > docs/version.json
 ```
 
-Commit Cargo.toml, Cargo.lock, and version.json together before proceeding.
+Do NOT commit yet — all changes go into one commit in Step 4.
 
-### 4. Verify Cask URL Pattern
+### 4. Verify Prerequisites
 
-Before tagging, verify the Homebrew cask URL pattern matches the CI artifact naming:
-
-```bash
-gh api repos/luochang212/homebrew-tap/contents/Casks/skill-zoo.rb --jq '.content' | base64 -d
-```
-
-Check that the URL in the cask matches the artifact naming produced by CI:
-```
-Skill-Zoo-v{VERSION}-macOS.dmg
-```
-
-A mismatched URL will 404 for all Homebrew users. If the pattern doesn't match, fix the cask formula before proceeding.
-
-### 5. Verify Prerequisites
-
-Run all checks in order. If any fails, fix and re-run the full sequence until clean — formatting changes can cascade into lint results.
+Run all checks in order. If any fails, fix and re-run the full sequence until clean — formatting changes can cascade into lint results. Any fixes become part of the same release commit.
 
 1. `cargo fmt --check --manifest-path src-tauri/Cargo.toml` — run `cargo fmt --manifest-path src-tauri/Cargo.toml` if diffs appear, then restart from here
 2. `bun run lint:rs` — fix all warnings; fmt may have introduced new ones
@@ -111,10 +96,18 @@ Run all checks in order. If any fails, fix and re-run the full sequence until cl
 4. `bun run typecheck` — fix all type errors before proceeding
 5. `bun run lint` — fix any lint errors. Note: pre-existing issues unrelated to this release should be noted separately, not silently fixed in the release commit
 6. `bun run format:check` — run `bun run format` if diffs appear. CI also enforces this, but catching it locally avoids a broken tag
-7. `git status --short` is clean after all fixes are committed
-8. `RELEASE_BODY.md` uses `__VERSION__` and `__COMMITS__` placeholders — never hardcoded version numbers
+7. `RELEASE_BODY.md` uses `__VERSION__` and `__COMMITS__` placeholders — never hardcoded version numbers
+8. `git status --short` — only expected files (CHANGELOG.md, Cargo.toml, Cargo.lock, docs/version.json, plus any fmt/clippy fixes) should appear. Anything else is a stray change that could slip into the release commit.
 
-### 6. Tag and Push
+When all checks pass, commit everything in a single commit:
+
+```bash
+git add CHANGELOG.md src-tauri/Cargo.toml src-tauri/Cargo.lock docs/version.json
+# also add any files modified by fmt/clippy fixes above
+git commit -m "chore: release vX.Y.Z"
+```
+
+### 5. Tag and Push
 
 > **CRITICAL:** Pushing a `v*` tag triggers CI to build and publish a release. **Always tell the user explicitly that a push is about to happen and get their consent before executing.** Never push without approval.
 
@@ -124,21 +117,15 @@ git tag v0.1.2
 git push origin v0.1.2
 ```
 
-### 7. CI Jobs (triggered by `v*` tag)
+### 6. CI Jobs (triggered by `v*` tag)
 
 | Job | Outcome |
 |---|---|
 | **build** | Universal DMG, NSIS installer, portable zip → renamed to `Skill-Zoo-v{VERSION}-{platform}.{ext}` |
 | **create-release** | GitHub Release with substituted release notes + all artifacts |
-| **update-homebrew** | Computes SHA256, updates cask formula, opens PR |
+| **update-homebrew** | Computes SHA256, updates cask formula, opens PR, and auto-merges |
 
-### 8. Post-Release
-
-- CI creates a PR in `luochang212/homebrew-tap` — once the PR looks good, merge it with `gh`:
-  ```bash
-  gh pr merge --squash --repo luochang212/homebrew-tap skill-zoo-<version>
-  ```
-- Verify the [GitHub Release](https://github.com/luochang212/skill-zoo/releases) shows correct assets and notes
+No manual monitoring or post-release steps needed — CI handles everything after the tag push.
 
 ## Common Mistakes
 
@@ -146,7 +133,7 @@ git push origin v0.1.2
 |---------|-----|
 | Pushing tag before pushing main | Always `git push origin main` first. A tag on an unpushed commit won't trigger CI on the right SHA. |
 | Hardcoding version in RELEASE_BODY.md | Use `__VERSION__` placeholder. The CI substitutes it automatically. |
-| Forgetting to check cask URL before releasing | Run the `gh api` command in Quick Reference. CI won't fix a broken URL pattern. |
 | Releasing with uncommitted changes | `git status --short` must be empty. Uncommitted changes won't be included in the release. |
 | Letting CI update `docs/version.json` | `version.json` is updated in Step 3 **before** tagging. CI must NOT touch it — the step was removed from the workflow. |
 | Forgetting to regenerate `Cargo.lock` | After editing `Cargo.toml` version, run `cargo check --manifest-path src-tauri/Cargo.toml` to sync Cargo.lock. `sed` alone won't update it. |
+| Making multiple commits | All version updates (CHANGELOG, Cargo.toml, Cargo.lock, version.json) go into a single `chore: release vX.Y.Z` commit. Do not commit after each file. |
