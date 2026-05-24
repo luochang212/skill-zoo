@@ -158,8 +158,10 @@ impl CliService {
         let mut errors: Vec<String> = Vec::new();
 
         // Group skills by (owner, repo, branch) so each repo is fetched only once
-        let mut by_repo: std::collections::HashMap<(String, String, String), Vec<(String, SkillLockEntry)>> =
-            std::collections::HashMap::new();
+        let mut by_repo: std::collections::HashMap<
+            (String, String, String),
+            Vec<(String, SkillLockEntry)>,
+        > = std::collections::HashMap::new();
         for (name, entry) in &to_update {
             let source_url = entry.source_url.as_deref().unwrap_or("");
             if source_url.is_empty() {

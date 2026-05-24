@@ -608,8 +608,9 @@ impl SkillService {
                         .or_else(|| lock.skills.get(dir_name))
                 });
 
-                let (repo_owner, repo_name, source_url) =
-                    lock_entry.map(|e| e.to_repo_info()).unwrap_or((None, None, None));
+                let (repo_owner, repo_name, source_url) = lock_entry
+                    .map(|e| e.to_repo_info())
+                    .unwrap_or((None, None, None));
 
                 let (yaml_name, description) =
                     Self::parse_skill_md(&skill_md).unwrap_or((dir_name.to_string(), None));
@@ -623,12 +624,15 @@ impl SkillService {
                 let is_ssot = config::get_agents_skills_dir() == *scan_root;
                 let origin = if is_ssot { "ssot" } else { "agent" };
                 let agent_id = if !is_ssot {
-                    Some(Self::detect_agent_for_path(scan_root)
-                        .expect("scan_root should be SSOT or a known agent directory"))
+                    Some(
+                        Self::detect_agent_for_path(scan_root)
+                            .expect("scan_root should be SSOT or a known agent directory"),
+                    )
                 } else {
                     None
                 };
-                let id = Self::make_skill_id(origin, &relative_dir, &repo_owner, &repo_name, agent_id);
+                let id =
+                    Self::make_skill_id(origin, &relative_dir, &repo_owner, &repo_name, agent_id);
                 if !seen_ids.insert(id.clone()) {
                     continue; // Already seen this ID, skip
                 }
@@ -905,8 +909,9 @@ impl SkillService {
             .as_ref()
             .and_then(|lock| lock.skills.get(skill_dir));
 
-        let (repo_owner, repo_name, source_url) =
-            lock_entry.map(|e| e.to_repo_info()).unwrap_or((None, None, None));
+        let (repo_owner, repo_name, source_url) = lock_entry
+            .map(|e| e.to_repo_info())
+            .unwrap_or((None, None, None));
 
         let (parsed_name, description) =
             Self::parse_skill_md(&skill_md).unwrap_or((skill_dir.to_string(), None));
@@ -929,7 +934,13 @@ impl SkillService {
         let now = chrono::Utc::now().timestamp();
         let (installed_at, updated_at) =
             Self::resolve_timestamps(lock_entry, home_path.as_deref().unwrap_or(skill_dir), now);
-        let id = Self::make_skill_id(origin, skill_dir, &repo_owner, &repo_name, home_agent.as_deref());
+        let id = Self::make_skill_id(
+            origin,
+            skill_dir,
+            &repo_owner,
+            &repo_name,
+            home_agent.as_deref(),
+        );
 
         Ok(SkillCacheEntry {
             id,
