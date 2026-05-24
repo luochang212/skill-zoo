@@ -46,7 +46,7 @@ digraph when_release {
 |------|---------|
 | Check existing tags | `git tag --sort=-v:refname \| head -5` |
 | Prerequisites (in order) | fmt → lint:rs → typecheck → lint → format:check → status |
-| Check Rust formatting | `cargo fmt --check` |
+| Check Rust formatting | `cargo fmt --check --manifest-path src-tauri/Cargo.toml` |
 | Check Rust lint | `bun run lint:rs` |
 | Check TypeScript types | `bun run typecheck` |
 | Check frontend lint | `bun run lint` |
@@ -74,15 +74,18 @@ Use today's date. Group changes under **Added**, **Changed**, **Fixed** headings
 
 Commit the changelog update before proceeding.
 
-### 3. Update Cargo.toml Version
+### 3. Update Version Files
 
-Update `src-tauri/Cargo.toml` version to match the release version:
+Update `src-tauri/Cargo.toml` and `docs/version.json` to match the release version:
 
 ```bash
+# Cargo.toml
 sed -i '' 's/^version = ".*"/version = "X.Y.Z"/' src-tauri/Cargo.toml
+# version.json (frontend reads this at runtime)
+echo '{"version":"vX.Y.Z"}' > docs/version.json
 ```
 
-Commit this change before proceeding.
+Commit these changes before proceeding.
 
 ### 4. Verify Cask URL Pattern
 
@@ -103,7 +106,7 @@ A mismatched URL will 404 for all Homebrew users. If the pattern doesn't match, 
 
 Run all checks in order. If any fails, fix and re-run the full sequence until clean — formatting changes can cascade into lint results.
 
-1. `cargo fmt --check` — run `cargo fmt` if diffs appear, then restart from here
+1. `cargo fmt --check --manifest-path src-tauri/Cargo.toml` — run `cargo fmt --manifest-path src-tauri/Cargo.toml` if diffs appear, then restart from here
 2. `bun run lint:rs` — fix all warnings; fmt may have introduced new ones
 3. `bun run typecheck` — fix all type errors before proceeding
 4. `bun run lint` — fix any lint errors. Note: pre-existing issues unrelated to this release should be noted separately, not silently fixed in the release commit
