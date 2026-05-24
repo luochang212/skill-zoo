@@ -148,3 +148,4 @@ git push origin v0.1.2
 | Hardcoding version in RELEASE_BODY.md | Use `__VERSION__` placeholder. The CI substitutes it automatically. |
 | Forgetting to check cask URL before releasing | Run the `gh api` command in Quick Reference. CI won't fix a broken URL pattern. |
 | Releasing with uncommitted changes | `git status --short` must be empty. Uncommitted changes won't be included in the release. |
+| Letting CI update `docs/version.json` | `version.json` is updated in Step 3 **before** tagging. CI must NOT touch it — the step was removed from the workflow. |
