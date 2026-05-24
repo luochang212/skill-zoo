@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.3] — 2026-05-25
+
+### Changed
+- Release flow streamlined to a single commit; CI now auto-merges the Homebrew cask PR with no manual post-release steps.
+
+### Fixed
+- Download status label now appears before the website button in the settings bar.
+
 ## [0.2.2] — 2026-05-25
 
 ### Changed
