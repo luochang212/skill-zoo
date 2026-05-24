@@ -62,6 +62,16 @@ fn validate_skill_name(name: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn is_under_skill_dir(p: &std::path::Path) -> bool {
+    let agents_dir = config::get_agents_skills_dir();
+    p.starts_with(&agents_dir)
+        || config::AGENTS.iter().any(|agent| {
+            config::get_agent_skills_dir(agent.id)
+                .map(|d| p.starts_with(&d))
+                .unwrap_or(false)
+        })
+}
+
 static REPO_SEGMENT_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9_.-]+$").unwrap());
 
@@ -442,14 +452,7 @@ pub fn read_skill_file_path(path: String) -> Result<String, String> {
     if !p.is_absolute() {
         return Err("Path must be absolute".into());
     }
-    let agents_dir = config::get_agents_skills_dir();
-    let is_under_known_dir = p.starts_with(&agents_dir)
-        || config::AGENTS.iter().any(|agent| {
-            config::get_agent_skills_dir(agent.id)
-                .map(|d| p.starts_with(&d))
-                .unwrap_or(false)
-        });
-    if !is_under_known_dir {
+    if !is_under_skill_dir(p) {
         return Err("Path is not under a known skill directory".into());
     }
     if !p.is_file() {
@@ -475,13 +478,7 @@ pub fn write_skill_file_path(
         return Err("Path must be absolute".into());
     }
     let agents_dir = config::get_agents_skills_dir();
-    let is_under_known_dir = p.starts_with(&agents_dir)
-        || config::AGENTS.iter().any(|agent| {
-            config::get_agent_skills_dir(agent.id)
-                .map(|d| p.starts_with(&d))
-                .unwrap_or(false)
-        });
-    if !is_under_known_dir {
+    if !is_under_skill_dir(p) {
         return Err("Path is not under a known skill directory".into());
     }
     atomic_write(p, content).map_err(|e| e.to_string())?;
@@ -549,14 +546,7 @@ pub fn open_skill_path(app_handle: tauri::AppHandle, path: String) -> Result<(),
         return Err("Path must be absolute".into());
     }
     // Verify the path is under a known skill directory
-    let agents_dir = config::get_agents_skills_dir();
-    let is_under_known_dir = p.starts_with(&agents_dir)
-        || config::AGENTS.iter().any(|agent| {
-            config::get_agent_skills_dir(agent.id)
-                .map(|d| p.starts_with(&d))
-                .unwrap_or(false)
-        });
-    if !is_under_known_dir {
+    if !is_under_skill_dir(p) {
         return Err("Path is not under a known skill directory".into());
     }
     if !p.exists() {
@@ -729,7 +719,7 @@ fn parse_repo_query(query: &str) -> Result<(String, String, String), String> {
         }
 
         let owner = segments[0].to_string();
-        let name = segments[1].to_string();
+        let name = segments[1].trim_end_matches(".git").to_string();
         let branch = if segments.len() >= 4 && segments[2] == "tree" {
             segments[3].to_string()
         } else {
@@ -744,7 +734,7 @@ fn parse_repo_query(query: &str) -> Result<(String, String, String), String> {
             return Err("Query must be in 'owner/name' format or a GitHub URL".into());
         }
         let owner = parts[0].to_string();
-        let name = parts[1].to_string();
+        let name = parts[1].trim_end_matches(".git").to_string();
         validate_repo_segments(&owner, &name, "main")?;
         Ok((owner, name, "main".to_string()))
     }

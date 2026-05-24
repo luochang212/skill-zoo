@@ -224,6 +224,28 @@ impl SkillService {
         None
     }
 
+    /// Construct the canonical skill ID string used across cache and duplicate detection.
+    /// Must match the logic in `scan_single_skill_with_cache`.
+    fn make_skill_id(
+        origin: &str,
+        dir: &str,
+        repo_owner: &Option<String>,
+        repo_name: &Option<String>,
+        agent_id: Option<&str>,
+    ) -> String {
+        if origin == "ssot" {
+            match (repo_owner.as_deref(), repo_name.as_deref()) {
+                (Some(owner), Some(repo)) => format!("repo:{owner}/{repo}:{dir}"),
+                _ => format!("ssot:{dir}"),
+            }
+        } else {
+            format!(
+                "agent:{aid}:{dir}",
+                aid = agent_id.expect("non-ssot skill must have an agent_id")
+            )
+        }
+    }
+
     /// Compute a SHA-256 hash of all files in the skill directory.
     fn compute_content_hash(home_path: &str) -> Option<String> {
         use sha2::{Digest, Sha256};
@@ -586,13 +608,8 @@ impl SkillService {
                         .or_else(|| lock.skills.get(dir_name))
                 });
 
-                let (repo_owner, repo_name, source_url) = lock_entry
-                    .map(|entry| {
-                        let (owner, name) = entry.parse_source_owner_name();
-                        let url = entry.effective_url();
-                        (owner, name, url)
-                    })
-                    .unwrap_or((None, None, None));
+                let (repo_owner, repo_name, source_url) =
+                    lock_entry.map(|e| e.to_repo_info()).unwrap_or((None, None, None));
 
                 let (yaml_name, description) =
                     Self::parse_skill_md(&skill_md).unwrap_or((dir_name.to_string(), None));
@@ -604,21 +621,17 @@ impl SkillService {
                 };
 
                 let is_ssot = config::get_agents_skills_dir() == *scan_root;
-                let id = if is_ssot {
-                    match (&repo_owner, &repo_name) {
-                        (Some(owner), Some(repo)) => format!("repo:{owner}/{repo}:{relative_dir}"),
-                        _ => format!("ssot:{relative_dir}"),
-                    }
+                let origin = if is_ssot { "ssot" } else { "agent" };
+                let agent_id = if !is_ssot {
+                    Some(Self::detect_agent_for_path(scan_root)
+                        .expect("scan_root should be SSOT or a known agent directory"))
                 } else {
-                    let agent_id = Self::detect_agent_for_path(scan_root)
-                        .expect("scan_root should be SSOT or a known agent directory");
-                    format!("agent:{agent_id}:{relative_dir}")
+                    None
                 };
+                let id = Self::make_skill_id(origin, &relative_dir, &repo_owner, &repo_name, agent_id);
                 if !seen_ids.insert(id.clone()) {
                     continue; // Already seen this ID, skip
                 }
-
-                let origin = if is_ssot { "ssot" } else { "agent" };
                 let home_path = if is_ssot {
                     let ssot_path = config::get_agents_skills_dir().join(&relative_dir);
                     ssot_path.to_str().map(|s| s.to_string())
@@ -892,13 +905,8 @@ impl SkillService {
             .as_ref()
             .and_then(|lock| lock.skills.get(skill_dir));
 
-        let (repo_owner, repo_name, source_url) = lock_entry
-            .map(|entry| {
-                let (owner, name) = entry.parse_source_owner_name();
-                let url = entry.effective_url();
-                (owner, name, url)
-            })
-            .unwrap_or((None, None, None));
+        let (repo_owner, repo_name, source_url) =
+            lock_entry.map(|e| e.to_repo_info()).unwrap_or((None, None, None));
 
         let (parsed_name, description) =
             Self::parse_skill_md(&skill_md).unwrap_or((skill_dir.to_string(), None));
@@ -921,19 +929,7 @@ impl SkillService {
         let now = chrono::Utc::now().timestamp();
         let (installed_at, updated_at) =
             Self::resolve_timestamps(lock_entry, home_path.as_deref().unwrap_or(skill_dir), now);
-        // Use the same ID logic as scan_dir_recursive_into
-        let is_ssot = origin == "ssot";
-        let id = if is_ssot {
-            match (&repo_owner, &repo_name) {
-                (Some(owner), Some(repo)) => format!("repo:{owner}/{repo}:{skill_dir}"),
-                _ => format!("ssot:{skill_dir}"),
-            }
-        } else {
-            let ha = home_agent
-                .as_ref()
-                .expect("agent-origin skill should have a home_agent");
-            format!("agent:{ha}:{skill_dir}")
-        };
+        let id = Self::make_skill_id(origin, skill_dir, &repo_owner, &repo_name, home_agent.as_deref());
 
         Ok(SkillCacheEntry {
             id,

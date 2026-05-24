@@ -109,4 +109,11 @@ impl SkillLockEntry {
         }
         None
     }
+
+    /// Extract (owner, repo_name, source_url) from this lock entry.
+    pub fn to_repo_info(&self) -> (Option<String>, Option<String>, Option<String>) {
+        let (owner, name) = self.parse_source_owner_name();
+        let url = self.effective_url();
+        (owner, name, url)
+    }
 }
