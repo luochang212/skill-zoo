@@ -527,6 +527,7 @@
       }
       .hero-report-grid > div:first-child {
         flex: 0 0 clamp(260px, 26vw, 360px);
+        margin-left: clamp(48px, 7vw, 120px);
       }
       .hero-report-grid > div:last-child {
         flex: 1 1 auto;
@@ -680,7 +681,7 @@
         background: var(--copper);
         border-color: var(--copper);
         color: #fff;
-        font-weight: 600;
+        font-weight: 700;
       }
       .hero-dl-btn:first-child:hover {
         background: var(--copper-d);
@@ -702,7 +703,7 @@
         font-weight: 500;
       }
       .hero-dl-btn:first-child .hero-dl-name {
-        font-weight: 600;
+        font-weight: 700;
       }
       /* ── Counter animation ── */
       .count-up {
@@ -1049,7 +1050,8 @@
           max-width: 100%;
         }
         .hero-report-fig {
-          max-width: 460px;
+          max-width: 100%;
+          width: 100%;
         }
       }
 
@@ -1176,13 +1178,17 @@
           grid-column: span 1 !important;
         }
 
-        /* ── Hero report: compact height, hide carousel & GitHub icon ── */
+        /* ── Hero report: compact height ── */
         .hero-report {
           min-height: auto;
-          padding: clamp(56px, 12vh, 96px) clamp(16px, 5vw, 32px);
+          padding: clamp(56px, 12vh, 96px) clamp(16px, 5vw, 32px)
+            clamp(24px, 4vh, 48px);
         }
-        .hero-report-fig {
-          display: none;
+        .hero-report-grid {
+          gap: clamp(24px, 4vh, 40px);
+        }
+        .carousel-wrapper {
+          perspective: 1200px;
         }
         .gh-btn {
           display: none;
@@ -1514,6 +1520,9 @@
         -webkit-backdrop-filter: saturate(1.4) blur(12px);
         border-bottom: 1px solid rgba(255, 255, 255, 0.07);
         padding: 0 28px;
+        transition:
+          background 0.4s ease,
+          border-color 0.4s ease;
       }
       .top-nav-inner {
         max-width: 1100px;
@@ -1583,6 +1592,10 @@
       }
       .top-nav-dl:active {
         transform: translateY(1px);
+      }
+      .top-nav.nav-hero {
+        background: rgba(10, 10, 11, 0.88);
+        border-bottom-color: rgba(255, 255, 255, 0.03);
       }
       /* Hamburger */
       .top-nav-toggle {
@@ -1906,7 +1919,7 @@
       /* Platform badge on download button */
       .dl-platform {
         font-size: 10px;
-        font-weight: 400;
+        font-weight: 700;
         opacity: 0.7;
         margin-left: 6px;
       }
@@ -3399,11 +3412,7 @@
         { src: "./screenshots/screenshot-3.webp", alt: "Settings page" },
       ];
       const ASPECT = 2200 / 1405;
-      const isMobile = window.innerWidth < 768;
-      const MAX_CARD_W = Math.min(
-        isMobile ? 600 : 800,
-        window.innerWidth * (isMobile ? 0.92 : 0.4),
-      );
+      const isMobile = () => window.innerWidth < 768;
       const carousel = document.getElementById("carousel");
       const wrapper = document.getElementById("carousel-wrapper");
       const dotsContainer = document.getElementById("carousel-dots");
@@ -3425,7 +3434,7 @@
         return { card, dot };
       });
 
-      function getStyle(diff, cardW) {
+      function getStyle(diff, cardW, mobile) {
         const abs = Math.abs(diff);
         const sign = diff < 0 ? -1 : 1;
         if (abs === 0) {
@@ -3442,19 +3451,19 @@
         }
         if (abs === 1) {
           return {
-            x: sign * cardW * 0.32,
-            scale: 0.78,
-            ry: sign * -22,
+            x: sign * cardW * (mobile ? 0.26 : 0.32),
+            scale: mobile ? 0.72 : 0.78,
+            ry: sign * (mobile ? -12 : -22),
             z: -50,
-            opacity: 0.55,
+            opacity: mobile ? 0.4 : 0.55,
             zIdx: 10,
             shadow: "0 2px 6px rgba(0,0,0,0.05), 0 6px 18px rgba(0,0,0,0.07)",
           };
         }
         return {
-          x: sign * cardW * 0.48,
-          scale: 0.62,
-          ry: sign * -15,
+          x: sign * cardW * (mobile ? 0.36 : 0.48),
+          scale: mobile ? 0.55 : 0.62,
+          ry: sign * (mobile ? -8 : -15),
           z: -110,
           opacity: 0,
           zIdx: 5,
@@ -3464,16 +3473,17 @@
 
       function carouselLayout() {
         const n = cards.length;
+        const mobile = isMobile();
         const cardW = Math.min(
-          wrapper.clientWidth * (isMobile ? 0.92 : 0.85),
-          MAX_CARD_W,
+          wrapper.clientWidth * (mobile ? 0.72 : 0.69),
+          mobile ? 600 : 660,
         );
         const cardH = cardW / ASPECT;
         wrapper.style.height = `${Math.max(cardH + 60, 280)}px`;
         cards.forEach(({ card, dot }, i) => {
           let diff = (i - current + n) % n;
           if (diff > n / 2) diff -= n;
-          const s = getStyle(diff, cardW);
+          const s = getStyle(diff, cardW, mobile);
           card.style.width = `${cardW}px`;
           card.style.marginLeft = `${-cardW / 2}px`;
           card.style.marginTop = `${-cardH / 2}px`;
@@ -3831,6 +3841,15 @@
             .scrollIntoView({ behavior: "smooth" });
         });
       }
+
+      // Nav color adapts to hero section
+      const TOP_NAV = document.getElementById("top-nav");
+      function updateNavTheme() {
+        const heroBottom = heroZoo.getBoundingClientRect().bottom;
+        TOP_NAV.classList.toggle("nav-hero", heroBottom > 60);
+      }
+      window.addEventListener("scroll", updateNavTheme, { passive: true });
+      updateNavTheme();
     </script>
   </body>
 </html>
