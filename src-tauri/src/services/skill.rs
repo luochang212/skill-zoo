@@ -1140,6 +1140,9 @@ impl SkillService {
                     target_path.display()
                 )));
             }
+            if symlink_path.exists() && !is_symlink_or_junction(&symlink_path) {
+                return Ok(());
+            }
             Self::safe_remove(&symlink_path)?;
             std::fs::create_dir_all(&agent_skills_dir)
                 .map_err(|e| error::io(&agent_skills_dir, e))?;
