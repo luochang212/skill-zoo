@@ -87,6 +87,7 @@ pub fn run() {
             commands::skill::update_skill,
             commands::skill::update_all_skills,
             commands::skill::remove_skill,
+            commands::skill::remove_skills,
             commands::skill::read_skill_md,
             commands::skill::write_skill_md,
             commands::skill::get_symlink_status,

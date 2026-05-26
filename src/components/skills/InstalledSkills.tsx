@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useInstalledSkills, useStarSkill, useUnstarSkill } from "@/hooks/useSkills";
+import { useInstalledSkills, useRemoveSkills, useStarSkill, useUnstarSkill } from "@/hooks/useSkills";
 import { useConsistencyCheck } from "@/hooks/useSkillIssues";
 import { useVisibleAgentOrder, useHideNonSsot } from "@/hooks/useSettings";
 import { useAgentConfigs } from "@/lib/agents";
@@ -10,8 +10,17 @@ import { SkillSidebar } from "@/components/skills/SkillSidebar";
 import { ConsistencyPanel } from "@/components/skills/ConsistencyPanel";
 import { ViewModeToggle } from "@/components/skills/ViewModeToggle";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertTriangle, ArrowUp, ArrowDown } from "lucide-react";
+import { AlertTriangle, ArrowUp, ArrowDown, Trash2 } from "lucide-react";
 import type { ViewMode } from "@/components/skills/ViewModeToggle";
 import type { SidebarCategory } from "@/hooks/useSidebarFilter";
 import type { InstalledSkill } from "@/types/skills";
@@ -32,6 +41,8 @@ function SortArrow({ active, direction }: { active: boolean; direction: SortDire
 }
 
 function ListHeader({
+  allSelected,
+  onToggleSelectAll,
   sortField,
   sortDirection,
   onSort,
@@ -39,6 +50,8 @@ function ListHeader({
   sortField: SortField;
   sortDirection: SortDirection;
   onSort: (field: SortField) => void;
+  allSelected: boolean;
+  onToggleSelectAll: () => void;
 }) {
   const headerBtn = (field: SortField, label: string, className: string) => (
     <button
@@ -53,6 +66,12 @@ function ListHeader({
 
   return (
     <div className="flex items-center gap-4 px-5 py-1.5 border-b border-border/40">
+      <div className="w-8 shrink-0 flex justify-center">
+        <Checkbox
+          checked={allSelected}
+          onCheckedChange={onToggleSelectAll}
+        />
+      </div>
       {headerBtn("name", "Name", "w-48 shrink-0")}
       {headerBtn("repo", "Repo", "flex-1 min-w-0")}
       {headerBtn("updatedAt", "Updated", "w-28 shrink-0")}
@@ -74,6 +93,7 @@ export function InstalledSkills({
   );
   const starMutation = useStarSkill();
   const unstarMutation = useUnstarSkill();
+  const removeSkillsMutation = useRemoveSkills();
   const visibleAgentOrder = useVisibleAgentOrder();
   const { data: hideNonSsot } = useHideNonSsot();
   const { data: agentConfigs } = useAgentConfigs();
@@ -84,6 +104,8 @@ export function InstalledSkills({
 
   const [sortField, setSortField] = useState<SortField>("updatedAt");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const handleToggleStar = (skill: InstalledSkill) => {
     if (skill.starred) {
@@ -92,6 +114,14 @@ export function InstalledSkills({
       starMutation.mutate(skill.id);
     }
   };
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [category.type]);
+
+  useEffect(() => {
+    if (viewMode === "grid") setSelectedIds(new Set());
+  }, [viewMode]);
 
   if (isLoading) {
     return (
@@ -203,6 +233,19 @@ export function InstalledSkills({
     }
   };
 
+  const handleToggleSelect = (skillId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(skillId)) next.delete(skillId);
+      else next.add(skillId);
+      return next;
+    });
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedIds(new Set());
+  };
+
   const sorted = filtered.toSorted((a, b) => {
     const dir = sortDirection === "asc" ? 1 : -1;
 
@@ -231,6 +274,12 @@ export function InstalledSkills({
     }
   });
 
+  const handleSelectAll = () => {
+    setSelectedIds(new Set(sorted.map((s) => s.id)));
+  };
+
+  const allSelected = sorted.length > 0 && selectedIds.size === sorted.length;
+
   return (
     <div className="flex h-full">
       {/* Sidebar */}
@@ -242,7 +291,8 @@ export function InstalledSkills({
       />
 
       {/* Main content */}
-      <div className="flex flex-col flex-1 min-w-0 p-6">
+      <div className="flex flex-col flex-1 min-w-0">
+        <div className="flex-1 min-h-0 p-6 pb-0 flex flex-col">
         {/* Toolbar — hidden in consistency view since it has its own panel */}
         {category.type !== "consistency" && (
           <div className="flex items-center gap-3 mb-6">
@@ -326,6 +376,8 @@ export function InstalledSkills({
                   sortField={sortField}
                   sortDirection={sortDirection}
                   onSort={handleSort}
+                  allSelected={allSelected}
+                  onToggleSelectAll={allSelected ? handleDeselectAll : handleSelectAll}
                 />
                 {sorted.map((skill) => (
                   <SkillCardRow
@@ -336,12 +388,81 @@ export function InstalledSkills({
                     onToggleStar={() => handleToggleStar(skill)}
                     starred={skill.starred}
                     issues={issuesMap.get(skill.id)}
+                    selected={selectedIds.has(skill.id)}
+                    onToggleSelect={() => handleToggleSelect(skill.id)}
                   />
                 ))}
               </div>
             )}
           </div>
         )}
+
+        </div>
+
+        {/* Floating action bar */}
+        {viewMode !== "grid" && selectedIds.size > 0 && (
+          <div className="border-t border-border bg-background/95 backdrop-blur-sm pl-5 pr-6 py-3 flex items-center justify-between shrink-0">
+            <span className="text-sm text-muted-foreground">
+              {t("browse.selectedCount", { count: selectedIds.size })}
+            </span>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-7 text-xs rounded-lg"
+              onClick={() => setConfirmOpen(true)}
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+              {t("browse.removeSelected")}
+            </Button>
+          </div>
+        )}
+
+        {/* Batch remove confirmation dialog */}
+        <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <DialogContent className="sm:max-w-[380px]" data-selectable>
+            <DialogHeader>
+              <DialogTitle>{t("removeDialog.title")}</DialogTitle>
+              <DialogDescription>
+                {t("removeDialog.batchDescription", { count: selectedIds.size })}{" "}
+                {t("removeDialog.warning")}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="max-h-40 overflow-auto border rounded-md p-2 space-y-1">
+              {Array.from(selectedIds).map((id) => {
+                const skill = sorted.find((s) => s.id === id);
+                return skill ? (
+                  <p key={id} className="text-[13px] leading-tight truncate text-muted-foreground">
+                    {skill.name}
+                  </p>
+                ) : null;
+              })}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" size="sm" onClick={() => setConfirmOpen(false)}>
+                {t("common.cancel")}
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={removeSkillsMutation.isPending}
+                onClick={() => {
+                  setConfirmOpen(false);
+                  removeSkillsMutation.mutate(Array.from(selectedIds), {
+                    onSuccess: (result) => {
+                      setSelectedIds((prev) => {
+                        const next = new Set(prev);
+                        result.removed.forEach((id) => next.delete(id));
+                        return next;
+                      });
+                    },
+                  });
+                }}
+              >
+                {t("common.remove")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
-import { skillsApi, type UpdateAllResult } from "@/lib/api/skills";
+import { skillsApi, type RemoveSkillsResult, type UpdateAllResult } from "@/lib/api/skills";
 import { invalidateFor, type MutationName } from "@/hooks/queryInvalidation";
 import type { InstalledSkill } from "@/types/skills";
 import { useEffect } from "react";
@@ -84,6 +84,27 @@ export function useRemoveSkill() {
   return useMutation({
     mutationFn: (skillId: string) => skillsApi.removeSkill(skillId),
     onSuccess: () => invalidateFor(qc, "removeSkill"),
+  });
+}
+
+export function useRemoveSkills() {
+  const qc = useQueryClient();
+  return useMutation<RemoveSkillsResult, Error, string[], { previous: InstalledSkill[] | undefined }>({
+    mutationFn: (skillIds: string[]) => skillsApi.removeSkills(skillIds),
+    onMutate: async (skillIds) => {
+      await qc.cancelQueries({ queryKey: ["skills", "installed"] });
+      const previous = qc.getQueryData<InstalledSkill[]>(["skills", "installed"]);
+      qc.setQueryData<InstalledSkill[]>(["skills", "installed"], (old) =>
+        old?.filter((s) => !skillIds.includes(s.id)),
+      );
+      return { previous };
+    },
+    onError: (_err, _skillIds, context) => {
+      if (context?.previous) {
+        qc.setQueryData(["skills", "installed"], context.previous);
+      }
+    },
+    onSettled: () => invalidateFor(qc, "removeSkill"),
   });
 }
 

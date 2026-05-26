@@ -323,6 +323,82 @@ pub async fn remove_skill(state: State<'_, AppState>, skill_id: String) -> Resul
     Ok(())
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoveSkillsResult {
+    pub removed: Vec<String>,
+    pub failed: Vec<RemoveSkillFailure>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoveSkillFailure {
+    pub skill_id: String,
+    pub error: String,
+}
+
+#[tauri::command]
+pub async fn remove_skills(
+    state: State<'_, AppState>,
+    skill_ids: Vec<String>,
+) -> Result<RemoveSkillsResult, String> {
+    let mut removed: Vec<String> = Vec::new();
+    let mut failed: Vec<RemoveSkillFailure> = Vec::new();
+
+    for skill_id in &skill_ids {
+        let skill = match SkillService::find_in_cache(&state.skill_cache, skill_id) {
+            Ok(Some(s)) => s,
+            Ok(None) => continue,
+            Err(e) => {
+                failed.push(RemoveSkillFailure {
+                    skill_id: skill_id.clone(),
+                    error: e.to_string(),
+                });
+                continue;
+            }
+        };
+
+        if let Err(e) = CliService::remove_skill(&skill.directory).await {
+            failed.push(RemoveSkillFailure {
+                skill_id: skill_id.clone(),
+                error: e.to_string(),
+            });
+            continue;
+        }
+
+        if let Err(e) = SkillService::remove_cache_entry(&state.skill_cache, skill_id) {
+            failed.push(RemoveSkillFailure {
+                skill_id: skill_id.clone(),
+                error: e.to_string(),
+            });
+            continue;
+        }
+
+        {
+            let mut metadata = match state.metadata.write() {
+                Ok(m) => m,
+                Err(e) => {
+                    failed.push(RemoveSkillFailure {
+                        skill_id: skill_id.clone(),
+                        error: e.to_string(),
+                    });
+                    continue;
+                }
+            };
+            metadata.remove(skill_id);
+        }
+
+        removed.push(skill_id.clone());
+    }
+
+    {
+        let metadata = state.metadata.write().map_err(|e| e.to_string())?;
+        metadata.save().map_err(|e| e.to_string())?;
+    }
+
+    Ok(RemoveSkillsResult { removed, failed })
+}
+
 #[tauri::command]
 pub fn read_skill_md(directory: String) -> Result<String, String> {
     validate_skill_directory(&directory)?;

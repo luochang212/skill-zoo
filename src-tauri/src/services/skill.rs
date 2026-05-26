@@ -793,7 +793,7 @@ impl SkillService {
             let Some(root_dir) = root_dir else {
                 return Ok(skills);
             };
-            Self::scan_for_skills(&root_dir, owner, name, branch, 0, &mut skills)?;
+            Self::scan_for_skills(&root_dir, &root_dir, owner, name, branch, 0, &mut skills)?;
             Ok(skills)
         }
         .await;
@@ -811,6 +811,7 @@ impl SkillService {
 
     fn scan_for_skills(
         dir: &PathBuf,
+        base_path: &PathBuf,
         owner: &str,
         repo: &str,
         _branch: &str,
@@ -828,7 +829,8 @@ impl SkillService {
                 .unwrap_or("unknown");
             let (_, description) =
                 Self::parse_skill_md(&skill_md).unwrap_or((dir_name.to_string(), None));
-            let key = format!("{owner}/{repo}:{dir_name}");
+            let rel = dir.strip_prefix(base_path).unwrap_or(dir);
+            let key = rel.to_string_lossy().to_string();
             skills.push(DiscoverableSkill {
                 key,
                 name: dir_name.to_string(),
@@ -848,7 +850,7 @@ impl SkillService {
                     if file_name.starts_with('.') || file_name == "node_modules" {
                         continue;
                     }
-                    Self::scan_for_skills(&path, owner, repo, _branch, depth + 1, skills)?;
+                    Self::scan_for_skills(&path, base_path, owner, repo, _branch, depth + 1, skills)?;
                 }
             }
         }

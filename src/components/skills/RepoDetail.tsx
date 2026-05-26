@@ -67,7 +67,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
 
   // Install dialog state
   const [installSkills, setInstallSkills] = useState<DiscoverableSkill[] | null>(null);
-  const [selectedDirs, setSelectedDirs] = useState<Set<string>>(new Set());
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
   const [pendingRemove, setPendingRemove] = useState<DiscoverableSkill | null>(null);
   const [previewSkill, setPreviewSkill] = useState<DiscoverableSkill | null>(null);
@@ -177,7 +177,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
       {
         onSuccess: () => {
           setInstallSkills(null);
-          setSelectedDirs(new Set());
+          setSelectedKeys(new Set());
           // Mark installed skills in cache without re-downloading the repo
           qc.setQueryData<RepoSkillsResult>(skillsQueryKey, (old) => {
             if (!old) return old;
@@ -197,23 +197,23 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
   const { skills: skillList, total } = skills ?? { skills: [], total: 0 };
   const installableSkills = skillList.filter((s) => !s.installed);
   const allSelected =
-    installableSkills.length > 0 && selectedDirs.size === installableSkills.length;
-  const selectedInstallable = installableSkills.filter((s) => selectedDirs.has(s.directory));
+    installableSkills.length > 0 && selectedKeys.size === installableSkills.length;
+  const selectedInstallable = installableSkills.filter((s) => selectedKeys.has(s.key));
 
-  const toggleDir = (dir: string) => {
-    setSelectedDirs((prev) => {
+  const toggleKey = (key: string) => {
+    setSelectedKeys((prev) => {
       const next = new Set(prev);
-      if (next.has(dir)) next.delete(dir);
-      else next.add(dir);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
 
   const toggleAll = () => {
     if (allSelected) {
-      setSelectedDirs(new Set());
+      setSelectedKeys(new Set());
     } else {
-      setSelectedDirs(new Set(installableSkills.map((s) => s.directory)));
+      setSelectedKeys(new Set(installableSkills.map((s) => s.key)));
     }
   };
 
@@ -331,7 +331,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
             <>
               {installableSkills.length > 0 && (
                 <label className="inline-flex items-center gap-3 text-[11px] text-muted-foreground cursor-pointer hover:text-foreground transition-colors mb-4 pl-4">
-                  <Checkbox checked={allSelected} onCheckedChange={toggleAll} className="h-4 w-4" />
+                  <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
                   {t("browse.selectAll")}
                 </label>
               )}
@@ -342,11 +342,11 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
                     className="flex items-center gap-3 rounded-lg border border-border/40 px-4 py-3 hover:bg-accent/30 transition-colors"
                   >
                     <Checkbox
-                      checked={skill.installed || selectedDirs.has(skill.directory)}
+                      checked={skill.installed || selectedKeys.has(skill.key)}
                       disabled={skill.installed}
-                      onCheckedChange={() => toggleDir(skill.directory)}
+                      onCheckedChange={() => toggleKey(skill.key)}
                       aria-label={skill.installed ? t("common.installed") : `Select ${skill.name}`}
-                      className="h-4 w-4 shrink-0"
+                      className="shrink-0"
                     />
                     <div
                       className="min-w-0 flex-1 cursor-pointer"

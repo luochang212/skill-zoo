@@ -55,7 +55,8 @@
     "selectedCount": "已选 {{count}} 个",
     "installSelected": "安装所选",
     "recentlyViewed": "最近浏览",
-    "clearHistory": "清空"
+    "clearHistory": "清空",
+    "removeSelected": "删除所选"
   },
   "installed": {
     "searchPlaceholder": "搜索已安装...",
@@ -135,7 +136,8 @@
   "removeDialog": {
     "title": "删除技能",
     "description": "确定要删除",
-    "warning": "这将取消与所有代理的链接并删除本地文件。"
+    "warning": "Agent 关联和本地文件将同步移除。",
+    "batchDescription": "确认删除以下 {{count}} 个技能？"
   },
   "symlink": {
     "title": "符号链接状态",

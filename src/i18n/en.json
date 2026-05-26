@@ -55,7 +55,8 @@
     "selectedCount": "{{count}} selected",
     "installSelected": "Install selected",
     "recentlyViewed": "Recently Viewed",
-    "clearHistory": "Clear"
+    "clearHistory": "Clear",
+    "removeSelected": "Remove selected"
   },
   "installed": {
     "searchPlaceholder": "Search installed...",
@@ -135,7 +136,8 @@
   "removeDialog": {
     "title": "Remove Skill",
     "description": "Are you sure you want to remove",
-    "warning": "This will unlink it from all agents and delete the local files."
+    "warning": "Agent links and local files will also be removed.",
+    "batchDescription": "Confirm remove {{count}} skills?"
   },
   "symlink": {
     "title": "Symlink Status",

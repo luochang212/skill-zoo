@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { StarButton } from "@/components/skills/StarButton";
 import { SkillBadges } from "@/components/skills/SkillBadges";
 import { formatRelativeDate } from "@/lib/date";
@@ -15,6 +16,8 @@ interface SkillCardRowProps {
   onToggleStar?: () => void;
   starred?: boolean;
   issues?: SkillIssues;
+  selected?: boolean;
+  onToggleSelect?: () => void;
 }
 
 export function SkillCardRow({
@@ -25,6 +28,8 @@ export function SkillCardRow({
   onToggleStar,
   starred,
   issues,
+  selected,
+  onToggleSelect,
 }: SkillCardRowProps) {
   const { t } = useTranslation();
   const installedSkill = isInstalled ? (skill as InstalledSkill) : null;
@@ -33,6 +38,15 @@ export function SkillCardRow({
 
   return (
     <div className="flex items-center gap-4 px-5 py-2 hover:bg-accent/40 transition-colors group last:border-b-0" data-selectable>
+      {/* Checkbox column */}
+      {onToggleSelect !== undefined && (
+        <div className="w-8 shrink-0 flex justify-center">
+          <Checkbox
+            checked={selected ?? false}
+            onCheckedChange={onToggleSelect}
+          />
+        </div>
+      )}
       {/* Name — w-48 aligned with header */}
       <div className="w-48 shrink-0 min-w-0 flex items-center gap-2">
         {onOpen ? (

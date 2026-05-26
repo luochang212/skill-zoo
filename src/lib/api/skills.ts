@@ -25,6 +25,9 @@ export const skillsApi = {
 
   removeSkill: (skillId: string) => invoke<void>("remove_skill", { skillId }),
 
+  removeSkills: (skillIds: string[]) =>
+    invoke<RemoveSkillsResult>("remove_skills", { skillIds }),
+
   readSkillMd: (directory: string) => invoke<string>("read_skill_md", { directory }),
 
   writeSkillMd: (directory: string, content: string) =>
@@ -120,6 +123,16 @@ export interface SkillUpdateStatus {
   currentSha: string | null;
   latestSha: string | null;
   repo: string;
+}
+
+export interface RemoveSkillsResult {
+  removed: string[];
+  failed: RemoveSkillFailure[];
+}
+
+export interface RemoveSkillFailure {
+  skillId: string;
+  error: string;
 }
 
 export interface CheckUpdatesResult {
