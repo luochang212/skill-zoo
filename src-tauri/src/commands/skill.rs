@@ -586,6 +586,8 @@ pub struct BannerEntry {
     pub subtitle: String,
     pub owner: Option<String>,
     pub name: Option<String>,
+    #[serde(default)]
+    pub branch: Option<String>,
     #[serde(default, rename = "hideText")]
     pub hide_text: Option<bool>,
 }

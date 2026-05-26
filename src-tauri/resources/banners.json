@@ -4,14 +4,16 @@
     "title": "Anthropic Skills",
     "subtitle": "Official agent skills from Anthropic",
     "owner": "anthropics",
-    "name": "skills"
+    "name": "skills",
+    "branch": "main"
   },
   {
     "image": "banners/banner2.webp",
     "title": "Dive into LangGraph",
     "subtitle": "Build complex agent workflows",
     "owner": "luochang212",
-    "name": "dive-into-langgraph"
+    "name": "dive-into-langgraph",
+    "branch": "main"
   },
   {
     "image": "banners/banner3.webp",
@@ -19,6 +21,7 @@
     "subtitle": "Curated skills for Claude AI",
     "owner": "ComposioHQ",
     "name": "awesome-claude-skills",
+    "branch": "master",
     "hideText": true
   }
 ]

@@ -102,5 +102,6 @@ export interface Banner {
   subtitle: string;
   owner?: string;
   name?: string;
+  branch?: string;
   hideText?: boolean;
 }

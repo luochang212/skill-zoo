@@ -42,10 +42,10 @@
     "description": "An agentic skills framework & software development methodology that works."
   },
   {
-    "owner": "ComposioHQ",
-    "name": "awesome-claude-skills",
-    "branch": "master",
-    "description": "A curated list of awesome Claude Skills, resources, and tools for customizing Claude AI workflows"
+    "owner": "mattpocock",
+    "name": "skills",
+    "branch": "main",
+    "description": "Skills for Real Engineers. Straight from my .claude directory."
   },
   {
     "owner": "luochang212",

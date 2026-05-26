@@ -141,7 +141,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
   );
 
   const handleBannerClick = useCallback(
-    async (owner: string, name: string) => {
+    async (owner: string, name: string, branch?: string) => {
       const found = repos.find((r) => r.owner === owner && r.name === name);
       if (found) {
         navigateToRepo(found);
@@ -149,7 +149,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
       }
       try {
         const repo = await skillsApi.searchRepo(`${owner}/${name}`);
-        navigateToRepo(repo);
+        navigateToRepo({ ...repo, branch: branch ?? repo.branch });
       } catch {
         // ignore — repo not found or network error
       }

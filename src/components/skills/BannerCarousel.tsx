@@ -57,7 +57,7 @@ function getStyle(diff: number, cardW: number) {
 
 interface BannerCarouselProps {
   banners: Banner[];
-  onBannerClick?: (owner: string, name: string) => void;
+  onBannerClick?: (owner: string, name: string, branch?: string) => void;
 }
 
 export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) {
@@ -179,7 +179,7 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
             }}
             onClick={() => {
               if (diff === 0 && onBannerClick && banners[i].owner && banners[i].name) {
-                onBannerClick(banners[i].owner!, banners[i].name!);
+                onBannerClick(banners[i].owner!, banners[i].name!, banners[i].branch);
               } else {
                 goTo(i);
               }
