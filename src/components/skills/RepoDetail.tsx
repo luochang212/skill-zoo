@@ -315,11 +315,14 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
             <div className="flex flex-col items-center justify-center py-12 gap-3">
               <AlertTriangle className="h-8 w-8 text-destructive/60" />
               <p className="text-sm text-destructive">
-                {error?.message?.includes("exceeds")
-                  ? t("error.repoTooLarge")
-                  : t("error.generic")}
+                {error?.message?.includes("exceeds") ? t("error.repoTooLarge") : t("error.generic")}
               </p>
-              <Button size="sm" variant="outline" disabled={isLoadingRepo} onClick={() => refreshMutation.mutate()}>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isLoadingRepo}
+                onClick={() => refreshMutation.mutate()}
+              >
                 {t("error.retry")}
               </Button>
             </div>

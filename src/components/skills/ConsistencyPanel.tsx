@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { skillsApi } from "@/lib/api/skills";
 import type { InstalledSkill } from "@/types/skills";
 import type { DuplicateGroup, NameMismatch } from "@/hooks/useSkillIssues";
 
@@ -105,11 +106,7 @@ function SkillEntry({ skill, showHash }: { skill: InstalledSkill; showHash: bool
           size="sm"
           variant="ghost"
           className="h-6 text-[11px] px-2 shrink-0"
-          onClick={() => {
-            import("@/lib/api/skills").then((api) => {
-              api.skillsApi.openSkillPath(skill.homePath!);
-            });
-          }}
+          onClick={() => skillsApi.openSkillPath(skill.homePath!)}
         >
           <Eye className="h-3 w-3 mr-1" />
           {t("consistency.viewContent")}
@@ -140,11 +137,7 @@ function MismatchEntry({ mismatch }: { mismatch: NameMismatch }) {
             size="sm"
             variant="ghost"
             className="h-6 text-[11px] px-2 shrink-0"
-            onClick={() => {
-              import("@/lib/api/skills").then((api) => {
-                api.skillsApi.openSkillPath(mismatch.homePath!);
-              });
-            }}
+            onClick={() => skillsApi.openSkillPath(mismatch.homePath!)}
           >
             <Eye className="h-3 w-3 mr-1" />
             {t("consistency.viewContent")}

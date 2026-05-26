@@ -226,7 +226,12 @@
   -webkit-user-select: none;
   user-select: none;
 }
-.prose, .prose *, input, textarea, [data-selectable], [data-selectable] * {
+.prose,
+.prose *,
+input,
+textarea,
+[data-selectable],
+[data-selectable] * {
   -webkit-user-select: text;
   user-select: text;
 }

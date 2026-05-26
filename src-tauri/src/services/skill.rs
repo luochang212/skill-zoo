@@ -850,7 +850,15 @@ impl SkillService {
                     if file_name.starts_with('.') || file_name == "node_modules" {
                         continue;
                     }
-                    Self::scan_for_skills(&path, base_path, owner, repo, _branch, depth + 1, skills)?;
+                    Self::scan_for_skills(
+                        &path,
+                        base_path,
+                        owner,
+                        repo,
+                        _branch,
+                        depth + 1,
+                        skills,
+                    )?;
                 }
             }
         }

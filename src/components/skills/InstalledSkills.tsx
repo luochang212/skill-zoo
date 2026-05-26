@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useInstalledSkills, useRemoveSkills, useStarSkill, useUnstarSkill } from "@/hooks/useSkills";
+import {
+  useInstalledSkills,
+  useRemoveSkills,
+  useStarSkill,
+  useUnstarSkill,
+} from "@/hooks/useSkills";
 import { useConsistencyCheck } from "@/hooks/useSkillIssues";
 import { useVisibleAgentOrder, useHideNonSsot } from "@/hooks/useSettings";
 import { useAgentConfigs } from "@/lib/agents";
@@ -67,10 +72,7 @@ function ListHeader({
   return (
     <div className="flex items-center gap-4 px-5 py-1.5 border-b border-border/40">
       <div className="w-8 shrink-0 flex justify-center">
-        <Checkbox
-          checked={allSelected}
-          onCheckedChange={onToggleSelectAll}
-        />
+        <Checkbox checked={allSelected} onCheckedChange={onToggleSelectAll} />
       </div>
       {headerBtn("name", "Name", "w-48 shrink-0")}
       {headerBtn("repo", "Repo", "flex-1 min-w-0")}
@@ -293,110 +295,109 @@ export function InstalledSkills({
       {/* Main content */}
       <div className="flex flex-col flex-1 min-w-0">
         <div className="flex-1 min-h-0 p-6 pb-0 flex flex-col">
-        {/* Toolbar — hidden in consistency view since it has its own panel */}
-        {category.type !== "consistency" && (
-          <div className="flex items-center gap-3 mb-6">
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t("installed.searchPlaceholder")}
-              className="h-9 text-[13px] max-w-xs rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none"
-              autoComplete="off"
-              autoCorrect="off"
-              spellCheck={false}
-            />
-            <div className="flex gap-0.5 flex-wrap">
-              <button
-                onClick={() => setAgentFilter("all")}
-                className={`px-2.5 py-1.5 text-xs rounded-lg transition-colors ${
-                  agentFilter === "all"
-                    ? "bg-primary/10 text-primary font-medium"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                }`}
-              >
-                {t("common.all")}
-              </button>
-              {visibleAgentOrder.map((a) => (
+          {/* Toolbar — hidden in consistency view since it has its own panel */}
+          {category.type !== "consistency" && (
+            <div className="flex items-center gap-3 mb-6">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t("installed.searchPlaceholder")}
+                className="h-9 text-[13px] max-w-xs rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none"
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+              />
+              <div className="flex gap-0.5 flex-wrap">
                 <button
-                  key={a}
-                  onClick={() => setAgentFilter(a)}
+                  onClick={() => setAgentFilter("all")}
                   className={`px-2.5 py-1.5 text-xs rounded-lg transition-colors ${
-                    agentFilter === a
+                    agentFilter === "all"
                       ? "bg-primary/10 text-primary font-medium"
                       : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   }`}
                 >
-                  {agentConfigs?.find((c) => c.id === a)?.label ?? a}
+                  {t("common.all")}
                 </button>
-              ))}
+                {visibleAgentOrder.map((a) => (
+                  <button
+                    key={a}
+                    onClick={() => setAgentFilter(a)}
+                    className={`px-2.5 py-1.5 text-xs rounded-lg transition-colors ${
+                      agentFilter === a
+                        ? "bg-primary/10 text-primary font-medium"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                    }`}
+                  >
+                    {agentConfigs?.find((c) => c.id === a)?.label ?? a}
+                  </button>
+                ))}
+              </div>
+              <div className="flex-1" />
+              <ViewModeToggle value={viewMode} onChange={setViewMode} />
             </div>
-            <div className="flex-1" />
-            <ViewModeToggle value={viewMode} onChange={setViewMode} />
-          </div>
-        )}
+          )}
 
-        {/* Create skill row (only in "mine" category) */}
-        {category.type === "mine" && (
-          <div className="mb-5">
-            <button
-              onClick={onCreateSkill}
-              className="h-9 px-4 rounded-lg bg-primary text-primary-foreground text-[13px] flex items-center justify-center gap-1.5 hover:bg-primary/90 transition-colors"
-            >
-              + {t("installed.createSkill")}
-            </button>
-          </div>
-        )}
+          {/* Create skill row (only in "mine" category) */}
+          {category.type === "mine" && (
+            <div className="mb-5">
+              <button
+                onClick={onCreateSkill}
+                className="h-9 px-4 rounded-lg bg-primary text-primary-foreground text-[13px] flex items-center justify-center gap-1.5 hover:bg-primary/90 transition-colors"
+              >
+                + {t("installed.createSkill")}
+              </button>
+            </div>
+          )}
 
-        {/* Consistency category — show ConsistencyPanel instead of cards */}
-        {category.type === "consistency" ? (
-          <ConsistencyPanel duplicateGroups={duplicateGroups} nameMismatches={nameMismatches} />
-        ) : filtered.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center">
-            <p className="text-sm text-muted-foreground">{t("installed.noMatch")}</p>
-          </div>
-        ) : (
-          <div className="flex-1 overflow-auto pt-1 pr-1">
-            {viewMode === "grid" ? (
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                {sorted.map((skill) => (
-                  <SkillCard
-                    key={skill.id}
-                    skill={skill}
-                    isInstalled
-                    onOpen={() => onViewSkill(skill.id, skill.directory, skill.name)}
-                    onToggleStar={() => handleToggleStar(skill)}
-                    starred={skill.starred}
-                    issues={issuesMap.get(skill.id)}
+          {/* Consistency category — show ConsistencyPanel instead of cards */}
+          {category.type === "consistency" ? (
+            <ConsistencyPanel duplicateGroups={duplicateGroups} nameMismatches={nameMismatches} />
+          ) : filtered.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center">
+              <p className="text-sm text-muted-foreground">{t("installed.noMatch")}</p>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-auto pt-1 pr-1">
+              {viewMode === "grid" ? (
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                  {sorted.map((skill) => (
+                    <SkillCard
+                      key={skill.id}
+                      skill={skill}
+                      isInstalled
+                      onOpen={() => onViewSkill(skill.id, skill.directory, skill.name)}
+                      onToggleStar={() => handleToggleStar(skill)}
+                      starred={skill.starred}
+                      issues={issuesMap.get(skill.id)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col">
+                  <ListHeader
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                    allSelected={allSelected}
+                    onToggleSelectAll={allSelected ? handleDeselectAll : handleSelectAll}
                   />
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col">
-                <ListHeader
-                  sortField={sortField}
-                  sortDirection={sortDirection}
-                  onSort={handleSort}
-                  allSelected={allSelected}
-                  onToggleSelectAll={allSelected ? handleDeselectAll : handleSelectAll}
-                />
-                {sorted.map((skill) => (
-                  <SkillCardRow
-                    key={skill.id}
-                    skill={skill}
-                    isInstalled
-                    onOpen={() => onViewSkill(skill.id, skill.directory, skill.name)}
-                    onToggleStar={() => handleToggleStar(skill)}
-                    starred={skill.starred}
-                    issues={issuesMap.get(skill.id)}
-                    selected={selectedIds.has(skill.id)}
-                    onToggleSelect={() => handleToggleSelect(skill.id)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
+                  {sorted.map((skill) => (
+                    <SkillCardRow
+                      key={skill.id}
+                      skill={skill}
+                      isInstalled
+                      onOpen={() => onViewSkill(skill.id, skill.directory, skill.name)}
+                      onToggleStar={() => handleToggleStar(skill)}
+                      starred={skill.starred}
+                      issues={issuesMap.get(skill.id)}
+                      selected={selectedIds.has(skill.id)}
+                      onToggleSelect={() => handleToggleSelect(skill.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Floating action bar */}

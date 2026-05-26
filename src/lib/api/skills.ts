@@ -25,8 +25,7 @@ export const skillsApi = {
 
   removeSkill: (skillId: string) => invoke<void>("remove_skill", { skillId }),
 
-  removeSkills: (skillIds: string[]) =>
-    invoke<RemoveSkillsResult>("remove_skills", { skillIds }),
+  removeSkills: (skillIds: string[]) => invoke<RemoveSkillsResult>("remove_skills", { skillIds }),
 
   readSkillMd: (directory: string) => invoke<string>("read_skill_md", { directory }),
 

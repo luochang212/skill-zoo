@@ -37,14 +37,14 @@ export function SkillCardRow({
   const repoLabel = skill.repoOwner && skill.repoName ? `${skill.repoOwner}/${skill.repoName}` : "";
 
   return (
-    <div className="flex items-center gap-4 px-5 py-2 hover:bg-accent/40 transition-colors group last:border-b-0" data-selectable>
+    <div
+      className="flex items-center gap-4 px-5 py-2 hover:bg-accent/40 transition-colors group last:border-b-0"
+      data-selectable
+    >
       {/* Checkbox column */}
       {onToggleSelect !== undefined && (
         <div className="w-8 shrink-0 flex justify-center">
-          <Checkbox
-            checked={selected ?? false}
-            onCheckedChange={onToggleSelect}
-          />
+          <Checkbox checked={selected ?? false} onCheckedChange={onToggleSelect} />
         </div>
       )}
       {/* Name — w-48 aligned with header */}

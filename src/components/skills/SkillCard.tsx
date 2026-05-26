@@ -30,7 +30,10 @@ export function SkillCard({
   const installedSkill = isInstalled ? (skill as InstalledSkill) : null;
 
   return (
-    <Card className="group rounded-xl hover:shadow-md hover:-translate-y-0.5 transition-all duration-200" data-selectable>
+    <Card
+      className="group rounded-xl hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+      data-selectable
+    >
       <CardHeader className="px-4 pt-4 pb-1">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">

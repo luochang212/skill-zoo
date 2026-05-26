@@ -91,11 +91,7 @@ export function SkillInstallDialog({
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
             {t("common.cancel")}
           </Button>
-          <Button
-            size="sm"
-            onClick={handleInstall}
-            disabled={agents.size === 0 || isPending}
-          >
+          <Button size="sm" onClick={handleInstall} disabled={agents.size === 0 || isPending}>
             {isPending
               ? t("common.installing")
               : t("installDialog.installCount", { count: skillNames.length })}

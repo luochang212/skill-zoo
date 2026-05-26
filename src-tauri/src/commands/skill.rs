@@ -217,7 +217,7 @@ async fn refresh_commit_shas_after_update_all() {
         };
         let branch = entry.branch.clone().unwrap_or_else(|| "main".to_string());
         let key = (owner.clone(), name.clone(), branch.clone());
-        if !seen.insert(key.clone()) {
+        if !seen.insert(key) {
             continue;
         }
         if let Ok(Some(tree)) = CliService::fetch_repo_tree(&owner, &name, &branch).await {
@@ -403,7 +403,6 @@ pub async fn remove_skills(
 pub fn read_skill_md(directory: String) -> Result<String, String> {
     validate_skill_directory(&directory)?;
 
-    use crate::config;
     let mut candidates: Vec<std::path::PathBuf> = Vec::new();
     candidates.push(
         config::get_agents_skills_dir()
@@ -433,7 +432,6 @@ pub fn write_skill_md(
 ) -> Result<(), String> {
     validate_skill_directory(&directory)?;
 
-    use crate::config;
     let agents_dir = config::get_agents_skills_dir();
     let skill_md = agents_dir.join(&directory).join("SKILL.md");
 
@@ -506,7 +504,6 @@ pub async fn merge_duplicates_to_ssot(
 #[tauri::command]
 pub fn open_skill_dir(app_handle: tauri::AppHandle, directory: String) -> Result<(), String> {
     validate_skill_directory(&directory)?;
-    use crate::config;
     let dir = config::get_agents_skills_dir().join(&directory);
     if !dir.exists() {
         return Err(format!("Directory does not exist: {}", dir.display()));
@@ -636,7 +633,6 @@ pub fn open_skill_path(app_handle: tauri::AppHandle, path: String) -> Result<(),
 
 #[tauri::command]
 pub fn open_skills_dir(app_handle: tauri::AppHandle, agent: String) -> Result<(), String> {
-    use crate::config;
     let dir = if agent == "ssot" {
         config::get_agents_skills_dir()
     } else if let Some(d) = config::get_agent_skills_dir(&agent) {

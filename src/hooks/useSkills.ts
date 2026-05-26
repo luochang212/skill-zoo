@@ -89,7 +89,12 @@ export function useRemoveSkill() {
 
 export function useRemoveSkills() {
   const qc = useQueryClient();
-  return useMutation<RemoveSkillsResult, Error, string[], { previous: InstalledSkill[] | undefined }>({
+  return useMutation<
+    RemoveSkillsResult,
+    Error,
+    string[],
+    { previous: InstalledSkill[] | undefined }
+  >({
     mutationFn: (skillIds: string[]) => skillsApi.removeSkills(skillIds),
     onMutate: async (skillIds) => {
       await qc.cancelQueries({ queryKey: ["skills", "installed"] });
@@ -282,7 +287,7 @@ function useStarMutation(
 ) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (skillId: string) => apiFn(skillId),
+    mutationFn: apiFn,
     onMutate: async (skillId) => {
       await qc.cancelQueries({ queryKey: ["skills", "installed"] });
       const previous = qc.getQueryData<InstalledSkill[]>(["skills", "installed"]);
