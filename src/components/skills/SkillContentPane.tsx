@@ -93,11 +93,12 @@ export function SkillContentPane({
   const selectedNode = allFiles.find((n) => n.path === selectedFilePath) ?? null;
   const isSkillMdActive = selectedNode?.isSkillMd ?? true;
 
-  // ── Auto-select SKILL.md on first tree load ──
+  // ── Auto-select SKILL.md and expand sidebar if extra files exist ──
   useEffect(() => {
     if (selectedFilePath === null && nodes.length > 0) {
       const skillMd = allFiles.find((n) => n.isSkillMd);
       if (skillMd) setSelectedFilePath(skillMd.path);
+      if (allFiles.some((n) => !n.isSkillMd)) setSidebarOpen(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes]);

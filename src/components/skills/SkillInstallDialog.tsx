@@ -10,9 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAgentConfigs, getAgentLabel } from "@/lib/agents";
 import { useVisibleAgentOrder } from "@/hooks/useSettings";
 import type { DiscoverableSkill } from "@/types/skills";
@@ -41,21 +39,9 @@ export function SkillInstallDialog({
   const { t } = useTranslation();
   const { data: agentConfigs } = useAgentConfigs();
   const visibleAgentOrder = useVisibleAgentOrder();
-  const isSingleSkill = skills.length === 1;
+  const skillNames = skills.map((s) => s.directory);
 
-  const [selectedSkills, setSelectedSkills] = useState<Set<string>>(
-    new Set(skills.map((s) => s.directory)),
-  );
   const [agents, setAgents] = useState<Set<string>>(new Set(["claude-code"]));
-
-  const toggleSkill = (directory: string) => {
-    setSelectedSkills((prev) => {
-      const next = new Set(prev);
-      if (next.has(directory)) next.delete(directory);
-      else next.add(directory);
-      return next;
-    });
-  };
 
   const toggleAgent = (agent: string) => {
     setAgents((prev) => {
@@ -67,7 +53,7 @@ export function SkillInstallDialog({
   };
 
   const handleInstall = () => {
-    onInstall(Array.from(selectedSkills), Array.from(agents));
+    onInstall(skillNames, Array.from(agents));
   };
 
   return (
@@ -80,7 +66,6 @@ export function SkillInstallDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          {/* Agent selection — Switch rows like ConfigureDialog */}
           <div>
             <Label className="text-xs">{t("installDialog.agents")}</Label>
             <div className="space-y-1 mt-1.5 -mx-2">
@@ -101,41 +86,6 @@ export function SkillInstallDialog({
               ))}
             </div>
           </div>
-          {/* Skill list — only show when multiple skills */}
-          {!isSingleSkill && (
-            <div>
-              <Label className="text-xs">{t("installDialog.skills")}</Label>
-              <ScrollArea className="h-48 mt-1.5 rounded-md border border-border">
-                <div className="p-2 space-y-1">
-                  <label className="flex items-center gap-2 text-xs cursor-pointer px-1 py-0.5 hover:bg-accent rounded">
-                    <Checkbox
-                      checked={selectedSkills.size === skills.length}
-                      onCheckedChange={() => {
-                        if (selectedSkills.size === skills.length) {
-                          setSelectedSkills(new Set());
-                        } else {
-                          setSelectedSkills(new Set(skills.map((s) => s.directory)));
-                        }
-                      }}
-                    />
-                    <span className="font-medium">{t("installDialog.selectAll")}</span>
-                  </label>
-                  {skills.map((s) => (
-                    <label
-                      key={s.key}
-                      className="flex items-center gap-2 text-xs cursor-pointer px-1 py-0.5 hover:bg-accent rounded"
-                    >
-                      <Checkbox
-                        checked={selectedSkills.has(s.directory)}
-                        onCheckedChange={() => toggleSkill(s.directory)}
-                      />
-                      <span>{s.name}</span>
-                    </label>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
-          )}
         </div>
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
@@ -144,13 +94,11 @@ export function SkillInstallDialog({
           <Button
             size="sm"
             onClick={handleInstall}
-            disabled={selectedSkills.size === 0 || agents.size === 0 || isPending}
+            disabled={agents.size === 0 || isPending}
           >
             {isPending
               ? t("common.installing")
-              : isSingleSkill
-                ? t("common.install")
-                : t("installDialog.installCount", { count: selectedSkills.size })}
+              : t("installDialog.installCount", { count: skillNames.length })}
           </Button>
         </DialogFooter>
       </DialogContent>
