@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.2.4] — 2026-05-27
+
+### Added
+- Batch delete skills from the installed skills view.
+- Branch field on repository banners.
+
+### Changed
+- Improved landing page mobile experience and navigation theme.
+- Refactored download and progress system in repository details.
+- Fine-grained text selection replaced global context menu blocking.
+- Install dialog simplified; sidebar auto-expands on navigation.
+- Replaced ComposioHQ banner with mattpocock.
+
+### Fixed
+- Download limit raised to 500MB; size errors no longer retry; fixed code block rendering.
+- User files protected from being overwritten during skill linking.
+- Fixed select-all keyboard shortcut collision.
+
 ## [0.2.3] — 2026-05-25
 
 ### Changed
