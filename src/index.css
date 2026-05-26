@@ -73,29 +73,27 @@
   }
 }
 
-/* Prose code block tweaks */
-@layer components {
-  .prose pre:not(:where([class~="not-prose"], [class~="not-prose"] *)) {
-    @apply rounded-lg border border-border;
-  }
-  .prose code:not(pre code):not(:where([class~="not-prose"], [class~="not-prose"] *)) {
-    @apply rounded-md px-1.5 py-0.5 text-[0.85em] font-medium;
-    background: hsl(var(--muted));
-  }
-  .prose pre code:not(:where([class~="not-prose"], [class~="not-prose"] *)) {
-    font-size: 0.8em;
-    line-height: 1.6;
-  }
-  /* Prevent tables from overflowing their container */
-  .prose table:not(:where([class~="not-prose"], [class~="not-prose"] *)) {
-    display: block;
-    overflow-x: auto;
-  }
-  /* Ensure images scale down within prose */
-  .prose img:not(:where([class~="not-prose"], [class~="not-prose"] *)) {
-    max-width: 100%;
-    height: auto;
-  }
+/* Prose overrides — outside @layer to override Tailwind Typography */
+.prose pre:not(:where([class~="not-prose"], [class~="not-prose"] *)) {
+  @apply rounded-lg border border-border;
+  background: transparent !important;
+  padding: 0 !important;
+}
+.prose code:not(pre code):not(:where([class~="not-prose"], [class~="not-prose"] *)) {
+  @apply rounded-md px-1.5 py-0.5 text-[0.85em] font-medium;
+  background: hsl(var(--muted));
+}
+.prose pre code:not(:where([class~="not-prose"], [class~="not-prose"] *)) {
+  font-size: 0.8em;
+  line-height: 1.6;
+}
+.prose table:not(:where([class~="not-prose"], [class~="not-prose"] *)) {
+  display: block;
+  overflow-x: auto;
+}
+.prose img:not(:where([class~="not-prose"], [class~="not-prose"] *)) {
+  max-width: 100%;
+  height: auto;
 }
 
 :root {

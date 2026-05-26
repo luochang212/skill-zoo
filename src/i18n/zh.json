@@ -121,6 +121,7 @@
     "skillNotFound": "该技能已不存在于磁盘中。",
     "repoNotFound": "仓库未找到，可能是私有仓库或链接不正确。",
     "rateLimit": "GitHub API 请求次数已达上限，请稍后再试。",
+    "repoTooLarge": "仓库体积超过限制，无法加载。",
     "generic": "操作无法完成，请重试。"
   },
   "configureDialog": {

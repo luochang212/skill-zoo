@@ -182,6 +182,7 @@ export function useRepoSkills(owner: string | null, name: string | null, branch?
     queryKey: ["repos", "skills", owner, name, branch],
     queryFn: () => skillsApi.getRepoSkills(owner!, name!, branch),
     enabled: !!owner && !!name,
+    retry: false,
   });
 }
 

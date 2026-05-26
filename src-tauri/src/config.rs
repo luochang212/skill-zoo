@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
-pub const MAX_DOWNLOAD_BYTES: u64 = 50 * 1024 * 1024;
+pub const MAX_DOWNLOAD_BYTES: u64 = 500 * 1024 * 1024;
 
 pub fn http_client() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();

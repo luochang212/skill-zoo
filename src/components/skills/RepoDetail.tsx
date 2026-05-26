@@ -49,6 +49,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
     data: skills,
     isLoading,
     isError,
+    error,
   } = useRepoSkills(repo.owner, repo.name, repo.branch || undefined);
   const { data: metadata } = useRepoMetadata(repo.owner, repo.name);
   const installMutation = useInstallSkills();
@@ -325,7 +326,11 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
           ) : isError ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
               <AlertTriangle className="h-8 w-8 text-destructive/60" />
-              <p className="text-sm text-destructive">{t("error.generic")}</p>
+              <p className="text-sm text-destructive">
+                {error?.message?.includes("exceeds")
+                  ? t("error.repoTooLarge")
+                  : t("error.generic")}
+              </p>
               <Button size="sm" variant="outline" onClick={handleRefresh}>
                 {t("error.retry")}
               </Button>

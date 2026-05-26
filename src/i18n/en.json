@@ -121,6 +121,7 @@
     "skillNotFound": "This skill no longer exists on disk.",
     "repoNotFound": "Repository not found. It may be private or the link is incorrect.",
     "rateLimit": "GitHub API rate limit reached. Please wait and try again later.",
+    "repoTooLarge": "Repository exceeds the size limit and cannot be loaded.",
     "generic": "Could not complete the operation. Please try again."
   },
   "configureDialog": {
