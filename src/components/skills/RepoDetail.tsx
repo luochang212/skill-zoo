@@ -4,6 +4,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useRepoSkills,
+  useRefreshRepoSkills,
   useRepoMetadata,
   useInstallSkills,
   useInstalledSkills,
@@ -11,7 +12,6 @@ import {
   useSkillPreview,
 } from "@/hooks/useSkills";
 import { useRepoLoadProgress } from "@/hooks/useRepoLoadStage";
-import { skillsApi } from "@/lib/api/skills";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -68,22 +68,25 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
   // Install dialog state
   const [installSkills, setInstallSkills] = useState<DiscoverableSkill[] | null>(null);
   const [selectedDirs, setSelectedDirs] = useState<Set<string>>(new Set());
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
   const [pendingRemove, setPendingRemove] = useState<DiscoverableSkill | null>(null);
   const [previewSkill, setPreviewSkill] = useState<DiscoverableSkill | null>(null);
 
-  // Repo loading progress with debounce
+  // Unified loading state: covers initial load, refresh, and backend progress
   const loadProgress = useRepoLoadProgress(repo.owner, repo.name);
+  const refreshMutation = useRefreshRepoSkills(repo.owner, repo.name, repo.branch || undefined);
+  const isLoadingRepo = loadProgress !== null || isLoading || refreshMutation.isPending;
+
+  // Debounced progress display (0.5s to avoid flash for cached repos)
   const [showLoadStage, setShowLoadStage] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   useEffect(() => {
-    if (isLoading) {
+    if (isLoadingRepo) {
       if (debounceRef.current === null) {
         debounceRef.current = setTimeout(() => {
           setShowLoadStage(true);
-        }, 1500);
+        }, 500);
       }
     } else {
       if (debounceRef.current !== null) {
@@ -98,7 +101,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
         debounceRef.current = null;
       }
     };
-  }, [isLoading]);
+  }, [isLoadingRepo]);
 
   const {
     data: previewContent,
@@ -118,22 +121,6 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
     repo.name,
     repo.branch || undefined,
   ] as const;
-
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    skillsApi
-      .getRepoSkills(repo.owner, repo.name, repo.branch || undefined, true)
-      .then((data) => {
-        qc.setQueryData(skillsQueryKey, data);
-      })
-      .catch(() => {
-        // Silently ignore — stale data remains, user can retry
-      })
-      .finally(() => {
-        setIsRefreshing(false);
-      });
-    qc.invalidateQueries({ queryKey: ["repos", "metadata", repo.owner, repo.name] });
-  };
 
   const handleInstallSelected = () => {
     if (selectedInstallable.length === 0) return;
@@ -246,10 +233,11 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
               variant="ghost"
               size="icon"
               className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground translate-y-[1px]"
-              onClick={() => handleRefresh()}
+              disabled={isLoadingRepo}
+              onClick={() => refreshMutation.mutate()}
               aria-label={t("error.retry")}
             >
-              {isRefreshing ? (
+              {isLoadingRepo ? (
                 <Loader className="h-3.5 w-3.5 animate-spin" />
               ) : (
                 <RotateCw className="h-3.5 w-3.5" />
@@ -307,7 +295,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
       </div>
       <div className="flex-1 min-h-0 overflow-auto">
         <div className="px-5 py-4 pr-6 max-w-full">
-          {isLoading ? (
+          {isLoadingRepo && !skills ? (
             <div className="flex flex-col gap-2">
               {Array.from({ length: 5 }).map((_, i) => (
                 <div
@@ -331,7 +319,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
                   ? t("error.repoTooLarge")
                   : t("error.generic")}
               </p>
-              <Button size="sm" variant="outline" onClick={handleRefresh}>
+              <Button size="sm" variant="outline" disabled={isLoadingRepo} onClick={() => refreshMutation.mutate()}>
                 {t("error.retry")}
               </Button>
             </div>

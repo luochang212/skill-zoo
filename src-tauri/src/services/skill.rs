@@ -739,61 +739,74 @@ impl SkillService {
         force: bool,
         app_handle: Option<&tauri::AppHandle>,
     ) -> Result<Vec<DiscoverableSkill>, AppError> {
-        let _ = app_handle.map(|h| {
-            h.emit(
-                "repo-load-stage",
-                serde_json::json!({
-                    "owner": owner, "repo": name, "stage": "downloading"
-                }),
-            )
-        });
+        let result: Result<Vec<DiscoverableSkill>, AppError> = async {
+            let _ = app_handle.map(|h| {
+                h.emit(
+                    "repo-load-stage",
+                    serde_json::json!({
+                        "owner": owner, "repo": name, "stage": "downloading"
+                    }),
+                )
+            });
 
-        let zip_path =
-            CliService::ensure_cached_zip_with_progress(owner, name, branch, force, app_handle)
-                .await?;
+            let zip_path =
+                CliService::ensure_cached_zip_with_progress(owner, name, branch, force, app_handle)
+                    .await?;
 
-        let _ = app_handle.map(|h| {
-            h.emit(
-                "repo-load-stage",
-                serde_json::json!({
-                    "owner": owner, "repo": name, "stage": "extracting"
-                }),
-            )
-        });
+            let _ = app_handle.map(|h| {
+                h.emit(
+                    "repo-load-stage",
+                    serde_json::json!({
+                        "owner": owner, "repo": name, "stage": "extracting"
+                    }),
+                )
+            });
 
-        let file = std::fs::File::open(&zip_path)?;
-        if let Ok(metadata) = file.metadata() {
-            if metadata.len() > config::MAX_DOWNLOAD_BYTES {
-                return Err(AppError::BadRequest(format!(
-                    "Repository ZIP exceeds {}MB limit",
-                    config::MAX_DOWNLOAD_BYTES / (1024 * 1024)
-                )));
+            let file = std::fs::File::open(&zip_path)?;
+            if let Ok(metadata) = file.metadata() {
+                if metadata.len() > config::MAX_DOWNLOAD_BYTES {
+                    return Err(AppError::BadRequest(format!(
+                        "Repository ZIP exceeds {}MB limit",
+                        config::MAX_DOWNLOAD_BYTES / (1024 * 1024)
+                    )));
+                }
             }
+
+            let mut archive = zip::ZipArchive::new(file)?;
+            let temp_dir = tempfile::tempdir()?;
+            archive.extract(temp_dir.path())?;
+
+            let _ = app_handle.map(|h| {
+                h.emit(
+                    "repo-load-stage",
+                    serde_json::json!({
+                        "owner": owner, "repo": name, "stage": "scanning"
+                    }),
+                )
+            });
+
+            let mut skills = Vec::new();
+            let root_dir = std::fs::read_dir(temp_dir.path())?
+                .flatten()
+                .find(|e| e.path().is_dir())
+                .map(|e| e.path());
+            let Some(root_dir) = root_dir else {
+                return Ok(skills);
+            };
+            Self::scan_for_skills(&root_dir, owner, name, branch, 0, &mut skills)?;
+            Ok(skills)
         }
+        .await;
 
-        let mut archive = zip::ZipArchive::new(file)?;
-        let temp_dir = tempfile::tempdir()?;
-        archive.extract(temp_dir.path())?;
-
+        // Notify frontend that loading is done, regardless of success or failure
         let _ = app_handle.map(|h| {
             h.emit(
-                "repo-load-stage",
-                serde_json::json!({
-                    "owner": owner, "repo": name, "stage": "scanning"
-                }),
+                "repo-load-done",
+                serde_json::json!({ "owner": owner, "repo": name }),
             )
         });
 
-        let mut skills = Vec::new();
-        let root_dir = std::fs::read_dir(temp_dir.path())?
-            .flatten()
-            .find(|e| e.path().is_dir())
-            .map(|e| e.path());
-        let Some(root_dir) = root_dir else {
-            return Ok(skills);
-        };
-        Self::scan_for_skills(&root_dir, owner, name, branch, 0, &mut skills)?;
-        Ok(skills)
+        result
     }
 
     fn scan_for_skills(

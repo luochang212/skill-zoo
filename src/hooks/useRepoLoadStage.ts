@@ -16,6 +16,11 @@ interface RepoDownloadProgressPayload {
   total: number | null;
 }
 
+interface RepoLoadDonePayload {
+  owner: string;
+  repo: string;
+}
+
 export interface RepoLoadState {
   stage: RepoLoadStage;
   downloaded: number;
@@ -25,6 +30,7 @@ export interface RepoLoadState {
 /**
  * Listen for repo loading progress events for a specific repo.
  * Returns null when no loading is in progress for the given owner/name.
+ * Lifecycle: null → {stage} → null (reset on repo-load-done or owner/name change)
  */
 export function useRepoLoadProgress(owner: string | null, name: string | null) {
   const [state, setState] = useState<RepoLoadState | null>(null);
@@ -37,6 +43,7 @@ export function useRepoLoadProgress(owner: string | null, name: string | null) {
 
     let unlistenStage: (() => void) | undefined;
     let unlistenProgress: (() => void) | undefined;
+    let unlistenDone: (() => void) | undefined;
 
     (async () => {
       unlistenStage = await listen<RepoLoadStagePayload>("repo-load-stage", (event) => {
@@ -61,11 +68,19 @@ export function useRepoLoadProgress(owner: string | null, name: string | null) {
           }
         },
       );
+
+      unlistenDone = await listen<RepoLoadDonePayload>("repo-load-done", (event) => {
+        if (event.payload.owner === owner && event.payload.repo === name) {
+          setState(null);
+        }
+      });
     })();
 
     return () => {
       unlistenStage?.();
       unlistenProgress?.();
+      unlistenDone?.();
+      setState(null);
     };
   }, [owner, name]);
 
