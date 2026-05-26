@@ -58,7 +58,7 @@ export function SkillInstallDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[420px]">
+      <DialogContent className="sm:max-w-[420px]" data-selectable>
         <DialogHeader>
           <DialogTitle>{t("installDialog.title")}</DialogTitle>
           <DialogDescription>

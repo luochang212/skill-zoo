@@ -32,7 +32,7 @@ export function SkillCardRow({
   const repoLabel = skill.repoOwner && skill.repoName ? `${skill.repoOwner}/${skill.repoName}` : "";
 
   return (
-    <div className="flex items-center gap-4 px-5 py-2 hover:bg-accent/40 transition-colors group last:border-b-0">
+    <div className="flex items-center gap-4 px-5 py-2 hover:bg-accent/40 transition-colors group last:border-b-0" data-selectable>
       {/* Name — w-48 aligned with header */}
       <div className="w-48 shrink-0 min-w-0 flex items-center gap-2">
         {onOpen ? (

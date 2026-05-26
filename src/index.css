@@ -221,6 +221,16 @@
   }
 }
 
+/* ── Text selection: disabled globally, enabled for content areas ── */
+* {
+  -webkit-user-select: none;
+  user-select: none;
+}
+.prose, .prose *, input, textarea, [data-selectable], [data-selectable] * {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 /* ── Rainbow flow animation for Skill Zoo logo ── */
 @keyframes rainbow-flow {
   0% {

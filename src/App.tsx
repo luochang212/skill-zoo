@@ -84,9 +84,6 @@ export default function App() {
   useEffect(() => {
     const theme = (localStorage.getItem("theme") as string | null) ?? "light";
     applyTheme(theme as "light" | "dark" | "system");
-    const handler = (e: MouseEvent) => e.preventDefault();
-    document.addEventListener("contextmenu", handler);
-    return () => document.removeEventListener("contextmenu", handler);
   }, []);
 
   const handleDragMouseDown = async (e: React.MouseEvent) => {

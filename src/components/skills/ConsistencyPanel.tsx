@@ -172,7 +172,7 @@ function MergeConfirmDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" data-selectable>
         <DialogHeader>
           <DialogTitle>{t("consistency.mergeConfirmTitle")}</DialogTitle>
           <DialogDescription>
@@ -254,7 +254,7 @@ export function ConsistencyPanel({
   const confirmGroup = confirmMerge ? allGroups.find((g) => g.name === confirmMerge) : null;
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div className="flex-1 flex flex-col min-h-0" data-selectable>
       {/* Tabs */}
       <div className="flex gap-1 mb-4">
         <button
@@ -376,7 +376,7 @@ export function ConsistencyPanel({
       {/* Batch merge all duplicates dialog */}
       {batchMergeOpen && (
         <Dialog open onOpenChange={(open) => !open && setBatchMergeOpen(false)}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md" data-selectable>
             <DialogHeader>
               <DialogTitle>{t("consistency.mergeAllConfirmTitle")}</DialogTitle>
               <DialogDescription>

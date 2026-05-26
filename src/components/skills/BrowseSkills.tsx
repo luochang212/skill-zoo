@@ -24,10 +24,17 @@ interface RepoCardProps {
 }
 
 function RepoCard({ repo, onClick, hideDescription }: RepoCardProps) {
+  const handleClick = () => {
+    // Skip navigation if the user just finished selecting text
+    const sel = window.getSelection();
+    if (sel && sel.toString().length > 0) return;
+    onClick();
+  };
   return (
     <Card
       className="group rounded-xl hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
-      onClick={onClick}
+      onClick={handleClick}
+      data-selectable
     >
       <CardHeader className="px-4 pt-4 pb-1">
         <div className="flex items-center justify-between gap-2">

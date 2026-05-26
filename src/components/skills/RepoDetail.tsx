@@ -220,7 +220,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
   const isTruncated = total > skillList.length;
 
   return (
-    <div className="flex flex-col h-full relative">
+    <div className="flex flex-col h-full relative" data-selectable>
       {/* Hero */}
       <div className="px-5 pt-4 pb-3 border-b border-border">
         <div className="flex items-center justify-between">

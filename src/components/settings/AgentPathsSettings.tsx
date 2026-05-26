@@ -54,7 +54,7 @@ function PathRow({
           <Icon className={`h-4 w-4 ${isSsot ? "text-primary" : "text-muted-foreground"}`} />
         </div>
 
-        <div className="min-w-0 space-y-0.5">
+        <div className="min-w-0 space-y-0.5" data-selectable>
           <div className="flex items-center gap-2">
             <p className="text-sm font-medium leading-none">{info.label}</p>
             {!info.exists && (

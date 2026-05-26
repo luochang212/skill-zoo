@@ -178,7 +178,7 @@ export function SkillSidebar({
                       </span>
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="right" className="text-xs">
+                  <TooltipContent side="right" className="text-xs" data-selectable>
                     {repo.owner}/{repo.name}
                   </TooltipContent>
                 </Tooltip>

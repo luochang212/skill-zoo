@@ -163,7 +163,7 @@ export function SkillDetail({
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full" data-selectable>
       {/* Hero — skill may still be null during brief transition */}
       {skill ? (
         <SkillHero
