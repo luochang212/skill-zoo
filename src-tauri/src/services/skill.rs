@@ -1001,6 +1001,47 @@ impl SkillService {
         c.save()
     }
 
+    /// Batch upsert: one write-lock acquisition, one save.
+    /// Preserves `installed_at` from existing entries.
+    /// Removes entries whose IDs are in `remove_ids`.
+    pub fn batch_upsert_cache_entries(
+        cache: &RwLock<SkillCache>,
+        entries: Vec<SkillCacheEntry>,
+        remove_ids: &HashSet<String>,
+    ) -> Result<(), AppError> {
+        let mut c = cache
+            .write()
+            .map_err(|e| AppError::Parse(format!("Cache lock: {e}")))?;
+        if !remove_ids.is_empty() {
+            c.skills.retain(|s| !remove_ids.contains(&s.id));
+        }
+        for entry in entries {
+            if let Some(existing) = c.skills.iter_mut().find(|s| s.id == entry.id) {
+                // Skip if cache was updated more recently (e.g. by a concurrent full rebuild)
+                if existing.updated_at >= entry.updated_at {
+                    continue;
+                }
+                let installed_at = existing.installed_at;
+                *existing = entry;
+                existing.installed_at = installed_at;
+            } else {
+                c.skills.push(entry);
+            }
+        }
+        c.save()
+    }
+
+    /// Find a skill ID by its relative directory path.
+    pub fn find_id_by_directory(cache: &RwLock<SkillCache>, directory: &str) -> Option<String> {
+        cache
+            .read()
+            .ok()?
+            .skills
+            .iter()
+            .find(|s| s.directory == directory)
+            .map(|s| s.id.clone())
+    }
+
     /// Remove a cache entry by skill_id and persist.
     pub fn remove_cache_entry(cache: &RwLock<SkillCache>, skill_id: &str) -> Result<(), AppError> {
         let mut c = cache

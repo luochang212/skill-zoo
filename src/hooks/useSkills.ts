@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
 import { skillsApi, type RemoveSkillsResult, type UpdateAllResult } from "@/lib/api/skills";
 import { invalidateFor, type MutationName } from "@/hooks/queryInvalidation";
-import type { InstalledSkill } from "@/types/skills";
+import type { InstalledSkill, SkillsChangedPayload } from "@/types/skills";
 import { useEffect } from "react";
 
 export function useInstalledSkills() {
@@ -18,7 +18,7 @@ export function useSkillsWatcher() {
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     (async () => {
-      unlisten = await listen("skills-changed", () => {
+      unlisten = await listen<SkillsChangedPayload>("skills-changed", () => {
         invalidateFor(qc, "rescanSkills");
       });
     })();

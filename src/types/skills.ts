@@ -105,3 +105,9 @@ export interface Banner {
   branch?: string;
   hideText?: boolean;
 }
+
+export interface SkillsChangedPayload {
+  updated: string[];
+  removed: string[];
+  fullRebuild: boolean;
+}
