@@ -1,6 +1,7 @@
 use crate::config;
 use crate::config::{AgentConfig, AgentPathInfo};
 use crate::persistence::atomic_write;
+use crate::persistence::SkillCacheEntry;
 use crate::services::cli::CliService;
 use crate::services::lock::SkillLock;
 use crate::services::skill::{
@@ -181,6 +182,99 @@ pub async fn get_installed_skills(
             .map_err(|e| e.to_string())?;
     SkillService::fill_detect_agents(&mut skills);
     Ok(skills)
+}
+
+/// Return specific skills by ID. Used for incremental UI updates after
+/// filesystem changes — only refetches the skills that actually changed.
+#[tauri::command]
+pub fn get_skills_by_ids(
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+) -> Result<Vec<InstalledSkill>, String> {
+    let entries: Vec<SkillCacheEntry> = {
+        let cache = state
+            .skill_cache
+            .read()
+            .map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
+        let id_set: HashSet<&str> = ids.iter().map(|s| s.as_str()).collect();
+        cache
+            .skills
+            .iter()
+            .filter(|s| id_set.contains(s.id.as_str()))
+            .cloned()
+            .collect()
+    };
+    let meta = state
+        .metadata
+        .read()
+        .map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
+    let mut skills = SkillService::get_cached_skills_from_entries(&entries, &meta)
+        .map_err(|e| e.to_string())?;
+    SkillService::fill_detect_agents(&mut skills);
+    Ok(skills)
+}
+
+/// Lightweight cache consistency check for defensive recovery.
+/// Compares cache entry count against actual directories on disk.
+/// Returns `needs_rebuild: true` if they differ significantly,
+/// indicating that filesystem events may have been lost.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CacheConsistencyResult {
+    pub needs_rebuild: bool,
+}
+
+#[tauri::command]
+pub fn check_cache_consistency(state: State<'_, AppState>) -> Result<CacheConsistencyResult, String> {
+    let cached_count = state
+        .skill_cache
+        .read()
+        .map_err(|e: std::sync::PoisonError<_>| e.to_string())?
+        .skills
+        .len();
+
+    // Count real (non-symlink, non-hidden) skill directories across all roots.
+    // Uses a name set because the same skill may appear in both SSOT and an agent
+    // directory — we count each skill exactly once.
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut roots: Vec<std::path::PathBuf> = Vec::new();
+
+    let agents_dir = config::get_agents_skills_dir();
+    if agents_dir.exists() {
+        roots.push(agents_dir);
+    }
+    for agent in config::AGENTS {
+        if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
+            if agent_dir.exists() {
+                roots.push(agent_dir);
+            }
+        }
+    }
+
+    for root in &roots {
+        if let Ok(entries) = std::fs::read_dir(root) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name.starts_with('.') {
+                    continue;
+                }
+                if path.is_dir() && !is_symlink_or_junction(&path) && path.join("SKILL.md").exists()
+                {
+                    seen.insert(name);
+                }
+            }
+        }
+    }
+
+    let fs_count = seen.len();
+
+    // Allow a small threshold (2) for transient states during concurrent operations
+    let needs_rebuild = (cached_count == 0 && fs_count > 0)
+        || cached_count > fs_count + 2
+        || fs_count > cached_count + 2;
+
+    Ok(CacheConsistencyResult { needs_rebuild })
 }
 
 /// Best-effort refresh of commit SHA after update. Fails silently on error or rate-limit.

@@ -19,6 +19,12 @@ export const skillsApi = {
   getInstalledSkills: (force?: boolean) =>
     invoke<InstalledSkill[]>("get_installed_skills", { force }),
 
+  getSkillsByIds: (ids: string[]) =>
+    invoke<InstalledSkill[]>("get_skills_by_ids", { ids }),
+
+  checkCacheConsistency: () =>
+    invoke<{ needsRebuild: boolean }>("check_cache_consistency"),
+
   updateSkill: (skillId: string) => invoke<InstalledSkill>("update_skill", { skillId }),
 
   updateAllSkills: () => invoke<UpdateAllResult>("update_all_skills"),

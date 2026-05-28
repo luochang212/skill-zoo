@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { skillsApi, type RemoveSkillsResult, type UpdateAllResult } from "@/lib/api/skills";
 import { invalidateFor, type MutationName } from "@/hooks/queryInvalidation";
 import type { InstalledSkill, SkillsChangedPayload } from "@/types/skills";
@@ -18,12 +19,73 @@ export function useSkillsWatcher() {
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     (async () => {
-      unlisten = await listen<SkillsChangedPayload>("skills-changed", () => {
-        invalidateFor(qc, "rescanSkills");
+      unlisten = await listen<SkillsChangedPayload>("skills-changed", async (event) => {
+        const payload = event.payload;
+
+        if (payload.fullRebuild || payload.removed.length > 0) {
+          // Full rebuild or deletions — must refetch the entire list
+          invalidateFor(qc, "rescanSkills");
+          return;
+        }
+
+        // Incremental: fetch only the updated skills, merge into existing cache
+        if (payload.updated.length > 0) {
+          try {
+            const updatedSkills = await skillsApi.getSkillsByIds(payload.updated);
+            qc.setQueryData<InstalledSkill[]>(["skills", "installed"], (old) => {
+              if (!old) return updatedSkills;
+              const map = new Map(old.map((s) => [s.id, s]));
+              for (const skill of updatedSkills) {
+                map.set(skill.id, skill);
+              }
+              return Array.from(map.values());
+            });
+            // Invalidate symlinks — symlink state is not per-skill in cache
+            qc.invalidateQueries({ queryKey: ["skills", "symlinks"] });
+            // Invalidate content queries for updated skills
+            for (const skill of updatedSkills) {
+              qc.invalidateQueries({ queryKey: ["skills", "content", skill.directory] });
+              qc.invalidateQueries({ queryKey: ["skills", "files", skill.directory] });
+            }
+          } catch {
+            // Fallback to full invalidation on error
+            invalidateFor(qc, "rescanSkills");
+          }
+        }
       });
     })();
     return () => {
       unlisten?.();
+    };
+  }, [qc]);
+}
+
+/**
+ * Defensive recovery: when the window regains focus, check if the cache
+ * is consistent with the filesystem. If not (e.g. events were lost while
+ * the window was unfocused), trigger a full rescan.
+ * Inspired by VSCode's window-focus revalidation pattern.
+ */
+export function useCacheConsistencyCheck() {
+  const qc = useQueryClient();
+  useEffect(() => {
+    let unlisten: Promise<() => void>;
+    (async () => {
+      unlisten = getCurrentWindow().onFocusChanged(async ({ payload: focused }) => {
+        if (focused) {
+          try {
+            const result = await skillsApi.checkCacheConsistency();
+            if (result.needsRebuild) {
+              invalidateFor(qc, "rescanSkills");
+            }
+          } catch {
+            // Silently ignore — this is a best-effort check
+          }
+        }
+      });
+    })();
+    return () => {
+      unlisten.then((fn) => fn());
     };
   }, [qc]);
 }

@@ -3,13 +3,101 @@ use crate::persistence::SkillCache;
 use crate::services::skill::SkillService;
 use crate::store::AppState;
 use notify::{Event, EventKind, RecursiveMode, Watcher};
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::RwLock;
 use std::time::Duration;
 use tauri::Emitter;
 use tauri::Manager;
 
 const DEBOUNCE_MS: u64 = 1500;
+
+// ──────────────────────────────────────────────
+//  Event coalescing
+// ──────────────────────────────────────────────
+
+/// Simplified change type for coalescing filesystem events.
+/// Inspired by VSCode's EventCoalescer — tracks the net effect of
+/// multiple events on the same path within a debounce window.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ChangeKind {
+    Create,
+    Modify,
+    Delete,
+}
+
+/// Per-path coalescing: tracks the net effect of all events for a path
+/// within a single debounce window.
+///
+/// Merge rules (matching VSCode's EventCoalescer):
+///   Create + Delete → remove entry (nothing happened)
+///   Delete + Create → Modify     (file was replaced, e.g. atomic save)
+///   Create + Modify → Create     (still just created)
+///   Modify + Delete → Delete     (modified then deleted)
+///   Any   + Same    → no change  (idempotent)
+struct PathCoalescer {
+    entries: HashMap<PathBuf, ChangeKind>,
+}
+
+impl PathCoalescer {
+    fn new() -> Self {
+        Self {
+            entries: HashMap::new(),
+        }
+    }
+
+    /// Record a change event for `path`, merging with any existing entry.
+    fn record(&mut self, path: PathBuf, kind: ChangeKind) {
+        use ChangeKind::*;
+        if let Some(existing) = self.entries.get_mut(&path) {
+            match (*existing, kind) {
+                (Create, Delete) => {
+                    // Cancel out — remove the entry entirely
+                    self.entries.remove(&path);
+                }
+                (Delete, Create) => *existing = Modify, // replaced
+                (Create, Modify) => {}                  // still just created
+                (Modify, Delete) => *existing = Delete, // modified then deleted
+                _ => {}                                 // idempotent / no-op
+            }
+        } else {
+            self.entries.insert(path, kind);
+        }
+    }
+
+    /// After all events are recorded, simplify: if a parent directory has a
+    /// Delete event, drop child Delete events (the parent already covers them).
+    /// Matches VSCode's "only keep parent DELETE" rule.
+    fn simplify(&mut self) {
+        let parent_deletes: Vec<PathBuf> = self
+            .entries
+            .iter()
+            .filter(|(_, k)| **k == ChangeKind::Delete)
+            .filter(|(p, _)| p.is_dir() || p.extension().is_none())
+            .map(|(p, _)| p.clone())
+            .collect();
+
+        for parent in &parent_deletes {
+            self.entries.retain(|path, kind| {
+                // Keep if not a child of a deleted parent, or if not a Delete
+                if *kind == ChangeKind::Delete && path.starts_with(parent) && path != parent {
+                    return false;
+                }
+                true
+            });
+        }
+    }
+
+    /// Return the coalesced entries, consuming the coalescer.
+    fn into_entries(self) -> HashMap<PathBuf, ChangeKind> {
+        self.entries
+    }
+}
+
+// ──────────────────────────────────────────────
+//  Payload
+// ──────────────────────────────────────────────
 
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -18,6 +106,18 @@ struct SkillsChangedPayload {
     removed: Vec<String>,
     full_rebuild: bool,
 }
+
+/// Result of mapping coalesced filesystem events to affected skills.
+struct AffectedSkills {
+    /// Skill directories (relative to watch root) that need rescanning.
+    to_rescan: HashSet<String>,
+    /// Skill IDs that should be removed from the cache.
+    to_delete: HashSet<String>,
+}
+
+// ──────────────────────────────────────────────
+//  Watcher setup
+// ──────────────────────────────────────────────
 
 fn collect_watch_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
@@ -73,28 +173,50 @@ pub fn start_skill_watcher(
     Ok((watcher, join_handle))
 }
 
+// ──────────────────────────────────────────────
+//  Debounce loop
+// ──────────────────────────────────────────────
+
+/// Classify a notify EventKind into our simplified ChangeKind.
+fn classify_event_kind(kind: &EventKind) -> Option<ChangeKind> {
+    match kind {
+        EventKind::Create(_) => Some(ChangeKind::Create),
+        EventKind::Modify(_) => Some(ChangeKind::Modify),
+        EventKind::Remove(_) => Some(ChangeKind::Delete),
+        EventKind::Access(_) | EventKind::Other | EventKind::Any => None,
+    }
+}
+
 async fn debounced_rebuild_loop(
     mut rx: tokio::sync::mpsc::Receiver<Event>,
     app_handle: tauri::AppHandle,
 ) {
     loop {
-        let mut changed_paths: Vec<PathBuf> = Vec::new();
+        let mut coalescer = PathCoalescer::new();
 
         // Wait for the first event
         if let Some(event) = rx.recv().await {
-            changed_paths.extend(event.paths);
+            if let Some(kind) = classify_event_kind(&event.kind) {
+                for path in event.paths {
+                    coalescer.record(path, kind);
+                }
+            }
         } else {
             break;
         }
 
-        // Debounce: collect all paths during the window, reset timer on each event
+        // Debounce: collect and coalesce all events during the window
         let timer = tokio::time::sleep(Duration::from_millis(DEBOUNCE_MS));
         tokio::pin!(timer);
         loop {
             tokio::select! {
                 maybe_event = rx.recv() => {
                     if let Some(event) = maybe_event {
-                        changed_paths.extend(event.paths);
+                        if let Some(kind) = classify_event_kind(&event.kind) {
+                            for path in event.paths {
+                                coalescer.record(path, kind);
+                            }
+                        }
                         timer.as_mut().reset(
                             tokio::time::Instant::now() + Duration::from_millis(DEBOUNCE_MS),
                         );
@@ -108,167 +230,235 @@ async fn debounced_rebuild_loop(
             }
         }
 
-        trigger_rebuild(&app_handle, &changed_paths).await;
+        coalescer.simplify();
+        let coalesced = coalescer.into_entries();
+
+        if !coalesced.is_empty() {
+            trigger_rebuild(&app_handle, &coalesced).await;
+        }
     }
 }
 
-async fn trigger_rebuild(app_handle: &tauri::AppHandle, changed_paths: &[PathBuf]) {
+// ──────────────────────────────────────────────
+//  Rebuild logic
+// ──────────────────────────────────────────────
+
+async fn trigger_rebuild(
+    app_handle: &tauri::AppHandle,
+    coalesced: &HashMap<PathBuf, ChangeKind>,
+) {
     let state = app_handle.state::<AppState>();
+    let watch_roots = collect_watch_dirs();
 
-    if changed_paths.is_empty() {
+    let affected = resolve_affected_skills(coalesced, &state.skill_cache, &watch_roots);
+
+    if affected.to_rescan.is_empty() && affected.to_delete.is_empty() {
         return;
     }
 
-    let (to_rescan, to_delete_candidates) =
-        map_changed_paths_to_skill_dirs(changed_paths, &state.skill_cache, &collect_watch_dirs());
+    let to_rescan: Vec<String> = affected.to_rescan.into_iter().collect();
+    let mut remove_ids: HashSet<String> = affected.to_delete;
 
-    if to_rescan.is_empty() && to_delete_candidates.is_empty() {
-        return; // No skill affected (e.g. a non-skill file changed)
-    }
-
-    // Rescan affected skills
-    let (entries, failed_dirs) = SkillService::scan_skills_batch(&to_rescan);
-
-    // Verify deletions: re-check home_path existence to handle race conditions
-    let mut remove_ids: HashSet<String> = to_delete_candidates
-        .iter()
-        .filter(|(_, hp)| !Path::new(hp).exists())
-        .map(|(id, _)| id.clone())
-        .collect();
-
-    // Scan failures → treat as deletions
-    for failed_dir in &failed_dirs {
-        if let Some(id) = SkillService::find_id_by_directory(&state.skill_cache, failed_dir) {
-            remove_ids.insert(id);
-        }
-    }
-
-    let updated_ids: Vec<String> = entries.iter().map(|e| e.id.clone()).collect();
-
-    // Batch update cache; on failure, fallback to full rebuild
-    if let Err(e) =
-        SkillService::batch_upsert_cache_entries(&state.skill_cache, entries, &remove_ids)
+    // Verify deletions: re-check that home_path still doesn't exist
     {
-        eprintln!(
-            "Watcher incremental update failed, falling back to full rebuild: {e}"
-        );
-        match SkillService::rebuild_cache(
-            &state.skill_cache,
-            &state.metadata,
-            &state.sync_in_progress,
-        )
-            .await
-        {
-            Ok(_) => {
-                let _ = app_handle.emit(
-                    "skills-changed",
-                    SkillsChangedPayload {
-                        updated: vec![],
-                        removed: vec![],
-                        full_rebuild: true,
-                    },
-                );
-            }
-            Err(e2) => {
-                eprintln!("Watcher full rebuild also failed: {e2}");
-                let _ = app_handle.emit(
-                    "skills-changed",
-                    SkillsChangedPayload {
-                        updated: vec![],
-                        removed: vec![],
-                        full_rebuild: true,
-                    },
-                );
-            }
-        }
-        return;
+        let cache = state.skill_cache.read().unwrap();
+        remove_ids.retain(|id| {
+            let entry = cache.skills.iter().find(|s| &s.id == id);
+            entry.is_none()
+                || entry
+                    .unwrap()
+                    .home_path
+                    .as_ref()
+                    .is_none_or(|hp| !Path::new(hp).exists())
+        });
     }
 
-    let _ = app_handle.emit(
-        "skills-changed",
-        SkillsChangedPayload {
-            updated: updated_ids,
-            removed: remove_ids.into_iter().collect(),
-            full_rebuild: false,
-        },
-    );
+    // Look up IDs for scan-failed directories in one read-lock acquisition
+    let failed_dir_ids = SkillService::find_ids_by_directories(&state.skill_cache, &to_rescan);
+
+    // Move scan + cache update off the tokio runtime.
+    // We pass a raw pointer to the skill_cache RwLock — safe because AppState
+    // outlives the app and spawn_blocking runs on a thread in the same process.
+    let skill_cache_ptr = &state.skill_cache as *const _ as usize;
+
+    let result = tokio::task::spawn_blocking(move || {
+        let skill_cache: &RwLock<SkillCache> = unsafe { &*(skill_cache_ptr as *const _) };
+
+        let (entries, failed_dirs) = SkillService::scan_skills_batch(&to_rescan);
+
+        for failed_dir in &failed_dirs {
+            if let Some(id) = failed_dir_ids.get(failed_dir) {
+                remove_ids.insert(id.clone());
+            }
+        }
+
+        let updated_ids: Vec<String> = entries.iter().map(|e| e.id.clone()).collect();
+
+        match SkillService::batch_upsert_cache_entries(skill_cache, entries, &remove_ids) {
+            Ok(()) => Ok((updated_ids, remove_ids)),
+            Err(e) => {
+                eprintln!("Watcher incremental update failed: {e}");
+                Err(())
+            }
+        }
+    })
+    .await;
+
+    match result {
+        Ok(Ok((updated_ids, remove_ids))) => {
+            let _ = app_handle.emit(
+                "skills-changed",
+                SkillsChangedPayload {
+                    updated: updated_ids,
+                    removed: remove_ids.into_iter().collect(),
+                    full_rebuild: false,
+                },
+            );
+        }
+        _ => {
+            // Incremental failed or spawn_blocking panicked — do full rebuild
+            if let Err(e2) = SkillService::rebuild_cache(
+                &state.skill_cache,
+                &state.metadata,
+                &state.sync_in_progress,
+            )
+            .await
+            {
+                eprintln!("Watcher full rebuild also failed: {e2}");
+            }
+            let _ = app_handle.emit(
+                "skills-changed",
+                SkillsChangedPayload {
+                    updated: vec![],
+                    removed: vec![],
+                    full_rebuild: true,
+                },
+            );
+        }
+    }
 }
 
-/// Map filesystem change paths to affected skill directories.
-/// Returns (to_rescan: Vec<relative_skill_dir>, to_delete: Vec<(skill_id, home_path)>)
-fn map_changed_paths_to_skill_dirs(
-    changed_paths: &[PathBuf],
+// ──────────────────────────────────────────────
+//  Path → skill mapping
+// ──────────────────────────────────────────────
+
+/// Map coalesced filesystem events to affected skill directories.
+///
+/// Strategy A (existing skills): For paths that still exist on disk,
+/// canonicalize and match against cached skills' `home_path` (longest prefix).
+///
+/// Strategy A' (deleted skills): For paths that no longer exist,
+/// strip the watch root prefix and match by `directory` field in cache.
+/// This avoids the canonicalize-fails-for-deleted-files bug.
+///
+/// Strategy B (new skills): Walk up unmatched paths to find a SKILL.md ancestor.
+fn resolve_affected_skills(
+    coalesced: &HashMap<PathBuf, ChangeKind>,
     cache: &std::sync::RwLock<SkillCache>,
     watch_roots: &[PathBuf],
-) -> (Vec<String>, Vec<(String, String)>) {
-
-    // Resolve symlinks/junctions so Strategy A matches against real home_path.
-    // Falls back to original path if canonicalize fails (e.g. deleted file).
-    let resolved_paths: Vec<PathBuf> = changed_paths
-        .iter()
-        .map(|p| std::fs::canonicalize(p).unwrap_or_else(|_| p.clone()))
-        .collect();
-
-    let cached_skills: Vec<(String, String, String)> = cache
+) -> AffectedSkills {
+    // Cache snapshot: (id, directory, home_path)
+    let cached_skills: Vec<(String, String, Option<String>)> = cache
         .read()
         .map(|c| {
             c.skills
                 .iter()
-                .filter_map(|s| {
-                    s.home_path
-                        .as_ref()
-                        .map(|hp| (s.id.clone(), s.directory.clone(), hp.clone()))
-                })
+                .map(|s| (s.id.clone(), s.directory.clone(), s.home_path.clone()))
                 .collect()
         })
         .unwrap_or_default();
 
     // Sort by home_path length descending so longest match wins for nested skills
-    let mut sorted = cached_skills;
-    sorted.sort_by(|a, b| b.2.len().cmp(&a.2.len()));
+    let mut sorted_by_homepath: Vec<(String, String, String)> = cached_skills
+        .iter()
+        .filter_map(|(id, dir, hp)| hp.as_ref().map(|h| (id.clone(), dir.clone(), h.clone())))
+        .collect();
+    sorted_by_homepath.sort_by(|a, b| b.2.len().cmp(&a.2.len()));
+
+    // Build a map from directory → id for deletion lookup
+    let dir_to_id: HashMap<&str, &str> = cached_skills
+        .iter()
+        .map(|(id, dir, _)| (dir.as_str(), id.as_str()))
+        .collect();
 
     let mut to_rescan: HashSet<String> = HashSet::new();
-    let mut to_delete: Vec<(String, String)> = Vec::new();
-    let mut matched_paths: HashSet<usize> = HashSet::new();
+    let mut to_delete: HashSet<String> = HashSet::new();
+    let mut matched_paths: HashSet<PathBuf> = HashSet::new();
 
-    // Strategy A: match resolved paths against cached skills' home_path
-    for (i, path) in resolved_paths.iter().enumerate() {
-        for (id, dir, hp) in &sorted {
-            if path.starts_with(hp) {
-                matched_paths.insert(i);
-                if Path::new(hp).exists() {
-                    to_rescan.insert(dir.clone());
-                } else {
-                    to_delete.push((id.clone(), hp.clone()));
+    for (path, kind) in coalesced {
+        if path.exists() {
+            // Path still exists — Strategy A: canonicalize and match home_path
+            if let Ok(resolved) = std::fs::canonicalize(path) {
+                for (_id, dir, hp) in &sorted_by_homepath {
+                    if resolved.starts_with(hp) {
+                        matched_paths.insert(path.clone());
+                        to_rescan.insert(dir.clone());
+                        break; // longest match first
+                    }
                 }
-                break; // longest match first
+            }
+        } else {
+            // Path no longer exists — Strategy A': match by directory field
+            // Strip watch root prefix to get relative path, then look up in cache
+            for root in watch_roots {
+                if let Ok(rel) = path.strip_prefix(root) {
+                    let rel_str = rel.to_string_lossy();
+                    // The relative path might be "owner/skill/SKILL.md" or
+                    // "owner/skill/lib/utils.sh". Walk up to find a matching directory.
+                    let mut candidate = Path::new(rel_str.as_ref());
+                    loop {
+                        let candidate_str = candidate.to_str().unwrap_or("");
+                        if dir_to_id.contains_key(candidate_str) {
+                            matched_paths.insert(path.clone());
+                            // Always rescan — never assume deletion just because
+                            // a file inside the skill was deleted. The scanner
+                            // will detect whether the skill directory still exists:
+                            // scan succeeds → skill alive, entry updated
+                            // scan fails    → skill gone, added to remove_ids
+                            to_rescan.insert(candidate_str.to_string());
+                            break;
+                        }
+                        match candidate.parent() {
+                            Some(p) if !p.as_os_str().is_empty() => candidate = p,
+                            _ => break,
+                        }
+                    }
+                    break; // found the matching watch root
+                }
             }
         }
     }
 
-    // Strategy B: walk up unmatched *original* paths to find SKILL.md ancestor.
-    // Uses original paths (not canonicalized) so strip_prefix works with watch roots.
-    for (i, path) in changed_paths.iter().enumerate() {
-        if matched_paths.contains(&i) {
+    // Strategy B: walk up unmatched paths to find SKILL.md ancestor.
+    // Only for Create/Modify events (new skill discovery).
+    // Delete events for unknown paths are irrelevant.
+    for (path, kind) in coalesced {
+        if matched_paths.contains(path) {
             continue;
         }
-        if let Some(skill_dir) = walk_up_to_skill(path, &watch_roots) {
+        if *kind == ChangeKind::Delete {
+            continue; // Can't discover a new skill via a deletion event
+        }
+        if let Some(skill_dir) = walk_up_to_skill(path, watch_roots) {
             to_rescan.insert(skill_dir);
         }
     }
 
-    (to_rescan.into_iter().collect(), to_delete)
+    AffectedSkills {
+        to_rescan,
+        to_delete,
+    }
 }
 
 /// Walk up from a changed path until finding a directory containing SKILL.md.
 /// Returns the skill directory relative to its watch root.
+///
+/// Checks for SKILL.md *before* checking the root boundary, so a skill
+/// at the watch root level is discovered correctly.
 fn walk_up_to_skill(path: &Path, watch_roots: &[PathBuf]) -> Option<String> {
     let mut current = path;
     while let Some(parent) = current.parent() {
-        // Don't walk above or on the watch root itself
-        if watch_roots.iter().any(|r| current == r.as_path()) {
-            break;
-        }
+        // Check for SKILL.md before checking root boundary
         if current.join("SKILL.md").exists() {
             // Found a skill dir — return relative path from its watch root
             for root in watch_roots {
@@ -285,6 +475,10 @@ fn walk_up_to_skill(path: &Path, watch_roots: &[PathBuf]) -> Option<String> {
     }
     None
 }
+
+// ──────────────────────────────────────────────
+//  Tests
+// ──────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -316,6 +510,89 @@ mod tests {
         }
     }
 
+    // ─── PathCoalescer ───
+
+    #[test]
+    fn coalesce_create_then_delete_cancels() {
+        let mut c = PathCoalescer::new();
+        let path = PathBuf::from("/tmp/skill/SKILL.md");
+        c.record(path.clone(), ChangeKind::Create);
+        c.record(path.clone(), ChangeKind::Delete);
+        let entries = c.into_entries();
+        assert!(!entries.contains_key(&path));
+    }
+
+    #[test]
+    fn coalesce_delete_then_create_becomes_modify() {
+        let mut c = PathCoalescer::new();
+        let path = PathBuf::from("/tmp/skill/SKILL.md");
+        c.record(path.clone(), ChangeKind::Delete);
+        c.record(path.clone(), ChangeKind::Create);
+        let entries = c.into_entries();
+        assert_eq!(entries.get(&path), Some(&ChangeKind::Modify));
+    }
+
+    #[test]
+    fn coalesce_create_then_modify_stays_create() {
+        let mut c = PathCoalescer::new();
+        let path = PathBuf::from("/tmp/skill/SKILL.md");
+        c.record(path.clone(), ChangeKind::Create);
+        c.record(path.clone(), ChangeKind::Modify);
+        let entries = c.into_entries();
+        assert_eq!(entries.get(&path), Some(&ChangeKind::Create));
+    }
+
+    #[test]
+    fn coalesce_modify_then_delete_becomes_delete() {
+        let mut c = PathCoalescer::new();
+        let path = PathBuf::from("/tmp/skill/SKILL.md");
+        c.record(path.clone(), ChangeKind::Modify);
+        c.record(path.clone(), ChangeKind::Delete);
+        let entries = c.into_entries();
+        assert_eq!(entries.get(&path), Some(&ChangeKind::Delete));
+    }
+
+    #[test]
+    fn coalesce_same_kind_idempotent() {
+        let mut c = PathCoalescer::new();
+        let path = PathBuf::from("/tmp/skill/SKILL.md");
+        c.record(path.clone(), ChangeKind::Modify);
+        c.record(path.clone(), ChangeKind::Modify);
+        let entries = c.into_entries();
+        assert_eq!(entries.get(&path), Some(&ChangeKind::Modify));
+        assert_eq!(entries.len(), 1);
+    }
+
+    #[test]
+    fn coalesce_simplify_drops_child_deletes_under_parent_delete() {
+        let mut c = PathCoalescer::new();
+        let parent = PathBuf::from("/tmp/skill");
+        let child1 = PathBuf::from("/tmp/skill/SKILL.md");
+        let child2 = PathBuf::from("/tmp/skill/lib/utils.sh");
+        c.record(parent.clone(), ChangeKind::Delete);
+        c.record(child1.clone(), ChangeKind::Delete);
+        c.record(child2.clone(), ChangeKind::Delete);
+        c.simplify();
+        let entries = c.into_entries();
+        // Parent delete kept, children dropped
+        assert_eq!(entries.get(&parent), Some(&ChangeKind::Delete));
+        assert!(!entries.contains_key(&child1));
+        assert!(!entries.contains_key(&child2));
+    }
+
+    #[test]
+    fn coalesce_simplify_keeps_child_modifies_under_parent_delete() {
+        let mut c = PathCoalescer::new();
+        let parent = PathBuf::from("/tmp/skill");
+        let child = PathBuf::from("/tmp/skill/SKILL.md");
+        c.record(parent.clone(), ChangeKind::Delete);
+        c.record(child.clone(), ChangeKind::Modify); // shouldn't happen, but test it
+        c.simplify();
+        let entries = c.into_entries();
+        assert!(entries.contains_key(&parent));
+        assert!(entries.contains_key(&child)); // non-Delete children are kept
+    }
+
     // ─── walk_up_to_skill ───
 
     #[test]
@@ -323,12 +600,10 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
 
-        // Create skill structure: root/owner/skill/SKILL.md
         let skill_dir = root.join("owner").join("skill");
         std::fs::create_dir_all(&skill_dir).unwrap();
         std::fs::write(skill_dir.join("SKILL.md"), "---\nname: test\n---").unwrap();
 
-        // Deep file: root/owner/skill/lib/utils.sh
         let deep_file = skill_dir.join("lib").join("utils.sh");
 
         let result = walk_up_to_skill(&deep_file, &[root.to_path_buf()]);
@@ -340,7 +615,6 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
 
-        // No SKILL.md anywhere
         let some_dir = root.join("random");
         std::fs::create_dir_all(&some_dir).unwrap();
 
@@ -353,11 +627,6 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
 
-        // SKILL.md outside the watch root (shouldn't be found)
-        let _outside = tmp.path().parent().unwrap();
-        // We can't reliably create files outside the tempdir,
-        // so this test just verifies the function doesn't panic
-        // and returns None for paths at the root boundary.
         let file_at_root = root.join("some_file.txt");
         std::fs::write(&file_at_root, "test").unwrap();
 
@@ -365,44 +634,59 @@ mod tests {
         assert_eq!(result, None);
     }
 
-    // ─── map_changed_paths_to_skill_dirs ───
+    #[test]
+    fn walk_up_finds_skill_at_watch_root_level() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // A skill directly under the watch root
+        let skill_dir = root.join("my-skill");
+        std::fs::create_dir_all(&skill_dir).unwrap();
+        std::fs::write(skill_dir.join("SKILL.md"), "---\nname: test\n---").unwrap();
+
+        // A file inside the skill
+        let file = skill_dir.join("lib.sh");
+        std::fs::write(&file, "echo hi").unwrap();
+
+        let result = walk_up_to_skill(&file, &[root.to_path_buf()]);
+        assert_eq!(result, Some("my-skill".to_string()));
+    }
+
+    // ─── resolve_affected_skills ───
 
     #[test]
     fn strategy_a_matches_existing_skill() {
         let tmp = tempfile::tempdir().unwrap();
-        let skill_path = std::fs::canonicalize(tmp.path().join("my-skill"))
-            .unwrap_or_else(|_| tmp.path().join("my-skill").clone());
-        // Fall back to non-canonicalized path if dir doesn't exist yet
-        let skill_path = if skill_path.exists() {
-            skill_path
-        } else {
-            let p = tmp.path().join("my-skill");
-            std::fs::create_dir_all(&p).unwrap();
-            std::fs::write(p.join("SKILL.md"), "---\nname: test\n---").unwrap();
-            std::fs::canonicalize(&p).unwrap_or(p)
-        };
+        let root = tmp.path();
+        let skill_path = root.join("my-skill");
+        std::fs::create_dir_all(&skill_path).unwrap();
+        std::fs::write(skill_path.join("SKILL.md"), "---\nname: test\n---").unwrap();
+
+        let canonical = std::fs::canonicalize(&skill_path).unwrap_or_else(|_| skill_path.clone());
 
         let cache = make_cache(vec![make_entry(
             "ssot:my-skill",
             "my-skill",
-            skill_path.to_str().unwrap(),
+            canonical.to_str().unwrap(),
         )]);
 
-        let changed = vec![skill_path.join("SKILL.md")];
-        let (rescan, delete) =
-            map_changed_paths_to_skill_dirs(&changed, &cache, &[skill_path.parent().unwrap().to_path_buf()]);
+        let mut coalesced = HashMap::new();
+        coalesced.insert(skill_path.join("SKILL.md"), ChangeKind::Modify);
 
-        assert_eq!(rescan, vec!["my-skill".to_string()]);
-        assert!(delete.is_empty());
+        let affected = resolve_affected_skills(&coalesced, &cache, &[root.to_path_buf()]);
+        assert!(affected.to_rescan.contains("my-skill"));
+        assert!(affected.to_delete.is_empty());
     }
 
     #[test]
-    fn strategy_a_detects_deleted_skill() {
+    fn strategy_a_prime_matches_deleted_path_and_flags_rescan() {
         let tmp = tempfile::tempdir().unwrap();
-        let root = std::fs::canonicalize(tmp.path()).unwrap_or_else(|_| tmp.path().to_path_buf());
-        // home_path points to a directory that doesn't exist (simulates deletion)
-        let skill_path = root.join("deleted-skill");
-        // Don't create this directory — it's "deleted"
+        let root = tmp.path();
+        let root_canonical =
+            std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
+
+        // Skill existed in cache but directory is gone (e.g. deleted)
+        let skill_path = root_canonical.join("deleted-skill");
 
         let cache = make_cache(vec![make_entry(
             "ssot:deleted-skill",
@@ -410,41 +694,68 @@ mod tests {
             skill_path.to_str().unwrap(),
         )]);
 
-        // notify might report the path of a file inside the now-deleted dir
-        // canonicalize will fail, so it falls back to the original path
-        let changed = vec![skill_path.join("SKILL.md")];
-        let (rescan, delete) =
-            map_changed_paths_to_skill_dirs(&changed, &cache, &[root]);
+        let mut coalesced = HashMap::new();
+        coalesced.insert(skill_path.join("SKILL.md"), ChangeKind::Delete);
 
-        assert!(rescan.is_empty());
-        assert_eq!(delete.len(), 1);
-        assert_eq!(delete[0].0, "ssot:deleted-skill");
+        let affected = resolve_affected_skills(&coalesced, &cache, &[root_canonical]);
+        // Always rescan — deletion is verified by scan_skills_batch failure
+        assert!(affected.to_rescan.contains("deleted-skill"));
+        assert!(affected.to_delete.is_empty());
+    }
+
+    #[test]
+    fn strategy_a_prime_file_deleted_inside_existing_skill() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = std::fs::canonicalize(tmp.path()).unwrap_or_else(|_| tmp.path().to_path_buf());
+
+        // Skill directory exists on disk
+        let skill_dir = root.join("my-skill");
+        std::fs::create_dir_all(&skill_dir).unwrap();
+        std::fs::write(skill_dir.join("SKILL.md"), "---\nname: test\n---").unwrap();
+
+        let cache = make_cache(vec![make_entry(
+            "ssot:my-skill",
+            "my-skill",
+            skill_dir.to_str().unwrap(),
+        )]);
+
+        // A file inside the skill was deleted (path no longer exists on disk)
+        let deleted_file = skill_dir.join("helper.sh");
+        // Don't create helper.sh — it was "deleted"
+
+        let mut coalesced = HashMap::new();
+        coalesced.insert(deleted_file.clone(), ChangeKind::Delete);
+
+        let affected = resolve_affected_skills(&coalesced, &cache, &[root.clone()]);
+        // Skill directory still exists → should rescan, not delete
+        assert!(affected.to_rescan.contains("my-skill"));
+        assert!(affected.to_delete.is_empty());
     }
 
     #[test]
     fn strategy_b_finds_new_skill() {
         let tmp = tempfile::tempdir().unwrap();
-        let root = std::fs::canonicalize(tmp.path()).unwrap_or_else(|_| tmp.path().to_path_buf());
+        let root = tmp.path();
 
         // New skill not in cache yet
         let skill_dir = root.join("new-skill");
         std::fs::create_dir_all(&skill_dir).unwrap();
         std::fs::write(skill_dir.join("SKILL.md"), "---\nname: new\n---").unwrap();
 
-        let cache = make_cache(vec![]); // Empty cache — no existing skills
+        let cache = make_cache(vec![]);
 
-        let changed = vec![skill_dir.join("SKILL.md")];
-        let (rescan, delete) =
-            map_changed_paths_to_skill_dirs(&changed, &cache, &[root.clone()]);
+        let mut coalesced = HashMap::new();
+        coalesced.insert(skill_dir.join("SKILL.md"), ChangeKind::Create);
 
-        assert_eq!(rescan, vec!["new-skill".to_string()]);
-        assert!(delete.is_empty());
+        let affected = resolve_affected_skills(&coalesced, &cache, &[root.to_path_buf()]);
+        assert!(affected.to_rescan.contains("new-skill"));
+        assert!(affected.to_delete.is_empty());
     }
 
     #[test]
     fn nested_skill_gets_longest_match() {
         let tmp = tempfile::tempdir().unwrap();
-        let root = std::fs::canonicalize(tmp.path()).unwrap_or_else(|_| tmp.path().to_path_buf());
+        let root = tmp.path();
         let shallow_path = root.join("owner");
         let deep_path = root.join("owner").join("skill");
         std::fs::create_dir_all(&shallow_path).unwrap();
@@ -453,49 +764,54 @@ mod tests {
         std::fs::write(deep_path.join("SKILL.md"), "---\nname: deep-skill\n---").unwrap();
 
         let cache = make_cache(vec![
-            make_entry("ssot:owner", "owner", shallow_path.to_str().unwrap()),
-            make_entry("ssot:owner/skill", "owner/skill", deep_path.to_str().unwrap()),
+            make_entry(
+                "ssot:owner",
+                "owner",
+                std::fs::canonicalize(&shallow_path)
+                    .unwrap_or_else(|_| shallow_path.clone())
+                    .to_str()
+                    .unwrap(),
+            ),
+            make_entry(
+                "ssot:owner/skill",
+                "owner/skill",
+                std::fs::canonicalize(&deep_path)
+                    .unwrap_or_else(|_| deep_path.clone())
+                    .to_str()
+                    .unwrap(),
+            ),
         ]);
 
-        // Change inside the deep skill
-        let changed = vec![deep_path.join("lib").join("utils.sh")];
-        let (rescan, delete) =
-            map_changed_paths_to_skill_dirs(&changed, &cache, &[root]);
+        let mut coalesced = HashMap::new();
+        coalesced.insert(deep_path.join("lib").join("utils.sh"), ChangeKind::Modify);
 
+        let affected = resolve_affected_skills(&coalesced, &cache, &[root.to_path_buf()]);
         // Longest match should pick "owner/skill", not "owner"
-        assert!(rescan.contains(&"owner/skill".to_string()));
-        assert!(delete.is_empty());
+        assert!(affected.to_rescan.contains("owner/skill"));
+        assert!(!affected.to_rescan.contains("owner"));
+        assert!(affected.to_delete.is_empty());
+    }
+
+    #[test]
+    fn create_then_delete_cancels_rescan() {
+        // If CREATE+DELETE cancel out in the coalescer, no skill should be affected
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let skill_path = root.join("my-skill");
+        std::fs::create_dir_all(&skill_path).unwrap();
+        std::fs::write(skill_path.join("SKILL.md"), "---\nname: test\n---").unwrap();
+
+        let cache = make_cache(vec![]);
+
+        // Coalescer cancels CREATE+DELETE, so the map is empty
+        let coalesced = HashMap::new(); // CREATE+DELETE was cancelled
+
+        let affected = resolve_affected_skills(&coalesced, &cache, &[root.to_path_buf()]);
+        assert!(affected.to_rescan.is_empty());
+        assert!(affected.to_delete.is_empty());
     }
 
     // ─── batch_upsert_cache_entries ───
-
-    /// Helper: verify in-memory cache state after batch_upsert, skipping save
-    /// (save writes to the real ~/.skill-zoo/ which causes test races).
-    /// Must stay in sync with SkillService::batch_upsert_cache_entries logic.
-    fn verify_batch_upsert(
-        cache: &std::sync::RwLock<SkillCache>,
-        entries: Vec<SkillCacheEntry>,
-        remove_ids: &HashSet<String>,
-    ) {
-        let mut c = cache.write().unwrap();
-        if !remove_ids.is_empty() {
-            c.skills.retain(|s| !remove_ids.contains(&s.id));
-        }
-        for entry in entries {
-            if let Some(existing) = c.skills.iter_mut().find(|s| s.id == entry.id) {
-                // Skip if cache was updated more recently (e.g. by a concurrent full rebuild)
-                if existing.updated_at >= entry.updated_at {
-                    continue;
-                }
-                let installed_at = existing.installed_at;
-                *existing = entry;
-                existing.installed_at = installed_at;
-            } else {
-                c.skills.push(entry);
-            }
-        }
-        // Don't call c.save() — that hits the real filesystem
-    }
 
     #[test]
     fn batch_upsert_preserves_installed_at() {
@@ -512,12 +828,12 @@ mod tests {
             home_path: None,
             content_hash: None,
             home_agent: None,
-            installed_at: 100, // should be preserved
+            installed_at: 100,
             updated_at: 200,
         }]);
 
         let new_entry = SkillCacheEntry {
-            id: "ssot:old".to_string(), // same ID
+            id: "ssot:old".to_string(),
             name: "old-updated".to_string(),
             yaml_name: None,
             description: Some("new desc".to_string()),
@@ -529,17 +845,17 @@ mod tests {
             home_path: None,
             content_hash: None,
             home_agent: None,
-            installed_at: 0, // should NOT overwrite
+            installed_at: 0,
             updated_at: 300,
         };
 
         let remove_ids = HashSet::new();
-        verify_batch_upsert(&cache, vec![new_entry], &remove_ids);
+        cache.write().unwrap().apply_batch_upsert(vec![new_entry], &remove_ids);
 
         let c = cache.read().unwrap();
         let entry = c.skills.iter().find(|s| s.id == "ssot:old").unwrap();
-        assert_eq!(entry.installed_at, 100); // preserved
-        assert_eq!(entry.updated_at, 300); // updated
+        assert_eq!(entry.installed_at, 100);
+        assert_eq!(entry.updated_at, 300);
         assert_eq!(entry.name, "old-updated");
     }
 
@@ -553,7 +869,7 @@ mod tests {
         let mut remove_ids = HashSet::new();
         remove_ids.insert("ssot:remove".to_string());
 
-        verify_batch_upsert(&cache, vec![], &remove_ids);
+        cache.write().unwrap().apply_batch_upsert(vec![], &remove_ids);
 
         let c = cache.read().unwrap();
         assert_eq!(c.skills.len(), 1);
@@ -567,7 +883,7 @@ mod tests {
         let new_entry = make_entry("ssot:new", "new", "/fake/new");
         let remove_ids = HashSet::new();
 
-        verify_batch_upsert(&cache, vec![new_entry], &remove_ids);
+        cache.write().unwrap().apply_batch_upsert(vec![new_entry], &remove_ids);
 
         let c = cache.read().unwrap();
         assert_eq!(c.skills.len(), 2);
@@ -576,62 +892,42 @@ mod tests {
 
     #[test]
     fn batch_upsert_skips_stale_entries() {
-        // Cache has updated_at=200 (fresher, e.g. from a concurrent full rebuild)
         let mut cached = make_entry("ssot:skill", "skill", "/fake/skill");
         cached.updated_at = 200;
 
         let cache = make_cache(vec![cached]);
 
-        // Incoming entry has updated_at=100 (stale, from an earlier scan)
         let mut stale_entry = make_entry("ssot:skill", "skill", "/fake/skill");
         stale_entry.updated_at = 100;
-        stale_entry.name = "stale-name".to_string(); // would overwrite if not skipped
+        stale_entry.name = "stale-name".to_string();
 
         let remove_ids = HashSet::new();
-        verify_batch_upsert(&cache, vec![stale_entry], &remove_ids);
+        cache.write().unwrap().apply_batch_upsert(vec![stale_entry], &remove_ids);
 
         let c = cache.read().unwrap();
         let entry = c.skills.iter().find(|s| s.id == "ssot:skill").unwrap();
-        assert_eq!(entry.updated_at, 200); // not overwritten
-        assert_ne!(entry.name, "stale-name"); // stale write was skipped
+        assert_eq!(entry.updated_at, 200);
+        assert_ne!(entry.name, "stale-name");
     }
 
     #[test]
     fn batch_upsert_allows_fresher_entries() {
-        // Cache has updated_at=100
         let mut cached = make_entry("ssot:skill", "skill", "/fake/skill");
         cached.updated_at = 100;
         cached.name = "old-name".to_string();
 
         let cache = make_cache(vec![cached]);
 
-        // Incoming entry has updated_at=200 (fresher)
         let mut fresh_entry = make_entry("ssot:skill", "skill", "/fake/skill");
         fresh_entry.updated_at = 200;
         fresh_entry.name = "fresh-name".to_string();
 
         let remove_ids = HashSet::new();
-        verify_batch_upsert(&cache, vec![fresh_entry], &remove_ids);
+        cache.write().unwrap().apply_batch_upsert(vec![fresh_entry], &remove_ids);
 
         let c = cache.read().unwrap();
         let entry = c.skills.iter().find(|s| s.id == "ssot:skill").unwrap();
-        assert_eq!(entry.updated_at, 200); // updated
-        assert_eq!(entry.name, "fresh-name"); // fresher write went through
-    }
-
-    // ─── find_id_by_directory ───
-
-    #[test]
-    fn find_id_by_directory_returns_id() {
-        let cache = make_cache(vec![make_entry("ssot:my-skill", "my-skill", "/fake/my-skill")]);
-        let result = SkillService::find_id_by_directory(&cache, "my-skill");
-        assert_eq!(result, Some("ssot:my-skill".to_string()));
-    }
-
-    #[test]
-    fn find_id_by_directory_returns_none_for_missing() {
-        let cache = make_cache(vec![make_entry("ssot:my-skill", "my-skill", "/fake/my-skill")]);
-        let result = SkillService::find_id_by_directory(&cache, "nonexistent");
-        assert_eq!(result, None);
+        assert_eq!(entry.updated_at, 200);
+        assert_eq!(entry.name, "fresh-name");
     }
 }

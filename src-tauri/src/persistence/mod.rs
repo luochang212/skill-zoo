@@ -6,6 +6,7 @@ use crate::config;
 use crate::error::{self, AppError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::path::Path;
 
 /// Write `data` to `path` atomically: write to a temp file first, then rename.
@@ -56,6 +57,34 @@ impl SkillCache {
         let json = serde_json::to_string_pretty(self)
             .map_err(|e| AppError::Parse(format!("skills-cache.json: {e}")))?;
         atomic_write(&path, json).map_err(|e| error::io(&path, e))
+    }
+
+    /// Apply batch upsert logic (no lock, no save). Pure function.
+    ///
+    /// - Removes entries whose IDs are in `remove_ids`.
+    /// - Upserts `entries`, preserving `installed_at` from existing entries.
+    /// - Skips stale writes where `existing.updated_at >= entry.updated_at`.
+    pub fn apply_batch_upsert(
+        &mut self,
+        entries: Vec<SkillCacheEntry>,
+        remove_ids: &HashSet<String>,
+    ) {
+        if !remove_ids.is_empty() {
+            self.skills.retain(|s| !remove_ids.contains(&s.id));
+        }
+        for entry in entries {
+            if let Some(existing) = self.skills.iter_mut().find(|s| s.id == entry.id) {
+                // Skip if cache was updated more recently (e.g. by a concurrent full rebuild)
+                if existing.updated_at >= entry.updated_at {
+                    continue;
+                }
+                let installed_at = existing.installed_at;
+                *existing = entry;
+                existing.installed_at = installed_at;
+            } else {
+                self.skills.push(entry);
+            }
+        }
     }
 }
 

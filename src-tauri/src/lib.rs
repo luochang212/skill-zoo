@@ -84,6 +84,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::skill::install_skills,
             commands::skill::get_installed_skills,
+            commands::skill::get_skills_by_ids,
+            commands::skill::check_cache_consistency,
             commands::skill::update_skill,
             commands::skill::update_all_skills,
             commands::skill::remove_skill,

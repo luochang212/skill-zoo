@@ -25,6 +25,7 @@ import {
   useStarSkill,
   useUnstarSkill,
   useSkillsWatcher,
+  useCacheConsistencyCheck,
 } from "@/hooks/useSkills";
 import { useSidebarFilter } from "@/hooks/useSidebarFilter";
 import { applyTheme } from "@/hooks/useTheme";
@@ -80,6 +81,7 @@ export default function App() {
   const unstarMutation = useUnstarSkill();
   const sidebarFilter = useSidebarFilter();
   useSkillsWatcher();
+  useCacheConsistencyCheck();
 
   useEffect(() => {
     const theme = (localStorage.getItem("theme") as string | null) ?? "light";

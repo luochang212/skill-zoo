@@ -130,8 +130,13 @@ impl SkillService {
     /// Check which agents can access this skill:
     /// - If the skill's homePath is under an agent directory (origin=agent),
     ///   that agent is marked as available directly.
-    /// - For all other agents, only a symlink pointing to this skill's
+    /// - For all other agents, only a symlink/junction pointing to this skill's
     ///   homePath counts — a same-named real directory is a separate skill.
+    ///
+    /// Handles:
+    /// - **Relative symlink targets**: resolved against the symlink's parent dir.
+    /// - **Windows junctions**: `read_link()` fails on junctions, so we fall back
+    ///   to comparing `canonicalize()` of both paths.
     pub fn detect_agents(skill_dir: &str, home_path: &Option<String>) -> HashMap<String, bool> {
         let mut enabled = HashMap::new();
         let home = home_path.as_ref().map(std::path::Path::new);
@@ -144,14 +149,27 @@ impl SkillService {
                         continue;
                     }
                 }
-                // Otherwise, only count if there's a symlink pointing to homePath
+                // Otherwise, only count if there's a symlink/junction pointing to homePath
                 let symlink_path = agent_dir.join(skill_dir);
                 if is_symlink_or_junction(&symlink_path) {
-                    if let (Some(h), Ok(target)) = (home, std::fs::read_link(&symlink_path)) {
-                        enabled.insert(agent.id.to_string(), target == *h);
+                    let matched = if let (Some(h), Ok(target)) = (home, std::fs::read_link(&symlink_path)) {
+                        // Resolve relative targets against the symlink's parent directory
+                        let resolved = if target.is_relative() {
+                            symlink_path.parent().unwrap_or(std::path::Path::new(".")).join(&target)
+                        } else {
+                            target
+                        };
+                        resolved == *h
                     } else {
-                        enabled.insert(agent.id.to_string(), false);
-                    }
+                        // read_link fails on Windows junctions — compare canonicalized paths
+                        (|| {
+                            let canonical_symlink = std::fs::canonicalize(&symlink_path).ok()?;
+                            let canonical_home = std::fs::canonicalize(home?).ok()?;
+                            Some(canonical_symlink == canonical_home)
+                        })()
+                        .unwrap_or(false)
+                    };
+                    enabled.insert(agent.id.to_string(), matched);
                 } else {
                     enabled.insert(agent.id.to_string(), false);
                 }
@@ -391,6 +409,23 @@ impl SkillService {
     ) -> Result<Vec<InstalledSkill>, AppError> {
         let mut skills = Vec::with_capacity(cache.skills.len());
         for entry in &cache.skills {
+            let mut skill: InstalledSkill = entry.clone().into();
+            let meta = metadata.get(&entry.id);
+            skill.starred = meta.starred;
+            skill.is_mine = meta.is_mine;
+            skills.push(skill);
+        }
+        Ok(skills)
+    }
+
+    /// Return specific skills from entries with metadata merged.
+    /// Used by `get_skills_by_ids` for incremental updates.
+    pub fn get_cached_skills_from_entries(
+        entries: &[SkillCacheEntry],
+        metadata: &MetadataStore,
+    ) -> Result<Vec<InstalledSkill>, AppError> {
+        let mut skills = Vec::with_capacity(entries.len());
+        for entry in entries {
             let mut skill: InstalledSkill = entry.clone().into();
             let meta = metadata.get(&entry.id);
             skill.starred = meta.starred;
@@ -1012,34 +1047,25 @@ impl SkillService {
         let mut c = cache
             .write()
             .map_err(|e| AppError::Parse(format!("Cache lock: {e}")))?;
-        if !remove_ids.is_empty() {
-            c.skills.retain(|s| !remove_ids.contains(&s.id));
-        }
-        for entry in entries {
-            if let Some(existing) = c.skills.iter_mut().find(|s| s.id == entry.id) {
-                // Skip if cache was updated more recently (e.g. by a concurrent full rebuild)
-                if existing.updated_at >= entry.updated_at {
-                    continue;
-                }
-                let installed_at = existing.installed_at;
-                *existing = entry;
-                existing.installed_at = installed_at;
-            } else {
-                c.skills.push(entry);
-            }
-        }
+        c.apply_batch_upsert(entries, remove_ids);
         c.save()
     }
 
-    /// Find a skill ID by its relative directory path.
-    pub fn find_id_by_directory(cache: &RwLock<SkillCache>, directory: &str) -> Option<String> {
-        cache
-            .read()
-            .ok()?
-            .skills
+    /// Find skill IDs for multiple directories in a single read-lock acquisition.
+    /// Returns a map of directory → skill_id.
+    pub fn find_ids_by_directories(
+        cache: &RwLock<SkillCache>,
+        directories: &[String],
+    ) -> HashMap<String, String> {
+        let Ok(c) = cache.read() else {
+            return HashMap::new();
+        };
+        let dir_set: HashSet<&str> = directories.iter().map(|s| s.as_str()).collect();
+        c.skills
             .iter()
-            .find(|s| s.directory == directory)
-            .map(|s| s.id.clone())
+            .filter(|s| dir_set.contains(s.directory.as_str()))
+            .map(|s| (s.directory.clone(), s.id.clone()))
+            .collect()
     }
 
     /// Remove a cache entry by skill_id and persist.
