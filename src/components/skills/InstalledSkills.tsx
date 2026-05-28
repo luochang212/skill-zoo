@@ -157,7 +157,7 @@ export function InstalledSkills({
 
           {/* Card grid skeleton */}
           <div className="flex-1 overflow-auto pt-1 pr-1">
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 pb-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="rounded-xl border bg-card p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
@@ -359,7 +359,7 @@ export function InstalledSkills({
           ) : (
             <div className="flex-1 overflow-auto pt-1 pr-1">
               {viewMode === "grid" ? (
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 pb-3">
                   {sorted.map((skill) => (
                     <SkillCard
                       key={skill.id}

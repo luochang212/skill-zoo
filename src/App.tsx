@@ -215,7 +215,7 @@ export default function App() {
         />
         <main className="flex-1 min-h-0">
           <ErrorBoundary>
-            <AnimatePresence mode="wait">
+            <AnimatePresence>
               <motion.div
                 key={editor.open ? `edit-${editor.skillId}` : showCreateSkill ? "create" : view}
                 initial={{ opacity: 0 }}
