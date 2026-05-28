@@ -123,10 +123,38 @@ pub fn is_symlink_or_junction(path: &std::path::Path) -> bool {
     }
 }
 
+/// Check whether a symlink/junction at `link_path` resolves to `expected_target`.
+///
+/// Resolves relative targets against the symlink's parent directory. Falls back
+/// to canonicalized path comparison when `read_link` fails (Windows junctions).
+fn canonical_paths_eq(a: &std::path::Path, b: &std::path::Path) -> bool {
+    a.canonicalize()
+        .ok()
+        .zip(b.canonicalize().ok())
+        .map_or(false, |(a, b)| a == b)
+}
+
+/// Check whether a symlink/junction at `link_path` resolves to `expected_target`.
+///
+/// Resolves relative targets against the symlink's parent directory. Falls back
+/// to canonicalized path comparison when `read_link` fails (Windows junctions).
+fn symlink_target_matches(link_path: &std::path::Path, expected_target: &std::path::Path) -> bool {
+    match std::fs::read_link(link_path) {
+        Ok(target) => {
+            let resolved = if target.is_relative() {
+                link_path.parent().unwrap_or(std::path::Path::new(".")).join(&target)
+            } else {
+                target
+            };
+            canonical_paths_eq(&resolved, expected_target)
+        }
+        Err(_) => canonical_paths_eq(link_path, expected_target),
+    }
+}
+
 pub struct SkillService;
 
 impl SkillService {
-    /// Check which agents have a symlink pointing to this skill's home directory.
     /// Check which agents can access this skill:
     /// - If the skill's homePath is under an agent directory (origin=agent),
     ///   that agent is marked as available directly.
@@ -147,11 +175,8 @@ impl SkillService {
                 // Otherwise, only count if there's a symlink pointing to homePath
                 let symlink_path = agent_dir.join(skill_dir);
                 if is_symlink_or_junction(&symlink_path) {
-                    if let (Some(h), Ok(target)) = (home, std::fs::read_link(&symlink_path)) {
-                        enabled.insert(agent.id.to_string(), target == *h);
-                    } else {
-                        enabled.insert(agent.id.to_string(), false);
-                    }
+                    let matched = home.map_or(false, |h| symlink_target_matches(&symlink_path, h));
+                    enabled.insert(agent.id.to_string(), matched);
                 } else {
                     enabled.insert(agent.id.to_string(), false);
                 }
@@ -1072,20 +1097,7 @@ impl SkillService {
                     let symlink_path = agent_dir.join(&skill.directory);
                     let exists = symlink_path.exists();
                     let is_valid = if exists {
-                        std::fs::read_link(&symlink_path)
-                            .ok()
-                            .and_then(|t| {
-                                let resolved = if t.is_absolute() {
-                                    t
-                                } else {
-                                    symlink_path.parent()?.join(t)
-                                };
-                                resolved.canonicalize().ok()
-                            })
-                            .and_then(|resolved| {
-                                target_path.canonicalize().ok().map(|c| resolved == c)
-                            })
-                            .unwrap_or(false)
+                        symlink_target_matches(&symlink_path, &target_path)
                     } else {
                         false
                     };
