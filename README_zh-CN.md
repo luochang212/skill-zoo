@@ -13,7 +13,7 @@
 
 ![app-screenshot](docs/header-image.webp)
 
-本地 Agent Skills 管理器 — 发现、安装、管理 Claude Code、Codex、Cursor、Gemini 等 AI 编程工具的技能。
+本地 Agent Skills 管理工具 — 发现、安装、管理 Claude Code、Codex、Cursor、Gemini 等 AI 编程工具的技能。
 
 <!-- ## 为什么选择 Skill Zoo？
 
@@ -143,7 +143,7 @@ bun run test:rs
 bun run tauri build
 ```
 
-## 🛡️ 信任与安全
+## 😇 信任与安全
 
 - **代码可见** — 全部源码开源，构建过程由 GitHub Actions 自动完成，任何人都可以审计
 - **按需联网** — 不后台偷跑，只在用户主动触发操作时请求 GitHub / skills.sh API

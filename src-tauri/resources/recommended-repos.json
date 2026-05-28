@@ -12,16 +12,16 @@
     "description": "A collection of skills for AgentBay"
   },
   {
-    "owner": "flutter",
-    "name": "skills",
+    "owner": "NousResearch",
+    "name": "hermes-agent",
     "branch": "main",
-    "description": "Agent skills for Flutter development — testing, architecture, responsive layouts, routing, localization, and more"
+    "description": "The agent that grows with you"
   },
   {
-    "owner": "affaan-m",
-    "name": "everything-claude-code",
+    "owner": "Leonxlnx",
+    "name": "taste-skill",
     "branch": "main",
-    "description": "The agent harness performance optimization system. Skills, instincts, memory, security, and research-first development for Claude Code, Codex, Opencode, Cursor and beyond."
+    "description": "Taste-Skill - gives your AI good taste. stops the AI from generating boring, generic slop"
   },
   {
     "owner": "vercel-labs",

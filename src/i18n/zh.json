@@ -259,7 +259,7 @@
     },
     "about": {
       "title": "关于",
-      "description": "Agent Skill 管理器 — 统一管理 Claude Code、Codex、Cursor 等工具的技能",
+      "description": "Agent Skill 管理工具 — 统一管理 Claude Code、Codex、Cursor 等工具的技能",
       "officialSite": "官方网站"
     },
     "updater": {
