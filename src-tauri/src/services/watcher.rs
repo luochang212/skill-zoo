@@ -21,6 +21,11 @@ fn collect_watch_dirs() -> Vec<PathBuf> {
                 dirs.push(agent_dir);
             }
         }
+        if let Some(plugin_dir) = config::get_agent_plugins_dir(agent.id) {
+            if plugin_dir.exists() {
+                dirs.push(plugin_dir);
+            }
+        }
     }
     dirs
 }
@@ -98,6 +103,11 @@ async fn debounced_rebuild_loop(
 
 async fn trigger_rebuild(app_handle: &tauri::AppHandle) {
     let state = app_handle.state::<AppState>();
+
+    // Invalidate plugin cache on any filesystem change
+    if let Ok(mut cache) = state.plugin_cache.write() {
+        *cache = None;
+    }
     match SkillService::rebuild_cache(&state.skill_cache, &state.metadata, &state.sync_in_progress)
         .await
     {

@@ -26,9 +26,11 @@ import {
   useUnstarSkill,
   useSkillsWatcher,
 } from "@/hooks/useSkills";
+import { usePluginsWatcher } from "@/hooks/usePlugins";
 import { useSidebarFilter } from "@/hooks/useSidebarFilter";
 import { applyTheme } from "@/hooks/useTheme";
-import type { View, DiscoverRepo } from "@/types/skills";
+import { PluginDetail } from "@/components/plugins/PluginDetail";
+import type { View, DiscoverRepo, PluginInfo } from "@/types/skills";
 
 interface EBProps {
   children: ReactNode;
@@ -73,6 +75,7 @@ export default function App() {
   const [view, setView] = useState<View>("local");
   const [showCreateSkill, setShowCreateSkill] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<DiscoverRepo | null>(null);
+  const [selectedPlugin, setSelectedPlugin] = useState<PluginInfo | null>(null);
   const editor = useEditorState();
   const updateMutation = useUpdateSkill();
   const removeMutation = useRemoveSkill();
@@ -80,6 +83,7 @@ export default function App() {
   const unstarMutation = useUnstarSkill();
   const sidebarFilter = useSidebarFilter();
   useSkillsWatcher();
+  usePluginsWatcher();
 
   useEffect(() => {
     const theme = (localStorage.getItem("theme") as string | null) ?? "light";
@@ -137,6 +141,15 @@ export default function App() {
 
   // Determine what to render in main area
   const renderMain = () => {
+    if (selectedPlugin) {
+      return (
+        <PluginDetail
+          plugin={selectedPlugin}
+          onBack={() => setSelectedPlugin(null)}
+        />
+      );
+    }
+
     if (editor.open) {
       return (
         <SkillDetail
@@ -174,6 +187,7 @@ export default function App() {
             category={sidebarFilter.category}
             onSelectCategory={sidebarFilter.selectCategory}
             onCreateSkill={handleOpenCreateSkill}
+            onSelectPlugin={setSelectedPlugin}
           />
         )}
         {view === "settings" && <SettingsView />}
@@ -210,14 +224,14 @@ export default function App() {
         <Header
           view={view}
           onViewChange={setView}
-          hideTabs={editor.open || showCreateSkill || !!selectedRepo}
+          hideTabs={editor.open || showCreateSkill || !!selectedRepo || !!selectedPlugin}
           onDragMouseDown={handleDragMouseDown}
         />
         <main className="flex-1 min-h-0">
           <ErrorBoundary>
             <AnimatePresence>
               <motion.div
-                key={editor.open ? `edit-${editor.skillId}` : showCreateSkill ? "create" : view}
+                key={selectedPlugin ? `plugin-${selectedPlugin.installPath}` : editor.open ? `edit-${editor.skillId}` : showCreateSkill ? "create" : view}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}

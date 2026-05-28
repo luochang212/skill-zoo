@@ -5,7 +5,8 @@ export type SidebarCategory =
   | { type: "starred" }
   | { type: "mine" }
   | { type: "consistency" }
-  | { type: "repo"; owner: string; name: string };
+  | { type: "repo"; owner: string; name: string }
+  | { type: "plugins" };
 
 export function useSidebarFilter() {
   const [category, setCategory] = useState<SidebarCategory>({ type: "all" });

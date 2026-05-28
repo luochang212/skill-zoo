@@ -28,6 +28,7 @@
     "all": "全部",
     "star": "收藏",
     "mySkills": "我的技能",
+    "plugins": "插件",
     "consistency": "一致性",
     "repos": "仓库"
   },
@@ -279,5 +280,8 @@
       "requestFeature": "功能建议",
       "hint": "在浏览器中打开 GitHub Issues，应用信息已预填。"
     }
+  },
+  "plugins": {
+    "empty": "未安装插件"
   }
 }

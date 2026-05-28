@@ -63,6 +63,23 @@ export interface AgentConfig {
   id: string;
   label: string;
   skillsSubdir: string;
+  pluginsDir?: string;
+}
+
+export interface PluginComponent {
+  type: string;
+  count: number;
+  items: string[];
+}
+
+export interface PluginInfo {
+  name: string;
+  version?: string;
+  description?: string;
+  author?: string;
+  installPath: string;
+  supportedAgents: string[];
+  components: PluginComponent[];
 }
 
 export interface VisibleAgents {

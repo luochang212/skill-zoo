@@ -28,6 +28,7 @@
     "all": "All",
     "star": "Star",
     "mySkills": "My Skills",
+    "plugins": "Plugins",
     "consistency": "Consistency",
     "repos": "Repos"
   },
@@ -279,5 +280,8 @@
       "requestFeature": "Request a Feature",
       "hint": "Opens GitHub Issues in your browser with app info pre-filled."
     }
+  },
+  "plugins": {
+    "empty": "No plugins installed"
   }
 }

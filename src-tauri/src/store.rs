@@ -1,4 +1,5 @@
 use crate::persistence::{MetadataStore, Settings, SkillCache};
+use crate::services::plugin::PluginInfo;
 use std::sync::atomic::AtomicBool;
 use std::sync::RwLock;
 
@@ -9,6 +10,7 @@ pub struct AppState {
     pub sync_in_progress: AtomicBool,
     pub fs_watcher: std::sync::Mutex<Option<notify::RecommendedWatcher>>,
     pub watcher_task: std::sync::Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
+    pub plugin_cache: RwLock<Option<Vec<PluginInfo>>>,
 }
 
 impl AppState {
@@ -20,6 +22,7 @@ impl AppState {
             sync_in_progress: AtomicBool::new(false),
             fs_watcher: std::sync::Mutex::new(None),
             watcher_task: std::sync::Mutex::new(None),
+            plugin_cache: RwLock::new(None),
         }
     }
 }

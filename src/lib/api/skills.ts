@@ -6,6 +6,7 @@ import type {
   DiscoverRepo,
   DiscoverableSkill,
   InstalledSkill,
+  PluginInfo,
   RepoSkillsResult,
   SkillAudit,
   SkillFileNode,
@@ -53,6 +54,9 @@ export const skillsApi = {
   getAgentPaths: () => invoke<AgentPathInfo[]>("get_agent_paths"),
 
   getAgentConfigs: () => invoke<AgentConfig[]>("get_agent_configs"),
+
+  getInstalledPlugins: (force?: boolean) =>
+    invoke<PluginInfo[]>("get_installed_plugins", { force }),
 
   // ── Discover (repo-driven) ──
 

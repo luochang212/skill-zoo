@@ -123,6 +123,8 @@ pub fn run() {
             commands::settings::open_cache_dir,
             commands::settings::check_skill_updates,
             commands::settings::is_portable_build,
+            commands::plugin::get_installed_plugins,
+            commands::plugin::invalidate_plugin_cache,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

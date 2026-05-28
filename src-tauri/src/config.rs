@@ -20,6 +20,8 @@ pub struct AgentConfig {
     pub id: &'static str,
     pub label: &'static str,
     pub skills_subdir: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugins_dir: Option<&'static str>,
 }
 
 pub const AGENTS: &[AgentConfig] = &[
@@ -27,46 +29,55 @@ pub const AGENTS: &[AgentConfig] = &[
         id: "claude-code",
         label: "Claude Code",
         skills_subdir: ".claude",
+        plugins_dir: Some(".claude/plugins"),
     },
     AgentConfig {
         id: "codex",
         label: "Codex",
         skills_subdir: ".codex",
+        plugins_dir: Some(".codex/plugins"),
     },
     AgentConfig {
         id: "gemini",
         label: "Gemini",
         skills_subdir: ".gemini",
+        plugins_dir: Some(".gemini/extensions"),
     },
     AgentConfig {
         id: "opencode",
         label: "OpenCode",
         skills_subdir: ".opencode",
+        plugins_dir: None,
     },
     AgentConfig {
         id: "cursor",
         label: "Cursor",
         skills_subdir: ".cursor",
+        plugins_dir: Some(".cursor/plugins"),
     },
     AgentConfig {
         id: "trae",
         label: "Trae",
         skills_subdir: ".trae",
+        plugins_dir: None,
     },
     AgentConfig {
         id: "trae-cn",
         label: "Trae CN",
         skills_subdir: ".trae-cn",
+        plugins_dir: None,
     },
     AgentConfig {
         id: "hermes",
         label: "Hermes",
         skills_subdir: ".hermes",
+        plugins_dir: None,
     },
     AgentConfig {
         id: "openclaw",
         label: "OpenClaw",
         skills_subdir: ".openclaw",
+        plugins_dir: None,
     },
 ];
 
@@ -146,4 +157,10 @@ pub fn get_agent_skills_dir(agent_id: &str) -> Option<PathBuf> {
     let home = dirs::home_dir()?;
     let cfg = AGENTS.iter().find(|a| a.id == agent_id)?;
     Some(home.join(cfg.skills_subdir).join("skills"))
+}
+
+pub fn get_agent_plugins_dir(agent_id: &str) -> Option<PathBuf> {
+    let home = dirs::home_dir()?;
+    let cfg = AGENTS.iter().find(|a| a.id == agent_id)?;
+    cfg.plugins_dir.map(|d| home.join(d))
 }

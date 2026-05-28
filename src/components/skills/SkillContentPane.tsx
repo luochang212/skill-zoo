@@ -21,6 +21,7 @@ interface SkillContentPaneProps {
   previewContent?: string;
   updatedAt?: string;
   directory?: string;
+  readOnly?: boolean;
   // SKILL.md save controls (passed through from parent)
   onSave?: () => void;
   savePending?: boolean;
@@ -63,6 +64,7 @@ export function SkillContentPane({
   previewContent,
   updatedAt,
   directory,
+  readOnly,
   onSave,
   savePending,
   dirty,
@@ -78,7 +80,7 @@ export function SkillContentPane({
   const syncSourceRef = useRef<{ source: "edit" | "preview"; time: number } | null>(null);
 
   // ── Sidebar + file selection state ──
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(!!readOnly);
   const [sidebarWidth, setSidebarWidth] = useState(208); // px, matches w-52
   const [sidebarDragging, setSidebarDragging] = useState(false);
   const sidebarRowRef = useRef<HTMLDivElement>(null);
@@ -98,7 +100,7 @@ export function SkillContentPane({
     if (selectedFilePath === null && nodes.length > 0) {
       const skillMd = allFiles.find((n) => n.isSkillMd);
       if (skillMd) setSelectedFilePath(skillMd.path);
-      if (allFiles.some((n) => !n.isSkillMd)) setSidebarOpen(true);
+      if (readOnly || allFiles.some((n) => !n.isSkillMd)) setSidebarOpen(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes]);
@@ -243,40 +245,49 @@ export function SkillContentPane({
         </button>
 
         {/* View/Edit/Split pill */}
-        <button
-          onClick={() => {
-            const next: ContentTab =
-              activeTab === "overview" ? "edit" : activeTab === "edit" ? "split" : "overview";
-            handleTabChange(next);
-          }}
-          className="inline-flex items-center bg-muted rounded-xl p-0.5 gap-0.5 cursor-pointer"
-        >
-          {[
-            { id: "overview" as ContentTab, icon: Eye, key: "skill.view" },
-            { id: "edit" as ContentTab, icon: Pencil, key: "skill.edit" },
-            { id: "split" as ContentTab, icon: Columns2, key: "skill.split" },
-          ].map(({ id, icon: Icon, key }) => (
-            <span
-              key={id}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleTabChange(id);
-              }}
-              className={cn(
-                "px-2.5 py-1 h-6 text-[11px] rounded-lg font-medium inline-flex items-center gap-1 transition-all duration-200",
-                activeTab === id
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <Icon className="h-3 w-3" />
-              {t(key)}
+        {readOnly ? (
+          <span className="inline-flex items-center bg-muted rounded-xl p-0.5">
+            <span className="px-2.5 py-1 h-6 text-[11px] rounded-lg font-medium inline-flex items-center gap-1 bg-background text-foreground shadow-sm">
+              <Eye className="h-3 w-3" />
+              {t("skill.view")}
             </span>
-          ))}
-        </button>
+          </span>
+        ) : (
+          <button
+            onClick={() => {
+              const next: ContentTab =
+                activeTab === "overview" ? "edit" : activeTab === "edit" ? "split" : "overview";
+              handleTabChange(next);
+            }}
+            className="inline-flex items-center bg-muted rounded-xl p-0.5 gap-0.5 cursor-pointer"
+          >
+            {[
+              { id: "overview" as ContentTab, icon: Eye, key: "skill.view" },
+              { id: "edit" as ContentTab, icon: Pencil, key: "skill.edit" },
+              { id: "split" as ContentTab, icon: Columns2, key: "skill.split" },
+            ].map(({ id, icon: Icon, key }) => (
+              <span
+                key={id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleTabChange(id);
+                }}
+                className={cn(
+                  "px-2.5 py-1 h-6 text-[11px] rounded-lg font-medium inline-flex items-center gap-1 transition-all duration-200",
+                  activeTab === id
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Icon className="h-3 w-3" />
+                {t(key)}
+              </span>
+            ))}
+          </button>
+        )}
 
-        {/* Save button — shown when dirty; hidden in overview mode for SKILL.md */}
-        {(isSkillMdActive ? dirty && activeTab !== "overview" : isDirty) && (
+        {/* Save button — hidden in readOnly mode; shown when dirty in edit mode */}
+        {!readOnly && (isSkillMdActive ? dirty && activeTab !== "overview" : isDirty) && (
           <button
             onClick={isSkillMdActive ? onSave : handleFileSave}
             disabled={isSkillMdActive ? (savePending ?? false) : saveFileMutation.isPending}

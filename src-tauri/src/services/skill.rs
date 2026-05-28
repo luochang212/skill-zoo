@@ -1402,6 +1402,15 @@ impl SkillService {
     /// Build a file tree for a skill directory, returning the root nodes.
     /// Searches SSOT first, then agent directories (same fallback as read_skill_md).
     pub fn list_skill_files(directory: &str) -> Result<Vec<SkillFileNode>, AppError> {
+        // If it's an absolute path that exists, use it directly (e.g. plugin directories)
+        let dir_path = std::path::Path::new(directory);
+        if dir_path.is_absolute() && dir_path.is_dir() {
+            let mut nodes = Vec::new();
+            Self::build_file_tree(dir_path, &mut nodes);
+            Self::sort_nodes(&mut nodes);
+            return Ok(nodes);
+        }
+
         crate::commands::skill::validate_skill_directory(directory)
             .map_err(AppError::BadRequest)?;
 

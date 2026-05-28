@@ -69,6 +69,9 @@ fn is_under_skill_dir(p: &std::path::Path) -> bool {
             config::get_agent_skills_dir(agent.id)
                 .map(|d| p.starts_with(&d))
                 .unwrap_or(false)
+            || config::get_agent_plugins_dir(agent.id)
+                .map(|d| p.starts_with(&d))
+                .unwrap_or(false)
         })
 }
 

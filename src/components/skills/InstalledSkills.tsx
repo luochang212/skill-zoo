@@ -26,15 +26,17 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertTriangle, ArrowUp, ArrowDown, Trash2 } from "lucide-react";
+import { PluginBrowser } from "@/components/plugins/PluginBrowser";
 import type { ViewMode } from "@/components/skills/ViewModeToggle";
 import type { SidebarCategory } from "@/hooks/useSidebarFilter";
-import type { InstalledSkill } from "@/types/skills";
+import type { InstalledSkill, PluginInfo } from "@/types/skills";
 
 interface InstalledSkillsProps {
   onViewSkill: (id: string, directory: string, name: string) => void;
   category: SidebarCategory;
   onSelectCategory: (cat: SidebarCategory) => void;
   onCreateSkill?: () => void;
+  onSelectPlugin?: (plugin: PluginInfo) => void;
 }
 
 type SortField = "name" | "repo" | "updatedAt";
@@ -87,6 +89,7 @@ export function InstalledSkills({
   category,
   onSelectCategory,
   onCreateSkill,
+  onSelectPlugin,
 }: InstalledSkillsProps) {
   const { t } = useTranslation();
   const { data: skills, isLoading, isError, refetch } = useInstalledSkills();
@@ -293,6 +296,11 @@ export function InstalledSkills({
       />
 
       {/* Main content */}
+      {category.type === "plugins" ? (
+        <PluginBrowser
+          onSelectPlugin={(plugin) => onSelectPlugin?.(plugin)}
+        />
+      ) : (
       <div className="flex flex-col flex-1 min-w-0">
         <div className="flex-1 min-h-0 p-6 pb-0 flex flex-col">
           {/* Toolbar — hidden in consistency view since it has its own panel */}
@@ -465,6 +473,7 @@ export function InstalledSkills({
           </DialogContent>
         </Dialog>
       </div>
+      )}
     </div>
   );
 }
