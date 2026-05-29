@@ -128,7 +128,7 @@ fn canonical_paths_eq(a: &std::path::Path, b: &std::path::Path) -> bool {
     a.canonicalize()
         .ok()
         .zip(b.canonicalize().ok())
-        .map_or(false, |(a, b)| a == b)
+        .is_some_and(|(a, b)| a == b)
 }
 
 /// Check whether a symlink/junction at `link_path` resolves to `expected_target`.
@@ -139,7 +139,10 @@ fn symlink_target_matches(link_path: &std::path::Path, expected_target: &std::pa
     match std::fs::read_link(link_path) {
         Ok(target) => {
             let resolved = if target.is_relative() {
-                link_path.parent().unwrap_or(std::path::Path::new(".")).join(&target)
+                link_path
+                    .parent()
+                    .unwrap_or(std::path::Path::new("."))
+                    .join(&target)
             } else {
                 target
             };
@@ -172,7 +175,7 @@ impl SkillService {
                 // Otherwise, only count if there's a symlink pointing to homePath
                 let symlink_path = agent_dir.join(skill_dir);
                 if is_symlink_or_junction(&symlink_path) {
-                    let matched = home.map_or(false, |h| symlink_target_matches(&symlink_path, h));
+                    let matched = home.is_some_and(|h| symlink_target_matches(&symlink_path, h));
                     enabled.insert(agent.id.to_string(), matched);
                 } else {
                     enabled.insert(agent.id.to_string(), false);

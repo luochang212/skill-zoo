@@ -56,7 +56,7 @@ digraph when_release {
 
 ## Core Pattern
 
-All file changes (CHANGELOG, Cargo.toml, Cargo.lock, version.json) are made and committed together in a single commit. Do not commit after each step.
+All file changes (CHANGELOG, Cargo.toml, Cargo.lock) are made and committed together in a single commit. Do not commit after each step. (`docs/version.json` is updated by CI post-release.)
 
 ### 1. Confirm Version
 
@@ -76,13 +76,14 @@ Do NOT commit yet — all changes go into one commit in Step 4.
 
 ### 3. Update Version Files
 
-Update `src-tauri/Cargo.toml` and `docs/version.json` to match the release version:
+Update `src-tauri/Cargo.toml` to match the release version:
 
 ```bash
 sed -i '' 's/^version = ".*"/version = "X.Y.Z"/' src-tauri/Cargo.toml
 cargo check --manifest-path src-tauri/Cargo.toml  # regenerates Cargo.lock
-echo '{"version":"vX.Y.Z"}' > docs/version.json
 ```
+
+Do NOT update `docs/version.json` here — CI updates it automatically after the release is published.
 
 Do NOT commit yet — all changes go into one commit in Step 4.
 
@@ -97,12 +98,12 @@ Run all checks in order. If any fails, fix and re-run the full sequence until cl
 5. `bun run lint` — fix any lint errors. Note: pre-existing issues unrelated to this release should be noted separately, not silently fixed in the release commit
 6. `bun run format:check` — run `bun run format` if diffs appear. CI also enforces this, but catching it locally avoids a broken tag
 7. `RELEASE_BODY.md` uses `__VERSION__` and `__COMMITS__` placeholders — never hardcoded version numbers
-8. `git status --short` — only expected files (CHANGELOG.md, Cargo.toml, Cargo.lock, docs/version.json, plus any fmt/clippy fixes) should appear. Anything else is a stray change that could slip into the release commit.
+8. `git status --short` — only expected files (CHANGELOG.md, Cargo.toml, Cargo.lock, plus any fmt/clippy fixes) should appear. `docs/version.json` should NOT appear (CI updates it post-release). Anything else is a stray change that could slip into the release commit.
 
 When all checks pass, commit everything in a single commit:
 
 ```bash
-git add CHANGELOG.md src-tauri/Cargo.toml src-tauri/Cargo.lock docs/version.json
+git add CHANGELOG.md src-tauri/Cargo.toml src-tauri/Cargo.lock
 # also add any files modified by fmt/clippy fixes above
 git commit -m "chore: release vX.Y.Z"
 ```
@@ -125,7 +126,7 @@ git push origin v0.1.2
 | **create-release** | GitHub Release with substituted release notes + all artifacts |
 | **update-homebrew** | Computes SHA256, updates cask formula, opens PR, and auto-merges |
 
-No manual monitoring or post-release steps needed — CI handles everything after the tag push.
+`docs/version.json` is updated by CI after `create-release` succeeds — never manually. This ensures the download website only points to published artifacts.
 
 ## Common Mistakes
 
@@ -134,6 +135,6 @@ No manual monitoring or post-release steps needed — CI handles everything afte
 | Pushing tag before pushing main | Always `git push origin main` first. A tag on an unpushed commit won't trigger CI on the right SHA. |
 | Hardcoding version in RELEASE_BODY.md | Use `__VERSION__` placeholder. The CI substitutes it automatically. |
 | Releasing with uncommitted changes | `git status --short` must be empty. Uncommitted changes won't be included in the release. |
-| Letting CI update `docs/version.json` | `version.json` is updated in Step 3 **before** tagging. CI must NOT touch it — the step was removed from the workflow. |
+| Letting CI update `docs/version.json` | `version.json` is updated by CI's `create-release` job **after** artifacts are published. Do NOT update it manually in the release commit. |
 | Forgetting to regenerate `Cargo.lock` | After editing `Cargo.toml` version, run `cargo check --manifest-path src-tauri/Cargo.toml` to sync Cargo.lock. `sed` alone won't update it. |
-| Making multiple commits | All version updates (CHANGELOG, Cargo.toml, Cargo.lock, version.json) go into a single `chore: release vX.Y.Z` commit. Do not commit after each file. |
+| Making multiple commits | All version updates (CHANGELOG, Cargo.toml, Cargo.lock) go into a single `chore: release vX.Y.Z` commit. Do not commit after each file. `docs/version.json` is not part of this commit — CI handles it. |

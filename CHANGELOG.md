@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.5] — 2026-05-30
+
+### Changed
+- Unified directory skip list (`SKIP_DIRS`) across all scanners to match upstream `npx skills` CLI.
+- Updated recommended repositories list.
+- Improved Chinese wording ("管理器" → "管理工具").
+
+### Fixed
+- Resolved relative symlinks and Windows junctions correctly in agent detection and skill linking.
+- Distinguished GitHub rate-limit errors from not-found errors in update checks; rate-limit now stops further requests while not-found continues.
+- Fixed scrollbar styling not applying in WebKit browsers by moving rules out of `@layer base`.
+- Fixed card grid bottom padding to prevent last card from being clipped.
+- Removed unnecessary `AnimatePresence` wait mode for smoother view transitions.
+
 ## [0.2.4] — 2026-05-27
 
 ### Added
