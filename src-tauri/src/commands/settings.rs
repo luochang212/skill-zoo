@@ -117,17 +117,17 @@ pub fn update_visible_agents(
     }
 
     // Clean up symlinks for newly hidden agents
-    for agent in crate::config::AGENTS {
+    for agent in crate::config::all_agents() {
         let was_visible = old_visible
-            .get(agent.id)
+            .get(&agent.id)
             .copied()
-            .unwrap_or(crate::config::default_visibility(agent.id));
+            .unwrap_or(crate::config::default_visibility(&agent.id));
         let now_visible = visible_agents
-            .get(agent.id)
+            .get(&agent.id)
             .copied()
-            .unwrap_or(crate::config::default_visibility(agent.id));
+            .unwrap_or(crate::config::default_visibility(&agent.id));
         if was_visible && !now_visible {
-            let _ = crate::services::skill::SkillService::remove_agent_symlinks(agent.id);
+            let _ = crate::services::skill::SkillService::remove_agent_symlinks(&agent.id);
         }
     }
 
@@ -210,13 +210,18 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
                     skill_shas.insert(skill_name.clone(), (folder_sha, repo.clone()));
                 }
             }
-            Ok(None) | Err(_) => {
+            Ok(None) => {
                 for (skill_name, _) in skills_in_repo {
                     skill_shas.insert(skill_name.clone(), (None, repo.clone()));
                 }
             }
             Err(crate::error::AppError::RateLimited(_)) => {
                 rate_limited = true;
+                for (skill_name, _) in skills_in_repo {
+                    skill_shas.insert(skill_name.clone(), (None, repo.clone()));
+                }
+            }
+            Err(_) => {
                 for (skill_name, _) in skills_in_repo {
                     skill_shas.insert(skill_name.clone(), (None, repo.clone()));
                 }
@@ -265,4 +270,204 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
         checked_repos,
         rate_limited,
     })
+}
+
+// ────────────── Custom Agent Management ──────────────
+
+#[tauri::command]
+pub fn add_custom_agent(
+    state: State<'_, AppState>,
+    name: String,
+    skills_dir: String,
+) -> Result<crate::config::AgentIterItem, String> {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err("Agent name cannot be empty".to_string());
+    }
+    if name.len() > 64 {
+        return Err("Agent name must be 64 characters or fewer".to_string());
+    }
+
+    let raw_path = std::path::PathBuf::from(&skills_dir);
+
+    // Auto-create directory if it doesn't exist
+    if !raw_path.exists() {
+        std::fs::create_dir_all(&raw_path)
+            .map_err(|e| format!("Failed to create skills directory: {e}"))?;
+    }
+
+    let skills_path = raw_path
+        .canonicalize()
+        .map_err(|e| format!("Invalid skills directory path: {e}"))?;
+    if !skills_path.is_dir() {
+        return Err(format!(
+            "Path is not a directory: {}",
+            skills_path.display()
+        ));
+    }
+
+    let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
+
+    // Load existing custom agents
+    let mut customs: Vec<crate::config::CustomAgentInfo> = settings
+        .get("custom_agents")
+        .and_then(|v| serde_json::from_str(v).ok())
+        .unwrap_or_default();
+
+    // Check for duplicate name (case-insensitive)
+    if customs
+        .iter()
+        .any(|c| c.name.to_lowercase() == name.to_lowercase())
+    {
+        return Err("An agent with this name already exists".to_string());
+    }
+
+    // Derive next ID from existing entries (self-healing — survives manual JSON edits)
+    let next_id: usize = customs
+        .iter()
+        .filter_map(|c| c.id.strip_prefix("custom-")?.parse::<usize>().ok())
+        .max()
+        .unwrap_or(0)
+        + 1;
+
+    let agent_id = format!("custom-{}", next_id);
+
+    customs.push(crate::config::CustomAgentInfo {
+        id: agent_id.clone(),
+        name: name.clone(),
+        skills_dir: skills_path.to_string_lossy().to_string(),
+    });
+
+    let json = serde_json::to_string(&customs).map_err(|e| e.to_string())?;
+    settings.set("custom_agents".to_string(), json);
+    settings.save().map_err(|e| e.to_string())?;
+
+    // Invalidate cache so next load picks up the new agent
+    crate::config::invalidate_custom_agents_cache();
+
+    Ok(crate::config::AgentIterItem {
+        id: agent_id,
+        label: name,
+        skills_dir: skills_path,
+    })
+}
+
+#[tauri::command]
+pub fn update_custom_agent(
+    state: State<'_, AppState>,
+    agent_id: String,
+    name: String,
+    skills_dir: String,
+) -> Result<crate::config::AgentIterItem, String> {
+    if !agent_id.starts_with("custom-") {
+        return Err("Cannot update built-in agents".to_string());
+    }
+
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err("Agent name cannot be empty".to_string());
+    }
+    if name.len() > 64 {
+        return Err("Agent name must be 64 characters or fewer".to_string());
+    }
+
+    let raw_path = std::path::PathBuf::from(&skills_dir);
+
+    // Auto-create directory if it doesn't exist (frontend has already confirmed)
+    if !raw_path.exists() {
+        std::fs::create_dir_all(&raw_path)
+            .map_err(|e| format!("Failed to create skills directory: {e}"))?;
+    }
+
+    let skills_path = raw_path
+        .canonicalize()
+        .map_err(|e| format!("Invalid skills directory path: {e}"))?;
+    if !skills_path.is_dir() {
+        return Err(format!(
+            "Path is not a directory: {}",
+            skills_path.display()
+        ));
+    }
+
+    let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
+
+    let mut customs: Vec<crate::config::CustomAgentInfo> = settings
+        .get("custom_agents")
+        .and_then(|v| serde_json::from_str(v).ok())
+        .unwrap_or_default();
+
+    let Some(idx) = customs.iter().position(|c| c.id == agent_id) else {
+        return Err(format!("Custom agent not found: {}", agent_id));
+    };
+
+    // Check for duplicate name (case-insensitive, excluding self)
+    if customs
+        .iter()
+        .enumerate()
+        .any(|(i, c)| i != idx && c.name.to_lowercase() == name.to_lowercase())
+    {
+        return Err("An agent with this name already exists".to_string());
+    }
+
+    // If path changed, clean up symlinks in old directory
+    let old_path = std::path::PathBuf::from(&customs[idx].skills_dir);
+    let path_changed = old_path != skills_path;
+    if path_changed {
+        let _ = crate::services::skill::SkillService::remove_agent_symlinks(&agent_id);
+    }
+
+    customs[idx].name = name.clone();
+    customs[idx].skills_dir = skills_path.to_string_lossy().to_string();
+
+    let json = serde_json::to_string(&customs).map_err(|e| e.to_string())?;
+    settings.set("custom_agents".to_string(), json);
+    settings.save().map_err(|e| e.to_string())?;
+
+    crate::config::invalidate_custom_agents_cache();
+
+    Ok(crate::config::AgentIterItem {
+        id: agent_id,
+        label: name,
+        skills_dir: skills_path,
+    })
+}
+
+#[tauri::command]
+pub fn remove_custom_agent(
+    state: State<'_, AppState>,
+    agent_id: String,
+) -> Result<(), String> {
+    if !agent_id.starts_with("custom-") {
+        return Err("Cannot remove built-in agents".to_string());
+    }
+
+    let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
+
+    let mut customs: Vec<crate::config::CustomAgentInfo> = settings
+        .get("custom_agents")
+        .and_then(|v| serde_json::from_str(v).ok())
+        .unwrap_or_default();
+
+    let Some(idx) = customs.iter().position(|c| c.id == agent_id) else {
+        return Err(format!("Custom agent not found: {}", agent_id));
+    };
+
+    // Clean up symlinks in this agent's skills directory before removal
+    let _ = crate::services::skill::SkillService::remove_agent_symlinks(&agent_id);
+
+    customs.remove(idx);
+    let json = serde_json::to_string(&customs).map_err(|e| e.to_string())?;
+    settings.set("custom_agents".to_string(), json);
+    settings.save().map_err(|e| e.to_string())?;
+
+    crate::config::invalidate_custom_agents_cache();
+
+    Ok(())
+}
+
+/// Check whether a directory path exists on disk.
+/// Used by the frontend to decide whether to show a "create directory?" confirmation.
+#[tauri::command]
+pub fn check_dir_exists(path: String) -> bool {
+    std::path::Path::new(&path).is_dir()
 }

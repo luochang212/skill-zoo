@@ -160,23 +160,23 @@ impl SkillService {
     pub fn detect_agents(skill_dir: &str, home_path: &Option<String>) -> HashMap<String, bool> {
         let mut enabled = HashMap::new();
         let home = home_path.as_ref().map(std::path::Path::new);
-        for agent in config::AGENTS {
-            if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
-                // If homePath is directly under this agent dir, it's natively available
-                if let Some(h) = home {
-                    if h.starts_with(&agent_dir) {
-                        enabled.insert(agent.id.to_string(), true);
-                        continue;
-                    }
+        let all_agents = config::all_agents();
+        for agent in &all_agents {
+            let agent_dir = &agent.skills_dir;
+            // If homePath is directly under this agent dir, it's natively available
+            if let Some(h) = home {
+                if h.starts_with(agent_dir) {
+                    enabled.insert(agent.id.clone(), true);
+                    continue;
                 }
-                // Otherwise, only count if there's a symlink pointing to homePath
-                let symlink_path = agent_dir.join(skill_dir);
-                if is_symlink_or_junction(&symlink_path) {
-                    let matched = home.map_or(false, |h| symlink_target_matches(&symlink_path, h));
-                    enabled.insert(agent.id.to_string(), matched);
-                } else {
-                    enabled.insert(agent.id.to_string(), false);
-                }
+            }
+            // Otherwise, only count if there's a symlink pointing to homePath
+            let symlink_path = agent_dir.join(skill_dir);
+            if is_symlink_or_junction(&symlink_path) {
+                let matched = home.map_or(false, |h| symlink_target_matches(&symlink_path, h));
+                enabled.insert(agent.id.clone(), matched);
+            } else {
+                enabled.insert(agent.id.clone(), false);
             }
         }
         enabled
@@ -184,12 +184,10 @@ impl SkillService {
 
     /// Determine which agent a scan root directory belongs to.
     /// Returns None for the SSOT directory.
-    fn detect_agent_for_path(scan_root: &PathBuf) -> Option<&'static str> {
-        for agent in config::AGENTS {
-            if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
-                if scan_root == &agent_dir {
-                    return Some(agent.id);
-                }
+    fn detect_agent_for_path(scan_root: &PathBuf) -> Option<String> {
+        for agent in config::all_agents() {
+            if scan_root == &agent.skills_dir {
+                return Some(agent.id);
             }
         }
         None
@@ -215,12 +213,10 @@ impl SkillService {
                 return Some(ssot_path.to_str()?.to_string());
             }
         }
-        for agent in config::AGENTS {
-            if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
-                let path = agent_dir.join(skill_dir);
-                if path.exists() && !is_symlink_or_junction(&path) {
-                    return Some(path.to_str()?.to_string());
-                }
+        for agent in config::all_agents() {
+            let path = agent.skills_dir.join(skill_dir);
+            if path.exists() && !is_symlink_or_junction(&path) {
+                return Some(path.to_str()?.to_string());
             }
         }
         let ssot_path = agents_dir.join(skill_dir);
@@ -236,11 +232,9 @@ impl SkillService {
             return None;
         }
         let hp = std::path::Path::new(home_path.as_deref()?);
-        for agent in config::AGENTS {
-            if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
-                if hp.starts_with(&agent_dir) {
-                    return Some(agent.id.to_string());
-                }
+        for agent in config::all_agents() {
+            if hp.starts_with(&agent.skills_dir) {
+                return Some(agent.id);
             }
         }
         None
@@ -508,11 +502,9 @@ impl SkillService {
         if agents_dir.exists() {
             scan_dirs.push(agents_dir);
         }
-        for agent in config::AGENTS {
-            if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
-                if agent_dir.exists() {
-                    scan_dirs.push(agent_dir);
-                }
+        for agent in config::all_agents() {
+            if agent.skills_dir.exists() {
+                scan_dirs.push(agent.skills_dir);
             }
         }
         if scan_dirs.is_empty() {
@@ -528,6 +520,7 @@ impl SkillService {
                 &lock_data,
                 scan_dir,
                 hash_cache,
+                0,
             );
         }
     }
@@ -590,7 +583,11 @@ impl SkillService {
         lock_data: &Option<SkillLock>,
         scan_root: &PathBuf,
         hash_cache: &mut HashMap<String, (i64, String)>,
+        depth: usize,
     ) {
+        if depth > Self::MAX_LOCAL_SCAN_DEPTH {
+            return;
+        }
         let Ok(dir_entries) = std::fs::read_dir(dir) else {
             return;
         };
@@ -646,15 +643,12 @@ impl SkillService {
                 let is_ssot = config::get_agents_skills_dir() == *scan_root;
                 let origin = if is_ssot { "ssot" } else { "agent" };
                 let agent_id = if !is_ssot {
-                    Some(
-                        Self::detect_agent_for_path(scan_root)
-                            .expect("scan_root should be SSOT or a known agent directory"),
-                    )
+                    Self::detect_agent_for_path(scan_root)
                 } else {
                     None
                 };
                 let id =
-                    Self::make_skill_id(origin, &relative_dir, &repo_owner, &repo_name, agent_id);
+                    Self::make_skill_id(origin, &relative_dir, &repo_owner, &repo_name, agent_id.as_deref());
                 if !seen_ids.insert(id.clone()) {
                     continue; // Already seen this ID, skip
                 }
@@ -695,7 +689,7 @@ impl SkillService {
                 });
             } else {
                 Self::scan_dir_recursive_into(
-                    &path, entries, seen_ids, lock_data, scan_root, hash_cache,
+                    &path, entries, seen_ids, lock_data, scan_root, hash_cache, depth + 1,
                 );
             }
         }
@@ -736,6 +730,7 @@ impl SkillService {
     }
 
     const MAX_SCAN_DEPTH: usize = 20;
+    const MAX_LOCAL_SCAN_DEPTH: usize = 10;
 
     /// Convert a YAML value to a string, handling numbers, booleans, and null.
     fn yaml_value_to_string(v: &serde_yaml::Value) -> String {
@@ -1053,9 +1048,9 @@ impl SkillService {
     // ──────────────────────────────────────────────
 
     pub fn get_visible_agents(settings: &Settings) -> HashMap<String, bool> {
-        let mut map: HashMap<String, bool> = config::AGENTS
+        let mut map: HashMap<String, bool> = config::all_agents()
             .iter()
-            .map(|a| (a.id.to_string(), config::default_visibility(a.id)))
+            .map(|a| (a.id.clone(), config::default_visibility(&a.id)))
             .collect();
         if let Some(json) = settings.get("visible_agents") {
             if let Ok(parsed) = serde_json::from_str::<HashMap<String, bool>>(json) {
@@ -1083,32 +1078,30 @@ impl SkillService {
                 agents_dir.join(&skill.directory)
             };
             let target_path = std::fs::canonicalize(&target_path).unwrap_or(target_path);
-            for agent in config::AGENTS {
+            for agent in config::all_agents() {
                 if !visible_agents
-                    .get(agent.id)
+                    .get(&agent.id)
                     .copied()
-                    .unwrap_or_else(|| config::default_visibility(agent.id))
+                    .unwrap_or_else(|| config::default_visibility(&agent.id))
                 {
                     continue;
                 }
-                if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
-                    let symlink_path = agent_dir.join(&skill.directory);
-                    let exists = symlink_path.exists();
-                    let is_valid = if exists {
-                        symlink_target_matches(&symlink_path, &target_path)
-                    } else {
-                        false
-                    };
-                    statuses.push(SymlinkStatus {
-                        skill_id: skill.id.clone(),
-                        skill_name: skill.name.clone(),
-                        agent: agent.id.to_string(),
-                        symlink_path: symlink_path.display().to_string(),
-                        target_path: target_path.display().to_string(),
-                        exists,
-                        is_valid,
-                    });
-                }
+                let symlink_path = agent.skills_dir.join(&skill.directory);
+                let exists = symlink_path.exists();
+                let is_valid = if exists {
+                    symlink_target_matches(&symlink_path, &target_path)
+                } else {
+                    false
+                };
+                statuses.push(SymlinkStatus {
+                    skill_id: skill.id.clone(),
+                    skill_name: skill.name.clone(),
+                    agent: agent.id.clone(),
+                    symlink_path: symlink_path.display().to_string(),
+                    target_path: target_path.display().to_string(),
+                    exists,
+                    is_valid,
+                });
             }
         }
         statuses
@@ -1207,12 +1200,10 @@ impl SkillService {
         }
 
         // Clean up symlinks in all agent directories
-        for agent in config::AGENTS {
-            if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
-                let symlink_path = agent_dir.join(skill_name);
-                if is_symlink_or_junction(&symlink_path) {
-                    let _ = Self::safe_remove(&symlink_path);
-                }
+        for agent in config::all_agents() {
+            let symlink_path = agent.skills_dir.join(skill_name);
+            if is_symlink_or_junction(&symlink_path) {
+                let _ = Self::safe_remove(&symlink_path);
             }
         }
 
@@ -1407,10 +1398,8 @@ impl SkillService {
         let mut candidates: Vec<std::path::PathBuf> = Vec::new();
         let agents_dir = config::get_agents_skills_dir();
         candidates.push(agents_dir.join(directory));
-        for agent in config::AGENTS {
-            if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
-                candidates.push(agent_dir.join(directory));
-            }
+        for agent in config::all_agents() {
+            candidates.push(agent.skills_dir.join(directory));
         }
 
         for skill_dir in &candidates {

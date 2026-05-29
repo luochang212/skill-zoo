@@ -69,3 +69,53 @@ export function useVisibleAgentOrder(): string[] {
   const agentOrder = agentConfigs?.map((a) => a.id) ?? [];
   return filterVisibleAgents(agentOrder, visibleAgents);
 }
+
+// ── Custom Agent Management ──
+
+export function useAddCustomAgent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, skillsDir }: { name: string; skillsDir: string }) =>
+      settingsApi.addCustomAgent(name, skillsDir),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agents", "configs"] });
+      qc.invalidateQueries({ queryKey: ["agentPaths"] });
+      qc.invalidateQueries({ queryKey: VISIBLE_AGENTS_KEY });
+    },
+  });
+}
+
+export function useRemoveCustomAgent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (agentId: string) => settingsApi.removeCustomAgent(agentId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agents", "configs"] });
+      qc.invalidateQueries({ queryKey: ["agentPaths"] });
+      qc.invalidateQueries({ queryKey: VISIBLE_AGENTS_KEY });
+    },
+    onError: (err) => {
+      console.error("remove_custom_agent failed:", err);
+    },
+  });
+}
+
+export function useUpdateCustomAgent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      agentId,
+      name,
+      skillsDir,
+    }: {
+      agentId: string;
+      name: string;
+      skillsDir: string;
+    }) => settingsApi.updateCustomAgent(agentId, name, skillsDir),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agents", "configs"] });
+      qc.invalidateQueries({ queryKey: ["agentPaths"] });
+      qc.invalidateQueries({ queryKey: VISIBLE_AGENTS_KEY });
+    },
+  });
+}

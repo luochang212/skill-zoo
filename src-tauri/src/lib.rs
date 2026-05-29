@@ -123,6 +123,10 @@ pub fn run() {
             commands::settings::open_cache_dir,
             commands::settings::check_skill_updates,
             commands::settings::is_portable_build,
+            commands::settings::add_custom_agent,
+            commands::settings::update_custom_agent,
+            commands::settings::remove_custom_agent,
+            commands::settings::check_dir_exists,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

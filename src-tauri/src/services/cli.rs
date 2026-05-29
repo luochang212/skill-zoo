@@ -238,24 +238,20 @@ impl CliService {
         } else {
             // Not in SSOT — look for entity in agent directories
             let mut found = false;
-            for agent in config::AGENTS {
-                if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
-                    let agent_skill = agent_dir.join(name);
-                    if agent_skill.exists() && !is_symlink_or_junction(&agent_skill) {
-                        SkillService::remove_skill_dir(name, &agent_skill.to_string_lossy())?;
-                        found = true;
-                        break;
-                    }
+            for agent in config::all_agents() {
+                let agent_skill = agent.skills_dir.join(name);
+                if agent_skill.exists() && !is_symlink_or_junction(&agent_skill) {
+                    SkillService::remove_skill_dir(name, &agent_skill.to_string_lossy())?;
+                    found = true;
+                    break;
                 }
             }
             if !found {
                 // Last resort: clean up any dangling symlinks
-                for agent in config::AGENTS {
-                    if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
-                        let agent_skill = agent_dir.join(name);
-                        if is_symlink_or_junction(&agent_skill) {
-                            let _ = std::fs::remove_file(&agent_skill);
-                        }
+                for agent in config::all_agents() {
+                    let agent_skill = agent.skills_dir.join(name);
+                    if is_symlink_or_junction(&agent_skill) {
+                        let _ = std::fs::remove_file(&agent_skill);
                     }
                 }
                 return Err(AppError::NotFound(format!("Skill not found: {name}")));

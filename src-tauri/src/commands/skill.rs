@@ -1,5 +1,5 @@
 use crate::config;
-use crate::config::{AgentConfig, AgentPathInfo};
+use crate::config::AgentPathInfo;
 use crate::persistence::atomic_write;
 use crate::services::cli::CliService;
 use crate::services::lock::SkillLock;
@@ -64,12 +64,12 @@ fn validate_skill_name(name: &str) -> Result<(), String> {
 
 fn is_under_skill_dir(p: &std::path::Path) -> bool {
     let agents_dir = config::get_agents_skills_dir();
-    p.starts_with(&agents_dir)
-        || config::AGENTS.iter().any(|agent| {
-            config::get_agent_skills_dir(agent.id)
-                .map(|d| p.starts_with(&d))
-                .unwrap_or(false)
-        })
+    if p.starts_with(&agents_dir) {
+        return true;
+    }
+    config::all_agents()
+        .iter()
+        .any(|agent| p.starts_with(&agent.skills_dir))
 }
 
 static REPO_SEGMENT_RE: LazyLock<Regex> =
@@ -92,8 +92,8 @@ pub fn get_agent_paths() -> Vec<AgentPathInfo> {
 }
 
 #[tauri::command]
-pub fn get_agent_configs() -> Vec<AgentConfig> {
-    crate::config::AGENTS.to_vec()
+pub fn get_agent_configs() -> Vec<crate::config::AgentIterItem> {
+    crate::config::all_agents()
 }
 
 #[tauri::command]
@@ -409,10 +409,8 @@ pub fn read_skill_md(directory: String) -> Result<String, String> {
             .join(&directory)
             .join("SKILL.md"),
     );
-    for agent in config::AGENTS {
-        if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
-            candidates.push(agent_dir.join(&directory).join("SKILL.md"));
-        }
+    for agent in config::all_agents() {
+        candidates.push(agent.skills_dir.join(&directory).join("SKILL.md"));
     }
 
     for skill_md in &candidates {
@@ -570,19 +568,17 @@ pub fn write_skill_file_path(
             });
         }
         if candidate.is_none() {
-            for agent in config::AGENTS {
-                if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
-                    if let Ok(rel) = p.strip_prefix(&agent_dir) {
-                        candidate = rel.components().next().and_then(|c| {
-                            if let std::path::Component::Normal(s) = c {
-                                s.to_str().map(|s| s.to_string())
-                            } else {
-                                None
-                            }
-                        });
-                        if candidate.is_some() {
-                            break;
+            for agent in config::all_agents() {
+                if let Ok(rel) = p.strip_prefix(&agent.skills_dir) {
+                    candidate = rel.components().next().and_then(|c| {
+                        if let std::path::Component::Normal(s) = c {
+                            s.to_str().map(|s| s.to_string())
+                        } else {
+                            None
                         }
+                    });
+                    if candidate.is_some() {
+                        break;
                     }
                 }
             }

@@ -62,7 +62,7 @@ export interface AgentPathInfo {
 export interface AgentConfig {
   id: string;
   label: string;
-  skillsSubdir: string;
+  skillsDir: string;
 }
 
 export interface VisibleAgents {
