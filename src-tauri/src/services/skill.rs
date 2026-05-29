@@ -319,7 +319,7 @@ impl SkillService {
                 }
             } else if path.is_dir() {
                 if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    if name.starts_with('.') {
+                    if crate::config::SKIP_DIRS.contains(&name) {
                         continue;
                     }
                 }
@@ -342,7 +342,7 @@ impl SkillService {
             for entry in entries.flatten() {
                 let path = entry.path();
                 if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    if name.starts_with('.') {
+                    if crate::config::SKIP_DIRS.contains(&name) {
                         continue;
                     }
                 }
@@ -615,7 +615,7 @@ impl SkillService {
                 .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or("unknown");
-            if dir_name.starts_with('.') {
+            if crate::config::SKIP_DIRS.contains(&dir_name) {
                 continue;
             }
             let skill_md = path.join("SKILL.md");
@@ -872,7 +872,7 @@ impl SkillService {
                 let path = entry.path();
                 if path.is_dir() {
                     let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                    if file_name.starts_with('.') || file_name == "node_modules" {
+                    if crate::config::SKIP_DIRS.contains(&file_name) {
                         continue;
                     }
                     Self::scan_for_skills(
@@ -1438,9 +1438,8 @@ impl SkillService {
         for entry in entries.flatten() {
             let path = entry.path();
 
-            // Skip dotfiles (consistent with collect_files_recursive)
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                if name.starts_with('.') {
+                if crate::config::SKIP_DIRS.contains(&name) {
                     continue;
                 }
             }

@@ -4,6 +4,10 @@ use std::sync::OnceLock;
 
 pub const MAX_DOWNLOAD_BYTES: u64 = 500 * 1024 * 1024;
 
+/// Directories to skip when scanning for skills.
+/// Matches the upstream `npx skills` CLI: <https://github.com/vercel-labs/skills>
+pub const SKIP_DIRS: &[&str] = &["node_modules", ".git", "dist", "build", "__pycache__"];
+
 pub fn http_client() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
     CLIENT.get_or_init(|| {

@@ -36,10 +36,10 @@
     "description": "Distill anyone's thinking style — mental models, decision heuristics, and communication DNA"
   },
   {
-    "owner": "obra",
-    "name": "superpowers",
+    "owner": "google-gemini",
+    "name": "gemini-cli",
     "branch": "main",
-    "description": "An agentic skills framework & software development methodology that works."
+    "description": "An open-source AI agent that brings the power of Gemini directly into your terminal."
   },
   {
     "owner": "mattpocock",

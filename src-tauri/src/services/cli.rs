@@ -565,7 +565,7 @@ impl CliService {
                 continue;
             }
             let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            if file_name.starts_with('.') || file_name == "node_modules" {
+            if crate::config::SKIP_DIRS.contains(&file_name) {
                 continue;
             }
             Self::scan_dir(&path, _root, skills, depth + 1);
@@ -583,10 +583,7 @@ impl CliService {
             let path = entry.path();
             let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
-            if file_name.starts_with('.')
-                || file_name == "__pycache__"
-                || file_name == "__pypackages__"
-            {
+            if crate::config::SKIP_DIRS.contains(&file_name) {
                 continue;
             }
 
