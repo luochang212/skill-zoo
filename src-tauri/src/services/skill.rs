@@ -123,10 +123,7 @@ pub fn is_symlink_or_junction(path: &std::path::Path) -> bool {
     }
 }
 
-/// Check whether a symlink/junction at `link_path` resolves to `expected_target`.
-///
-/// Resolves relative targets against the symlink's parent directory. Falls back
-/// to canonicalized path comparison when `read_link` fails (Windows junctions).
+/// Compare two paths by canonicalizing both. Returns false if either fails.
 fn canonical_paths_eq(a: &std::path::Path, b: &std::path::Path) -> bool {
     a.canonicalize()
         .ok()
@@ -1085,6 +1082,7 @@ impl SkillService {
             } else {
                 agents_dir.join(&skill.directory)
             };
+            let target_path = std::fs::canonicalize(&target_path).unwrap_or(target_path);
             for agent in config::AGENTS {
                 if !visible_agents
                     .get(agent.id)

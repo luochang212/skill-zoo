@@ -210,21 +210,13 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
                     skill_shas.insert(skill_name.clone(), (folder_sha, repo.clone()));
                 }
             }
-            Ok(None) => {
-                // Repo not found or branch doesn't exist — skip, continue
+            Ok(None) | Err(_) => {
                 for (skill_name, _) in skills_in_repo {
                     skill_shas.insert(skill_name.clone(), (None, repo.clone()));
                 }
             }
             Err(crate::error::AppError::RateLimited(_)) => {
-                // Actually rate limited — stop further requests
                 rate_limited = true;
-                for (skill_name, _) in skills_in_repo {
-                    skill_shas.insert(skill_name.clone(), (None, repo.clone()));
-                }
-            }
-            Err(_) => {
-                // Network error — skip this repo, don't stop
                 for (skill_name, _) in skills_in_repo {
                     skill_shas.insert(skill_name.clone(), (None, repo.clone()));
                 }
