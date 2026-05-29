@@ -300,7 +300,7 @@ impl CliService {
             .map_err(|e| AppError::Cli(format!("Failed to fetch tree for {owner}/{repo}: {e}")))?;
 
         match resp.status().as_u16() {
-            403 | 429 => Ok(None), // rate limited
+            403 | 429 => Err(AppError::RateLimited(format!("{owner}/{repo}"))),
             200 => {
                 let json: RepoTreeResponse = resp.json().await.map_err(|e| {
                     AppError::Parse(format!("Invalid tree response from GitHub: {e}"))

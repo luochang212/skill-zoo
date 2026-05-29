@@ -17,6 +17,9 @@ pub enum AppError {
     #[error("Parse error: {0}")]
     Parse(String),
 
+    #[error("Rate limited: {0}")]
+    RateLimited(String),
+
     #[error("Network error: {0}")]
     Network(#[from] reqwest::Error),
 

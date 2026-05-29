@@ -211,7 +211,13 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
                 }
             }
             Ok(None) => {
-                // Rate limited — stop further requests
+                // Repo not found or branch doesn't exist — skip, continue
+                for (skill_name, _) in skills_in_repo {
+                    skill_shas.insert(skill_name.clone(), (None, repo.clone()));
+                }
+            }
+            Err(crate::error::AppError::RateLimited(_)) => {
+                // Actually rate limited — stop further requests
                 rate_limited = true;
                 for (skill_name, _) in skills_in_repo {
                     skill_shas.insert(skill_name.clone(), (None, repo.clone()));
