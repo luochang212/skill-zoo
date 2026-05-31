@@ -280,9 +280,9 @@ jobs:
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
           VERSION="$TAG_NAME"
           if [ -z "$PREV_TAG" ]; then
-            COMMITS=$(git log --pretty=format:"- %s" --no-merges)
+            COMMITS=$(git log --pretty=format:"- \`%s\`" --no-merges)
           else
-            COMMITS=$(git log --pretty=format:"- %s" --no-merges ${PREV_TAG}..HEAD)
+            COMMITS=$(git log --pretty=format:"- \`%s\`" --no-merges ${PREV_TAG}..HEAD)
           fi
           if [ ! -f RELEASE_BODY.md ]; then
             echo "RELEASE_BODY.md not found" >&2

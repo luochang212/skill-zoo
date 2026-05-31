@@ -4,6 +4,7 @@ import { User, Star, Folder, Layers, ShieldCheck, ChevronDown, ChevronUp } from 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { InstalledSkill } from "@/types/skills";
 import type { SidebarCategory } from "@/hooks/useSidebarFilter";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 interface SkillSidebarProps {
@@ -25,27 +26,39 @@ export function SkillSidebar({
   const starredCount = skills.filter((s) => s.starred).length;
   const mineCount = skills.filter((s) => s.isMine).length;
 
-  // Aggregate repos with counts
-  const repoMap = new Map<string, { owner: string; name: string; count: number }>();
+  // Aggregate repos with counts and max updatedAt
+  const repoMap = new Map<string, { owner: string; name: string; count: number; maxUpdatedAt: number }>();
   for (const s of skills) {
     if (s.repoOwner && s.repoName) {
       const key = `${s.repoOwner}/${s.repoName}`;
       const existing = repoMap.get(key);
       if (existing) {
         existing.count++;
+        if (s.updatedAt && s.updatedAt > existing.maxUpdatedAt) {
+          existing.maxUpdatedAt = s.updatedAt;
+        }
       } else {
-        repoMap.set(key, { owner: s.repoOwner, name: s.repoName, count: 1 });
+        repoMap.set(key, { owner: s.repoOwner, name: s.repoName, count: 1, maxUpdatedAt: s.updatedAt });
       }
     }
   }
-  const repos = Array.from(repoMap.values());
+  const repos = Array.from(repoMap.values()).sort((a, b) => {
+    // Missing time → end
+    if (!a.maxUpdatedAt && !b.maxUpdatedAt) return a.owner.localeCompare(b.owner) || a.name.localeCompare(b.name);
+    if (!a.maxUpdatedAt) return 1;
+    if (!b.maxUpdatedAt) return -1;
+    // Descending by maxUpdatedAt
+    if (b.maxUpdatedAt !== a.maxUpdatedAt) return b.maxUpdatedAt - a.maxUpdatedAt;
+    // Tiebreak: alphabetical
+    return a.owner.localeCompare(b.owner) || a.name.localeCompare(b.name);
+  });
 
   const isActive = (cat: SidebarCategory) =>
     category.type === cat.type && JSON.stringify(category) === JSON.stringify(cat);
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="w-[220px] h-full shrink-0 border-r border-border/60 bg-background/50 flex flex-col overflow-hidden">
+      <div className="w-[220px] h-full shrink-0 border-r border-border/60 bg-sidebar flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-4 py-4">
           <span className="text-sm font-medium tracking-wide uppercase text-muted-foreground">
@@ -53,7 +66,7 @@ export function SkillSidebar({
           </span>
         </div>
 
-        <div className="flex-1 overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+        <ScrollArea className="flex-1">
           {/* All */}
           <button
             onClick={() => onSelectCategory({ type: "all" })}
@@ -185,7 +198,7 @@ export function SkillSidebar({
               ))}
             </div>
           </div>
-        </div>
+        </ScrollArea>
       </div>
     </TooltipProvider>
   );

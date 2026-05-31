@@ -41,12 +41,12 @@ export function SkillCard({
               <button
                 type="button"
                 onClick={onOpen}
-                className="text-left text-[13px] font-medium leading-tight cursor-pointer hover:underline truncate"
+                className="text-left text-[14px] font-medium leading-tight cursor-pointer hover:underline truncate"
               >
                 {skill.name}
               </button>
             ) : (
-              <CardTitle className="text-[13px] font-medium leading-tight truncate">
+              <CardTitle className="text-[14px] font-medium leading-tight truncate">
                 {skill.name}
               </CardTitle>
             )}

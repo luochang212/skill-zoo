@@ -25,6 +25,8 @@
   --color-popover-foreground: hsl(var(--popover-foreground));
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
@@ -117,30 +119,42 @@
   --border: 25 15% 90%;
   --input: 25 15% 90%;
   --ring: 25 15% 12%;
+  --sidebar: 0 0% 97%;
+  --sidebar-foreground: 25 15% 12%;
   --radius: 0.625rem;
 }
 
 .dark {
   color-scheme: dark;
-  --background: 0 0% 10%;
-  --foreground: 0 0% 93%;
-  --card: 0 0% 13%;
-  --card-foreground: 0 0% 93%;
-  --popover: 0 0% 13%;
-  --popover-foreground: 0 0% 93%;
+  /* editor background — deepest canvas */
+  --background: 0 0% 11.8%;
+  /* Dark+ editor foreground */
+  --foreground: 0 0% 83.1%;
+  /* sideBar / editorWidget — primary chrome surface */
+  --card: 240 1.3% 14.7%;
+  --card-foreground: 0 0% 83.1%;
+  /* Popovers match card level — differentiated by shadow, not background */
+  --popover: 240 1.3% 14.7%;
+  --popover-foreground: 0 0% 83.1%;
   --primary: 0 0% 91%;
   --primary-foreground: 0 0% 10%;
-  --secondary: 0 0% 18%;
-  --secondary-foreground: 0 0% 93%;
-  --muted: 0 0% 16%;
-  --muted-foreground: 0 0% 63%;
-  --accent: 0 0% 22%;
-  --accent-foreground: 0 0% 93%;
+  /* activityBar */
+  --secondary: 0 0% 20%;
+  --secondary-foreground: 0 0% 83.1%;
+  /* tab.inactiveBackground */
+  --muted: 0 0% 17.6%;
+  --muted-foreground: 0 0% 100% / 0.5;
+  /* titleBar */
+  --accent: 0 0% 23.5%;
+  --accent-foreground: 0 0% 83.1%;
   --destructive: 0 63% 35%;
   --destructive-foreground: 0 0% 98%;
-  --border: 0 0% 20%;
-  --input: 0 0% 17%;
-  --ring: 0 0% 63%;
+  --border: 0 0% 100% / 0.1;
+  --input: 0 0% 100% / 0.07;
+  --ring: 0 0% 100% / 0.5;
+  /* Sidebar — darker than content (WeChat-style frame) */
+  --sidebar: 0 0% 9.5%;
+  --sidebar-foreground: 0 0% 83.1%;
 }
 
 @layer base {
@@ -173,6 +187,7 @@
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
+  background: transparent;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -281,4 +296,14 @@ textarea,
   .rainbow-text-animate {
     animation: none;
   }
+}
+
+/*
+  Radix ScrollArea injects a <div style="min-width:100%;display:table">
+  inside the Viewport. display:table can expand past the container when
+  content is wider, causing overflow-x clipping. Lock it down.
+*/
+[data-radix-scroll-area-viewport] > div {
+  display: block !important;
+  width: 100% !important;
 }
