@@ -55,9 +55,9 @@ function DuplicateGroupCard({ group, onMerge }: { group: DuplicateGroup; onMerge
         className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-accent/30 transition-colors"
       >
         {group.sameContent ? (
-          <Copy className="h-4 w-4 shrink-0 text-amber-500" />
+          <Copy className="h-4 w-4 shrink-0 text-amber-500 dark:text-amber-400" />
         ) : (
-          <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
+          <AlertTriangle className="h-4 w-4 shrink-0 text-red-500 dark:text-red-400" />
         )}
         <span className="text-[13px] font-medium flex-1 truncate">{group.name}</span>
         <span className="text-[11px] text-muted-foreground shrink-0">{group.skills.length}x</span>
@@ -124,7 +124,7 @@ function MismatchEntry({ mismatch }: { mismatch: NameMismatch }) {
   return (
     <div className="rounded-xl border bg-card overflow-hidden">
       <div className="px-4 py-3 flex items-center gap-3">
-        <PenLine className="h-4 w-4 shrink-0 text-sky-500" />
+        <PenLine className="h-4 w-4 shrink-0 text-sky-500 dark:text-sky-400" />
         <div className="flex-1 min-w-0">
           <div className="text-[13px] font-medium truncate">{mismatch.skillName}</div>
           <div className="text-[11px] text-muted-foreground">
@@ -192,7 +192,7 @@ function MergeConfirmDialog({
             ))}
           </ul>
 
-          <p className="text-red-500 dark:text-red-400 pt-2 font-medium">
+          <p className="text-red-500 dark:text-red-300 pt-2 font-medium">
             {t("consistency.mergeCannotUndo")}
           </p>
         </div>
@@ -263,7 +263,7 @@ export function ConsistencyPanel({
   if (duplicateGroups.length === 0 && conflictGroups.length === 0 && nameMismatches.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center gap-2">
-        <CheckCircle2 className="h-4 w-4 text-green-500" />
+        <CheckCircle2 className="h-4 w-4 text-green-500 dark:text-green-400" />
         <p className="text-sm text-muted-foreground">{t("consistency.noIssues")}</p>
       </div>
     );
@@ -351,7 +351,7 @@ export function ConsistencyPanel({
                 onClick={toggleDuplicate}
                 className="flex items-center gap-2 w-full px-2 py-1.5 text-[12px] rounded-md hover:bg-accent transition-colors"
               >
-                <Copy className="h-3 w-3 shrink-0 text-amber-500" />
+                <Copy className="h-3 w-3 shrink-0 text-amber-500 dark:text-amber-400" />
                 <span className="flex-1 text-left">{t("consistency.duplicate")}</span>
                 {showDuplicate && <Check className="h-3 w-3 shrink-0" />}
               </button>
@@ -359,7 +359,7 @@ export function ConsistencyPanel({
                 onClick={toggleConflict}
                 className="flex items-center gap-2 w-full px-2 py-1.5 text-[12px] rounded-md hover:bg-accent transition-colors"
               >
-                <AlertTriangle className="h-3 w-3 shrink-0 text-red-500" />
+                <AlertTriangle className="h-3 w-3 shrink-0 text-red-500 dark:text-red-400" />
                 <span className="flex-1 text-left">{t("consistency.conflict")}</span>
                 {showConflict && <Check className="h-3 w-3 shrink-0" />}
               </button>
@@ -367,7 +367,7 @@ export function ConsistencyPanel({
                 onClick={toggleMismatch}
                 className="flex items-center gap-2 w-full px-2 py-1.5 text-[12px] rounded-md hover:bg-accent transition-colors"
               >
-                <PenLine className="h-3 w-3 shrink-0 text-sky-500" />
+                <PenLine className="h-3 w-3 shrink-0 text-sky-500 dark:text-sky-400" />
                 <span className="flex-1 text-left">{t("consistency.mismatch")}</span>
                 {showMismatch && <Check className="h-3 w-3 shrink-0" />}
               </button>
@@ -457,7 +457,7 @@ export function ConsistencyPanel({
               <div className="space-y-2 text-[12px]">
                 {duplicateGroups.map((group) => (
                   <div key={group.name} className="flex items-center gap-2">
-                    <Copy className="h-3 w-3 shrink-0 text-amber-500" />
+                    <Copy className="h-3 w-3 shrink-0 text-amber-500 dark:text-amber-400" />
                     <span className="flex-1 truncate">
                       {t("consistency.mergeAllGroupLabel", {
                         name: group.name,
@@ -469,7 +469,7 @@ export function ConsistencyPanel({
               </div>
             </ScrollArea>
 
-            <p className="text-red-500 dark:text-red-400 text-[12px] font-medium">
+            <p className="text-red-500 dark:text-red-300 text-[12px] font-medium">
               {t("consistency.mergeCannotUndo")}
             </p>
 
