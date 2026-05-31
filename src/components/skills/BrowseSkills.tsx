@@ -198,176 +198,176 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
   return (
     <ScrollArea className="h-full">
       <div className="flex flex-col min-h-full p-6">
-      {/* Search bar with dropdown */}
-      <div className="flex items-center gap-3 mb-6 shrink-0">
-        <div className="relative max-w-md flex-1" ref={searchRef}>
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground z-10" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onFocus={() => {
-              if (debouncedSearch && search.trim()) {
-                setDropdownOpen(true);
-              }
-            }}
-            onKeyDown={handleSearchKeyDown}
-            placeholder={t("browse.searchRepoPlaceholder")}
-            autoComplete="off"
-            spellCheck={false}
-            className="h-9 text-[13px] pl-8"
-          />
+        {/* Search bar with dropdown */}
+        <div className="flex items-center gap-3 mb-6 shrink-0">
+          <div className="relative max-w-md flex-1" ref={searchRef}>
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground z-10" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onFocus={() => {
+                if (debouncedSearch && search.trim()) {
+                  setDropdownOpen(true);
+                }
+              }}
+              onKeyDown={handleSearchKeyDown}
+              placeholder={t("browse.searchRepoPlaceholder")}
+              autoComplete="off"
+              spellCheck={false}
+              className="h-9 text-[13px] pl-8"
+            />
 
-          {/* Search dropdown with two sections */}
-          {dropdownOpen && search.trim() && (
-            <ScrollArea className="absolute top-full left-0 right-0 mt-1 bg-popover border border-border rounded-lg shadow-lg z-50 max-h-[300px]">
-              {isSearching ? (
-                <div className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span>{t("browse.searching")}</span>
-                </div>
-              ) : !hasResults ? (
-                <div className="px-4 py-3 text-sm text-muted-foreground">
-                  {t("browse.noSearchResult")}
-                </div>
-              ) : (
-                <>
-                  {/* Repository section — only when exact owner/name match found */}
-                  {repoResult && (
-                    <>
+            {/* Search dropdown with two sections */}
+            {dropdownOpen && search.trim() && (
+              <ScrollArea className="absolute top-full left-0 right-0 mt-1 bg-popover border border-border rounded-lg shadow-lg z-50 max-h-[300px]">
+                {isSearching ? (
+                  <div className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>{t("browse.searching")}</span>
+                  </div>
+                ) : !hasResults ? (
+                  <div className="px-4 py-3 text-sm text-muted-foreground">
+                    {t("browse.noSearchResult")}
+                  </div>
+                ) : (
+                  <>
+                    {/* Repository section — only when exact owner/name match found */}
+                    {repoResult && (
+                      <>
+                        <button
+                          className="w-full text-left px-4 py-2.5 hover:bg-accent/50 transition-colors flex items-center justify-between gap-3"
+                          onClick={() => navigateToRepo(repoResult)}
+                        >
+                          <div className="min-w-0">
+                            <p className="text-[11px] text-muted-foreground/60 uppercase tracking-wider mb-0.5">
+                              Repository
+                            </p>
+                            <p className="text-[13px] font-medium truncate">
+                              {repoResult.owner}/{repoResult.name}
+                            </p>
+                          </div>
+                          <span className="text-[11px] text-muted-foreground shrink-0">
+                            {t("browse.viewRepo")}
+                          </span>
+                        </button>
+                        <div className="border-t border-border/60" />
+                      </>
+                    )}
+
+                    {/* Skills section — skills.sh fuzzy search results */}
+                    {skillsList.map((skill) => (
                       <button
+                        key={skill.key}
                         className="w-full text-left px-4 py-2.5 hover:bg-accent/50 transition-colors flex items-center justify-between gap-3"
-                        onClick={() => navigateToRepo(repoResult)}
+                        onClick={() =>
+                          navigateToRepo({
+                            owner: skill.repoOwner,
+                            name: skill.repoName,
+                            branch: "main",
+                            description: undefined,
+                          })
+                        }
                       >
                         <div className="min-w-0">
-                          <p className="text-[11px] text-muted-foreground/60 uppercase tracking-wider mb-0.5">
-                            Repository
-                          </p>
-                          <p className="text-[13px] font-medium truncate">
-                            {repoResult.owner}/{repoResult.name}
-                          </p>
-                        </div>
-                        <span className="text-[11px] text-muted-foreground shrink-0">
-                          {t("browse.viewRepo")}
-                        </span>
-                      </button>
-                      <div className="border-t border-border/60" />
-                    </>
-                  )}
-
-                  {/* Skills section — skills.sh fuzzy search results */}
-                  {skillsList.map((skill) => (
-                    <button
-                      key={skill.key}
-                      className="w-full text-left px-4 py-2.5 hover:bg-accent/50 transition-colors flex items-center justify-between gap-3"
-                      onClick={() =>
-                        navigateToRepo({
-                          owner: skill.repoOwner,
-                          name: skill.repoName,
-                          branch: "main",
-                          description: undefined,
-                        })
-                      }
-                    >
-                      <div className="min-w-0">
-                        <p className="text-[13px] font-medium truncate">{skill.name}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[11px] text-muted-foreground/70 truncate">
-                            {skill.repoOwner}/{skill.repoName}
-                          </span>
-                          {skill.installs != null && (
-                            <span className="text-[10px] text-muted-foreground/50 shrink-0">
-                              {formatInstalls(skill.installs)} {t("browse.installs")}
+                          <p className="text-[13px] font-medium truncate">{skill.name}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[11px] text-muted-foreground/70 truncate">
+                              {skill.repoOwner}/{skill.repoName}
                             </span>
-                          )}
+                            {skill.installs != null && (
+                              <span className="text-[10px] text-muted-foreground/50 shrink-0">
+                                {formatInstalls(skill.installs)} {t("browse.installs")}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </button>
-                  ))}
-                </>
-              )}
-            </ScrollArea>
-          )}
+                      </button>
+                    ))}
+                  </>
+                )}
+              </ScrollArea>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Banner carousel */}
-      {banners && banners.length > 0 && (
-        <div className="shrink-0">
-          <BannerCarousel banners={banners} onBannerClick={handleBannerClick} />
-        </div>
-      )}
+        {/* Banner carousel */}
+        {banners && banners.length > 0 && (
+          <div className="shrink-0">
+            <BannerCarousel banners={banners} onBannerClick={handleBannerClick} />
+          </div>
+        )}
 
-      {/* Recently viewed repos */}
-      {recentToDisplay.length > 0 && (
-        <div className="shrink-0 pt-1 pb-2">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              {t("browse.recentlyViewed")}
-            </h2>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-5 text-[11px] text-muted-foreground hover:text-foreground px-2"
-              onClick={clearRecent}
-            >
-              {t("browse.clearHistory")}
+        {/* Recently viewed repos */}
+        {recentToDisplay.length > 0 && (
+          <div className="shrink-0 pt-1 pb-2">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                {t("browse.recentlyViewed")}
+              </h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-5 text-[11px] text-muted-foreground hover:text-foreground px-2"
+                onClick={clearRecent}
+              >
+                {t("browse.clearHistory")}
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {recentToDisplay.map((entry) => (
+                <RepoCard
+                  key={`${entry.owner}/${entry.name}`}
+                  repo={entry}
+                  onClick={() => navigateToRepo(entry)}
+                  hideDescription
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Recommended repos */}
+        {loadingRepos ? (
+          <div className="flex-1">
+            <Skeleton className="h-3 w-24 mb-3" />
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="rounded-xl border bg-card p-4 space-y-3">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-full" />
+                  <Skeleton className="h-3 w-4/5" />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : reposError ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-3">
+            <AlertTriangle className="h-8 w-8 text-destructive/60" />
+            <p className="text-sm text-destructive">{t("error.generic")}</p>
+            <Button size="sm" variant="outline" onClick={() => refetchRepos()}>
+              {t("error.retry")}
             </Button>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {recentToDisplay.map((entry) => (
-              <RepoCard
-                key={`${entry.owner}/${entry.name}`}
-                repo={entry}
-                onClick={() => navigateToRepo(entry)}
-                hideDescription
-              />
-            ))}
+        ) : repos.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center">
+            <p className="text-sm text-muted-foreground">{t("browse.noRepos")}</p>
           </div>
-        </div>
-      )}
-
-      {/* Recommended repos */}
-      {loadingRepos ? (
-        <div className="flex-1">
-          <Skeleton className="h-3 w-24 mb-3" />
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="rounded-xl border bg-card p-4 space-y-3">
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-3 w-full" />
-                <Skeleton className="h-3 w-4/5" />
-              </div>
-            ))}
+        ) : (
+          <div className="pt-1">
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+              {t("browse.recommended")}
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {repos.map((repo) => (
+                <RepoCard
+                  key={`${repo.owner}/${repo.name}`}
+                  repo={repo}
+                  onClick={() => navigateToRepo(repo)}
+                />
+              ))}
+            </div>
           </div>
-        </div>
-      ) : reposError ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3">
-          <AlertTriangle className="h-8 w-8 text-destructive/60" />
-          <p className="text-sm text-destructive">{t("error.generic")}</p>
-          <Button size="sm" variant="outline" onClick={() => refetchRepos()}>
-            {t("error.retry")}
-          </Button>
-        </div>
-      ) : repos.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-sm text-muted-foreground">{t("browse.noRepos")}</p>
-        </div>
-      ) : (
-        <div className="pt-1">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            {t("browse.recommended")}
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {repos.map((repo) => (
-              <RepoCard
-                key={`${repo.owner}/${repo.name}`}
-                repo={repo}
-                onClick={() => navigateToRepo(repo)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+        )}
       </div>
     </ScrollArea>
   );

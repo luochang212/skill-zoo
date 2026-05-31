@@ -274,12 +274,6 @@
       "checkFailed": "Could not check for updates",
       "installFailed": "Installation failed"
     },
-    "repoPanel": {
-      "installedCount": "{{count}} skills installed",
-      "lastActive": "Last active:",
-      "lastPush": "Last push:",
-      "viewOnGitHub": "View on GitHub"
-    },
     "feedback": {
       "title": "Feedback",
       "description": "Help us improve Skill Zoo!",
@@ -287,5 +281,11 @@
       "requestFeature": "Request a Feature",
       "hint": "Opens GitHub Issues in your browser with app info pre-filled."
     }
+  },
+  "repoPanel": {
+    "installedCount": "{{count}} skills installed",
+    "lastActive": "Last active:",
+    "lastPush": "Last push:",
+    "viewOnGitHub": "View on GitHub"
   }
 }

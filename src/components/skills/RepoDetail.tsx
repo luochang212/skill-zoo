@@ -477,23 +477,24 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 24, stiffness: 260 }}
             >
-              <ScrollArea className="flex-1 min-h-0"><div className="px-5 py-4">
-                {previewLoading ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader className="h-4 w-4 animate-spin" />
-                    <span>{t("loading")}</span>
-                  </div>
-                ) : previewError ? (
-                  <div className="flex flex-col items-center justify-center gap-3 py-12">
-                    <AlertTriangle className="h-8 w-8 text-destructive/60" />
-                    <p className="text-sm text-muted-foreground">{t("error.generic")}</p>
-                  </div>
-                ) : previewContent ? (
-                  <MarkdownContent content={previewContent} />
-                ) : null}
-              </div>
-            </ScrollArea>
-          </motion.div>
+              <ScrollArea className="flex-1 min-h-0">
+                <div className="px-5 py-4">
+                  {previewLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader className="h-4 w-4 animate-spin" />
+                      <span>{t("loading")}</span>
+                    </div>
+                  ) : previewError ? (
+                    <div className="flex flex-col items-center justify-center gap-3 py-12">
+                      <AlertTriangle className="h-8 w-8 text-destructive/60" />
+                      <p className="text-sm text-muted-foreground">{t("error.generic")}</p>
+                    </div>
+                  ) : previewContent ? (
+                    <MarkdownContent content={previewContent} />
+                  ) : null}
+                </div>
+              </ScrollArea>
+            </motion.div>
           </>
         )}
       </AnimatePresence>

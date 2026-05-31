@@ -119,7 +119,7 @@
   --border: 25 15% 90%;
   --input: 25 15% 90%;
   --ring: 25 15% 12%;
-  --sidebar: 0 0% 97%;
+  --sidebar: 30 15% 95%;
   --sidebar-foreground: 25 15% 12%;
   --radius: 0.625rem;
 }
@@ -247,7 +247,8 @@
 input,
 textarea,
 [data-selectable],
-[data-selectable] * {
+[data-selectable] *,
+[data-sonner-toaster] * {
   -webkit-user-select: text;
   user-select: text;
 }

@@ -15,28 +15,28 @@ export function SettingsView() {
       <ScrollArea className="flex-1">
         <div className="p-6">
           <div className="space-y-6">
-          {/* Appearance */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 pb-2 border-b border-border/40">
-              <Palette className="h-4 w-4 text-violet-500" />
-              <h3 className="text-sm font-medium">{t("settings.appearance")}</h3>
-            </div>
-            <div className="rounded-xl border border-border bg-card/50 p-4 space-y-5">
-              <ThemeSettings />
-              <div className="border-t border-border/30">
-                <LanguageSettings />
+            {/* Appearance */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-border/40">
+                <Palette className="h-4 w-4 text-violet-500" />
+                <h3 className="text-sm font-medium">{t("settings.appearance")}</h3>
+              </div>
+              <div className="rounded-xl border border-border bg-card/50 p-4 space-y-5">
+                <ThemeSettings />
+                <div className="border-t border-border/30">
+                  <LanguageSettings />
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Skill Maintenance */}
-          <SkillMaintenanceSettings />
+            {/* Skill Maintenance */}
+            <SkillMaintenanceSettings />
 
-          {/* Agent Paths */}
-          <AgentPathsSettings />
+            {/* Agent Paths */}
+            <AgentPathsSettings />
 
-          {/* About & Feedback */}
-          <AboutSection />
+            {/* About & Feedback */}
+            <AboutSection />
           </div>
         </div>
       </ScrollArea>

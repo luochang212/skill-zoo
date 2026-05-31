@@ -233,6 +233,15 @@ export function useRepoMetadata(owner: string | null, name: string | null) {
   });
 }
 
+export function useRepoReadme(owner: string | null, name: string | null, branch?: string | null) {
+  return useQuery({
+    queryKey: ["repos", "readme", owner, name, branch],
+    queryFn: () => skillsApi.getRepoReadme(owner!, name!, branch ?? undefined),
+    enabled: !!owner && !!name,
+    staleTime: 24 * 60 * 60 * 1000,
+  });
+}
+
 export function useSkillPreview(
   owner: string | null,
   name: string | null,

@@ -368,61 +368,59 @@ export function InstalledSkills({
           {/* Consistency category — show ConsistencyPanel instead of cards */}
           {category.type === "consistency" ? (
             <ConsistencyPanel duplicateGroups={duplicateGroups} nameMismatches={nameMismatches} />
-          ) : filtered.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center">
-              <p className="text-sm text-muted-foreground">{t("installed.noMatch")}</p>
-            </div>
           ) : (
-            <div className="flex-1 min-h-0 flex gap-0">
-              <ScrollArea className="flex-1 pt-1 @container/main">
-              {viewMode === "grid" ? (
-                <div className="grid grid-cols-2 @xl/main:grid-cols-3 gap-4 pb-3">
-                  {sorted.map((skill) => (
-                    <SkillCard
-                      key={skill.id}
-                      skill={skill}
-                      isInstalled
-                      onOpen={() => onViewSkill(skill.id, skill.directory, skill.name)}
-                      onToggleStar={() => handleToggleStar(skill)}
-                      starred={skill.starred}
-                      issues={getFilteredIssues(skill.id)}
-                    />
-                  ))}
+            <div className="flex-1 min-h-0 flex gap-0 relative">
+              {filtered.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <p className="text-sm text-muted-foreground">{t("installed.noMatch")}</p>
                 </div>
               ) : (
-                <div className="flex flex-col">
-                  <ListHeader
-                    sortField={sortField}
-                    sortDirection={sortDirection}
-                    onSort={handleSort}
-                    allSelected={allSelected}
-                    onToggleSelectAll={allSelected ? handleDeselectAll : handleSelectAll}
-                  />
-                  {sorted.map((skill) => (
-                    <SkillCardRow
-                      key={skill.id}
-                      skill={skill}
-                      isInstalled
-                      onOpen={() => onViewSkill(skill.id, skill.directory, skill.name)}
-                      onToggleStar={() => handleToggleStar(skill)}
-                      starred={skill.starred}
-                      issues={getFilteredIssues(skill.id)}
-                      selected={selectedIds.has(skill.id)}
-                      onToggleSelect={() => handleToggleSelect(skill.id)}
-                    />
-                  ))}
-                </div>
+                <ScrollArea className="flex-1 pt-1 @container/main">
+                  {viewMode === "grid" ? (
+                    <div className="grid grid-cols-2 @xl/main:grid-cols-3 gap-4 pb-3">
+                      {sorted.map((skill) => (
+                        <SkillCard
+                          key={skill.id}
+                          skill={skill}
+                          isInstalled
+                          onOpen={() => onViewSkill(skill.id, skill.directory, skill.name)}
+                          onToggleStar={() => handleToggleStar(skill)}
+                          starred={skill.starred}
+                          issues={getFilteredIssues(skill.id)}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col">
+                      <ListHeader
+                        sortField={sortField}
+                        sortDirection={sortDirection}
+                        onSort={handleSort}
+                        allSelected={allSelected}
+                        onToggleSelectAll={allSelected ? handleDeselectAll : handleSelectAll}
+                      />
+                      {sorted.map((skill) => (
+                        <SkillCardRow
+                          key={skill.id}
+                          skill={skill}
+                          isInstalled
+                          onOpen={() => onViewSkill(skill.id, skill.directory, skill.name)}
+                          onToggleStar={() => handleToggleStar(skill)}
+                          starred={skill.starred}
+                          issues={getFilteredIssues(skill.id)}
+                          selected={selectedIds.has(skill.id)}
+                          onToggleSelect={() => handleToggleSelect(skill.id)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
               )}
-            </ScrollArea>
 
-            {category.type === "repo" && (
-              <RepoInfoPanel
-                owner={category.owner}
-                name={category.name}
-                skills={categoryFiltered}
-              />
-            )}
-          </div>
+              {category.type === "repo" && (
+                <RepoInfoPanel owner={category.owner} name={category.name} />
+              )}
+            </div>
           )}
         </div>
 
@@ -459,7 +457,10 @@ export function InstalledSkills({
                 {Array.from(selectedIds).map((id) => {
                   const skill = sorted.find((s) => s.id === id);
                   return skill ? (
-                    <p key={id} className="text-[13px] leading-tight truncate text-muted-foreground">
+                    <p
+                      key={id}
+                      className="text-[13px] leading-tight truncate text-muted-foreground"
+                    >
                       {skill.name}
                     </p>
                   ) : null;

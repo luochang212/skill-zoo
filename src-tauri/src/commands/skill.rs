@@ -948,6 +948,106 @@ pub async fn get_repo_metadata(owner: String, name: String) -> Result<DiscoverRe
     }
 }
 
+// ── README cache ──
+
+const REPO_README_CACHE_TTL: u64 = 86400; // 24 hours
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct RepoReadmeCacheEntry {
+    content: String,
+    fetched_at: u64,
+}
+
+fn load_readme_cache() -> std::collections::HashMap<String, RepoReadmeCacheEntry> {
+    let path = config::get_app_config_dir().join("repo-readme-cache.json");
+    let content = match std::fs::read_to_string(&path) {
+        Ok(s) => s,
+        Err(_) => return std::collections::HashMap::new(),
+    };
+    serde_json::from_str(&content).unwrap_or_default()
+}
+
+fn save_readme_cache(cache: &std::collections::HashMap<String, RepoReadmeCacheEntry>) {
+    let path = config::get_app_config_dir().join("repo-readme-cache.json");
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(json) = serde_json::to_string_pretty(cache) {
+        let _ = atomic_write(&path, json);
+    }
+}
+
+async fn fetch_repo_readme(
+    owner: &str,
+    name: &str,
+    branch: &str,
+) -> Option<String> {
+    let url = format!(
+        "https://api.github.com/repos/{owner}/{name}/readme?ref={branch}"
+    );
+    let client = config::http_client();
+
+    let resp = client.get(&url).send().await.ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    let json: serde_json::Value = resp.json().await.ok()?;
+    let content = json.get("content")?.as_str()?;
+    let encoding = json.get("encoding").and_then(|v| v.as_str());
+
+    let decoded = if encoding == Some("base64") {
+        let cleaned: String = content.chars().filter(|c| !c.is_whitespace()).collect();
+        use base64::Engine;
+        base64::engine::general_purpose::STANDARD
+            .decode(&cleaned)
+            .ok()?
+    } else {
+        content.as_bytes().to_vec()
+    };
+
+    String::from_utf8(decoded).ok()
+}
+
+#[tauri::command]
+pub async fn get_repo_readme(
+    owner: String,
+    name: String,
+    branch: Option<String>,
+) -> Result<String, String> {
+    let branch = branch.unwrap_or_else(|| "main".to_string());
+    validate_repo_segments(&owner, &name, &branch)?;
+    let key = format!("{owner}/{name}/{branch}");
+
+    let mut cache = load_readme_cache();
+    if let Some(entry) = cache.get(&key) {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        if now.saturating_sub(entry.fetched_at) < REPO_README_CACHE_TTL {
+            return Ok(entry.content.clone());
+        }
+    }
+
+    if let Some(content) = fetch_repo_readme(&owner, &name, &branch).await {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        cache.insert(
+            key,
+            RepoReadmeCacheEntry {
+                content: content.clone(),
+                fetched_at: now,
+            },
+        );
+        save_readme_cache(&cache);
+        Ok(content)
+    } else {
+        Ok(String::new())
+    }
+}
+
 #[tauri::command]
 pub async fn get_repo_skills(
     app: tauri::AppHandle,

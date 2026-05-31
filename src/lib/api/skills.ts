@@ -71,6 +71,9 @@ export const skillsApi = {
   getRepoMetadata: (owner: string, name: string) =>
     invoke<DiscoverRepo>("get_repo_metadata", { owner, name }),
 
+  getRepoReadme: (owner: string, name: string, branch?: string) =>
+    invoke<string>("get_repo_readme", { owner, name, branch }),
+
   // ── Discover (skills.sh) ──
 
   searchSkillsSh: (query: string, limit?: number) =>

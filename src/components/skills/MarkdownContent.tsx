@@ -1,8 +1,49 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
+import rehypeRaw from "rehype-raw";
 import { openUrl } from "@tauri-apps/plugin-opener";
+
+function makeAbsoluteUrl(
+  url: string,
+  owner?: string | null,
+  name?: string | null,
+  branch?: string | null,
+): string {
+  if (!owner || !name) return url;
+  // Already absolute
+  if (/^https?:\/\//i.test(url)) return url;
+  const ref = branch || "main";
+  // Path relative to repo root
+  const clean = url.startsWith("./") ? url.slice(2) : url;
+  const base = clean.startsWith("/") ? clean.slice(1) : clean;
+  return `https://raw.githubusercontent.com/${owner}/${name}/${ref}/${base}`;
+}
+
+function SafeImg({
+  src,
+  alt,
+  owner,
+  name,
+  branch,
+  ...props
+}: React.ImgHTMLAttributes<HTMLImageElement> & {
+  owner?: string | null;
+  name?: string | null;
+  branch?: string | null;
+}) {
+  const [failed, setFailed] = useState(false);
+  if (failed || !src) return null;
+  return (
+    <img
+      src={makeAbsoluteUrl(src, owner, name, branch)}
+      alt={alt}
+      onError={() => setFailed(true)}
+      {...props}
+    />
+  );
+}
 
 interface ParsedSkillMd {
   frontmatter: Record<string, unknown> | null;
@@ -122,9 +163,17 @@ function FrontmatterCard({ data }: { data: Record<string, unknown> }) {
 
 interface MarkdownContentProps {
   content: string;
+  repoOwner?: string | null;
+  repoName?: string | null;
+  repoBranch?: string | null;
 }
 
-export function MarkdownContent({ content }: MarkdownContentProps) {
+export function MarkdownContent({
+  content,
+  repoOwner,
+  repoName,
+  repoBranch,
+}: MarkdownContentProps) {
   const { frontmatter, body } = useMemo(() => parseFrontmatter(content), [content]);
 
   return (
@@ -132,7 +181,8 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
       {frontmatter && <FrontmatterCard data={frontmatter} />}
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeHighlight]}
+        rehypePlugins={[rehypeRaw, rehypeHighlight]}
+        urlTransform={(url) => makeAbsoluteUrl(url, repoOwner, repoName, repoBranch)}
         components={{
           a: ({ href, children, ...props }) => (
             <a
@@ -145,6 +195,16 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
             >
               {children}
             </a>
+          ),
+          img: ({ src, alt, ...props }) => (
+            <SafeImg
+              src={src}
+              alt={alt}
+              owner={repoOwner}
+              name={repoName}
+              branch={repoBranch}
+              {...props}
+            />
           ),
         }}
       >

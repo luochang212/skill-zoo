@@ -14,15 +14,18 @@ function read(): boolean {
 
 export function useRepoPanelCollapsed() {
   const [collapsed, setCollapsed] = useState<boolean>(read);
+  const [rotation, setRotation] = useState(0);
 
-  const toggle = useCallback(() => {
+  const handleToggle = useCallback(() => {
+    const expanding = collapsed;
     setCollapsed((prev) => !prev);
-  }, []);
+    setRotation((r) => r + (expanding ? 360 : -360));
+  }, [collapsed]);
 
   // Persist to localStorage after state commits, not during state computation
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(collapsed));
   }, [collapsed]);
 
-  return { collapsed, toggle } as const;
+  return { collapsed, rotation, handleToggle } as const;
 }
