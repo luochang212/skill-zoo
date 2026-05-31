@@ -49,7 +49,7 @@ export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
       <AnimatePresence>
         {!collapsed && (
           <motion.div
-            className="shrink-0 w-[35%] min-w-[380px] flex flex-col rounded-t-xl bg-[#faf7f2] dark:bg-[#161412]
+            className="shrink-0 w-[35%] min-w-[400px] flex flex-col rounded-t-xl bg-[#faf7f2] dark:bg-[#161412]
                        border border-b-0 border-border/30 shadow-md ml-4"
             data-selectable
             initial={{ y: "100%" }}
@@ -61,7 +61,7 @@ export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
               <div className="space-y-4">
                 {/* Header */}
                 <div>
-                  <h3 className="text-lg font-bold tracking-tight truncate">
+                  <h3 className="text-xl font-bold tracking-tight truncate">
                     {metadata?.htmlUrl ? (
                       <button
                         className="hover:underline cursor-pointer text-left truncate max-w-full"

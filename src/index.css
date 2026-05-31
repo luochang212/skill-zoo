@@ -28,6 +28,9 @@
   --color-sidebar: hsl(var(--sidebar));
   --color-sidebar-foreground: hsl(var(--sidebar-foreground));
 
+  --container-3col: 47rem;
+  --container-4col: 75rem;
+
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
@@ -76,6 +79,14 @@
 }
 
 /* Prose overrides — outside @layer to override Tailwind Typography */
+/* Keep small/badge images inline so GitHub badges lay out horizontally */
+.prose p img:not(:where([class~="not-prose"] *)),
+.prose div img:not(:where([class~="not-prose"] *)) {
+  display: inline;
+}
+.prose div a:not(:where([class~="not-prose"] *)) {
+  display: inline;
+}
 .prose pre:not(:where([class~="not-prose"], [class~="not-prose"] *)) {
   @apply rounded-lg border border-border;
   background: transparent !important;
@@ -307,4 +318,12 @@ textarea,
 [data-radix-scroll-area-viewport] > div {
   display: block !important;
   width: 100% !important;
+}
+
+/*
+  Auto-hide scrollbar: faded out after 2s of no scrolling.
+  The data-scrollbar-autohide attribute is set by ScrollArea's internal timer.
+*/
+[data-scrollbar-autohide] {
+  opacity: 0;
 }
