@@ -977,22 +977,27 @@ fn save_readme_cache(cache: &std::collections::HashMap<String, RepoReadmeCacheEn
     }
 }
 
+// Returns Ok(Some(content)) on success, Ok(None) on 404 (negative-cacheable),
+// Err(()) on network/timeout errors (transient, don't cache).
 async fn fetch_repo_readme(
     owner: &str,
     name: &str,
     branch: &str,
-) -> Option<String> {
+) -> Result<Option<String>, ()> {
     let url = format!(
         "https://api.github.com/repos/{owner}/{name}/readme?ref={branch}"
     );
     let client = config::http_client();
 
-    let resp = client.get(&url).send().await.ok()?;
-    if !resp.status().is_success() {
-        return None;
+    let resp = client.get(&url).send().await.map_err(|_| ())?;
+    if resp.status().as_u16() == 404 {
+        return Ok(None);
     }
-    let json: serde_json::Value = resp.json().await.ok()?;
-    let content = json.get("content")?.as_str()?;
+    if !resp.status().is_success() {
+        return Err(());
+    }
+    let json: serde_json::Value = resp.json().await.map_err(|_| ())?;
+    let content = json.get("content").and_then(|v| v.as_str()).ok_or(())?;
     let encoding = json.get("encoding").and_then(|v| v.as_str());
 
     let decoded = if encoding == Some("base64") {
@@ -1000,12 +1005,12 @@ async fn fetch_repo_readme(
         use base64::Engine;
         base64::engine::general_purpose::STANDARD
             .decode(&cleaned)
-            .ok()?
+            .map_err(|_| ())?
     } else {
         content.as_bytes().to_vec()
     };
 
-    String::from_utf8(decoded).ok()
+    String::from_utf8(decoded).map_err(|_| ()).map(Some)
 }
 
 #[tauri::command]
@@ -1029,22 +1034,44 @@ pub async fn get_repo_readme(
         }
     }
 
-    if let Some(content) = fetch_repo_readme(&owner, &name, &branch).await {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        cache.insert(
-            key,
-            RepoReadmeCacheEntry {
-                content: content.clone(),
-                fetched_at: now,
-            },
-        );
-        save_readme_cache(&cache);
-        Ok(content)
-    } else {
-        Ok(String::new())
+    match fetch_repo_readme(&owner, &name, &branch).await {
+        Ok(Some(content)) => {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            cache.insert(
+                key,
+                RepoReadmeCacheEntry {
+                    content: content.clone(),
+                    fetched_at: now,
+                },
+            );
+            save_readme_cache(&cache);
+            Ok(content)
+        }
+        Ok(None) => {
+            // 404 — repo truly has no README. Negative-cache to avoid
+            // repeated API calls, but don't block on network failures (Err).
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            cache.insert(
+                key,
+                RepoReadmeCacheEntry {
+                    content: String::new(),
+                    fetched_at: now,
+                },
+            );
+            save_readme_cache(&cache);
+            Ok(String::new())
+        }
+        Err(()) => {
+            // Network error / timeout — transient failure, don't cache.
+            // Next panel open will retry.
+            Ok(String::new())
+        }
     }
 }
 
