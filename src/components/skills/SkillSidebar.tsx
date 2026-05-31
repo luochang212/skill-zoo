@@ -27,7 +27,10 @@ export function SkillSidebar({
   const mineCount = skills.filter((s) => s.isMine).length;
 
   // Aggregate repos with counts and max updatedAt
-  const repoMap = new Map<string, { owner: string; name: string; count: number; maxUpdatedAt: number }>();
+  const repoMap = new Map<
+    string,
+    { owner: string; name: string; count: number; maxUpdatedAt: number }
+  >();
   for (const s of skills) {
     if (s.repoOwner && s.repoName) {
       const key = `${s.repoOwner}/${s.repoName}`;
@@ -38,13 +41,19 @@ export function SkillSidebar({
           existing.maxUpdatedAt = s.updatedAt;
         }
       } else {
-        repoMap.set(key, { owner: s.repoOwner, name: s.repoName, count: 1, maxUpdatedAt: s.updatedAt });
+        repoMap.set(key, {
+          owner: s.repoOwner,
+          name: s.repoName,
+          count: 1,
+          maxUpdatedAt: s.updatedAt,
+        });
       }
     }
   }
-  const repos = Array.from(repoMap.values()).sort((a, b) => {
+  const repos = Array.from(repoMap.values()).toSorted((a, b) => {
     // Missing time → end
-    if (!a.maxUpdatedAt && !b.maxUpdatedAt) return a.owner.localeCompare(b.owner) || a.name.localeCompare(b.name);
+    if (!a.maxUpdatedAt && !b.maxUpdatedAt)
+      return a.owner.localeCompare(b.owner) || a.name.localeCompare(b.name);
     if (!a.maxUpdatedAt) return 1;
     if (!b.maxUpdatedAt) return -1;
     // Descending by maxUpdatedAt

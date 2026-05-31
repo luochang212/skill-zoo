@@ -330,7 +330,9 @@ export function ConsistencyPanel({
           <button
             onClick={() => setMenuOpen((v) => !v)}
             className={`h-7 w-7 flex items-center justify-center rounded-lg transition-colors ${
-              menuOpen ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent"
+              menuOpen
+                ? "bg-accent text-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent"
             }`}
             title="Label Settings"
           >
