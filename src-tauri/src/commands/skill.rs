@@ -900,9 +900,7 @@ fn load_repo_metadata_cache() -> std::collections::HashMap<String, RepoMetadataC
     serde_json::from_str(&content).unwrap_or_default()
 }
 
-fn save_repo_metadata_cache(
-    cache: &std::collections::HashMap<String, RepoMetadataCacheEntry>,
-) {
+fn save_repo_metadata_cache(cache: &std::collections::HashMap<String, RepoMetadataCacheEntry>) {
     let path = config::get_app_config_dir().join("repo-metadata-cache.json");
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
@@ -936,10 +934,13 @@ pub async fn get_repo_metadata(owner: String, name: String) -> Result<DiscoverRe
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        cache.insert(key, RepoMetadataCacheEntry {
-            data: data.clone(),
-            fetched_at: now,
-        });
+        cache.insert(
+            key,
+            RepoMetadataCacheEntry {
+                data: data.clone(),
+                fetched_at: now,
+            },
+        );
         save_repo_metadata_cache(&cache);
         Ok(data)
     } else {
@@ -979,14 +980,8 @@ fn save_readme_cache(cache: &std::collections::HashMap<String, RepoReadmeCacheEn
 
 // Returns Ok(Some(content)) on success, Ok(None) on 404 (negative-cacheable),
 // Err(()) on network/timeout errors (transient, don't cache).
-async fn fetch_repo_readme(
-    owner: &str,
-    name: &str,
-    branch: &str,
-) -> Result<Option<String>, ()> {
-    let url = format!(
-        "https://api.github.com/repos/{owner}/{name}/readme?ref={branch}"
-    );
+async fn fetch_repo_readme(owner: &str, name: &str, branch: &str) -> Result<Option<String>, ()> {
+    let url = format!("https://api.github.com/repos/{owner}/{name}/readme?ref={branch}");
     let client = config::http_client();
 
     let resp = client.get(&url).send().await.map_err(|_| ())?;

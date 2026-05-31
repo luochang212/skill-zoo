@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.7] — 2026-06-01
+
+### Added
+- Repo info side panel with GitHub metadata cache and README preview.
+- Responsive 1-2-3-4 column grid layout with auto-hide scrollbar.
+
+### Changed
+- Replaced native scrollbars with Radix ScrollArea.
+- Toned down consistency badge saturation in dark mode.
+
+### Security
+- Added rehype-sanitize after rehype-raw to strip dangerous HTML from README content.
+
+### Fixed
+- SafeImg reset failed on src change; README cache now distinguishes 404 from network error.
+
 ## [0.2.6] — 2026-05-31
 
 ### Added

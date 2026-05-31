@@ -35,7 +35,9 @@ function SafeImg({
   branch?: string | null;
 }) {
   const [failed, setFailed] = useState(false);
-  useEffect(() => { setFailed(false); }, [src]);
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
   if (failed || !src) return null;
   return (
     <img
