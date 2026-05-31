@@ -102,6 +102,16 @@ export function InstalledSkills({
   const { data: agentConfigs } = useAgentConfigs();
   const { showDuplicate, showConflict, showMismatch } = useConsistencyLabelSettings();
 
+  const getFilteredIssues = (skillId: string) => {
+    const issues = issuesMap.get(skillId);
+    if (!issues) return undefined;
+    const activeFlags: Record<string, boolean> = {};
+    if (showConflict && issues.hasConflict) activeFlags.hasConflict = true;
+    if (showMismatch && issues.isMismatch) activeFlags.isMismatch = true;
+    if (showDuplicate && issues.isDuplicate) activeFlags.isDuplicate = true;
+    return Object.keys(activeFlags).length > 0 ? (activeFlags as typeof issues) : undefined;
+  };
+
   const [search, setSearch] = useState("");
   const [agentFilter, setAgentFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
@@ -359,61 +369,46 @@ export function InstalledSkills({
               <p className="text-sm text-muted-foreground">{t("installed.noMatch")}</p>
             </div>
           ) : (
-            (() => {
-              const getFilteredIssues = (skillId: string) => {
-                const issues = issuesMap.get(skillId);
-                if (!issues) return undefined;
-                const activeFlags: Record<string, boolean> = {};
-                if (showConflict && issues.hasConflict) activeFlags.hasConflict = true;
-                if (showMismatch && issues.isMismatch) activeFlags.isMismatch = true;
-                if (showDuplicate && issues.isDuplicate) activeFlags.isDuplicate = true;
-                return Object.keys(activeFlags).length > 0
-                  ? (activeFlags as typeof issues)
-                  : undefined;
-              };
-              return (
-                <div className="flex-1 overflow-auto pt-1 pr-1">
-                  {viewMode === "grid" ? (
-                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 pb-3">
-                      {sorted.map((skill) => (
-                        <SkillCard
-                          key={skill.id}
-                          skill={skill}
-                          isInstalled
-                          onOpen={() => onViewSkill(skill.id, skill.directory, skill.name)}
-                          onToggleStar={() => handleToggleStar(skill)}
-                          starred={skill.starred}
-                          issues={getFilteredIssues(skill.id)}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex flex-col">
-                      <ListHeader
-                        sortField={sortField}
-                        sortDirection={sortDirection}
-                        onSort={handleSort}
-                        allSelected={allSelected}
-                        onToggleSelectAll={allSelected ? handleDeselectAll : handleSelectAll}
-                      />
-                      {sorted.map((skill) => (
-                        <SkillCardRow
-                          key={skill.id}
-                          skill={skill}
-                          isInstalled
-                          onOpen={() => onViewSkill(skill.id, skill.directory, skill.name)}
-                          onToggleStar={() => handleToggleStar(skill)}
-                          starred={skill.starred}
-                          issues={getFilteredIssues(skill.id)}
-                          selected={selectedIds.has(skill.id)}
-                          onToggleSelect={() => handleToggleSelect(skill.id)}
-                        />
-                      ))}
-                    </div>
-                  )}
+            <div className="flex-1 overflow-auto pt-1 pr-1">
+              {viewMode === "grid" ? (
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 pb-3">
+                  {sorted.map((skill) => (
+                    <SkillCard
+                      key={skill.id}
+                      skill={skill}
+                      isInstalled
+                      onOpen={() => onViewSkill(skill.id, skill.directory, skill.name)}
+                      onToggleStar={() => handleToggleStar(skill)}
+                      starred={skill.starred}
+                      issues={getFilteredIssues(skill.id)}
+                    />
+                  ))}
                 </div>
-              );
-            })()
+              ) : (
+                <div className="flex flex-col">
+                  <ListHeader
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                    allSelected={allSelected}
+                    onToggleSelectAll={allSelected ? handleDeselectAll : handleSelectAll}
+                  />
+                  {sorted.map((skill) => (
+                    <SkillCardRow
+                      key={skill.id}
+                      skill={skill}
+                      isInstalled
+                      onOpen={() => onViewSkill(skill.id, skill.directory, skill.name)}
+                      onToggleStar={() => handleToggleStar(skill)}
+                      starred={skill.starred}
+                      issues={getFilteredIssues(skill.id)}
+                      selected={selectedIds.has(skill.id)}
+                      onToggleSelect={() => handleToggleSelect(skill.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
 

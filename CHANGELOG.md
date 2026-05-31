@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.6] — 2026-05-31
+
+### Added
+- Consistency badge visibility toggle with settings dropdown.
+
+### Changed
+- Refined dark theme, sidebar UI, scrollbar styling and typography.
+- Updated documentation and bumped ZIP download limit to 500MB.
+- Applied semantic scrollbar colors for better theme integration.
+
+### Fixed
+- Resolved lint errors and formatting issues.
+
 ## [0.2.5] — 2026-05-30
 
 ### Changed
