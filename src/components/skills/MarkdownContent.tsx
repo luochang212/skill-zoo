@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
+import rehypeSanitize from "rehype-sanitize";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
 function makeAbsoluteUrl(
@@ -181,7 +182,7 @@ export function MarkdownContent({
       {frontmatter && <FrontmatterCard data={frontmatter} />}
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeRaw, rehypeHighlight]}
+        rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeHighlight]}
         urlTransform={(url) => makeAbsoluteUrl(url, repoOwner, repoName, repoBranch)}
         components={{
           a: ({ href, children, ...props }) => (
