@@ -76,6 +76,12 @@ export interface DiscoverRepo {
   description?: string;
   stars?: number;
   forks?: number;
+  language?: string;
+  license?: string;
+  openIssues?: number;
+  pushedAt?: string;
+  topics?: string[];
+  htmlUrl?: string;
 }
 
 export interface SkillAudit {

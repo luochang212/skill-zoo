@@ -16,7 +16,8 @@
     "updating": "更新中...",
     "removing": "删除中...",
     "all": "全部",
-    "uninstall": "卸载"
+    "uninstall": "卸载",
+    "collapse": "收起"
   },
   "nav": {
     "local": "本地",
@@ -272,6 +273,12 @@
       "restartNow": "立即重启",
       "checkFailed": "检查更新失败",
       "installFailed": "安装失败"
+    },
+    "repoPanel": {
+      "installedCount": "已安装 {{count}} 个技能",
+      "lastActive": "最近活跃：",
+      "lastPush": "最近推送：",
+      "viewOnGitHub": "在 GitHub 查看"
     },
     "feedback": {
       "title": "反馈",

@@ -698,6 +698,13 @@ pub struct DiscoverRepo {
     pub description: Option<String>,
     pub stars: Option<i32>,
     pub forks: Option<i32>,
+    pub language: Option<String>,
+    pub license: Option<String>,
+    pub open_issues: Option<i32>,
+    pub pushed_at: Option<String>,
+    #[serde(default)]
+    pub topics: Vec<String>,
+    pub html_url: Option<String>,
 }
 
 #[tauri::command]
@@ -722,17 +729,23 @@ pub fn get_recommended_repos(app: tauri::AppHandle) -> Result<Vec<DiscoverRepo>,
             description: Some(e.description),
             stars: None,
             forks: None,
+            language: None,
+            license: None,
+            open_issues: None,
+            pushed_at: None,
+            topics: vec![],
+            html_url: None,
         })
         .collect())
 }
 
-async fn fetch_github_repo_metadata(owner: &str, name: &str) -> DiscoverRepo {
+async fn fetch_github_repo_metadata(owner: &str, name: &str) -> Option<DiscoverRepo> {
     let url = format!("https://api.github.com/repos/{owner}/{name}");
     let client = config::http_client();
 
     match client.get(&url).send().await {
         Ok(resp) if resp.status().is_success() => match resp.json::<serde_json::Value>().await {
-            Ok(json) => DiscoverRepo {
+            Ok(json) => Some(DiscoverRepo {
                 owner: owner.to_string(),
                 name: name.to_string(),
                 branch: json
@@ -752,11 +765,41 @@ async fn fetch_github_repo_metadata(owner: &str, name: &str) -> DiscoverRepo {
                     .get("forks_count")
                     .and_then(|v| v.as_i64())
                     .map(|n| n as i32),
-            },
-            Err(_) => DiscoverRepo::simple(owner, name),
+                language: json
+                    .get("language")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
+                license: json
+                    .get("license")
+                    .and_then(|v| v.get("spdx_id"))
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
+                open_issues: json
+                    .get("open_issues_count")
+                    .and_then(|v| v.as_i64())
+                    .map(|n| n as i32),
+                pushed_at: json
+                    .get("pushed_at")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
+                topics: json
+                    .get("topics")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|t| t.as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                html_url: json
+                    .get("html_url")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
+            }),
+            Err(_) => None,
         },
-        Ok(_) => DiscoverRepo::simple(owner, name),
-        Err(_) => DiscoverRepo::simple(owner, name),
+        Ok(_) => None,
+        Err(_) => None,
     }
 }
 
@@ -769,6 +812,12 @@ impl DiscoverRepo {
             description: None,
             stars: None,
             forks: None,
+            language: None,
+            license: None,
+            open_issues: None,
+            pushed_at: None,
+            topics: vec![],
+            html_url: None,
         }
     }
 }
@@ -824,13 +873,79 @@ pub fn search_repo(query: String) -> Result<DiscoverRepo, String> {
         description: None,
         stars: None,
         forks: None,
+        language: None,
+        license: None,
+        open_issues: None,
+        pushed_at: None,
+        topics: vec![],
+        html_url: None,
     })
+}
+
+/// Cache entry keyed by "owner/name", stored in ~/.skill-zoo/repo-metadata-cache.json
+const REPO_METADATA_CACHE_TTL: u64 = 86400; // 24 hours in seconds
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct RepoMetadataCacheEntry {
+    data: DiscoverRepo,
+    fetched_at: u64,
+}
+
+fn load_repo_metadata_cache() -> std::collections::HashMap<String, RepoMetadataCacheEntry> {
+    let path = config::get_app_config_dir().join("repo-metadata-cache.json");
+    let content = match std::fs::read_to_string(&path) {
+        Ok(s) => s,
+        Err(_) => return std::collections::HashMap::new(),
+    };
+    serde_json::from_str(&content).unwrap_or_default()
+}
+
+fn save_repo_metadata_cache(
+    cache: &std::collections::HashMap<String, RepoMetadataCacheEntry>,
+) {
+    let path = config::get_app_config_dir().join("repo-metadata-cache.json");
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(json) = serde_json::to_string_pretty(cache) {
+        let _ = atomic_write(&path, json);
+    }
 }
 
 #[tauri::command]
 pub async fn get_repo_metadata(owner: String, name: String) -> Result<DiscoverRepo, String> {
     validate_repo_segments(&owner, &name, "main")?;
-    Ok(fetch_github_repo_metadata(&owner, &name).await)
+    let key = format!("{owner}/{name}");
+    let mut cache = load_repo_metadata_cache();
+
+    // Check disk cache
+    if let Some(entry) = cache.get(&key) {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        if now.saturating_sub(entry.fetched_at) < REPO_METADATA_CACHE_TTL {
+            return Ok(entry.data.clone());
+        }
+    }
+
+    // Fetch from GitHub
+    if let Some(data) = fetch_github_repo_metadata(&owner, &name).await {
+        // Persist on success
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        cache.insert(key, RepoMetadataCacheEntry {
+            data: data.clone(),
+            fetched_at: now,
+        });
+        save_repo_metadata_cache(&cache);
+        Ok(data)
+    } else {
+        // API failure — return simple fallback, don't cache
+        Ok(DiscoverRepo::simple(&owner, &name))
+    }
 }
 
 #[tauri::command]

@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { RepoInfoPanel } from "@/components/skills/RepoInfoPanel";
 import { AlertTriangle, ArrowUp, ArrowDown, Trash2 } from "lucide-react";
 import type { ViewMode } from "@/components/skills/ViewModeToggle";
 import type { SidebarCategory } from "@/hooks/useSidebarFilter";
@@ -171,8 +172,8 @@ export function InstalledSkills({
           </div>
 
           {/* Card grid skeleton */}
-          <ScrollArea className="flex-1 pt-1">
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 pb-3">
+          <ScrollArea className="flex-1 pt-1 @container/main">
+            <div className="grid grid-cols-2 @xl/main:grid-cols-3 gap-4 pb-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="rounded-xl border bg-card p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
@@ -298,7 +299,7 @@ export function InstalledSkills({
   const allSelected = sorted.length > 0 && selectedIds.size === sorted.length;
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full relative">
       {/* Sidebar */}
       <SkillSidebar
         skills={visibleSkills}
@@ -372,9 +373,10 @@ export function InstalledSkills({
               <p className="text-sm text-muted-foreground">{t("installed.noMatch")}</p>
             </div>
           ) : (
-            <ScrollArea className="flex-1 pt-1">
+            <div className="flex-1 min-h-0 flex gap-0">
+              <ScrollArea className="flex-1 pt-1 @container/main">
               {viewMode === "grid" ? (
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 pb-3">
+                <div className="grid grid-cols-2 @xl/main:grid-cols-3 gap-4 pb-3">
                   {sorted.map((skill) => (
                     <SkillCard
                       key={skill.id}
@@ -412,6 +414,15 @@ export function InstalledSkills({
                 </div>
               )}
             </ScrollArea>
+
+            {category.type === "repo" && (
+              <RepoInfoPanel
+                owner={category.owner}
+                name={category.name}
+                skills={categoryFiltered}
+              />
+            )}
+          </div>
           )}
         </div>
 

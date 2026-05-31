@@ -16,7 +16,8 @@
     "updating": "Updating...",
     "removing": "Removing...",
     "all": "All",
-    "uninstall": "Uninstall"
+    "uninstall": "Uninstall",
+    "collapse": "Collapse"
   },
   "nav": {
     "local": "Local",
@@ -272,6 +273,12 @@
       "restartNow": "Restart Now",
       "checkFailed": "Could not check for updates",
       "installFailed": "Installation failed"
+    },
+    "repoPanel": {
+      "installedCount": "{{count}} skills installed",
+      "lastActive": "Last active:",
+      "lastPush": "Last push:",
+      "viewOnGitHub": "View on GitHub"
     },
     "feedback": {
       "title": "Feedback",

@@ -229,7 +229,7 @@ export function useRepoMetadata(owner: string | null, name: string | null) {
     queryKey: ["repos", "metadata", owner, name],
     queryFn: () => skillsApi.getRepoMetadata(owner!, name!),
     enabled: !!owner && !!name,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 24 * 60 * 60 * 1000,
   });
 }
 
