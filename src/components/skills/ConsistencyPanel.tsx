@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { skillsApi } from "@/lib/api/skills";
 import type { InstalledSkill } from "@/types/skills";
 import type { DuplicateGroup, NameMismatch } from "@/hooks/useSkillIssues";
@@ -376,7 +377,7 @@ export function ConsistencyPanel({
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-auto pr-1">
+      <ScrollArea className="flex-1">
         {resolvedTab === "duplicates" && (
           <TabContent
             hint={t("consistency.duplicateHint")}
@@ -423,7 +424,7 @@ export function ConsistencyPanel({
             ))}
           </TabContent>
         )}
-      </div>
+      </ScrollArea>
 
       {confirmGroup && (
         <MergeConfirmDialog
@@ -452,19 +453,21 @@ export function ConsistencyPanel({
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-2 text-[12px] max-h-60 overflow-auto">
-              {duplicateGroups.map((group) => (
-                <div key={group.name} className="flex items-center gap-2">
-                  <Copy className="h-3 w-3 shrink-0 text-amber-500" />
-                  <span className="flex-1 truncate">
-                    {t("consistency.mergeAllGroupLabel", {
-                      name: group.name,
-                      count: group.skills.length,
-                    })}
-                  </span>
-                </div>
-              ))}
-            </div>
+            <ScrollArea className="max-h-60">
+              <div className="space-y-2 text-[12px]">
+                {duplicateGroups.map((group) => (
+                  <div key={group.name} className="flex items-center gap-2">
+                    <Copy className="h-3 w-3 shrink-0 text-amber-500" />
+                    <span className="flex-1 truncate">
+                      {t("consistency.mergeAllGroupLabel", {
+                        name: group.name,
+                        count: group.skills.length,
+                      })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
 
             <p className="text-red-500 dark:text-red-400 text-[12px] font-medium">
               {t("consistency.mergeCannotUndo")}

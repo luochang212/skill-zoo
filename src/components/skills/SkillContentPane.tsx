@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { MarkdownContent } from "@/components/skills/MarkdownContent";
 import { SkillFileTree } from "@/components/skills/SkillFileTree";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Eye, Pencil, Columns2, PanelLeftOpen, PanelLeftClose, FileX } from "lucide-react";
 import { useSkillFiles, useSkillFileContent, useSaveSkillFileContent } from "@/hooks/useSkills";
@@ -404,12 +405,12 @@ export function SkillContentPane({
                       : `${100 - splitPct}%`,
               }}
             >
-              <div
-                ref={previewViewportRef}
+              <ScrollArea
+                className="h-full"
+                viewportRef={previewViewportRef}
                 onScroll={onPreviewScroll}
-                className="h-full overflow-auto"
               >
-                <div className="px-5 py-4 pr-6">
+                <div className="px-5 py-4 pr-5">
                   {fileLoading || isLoading ? (
                     <div className="flex items-center justify-center py-12">
                       <div className="h-5 w-5 border-2 border-muted-foreground/20 border-t-foreground/60 rounded-full animate-spin" />
@@ -435,7 +436,7 @@ export function SkillContentPane({
                     </div>
                   )}
                 </div>
-              </div>
+              </ScrollArea>
             </div>
           </div>
         )}

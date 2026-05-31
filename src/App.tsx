@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useEditorState } from "@/lib/useEditorState";
 import {
   useUpdateSkill,
@@ -51,9 +52,11 @@ class ErrorBoundary extends Component<EBProps, EBState> {
         <div className="flex items-center justify-center h-full p-8">
           <div className="text-center space-y-2">
             <p className="text-red-500 font-bold">Render Error</p>
-            <pre className="text-xs text-muted-foreground whitespace-pre-wrap max-h-60 overflow-auto">
-              {this.state.error?.message}
-            </pre>
+            <ScrollArea className="max-h-60">
+              <pre className="text-xs text-muted-foreground whitespace-pre-wrap">
+                {this.state.error?.message}
+              </pre>
+            </ScrollArea>
             <button
               className="text-xs underline"
               onClick={() => this.setState({ hasError: false, error: null })}

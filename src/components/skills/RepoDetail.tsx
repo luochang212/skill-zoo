@@ -24,6 +24,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { SkillInstallDialog } from "@/components/skills/SkillInstallDialog";
 import { MarkdownContent } from "@/components/skills/MarkdownContent";
 import type { DiscoverRepo, DiscoverableSkill, RepoSkillsResult } from "@/types/skills";
@@ -293,8 +294,8 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
           </div>
         </div>
       </div>
-      <div className="flex-1 min-h-0 overflow-auto">
-        <div className="px-5 py-4 pr-6 max-w-full">
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="px-5 py-4 pr-5 max-w-full">
           {isLoadingRepo && !skills ? (
             <div className="flex flex-col gap-2">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -402,7 +403,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
             </>
           )}
         </div>
-      </div>
+      </ScrollArea>
 
       {/* Floating action bar for multi-select */}
       {selectedInstallable.length > 0 && (
@@ -476,7 +477,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 24, stiffness: 260 }}
             >
-              <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
+              <ScrollArea className="flex-1 min-h-0"><div className="px-5 py-4">
                 {previewLoading ? (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader className="h-4 w-4 animate-spin" />
@@ -491,7 +492,8 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
                   <MarkdownContent content={previewContent} />
                 ) : null}
               </div>
-            </motion.div>
+            </ScrollArea>
+          </motion.div>
           </>
         )}
       </AnimatePresence>

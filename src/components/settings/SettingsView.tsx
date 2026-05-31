@@ -5,14 +5,16 @@ import { LanguageSettings } from "@/components/settings/LanguageSettings";
 import { SkillMaintenanceSettings } from "@/components/settings/SkillMaintenanceSettings";
 import { AgentPathsSettings } from "@/components/settings/AgentPathsSettings";
 import { AboutSection } from "@/components/settings/AboutSection";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export function SettingsView() {
   const { t } = useTranslation();
 
   return (
     <div className="flex h-full">
-      <div className="flex-1 overflow-auto p-6">
-        <div className="space-y-6">
+      <ScrollArea className="flex-1">
+        <div className="p-6">
+          <div className="space-y-6">
           {/* Appearance */}
           <div className="space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-border/40">
@@ -35,8 +37,9 @@ export function SettingsView() {
 
           {/* About & Feedback */}
           <AboutSection />
+          </div>
         </div>
-      </div>
+      </ScrollArea>
     </div>
   );
 }

@@ -12,6 +12,7 @@ import { BannerCarousel } from "@/components/skills/BannerCarousel";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { RepoDetail } from "@/components/skills/RepoDetail";
 import type { DiscoverRepo } from "@/types/skills";
 import { Search, Loader2, AlertTriangle } from "lucide-react";
@@ -195,7 +196,8 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
   }
 
   return (
-    <div className="flex flex-col h-full p-6 overflow-auto">
+    <ScrollArea className="h-full">
+      <div className="flex flex-col min-h-full p-6">
       {/* Search bar with dropdown */}
       <div className="flex items-center gap-3 mb-6 shrink-0">
         <div className="relative max-w-md flex-1" ref={searchRef}>
@@ -217,7 +219,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
 
           {/* Search dropdown with two sections */}
           {dropdownOpen && search.trim() && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-popover border border-border rounded-lg shadow-lg z-50 overflow-hidden max-h-[300px] overflow-y-auto overscroll-contain">
+            <ScrollArea className="absolute top-full left-0 right-0 mt-1 bg-popover border border-border rounded-lg shadow-lg z-50 max-h-[300px]">
               {isSearching ? (
                 <div className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -283,7 +285,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
                   ))}
                 </>
               )}
-            </div>
+            </ScrollArea>
           )}
         </div>
       </div>
@@ -351,7 +353,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
           <p className="text-sm text-muted-foreground">{t("browse.noRepos")}</p>
         </div>
       ) : (
-        <div className="pt-1 pr-1">
+        <div className="pt-1">
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
             {t("browse.recommended")}
           </h2>
@@ -366,6 +368,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </ScrollArea>
   );
 }

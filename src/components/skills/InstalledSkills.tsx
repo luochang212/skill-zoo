@@ -26,6 +26,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertTriangle, ArrowUp, ArrowDown, Trash2 } from "lucide-react";
 import type { ViewMode } from "@/components/skills/ViewModeToggle";
 import type { SidebarCategory } from "@/hooks/useSidebarFilter";
@@ -145,12 +146,14 @@ export function InstalledSkills({
           <div className="px-4 py-4">
             <Skeleton className="h-4 w-20" />
           </div>
-          <div className="flex-1 overflow-y-auto pr-1 px-2 space-y-1">
-            <Skeleton className="h-7 w-full rounded-lg" />
-            <Skeleton className="h-7 w-full rounded-lg" />
-            <Skeleton className="h-7 w-full rounded-lg" />
-            <Skeleton className="h-7 w-4/5 rounded-lg" />
-          </div>
+          <ScrollArea className="flex-1 px-2">
+            <div className="space-y-1">
+              <Skeleton className="h-7 w-full rounded-lg" />
+              <Skeleton className="h-7 w-full rounded-lg" />
+              <Skeleton className="h-7 w-full rounded-lg" />
+              <Skeleton className="h-7 w-4/5 rounded-lg" />
+            </div>
+          </ScrollArea>
         </div>
 
         {/* Skeleton main content */}
@@ -168,7 +171,7 @@ export function InstalledSkills({
           </div>
 
           {/* Card grid skeleton */}
-          <div className="flex-1 overflow-auto pt-1 pr-1">
+          <ScrollArea className="flex-1 pt-1">
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 pb-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="rounded-xl border bg-card p-4 space-y-3">
@@ -186,7 +189,7 @@ export function InstalledSkills({
                 </div>
               ))}
             </div>
-          </div>
+          </ScrollArea>
         </div>
       </div>
     );
@@ -369,7 +372,7 @@ export function InstalledSkills({
               <p className="text-sm text-muted-foreground">{t("installed.noMatch")}</p>
             </div>
           ) : (
-            <div className="flex-1 overflow-auto pt-1 pr-1">
+            <ScrollArea className="flex-1 pt-1">
               {viewMode === "grid" ? (
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 pb-3">
                   {sorted.map((skill) => (
@@ -408,7 +411,7 @@ export function InstalledSkills({
                   ))}
                 </div>
               )}
-            </div>
+            </ScrollArea>
           )}
         </div>
 
@@ -440,16 +443,18 @@ export function InstalledSkills({
                 {t("removeDialog.warning")}
               </DialogDescription>
             </DialogHeader>
-            <div className="max-h-40 overflow-auto border rounded-md p-2 space-y-1">
-              {Array.from(selectedIds).map((id) => {
-                const skill = sorted.find((s) => s.id === id);
-                return skill ? (
-                  <p key={id} className="text-[13px] leading-tight truncate text-muted-foreground">
-                    {skill.name}
-                  </p>
-                ) : null;
-              })}
-            </div>
+            <ScrollArea className="max-h-40 border rounded-md">
+              <div className="p-2 space-y-1">
+                {Array.from(selectedIds).map((id) => {
+                  const skill = sorted.find((s) => s.id === id);
+                  return skill ? (
+                    <p key={id} className="text-[13px] leading-tight truncate text-muted-foreground">
+                      {skill.name}
+                    </p>
+                  ) : null;
+                })}
+              </div>
+            </ScrollArea>
             <DialogFooter>
               <Button variant="outline" size="sm" onClick={() => setConfirmOpen(false)}>
                 {t("common.cancel")}
