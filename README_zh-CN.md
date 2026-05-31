@@ -13,7 +13,7 @@
 
 ![app-screenshot](docs/header-image.webp)
 
-本地 Agent Skills 管理工具 — 发现、安装、管理 Claude Code、Codex、Cursor、Gemini 等 AI 编程工具的技能。
+本地 Agent Skills 管理工具 — 发现、安装、管理 Claude Code、Codex、Cursor、Hermes、OpenClaw 等 AI 编程工具的技能。
 
 <!-- ## 为什么选择 Skill Zoo？
 
@@ -30,13 +30,12 @@ Skill Zoo 让你在一个地方**浏览**、**安装**、**编辑**和**同步**
 
 ## 🚀 功能
 
-- **浏览发现**：探索 GitHub 和 [skills.sh](https://skills.sh/) 上的技能仓库
-- **一键安装**：从 GitHub 仓库批量安装技能，并链接到指定 Agent
-- **技能创作**：内置 Markdown 编辑器，支持编辑技能文件
-- **一致性检查**：支持同名技能检测、文件格式检测，对同名同 hash 技能可一键去重
-- **多 Agent 支持**：支持 Claude Code、Cursor、Codex 等 AI 编程助手
-- **明暗主题**：默认跟随系统，支持手动切换
-- **国际化**：支持英文和简体中文
+- **探索发现**：搜索 & 下载 GitHub 上的技能
+- **更新技能**：将技能更新到 GitHub 仓库上的最新版本
+- **技能创作**：内置 Markdown 编辑器，随时随地创造技能
+- **批量操作**：批量安装、删除、合并重复技能
+- **安全审计**：展示来自 skills.sh 社区的审计评分
+- **技能审查**：主动检测三种不一致情形，提醒用户修复问题
 
 ## ✨ 技术栈
 
@@ -58,7 +57,7 @@ Skill Zoo 让你在一个地方**浏览**、**安装**、**编辑**和**同步**
 
 ### macOS
 
-从 [Releases](https://github.com/luochang212/skill-zoo/releases) 页面下载对应芯片的 `.dmg` 文件，打开后将 `skill-zoo.app` 拖入 `Applications` 文件夹。
+从 [Releases](https://github.com/luochang212/skill-zoo/releases) 页面下载 `.dmg` 文件，打开后将 `skill-zoo.app` 拖入 `Applications` 文件夹。
 
 <details>
 <summary>🧑‍💻 通过 Homebrew 安装（macOS 开发者）</summary>

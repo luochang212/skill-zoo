@@ -13,7 +13,7 @@
 
 ![app-screenshot](docs/header-image.webp)
 
-Local Agent Skills Manager — Discover, install, and manage skills for AI coding tools including Claude Code, Codex, Cursor, Gemini and more.
+Local Agent Skills Manager — Discover, install, and manage skills for AI coding tools including Claude Code, Codex, Cursor, Hermes, OpenClaw and more.
 
 <!-- ## Why Skill Zoo?
 
@@ -30,13 +30,12 @@ Skill Zoo gives you a single place to **browse**, **install**, **edit**, and **s
 
 ## 🚀 Features
 
-- **Browse & Discover**: Explore skill repositories on GitHub and [skills.sh](https://skills.sh/)
-- **One-click Install**: Batch-install skills from GitHub repositories and symlink to target agents
-- **Skill Authoring**: Built-in Markdown editor for editing skill files
-- **Consistency Check**: Same-name skill detection, file format validation, and one-click deduplication for skills with identical name and hash
-- **Multi-Agent Support**: Supports Claude Code, Cursor, Codex, and other AI coding assistants
-- **Dark/Light Theme**: Follows system preference by default, with manual toggle
-- **Multilingual**: English and Simplified Chinese
+- **Explore & Install**: Search and download skills from GitHub repositories
+- **Update Skills**: Update installed skills to the latest version from GitHub
+- **Skill Authoring**: Built-in Markdown editor — create skills anywhere, anytime
+- **Batch Operations**: Install, delete, or merge duplicate skills in bulk
+- **Security Audit**: View community audit scores from skills.sh
+- **Consistency Check**: Proactively detect three types of inconsistencies and prompt fixes
 
 ## ✨ Tech Stack
 
@@ -58,7 +57,7 @@ Skill Zoo gives you a single place to **browse**, **install**, **edit**, and **s
 
 ### macOS
 
-Download the `.dmg` matching your chip from the [Releases](https://github.com/luochang212/skill-zoo/releases) page, open it, and drag `skill-zoo.app` into `Applications`.
+Download the `.dmg` from the [Releases](https://github.com/luochang212/skill-zoo/releases) page, open it, and drag `skill-zoo.app` into `Applications`.
 
 <details>
 <summary>🧑‍💻 Install via Homebrew (macOS developers)</summary>
