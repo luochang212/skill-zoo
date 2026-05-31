@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Copy, AlertTriangle, CheckCircle2, Eye, PenLine } from "lucide-react";
+import { Copy, AlertTriangle, Check, CheckCircle2, Eye, PenLine, Settings } from "lucide-react";
+import { useConsistencyLabelSettings } from "@/hooks/useConsistencyLabelSettings";
 import { useMergeDuplicates } from "@/hooks/useSkills";
 import { Button } from "@/components/ui/button";
 import {
@@ -221,6 +222,29 @@ export function ConsistencyPanel({
   const [batchMergeOpen, setBatchMergeOpen] = useState(false);
   const [merging, setMerging] = useState(false);
   const [tab, setTab] = useState<ConsistencyTab | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const {
+    showDuplicate,
+    showConflict,
+    showMismatch,
+    toggleDuplicate,
+    toggleConflict,
+    toggleMismatch,
+  } = useConsistencyLabelSettings();
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuOpen]);
 
   const duplicateGroups = allGroups.filter((g) => g.sameContent);
   const conflictGroups = allGroups.filter((g) => !g.sameContent);
@@ -249,7 +273,7 @@ export function ConsistencyPanel({
   return (
     <div className="flex-1 flex flex-col min-h-0" data-selectable>
       {/* Tabs */}
-      <div className="flex gap-1 mb-4">
+      <div className="flex gap-1 mb-4 items-center">
         <button
           onClick={() => setTab("duplicates")}
           className={`px-3 py-1.5 text-[12px] rounded-lg transition-colors ${
@@ -298,6 +322,55 @@ export function ConsistencyPanel({
             </span>
           )}
         </button>
+
+        <div className="flex-1" />
+
+        {/* Settings gear button + dropdown */}
+        <div className="relative" ref={menuRef}>
+          <button
+            onClick={() => setMenuOpen((v) => !v)}
+            className={`h-7 w-7 flex items-center justify-center rounded-lg transition-colors ${
+              menuOpen ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent"
+            }`}
+            title="Label Settings"
+          >
+            <Settings className="h-3.5 w-3.5" />
+          </button>
+
+          {/* Dropdown menu */}
+          {menuOpen && (
+            <div className="absolute right-0 top-full mt-1 bg-background border shadow-md rounded-lg p-1 w-44 z-50">
+              <div className="px-2 py-1.5 text-[12px] text-foreground/60 font-medium">
+                {t("consistency.badgeVisibility")}
+              </div>
+              <div className="border-t -mx-1 mb-1" />
+              <button
+                onClick={toggleDuplicate}
+                className="flex items-center gap-2 w-full px-2 py-1.5 text-[12px] rounded-md hover:bg-accent transition-colors"
+              >
+                <Copy className="h-3 w-3 shrink-0 text-amber-500" />
+                <span className="flex-1 text-left">{t("consistency.duplicate")}</span>
+                {showDuplicate && <Check className="h-3 w-3 shrink-0" />}
+              </button>
+              <button
+                onClick={toggleConflict}
+                className="flex items-center gap-2 w-full px-2 py-1.5 text-[12px] rounded-md hover:bg-accent transition-colors"
+              >
+                <AlertTriangle className="h-3 w-3 shrink-0 text-red-500" />
+                <span className="flex-1 text-left">{t("consistency.conflict")}</span>
+                {showConflict && <Check className="h-3 w-3 shrink-0" />}
+              </button>
+              <button
+                onClick={toggleMismatch}
+                className="flex items-center gap-2 w-full px-2 py-1.5 text-[12px] rounded-md hover:bg-accent transition-colors"
+              >
+                <PenLine className="h-3 w-3 shrink-0 text-sky-500" />
+                <span className="flex-1 text-left">{t("consistency.mismatch")}</span>
+                {showMismatch && <Check className="h-3 w-3 shrink-0" />}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tab content */}

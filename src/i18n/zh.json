@@ -176,7 +176,8 @@
     "mergeAllConfirmTitle": "批量合并所有重复技能",
     "mergeAllConfirmDesc": "即将对以下 {{count}} 组重复技能执行合并操作：",
     "mergeAllGroupLabel": "{{name}}（{{count}} 个副本）",
-    "merging": "合并中..."
+    "merging": "合并中...",
+    "badgeVisibility": "徽章可见性"
   },
   "skillHero": {
     "updated": "已更新",

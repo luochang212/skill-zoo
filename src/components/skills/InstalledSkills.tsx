@@ -7,6 +7,7 @@ import {
   useUnstarSkill,
 } from "@/hooks/useSkills";
 import { useConsistencyCheck } from "@/hooks/useSkillIssues";
+import { useConsistencyLabelSettings } from "@/hooks/useConsistencyLabelSettings";
 import { useVisibleAgentOrder, useHideNonSsot } from "@/hooks/useSettings";
 import { useAgentConfigs } from "@/lib/agents";
 import { SkillCard } from "@/components/skills/SkillCard";
@@ -99,6 +100,7 @@ export function InstalledSkills({
   const visibleAgentOrder = useVisibleAgentOrder();
   const { data: hideNonSsot } = useHideNonSsot();
   const { data: agentConfigs } = useAgentConfigs();
+  const { showDuplicate, showConflict, showMismatch } = useConsistencyLabelSettings();
 
   const [search, setSearch] = useState("");
   const [agentFilter, setAgentFilter] = useState<string>("all");
@@ -357,6 +359,17 @@ export function InstalledSkills({
               <p className="text-sm text-muted-foreground">{t("installed.noMatch")}</p>
             </div>
           ) : (
+            (() => {
+              const getFilteredIssues = (skillId: string) => {
+                const issues = issuesMap.get(skillId);
+                if (!issues) return undefined;
+                const filtered: Record<string, boolean> = {};
+                if (showConflict && issues.hasConflict) filtered.hasConflict = true;
+                if (showMismatch && issues.isMismatch) filtered.isMismatch = true;
+                if (showDuplicate && issues.isDuplicate) filtered.isDuplicate = true;
+                return Object.keys(filtered).length > 0 ? (filtered as typeof issues) : undefined;
+              };
+              return (
             <div className="flex-1 overflow-auto pt-1 pr-1">
               {viewMode === "grid" ? (
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 pb-3">
@@ -368,7 +381,7 @@ export function InstalledSkills({
                       onOpen={() => onViewSkill(skill.id, skill.directory, skill.name)}
                       onToggleStar={() => handleToggleStar(skill)}
                       starred={skill.starred}
-                      issues={issuesMap.get(skill.id)}
+                      issues={getFilteredIssues(skill.id)}
                     />
                   ))}
                 </div>
@@ -389,7 +402,7 @@ export function InstalledSkills({
                       onOpen={() => onViewSkill(skill.id, skill.directory, skill.name)}
                       onToggleStar={() => handleToggleStar(skill)}
                       starred={skill.starred}
-                      issues={issuesMap.get(skill.id)}
+                      issues={getFilteredIssues(skill.id)}
                       selected={selectedIds.has(skill.id)}
                       onToggleSelect={() => handleToggleSelect(skill.id)}
                     />
@@ -397,7 +410,9 @@ export function InstalledSkills({
                 </div>
               )}
             </div>
-          )}
+          );
+        })()
+      )}
         </div>
 
         {/* Floating action bar */}

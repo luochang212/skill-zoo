@@ -176,7 +176,8 @@
     "mergeAllConfirmTitle": "Batch Merge All Duplicates",
     "mergeAllConfirmDesc": "The following {{count}} duplicate groups will be merged:",
     "mergeAllGroupLabel": "{{name}} ({{count}} copies)",
-    "merging": "Merging..."
+    "merging": "Merging...",
+    "badgeVisibility": "Badge Visibility"
   },
   "skillHero": {
     "updated": "Updated",
