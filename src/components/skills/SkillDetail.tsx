@@ -98,10 +98,9 @@ export function SkillDetail({
           {/* Name + actions row (mirrors SkillHero layout) */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Skeleton className="h-7 w-7 rounded-md" />
-              <Skeleton className="h-6 w-16 rounded-full" />
+              <Skeleton className="h-6 w-6 rounded-md" />
+              <Skeleton className="h-6 w-16 rounded-lg" />
               <Skeleton className="h-6 w-32" />
-              <Skeleton className="h-3 w-20" />
             </div>
             <div className="flex items-center gap-1">
               <Skeleton className="h-7 w-7 rounded-md" />
@@ -118,13 +117,15 @@ export function SkillDetail({
         </div>
         {/* Content pane skeleton */}
         <div className="flex-1 min-h-0 flex flex-col">
-          {/* Tab bar skeleton */}
-          <div className="px-5 py-2 shrink-0 border-b border-border flex items-center">
+          {/* Tab bar skeleton — mirrors SkillContentPane: sidebar toggle + tab pills + right-side meta */}
+          <div className="px-3 py-2 shrink-0 border-b border-border flex items-center gap-2">
+            <Skeleton className="h-6 w-6 rounded shrink-0" />
             <div className="inline-flex items-center bg-muted rounded-xl p-0.5 gap-0.5">
               <Skeleton className="h-6 w-16 rounded-lg" />
               <Skeleton className="h-6 w-12 rounded-lg" />
               <Skeleton className="h-6 w-14 rounded-lg" />
             </div>
+            <Skeleton className="h-3 w-24 ml-auto" />
           </div>
           {/* Content lines — mimicking markdown content */}
           <div className="flex-1 px-5 py-4 pr-6 space-y-3 overflow-hidden">

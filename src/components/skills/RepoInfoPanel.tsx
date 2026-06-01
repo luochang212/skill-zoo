@@ -5,6 +5,7 @@ import { MarkdownContent } from "@/components/skills/MarkdownContent";
 import { useRepoPanelCollapsed } from "@/hooks/useRepoPanelCollapsed";
 
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
@@ -23,14 +24,18 @@ interface RepoInfoPanelProps {
 
 export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
   const { collapsed, rotation, handleToggle } = useRepoPanelCollapsed();
-  const { data: metadata } = useRepoMetadata(owner, name);
-  const { data: readme } = useRepoReadme(owner, name, metadata?.branch);
+  const {
+    data: metadata,
+    isLoading: metaLoading,
+    isError: metaError,
+  } = useRepoMetadata(owner, name);
+  const { data: readme, isLoading: readmeLoading } = useRepoReadme(owner, name, metadata?.branch);
 
   return (
     <>
       {/* Persistent GitHub toggle button */}
       <motion.button
-        className="group absolute -right-3 bottom-4 w-[52px] h-[52px] rounded-full bg-background/60
+        className="group absolute -right-3 bottom-4 w-[40px] h-[40px] rounded-full bg-background/60
                    backdrop-blur-md border border-border/50 shadow-lg flex items-center
                    justify-center hover:bg-background/80 hover:border-border/80 z-20"
         onClick={handleToggle}
@@ -41,7 +46,7 @@ export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
           animate={{ rotate: rotation, opacity: collapsed ? 0.7 : 1 }}
           transition={{ duration: 0.2, ease: "easeInOut" }}
         >
-          <GithubIcon className="h-[26px] w-[26px] group-hover:opacity-100 transition-opacity duration-200" />
+          <GithubIcon className="h-[20px] w-[20px] group-hover:opacity-100 transition-opacity duration-200" />
         </motion.div>
       </motion.button>
 
@@ -49,7 +54,7 @@ export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
       <AnimatePresence>
         {!collapsed && (
           <motion.div
-            className="shrink-0 w-[35%] min-w-[400px] flex flex-col rounded-t-xl bg-[#faf7f2] dark:bg-[#161412]
+            className="shrink-0 w-[35%] min-w-[450px] flex flex-col rounded-t-xl bg-[#faf7f2] dark:bg-[#161412]
                        border border-b-0 border-border/30 shadow-md ml-4"
             data-selectable
             initial={{ y: "100%" }}
@@ -62,71 +67,104 @@ export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
                 {/* Header */}
                 <div>
                   <h3 className="text-xl font-bold tracking-tight truncate">
-                    {metadata?.htmlUrl ? (
-                      <button
-                        className="hover:underline cursor-pointer text-left truncate max-w-full"
-                        onClick={() => openUrl(metadata.htmlUrl!)}
-                      >
-                        {owner}/{name}
-                      </button>
-                    ) : (
-                      <span className="truncate">
-                        {owner}/{name}
-                      </span>
-                    )}
+                    <button
+                      className="hover:underline cursor-pointer text-left truncate max-w-full"
+                      onClick={() =>
+                        openUrl(metadata?.htmlUrl ?? `https://github.com/${owner}/${name}`)
+                      }
+                    >
+                      {owner}/{name}
+                    </button>
                   </h3>
-                  {metadata?.description && (
-                    <p className="text-sm text-muted-foreground mt-1 leading-relaxed line-clamp-3">
-                      {metadata.description}
-                    </p>
+
+                  {metaLoading ? (
+                    <div className="mt-2 space-y-2">
+                      <Skeleton className="h-3.5 w-3/4" />
+                      <div className="flex gap-4 pt-1">
+                        <Skeleton className="h-3 w-14" />
+                        <Skeleton className="h-3 w-10" />
+                        <Skeleton className="h-3 w-10" />
+                      </div>
+                      <div className="flex gap-1.5 pt-1">
+                        <Skeleton className="h-5 w-12 rounded-full" />
+                        <Skeleton className="h-5 w-14 rounded-full" />
+                        <Skeleton className="h-5 w-10 rounded-full" />
+                      </div>
+                    </div>
+                  ) : metaError ? (
+                    <p className="text-xs text-muted-foreground mt-1">Failed to load repo info</p>
+                  ) : (
+                    metadata?.description && (
+                      <p className="text-sm text-muted-foreground mt-1 leading-relaxed line-clamp-3">
+                        {metadata.description}
+                      </p>
+                    )
                   )}
                 </div>
 
                 {/* Stats row */}
-                <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
-                  {metadata?.stars != null && (
-                    <span className="flex items-center gap-1">
-                      <Star className="h-3.5 w-3.5" />
-                      {metadata.stars >= 1000
-                        ? `${(metadata.stars / 1000).toFixed(1)}k`
-                        : metadata.stars}
-                    </span>
-                  )}
-                  {metadata?.forks != null && (
-                    <span className="flex items-center gap-1">
-                      <GitFork className="h-3.5 w-3.5" />
-                      {metadata.forks}
-                    </span>
-                  )}
-                  {metadata?.openIssues != null && (
-                    <span className="flex items-center gap-1">
-                      <AlertCircle className="h-3.5 w-3.5" />
-                      {metadata.openIssues}
-                    </span>
-                  )}
-                </div>
+                {!metaLoading && !metaError && (
+                  <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
+                    {metadata?.stars != null && (
+                      <span className="flex items-center gap-1">
+                        <Star className="h-3.5 w-3.5" />
+                        {metadata.stars >= 1000
+                          ? `${(metadata.stars / 1000).toFixed(1)}k`
+                          : metadata.stars}
+                      </span>
+                    )}
+                    {metadata?.forks != null && (
+                      <span className="flex items-center gap-1">
+                        <GitFork className="h-3.5 w-3.5" />
+                        {metadata.forks}
+                      </span>
+                    )}
+                    {metadata?.openIssues != null && (
+                      <span className="flex items-center gap-1">
+                        <AlertCircle className="h-3.5 w-3.5" />
+                        {metadata.openIssues}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {/* Meta badges */}
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {metadata?.language && (
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">
-                      {metadata.language}
-                    </Badge>
-                  )}
-                  {metadata?.license && (
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">
-                      {metadata.license}
-                    </Badge>
-                  )}
-                  {metadata?.topics?.map((topic) => (
-                    <Badge key={topic} variant="outline" className="text-[10px] px-1.5 py-0 h-5">
-                      {topic}
-                    </Badge>
-                  ))}
-                </div>
+                {!metaLoading && !metaError && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {metadata?.language && (
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">
+                        {metadata.language}
+                      </Badge>
+                    )}
+                    {metadata?.license && (
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">
+                        {metadata.license}
+                      </Badge>
+                    )}
+                    {metadata?.topics?.map((topic) => (
+                      <Badge key={topic} variant="outline" className="text-[10px] px-1.5 py-0 h-5">
+                        {topic}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
 
                 {/* README */}
-                {readme && (
+                {readmeLoading ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 pb-2 border-b border-border/50">
+                      <Skeleton className="h-3 w-3" />
+                      <Skeleton className="h-3 w-20" />
+                    </div>
+                    <div className="space-y-2">
+                      <Skeleton className="h-3.5 w-full" />
+                      <Skeleton className="h-3.5 w-11/12" />
+                      <Skeleton className="h-3.5 w-5/6" />
+                      <Skeleton className="h-3.5 w-full" />
+                      <Skeleton className="h-3.5 w-4/5" />
+                    </div>
+                  </div>
+                ) : readme ? (
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -147,7 +185,7 @@ export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
                       />
                     </div>
                   </motion.div>
-                )}
+                ) : null}
               </div>
             </ScrollArea>
           </motion.div>

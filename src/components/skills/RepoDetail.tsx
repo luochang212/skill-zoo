@@ -172,7 +172,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
 
   const handleInstall = (skillNames: string[], agents: string[]) => {
     if (!installSkills) return;
-    const repoUrl = `https://github.com/${repo.owner}/${repo.name}`;
+    const repoUrl = `https://github.com/${repo.owner}/${repo.name}/tree/${repo.branch || "main"}`;
     installMutation.mutate(
       { repoUrl, skillNames, agents },
       {
@@ -308,7 +308,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
                     <Skeleton className="h-4 w-48" />
                     <Skeleton className="h-3 w-72" />
                   </div>
-                  <Skeleton className="h-5 w-14 rounded shrink-0" />
+                  <Skeleton className="h-7 w-14 rounded-lg shrink-0" />
                 </div>
               ))}
             </div>

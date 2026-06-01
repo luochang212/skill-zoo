@@ -72,7 +72,7 @@ export function SkillAuditCard({ owner, repo, slug }: SkillAuditCardProps) {
               {[1, 2, 3, 4, 5].map((i) => (
                 <div key={i} className="flex items-center gap-2">
                   <Skeleton className="h-3.5 w-3.5 rounded-full shrink-0" />
-                  <Skeleton className="h-3.5 w-24 shrink-0" />
+                  <Skeleton className="h-3 w-24 shrink-0" />
                   <Skeleton className="h-3.5 w-10 rounded-full" />
                 </div>
               ))}

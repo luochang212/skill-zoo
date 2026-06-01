@@ -78,9 +78,9 @@ function ListHeader({
         <Checkbox checked={allSelected} onCheckedChange={onToggleSelectAll} />
       </div>
       {headerBtn("name", "Name", "w-48 shrink-0")}
-      {headerBtn("repo", "Repo", "flex-1 min-w-0")}
-      {headerBtn("updatedAt", "Updated", "w-28 shrink-0")}
-      <div className="w-8 shrink-0" />
+      {headerBtn("repo", "Repo", "flex-1 min-w-0 hidden @2xl/main:flex")}
+      {headerBtn("updatedAt", "Updated", "w-28 shrink-0 hidden @md/main:flex")}
+      <div className="w-8 shrink-0 hidden @lg/main:block" />
     </div>
   );
 }
@@ -142,17 +142,20 @@ export function InstalledSkills({
   if (isLoading) {
     return (
       <div className="flex h-full">
-        {/* Skeleton sidebar */}
-        <div className="w-[220px] h-full shrink-0 border-r border-border/60 bg-background/50 flex flex-col overflow-hidden">
+        {/* Skeleton sidebar — mirrors SkillSidebar: header + icon-label-count rows */}
+        <div className="w-[220px] h-full shrink-0 border-r border-border/60 bg-sidebar flex flex-col overflow-hidden">
           <div className="px-4 py-4">
             <Skeleton className="h-4 w-20" />
           </div>
-          <ScrollArea className="flex-1 px-2">
-            <div className="space-y-1">
-              <Skeleton className="h-7 w-full rounded-lg" />
-              <Skeleton className="h-7 w-full rounded-lg" />
-              <Skeleton className="h-7 w-full rounded-lg" />
-              <Skeleton className="h-7 w-4/5 rounded-lg" />
+          <ScrollArea className="flex-1">
+            <div className="space-y-0.5">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-2.5 px-4 py-2.5">
+                  <Skeleton className="h-4 w-4 rounded shrink-0" />
+                  <Skeleton className="h-3.5 flex-1" />
+                  <Skeleton className="h-4 w-7 rounded-full shrink-0" />
+                </div>
+              ))}
             </div>
           </ScrollArea>
         </div>
@@ -168,7 +171,7 @@ export function InstalledSkills({
               <Skeleton className="h-7 w-16 rounded-lg" />
             </div>
             <div className="flex-1" />
-            <Skeleton className="h-7 w-14 rounded-md" />
+            <Skeleton className="h-7 w-14 rounded-lg" />
           </div>
 
           {/* Card grid skeleton */}
@@ -183,10 +186,6 @@ export function InstalledSkills({
                   <Skeleton className="h-3 w-1/2" />
                   <Skeleton className="h-3 w-full" />
                   <Skeleton className="h-3 w-5/6" />
-                  <div className="flex gap-1.5 pt-1">
-                    <Skeleton className="h-5 w-12 rounded-full" />
-                    <Skeleton className="h-5 w-10 rounded-full" />
-                  </div>
                 </div>
               ))}
             </div>

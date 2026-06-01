@@ -230,6 +230,7 @@ export function useRepoMetadata(owner: string | null, name: string | null) {
     queryFn: () => skillsApi.getRepoMetadata(owner!, name!),
     enabled: !!owner && !!name,
     staleTime: 24 * 60 * 60 * 1000,
+    retry: false,
   });
 }
 
@@ -239,6 +240,7 @@ export function useRepoReadme(owner: string | null, name: string | null, branch?
     queryFn: () => skillsApi.getRepoReadme(owner!, name!, branch ?? undefined),
     enabled: !!owner && !!name,
     staleTime: 24 * 60 * 60 * 1000,
+    retry: false,
   });
 }
 

@@ -50,7 +50,7 @@
   {
     "owner": "luochang212",
     "name": "dive-into-langgraph",
-    "branch": "main",
+    "branch": "skills-only",
     "description": "Agent skills for LangGraph — ReAct agents, state graphs, memory, MCP servers, supervisor patterns, parallelization, RAG, and multi-agent workflows"
   }
 ]

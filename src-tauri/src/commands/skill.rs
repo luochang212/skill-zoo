@@ -803,24 +803,6 @@ async fn fetch_github_repo_metadata(owner: &str, name: &str) -> Option<DiscoverR
     }
 }
 
-impl DiscoverRepo {
-    fn simple(owner: &str, name: &str) -> Self {
-        Self {
-            owner: owner.to_string(),
-            name: name.to_string(),
-            branch: "main".to_string(),
-            description: None,
-            stars: None,
-            forks: None,
-            language: None,
-            license: None,
-            open_issues: None,
-            pushed_at: None,
-            topics: vec![],
-            html_url: None,
-        }
-    }
-}
 
 fn parse_repo_query(query: &str) -> Result<(String, String, String), String> {
     let query = query.trim();
@@ -944,8 +926,7 @@ pub async fn get_repo_metadata(owner: String, name: String) -> Result<DiscoverRe
         save_repo_metadata_cache(&cache);
         Ok(data)
     } else {
-        // API failure — return simple fallback, don't cache
-        Ok(DiscoverRepo::simple(&owner, &name))
+        Err("Network error fetching repo metadata".into())
     }
 }
 
@@ -978,15 +959,15 @@ fn save_readme_cache(cache: &std::collections::HashMap<String, RepoReadmeCacheEn
     }
 }
 
-// Returns Ok(Some(content)) on success, Ok(None) on 404 (negative-cacheable),
-// Err(()) on network/timeout errors (transient, don't cache).
-async fn fetch_repo_readme(owner: &str, name: &str, branch: &str) -> Result<Option<String>, ()> {
+// Returns Ok(content) on success, Err(()) on 404 or network/timeout errors.
+// Neither is cached, since repos may add a README later.
+async fn fetch_repo_readme(owner: &str, name: &str, branch: &str) -> Result<String, ()> {
     let url = format!("https://api.github.com/repos/{owner}/{name}/readme?ref={branch}");
     let client = config::http_client();
 
     let resp = client.get(&url).send().await.map_err(|_| ())?;
     if resp.status().as_u16() == 404 {
-        return Ok(None);
+        return Err(());
     }
     if !resp.status().is_success() {
         return Err(());
@@ -1005,7 +986,7 @@ async fn fetch_repo_readme(owner: &str, name: &str, branch: &str) -> Result<Opti
         content.as_bytes().to_vec()
     };
 
-    String::from_utf8(decoded).map_err(|_| ()).map(Some)
+    String::from_utf8(decoded).map_err(|_| ())
 }
 
 #[tauri::command]
@@ -1030,7 +1011,7 @@ pub async fn get_repo_readme(
     }
 
     match fetch_repo_readme(&owner, &name, &branch).await {
-        Ok(Some(content)) => {
+        Ok(content) => {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
@@ -1045,28 +1026,7 @@ pub async fn get_repo_readme(
             save_readme_cache(&cache);
             Ok(content)
         }
-        Ok(None) => {
-            // 404 — repo truly has no README. Negative-cache to avoid
-            // repeated API calls, but don't block on network failures (Err).
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
-            cache.insert(
-                key,
-                RepoReadmeCacheEntry {
-                    content: String::new(),
-                    fetched_at: now,
-                },
-            );
-            save_readme_cache(&cache);
-            Ok(String::new())
-        }
-        Err(()) => {
-            // Network error / timeout — transient failure, don't cache.
-            // Next panel open will retry.
-            Ok(String::new())
-        }
+        Err(()) => Err("Network error fetching README".into()),
     }
 }
 
