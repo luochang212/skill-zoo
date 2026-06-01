@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.8] — 2026-06-02
+
+### Fixed
+- Hide repo panel when filtered results are empty; auto-navigate back on skill deletion.
+- Refined skeleton screens to match real component layouts.
+
 ## [0.2.7] — 2026-06-01
 
 ### Added

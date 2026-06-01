@@ -145,7 +145,12 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
   if (!banners.length) return null;
 
   if (loading) {
-    return <div className="w-full mb-6 bg-muted animate-pulse rounded-xl" style={{ height: 'clamp(260px, 42vw, 383px)' }} />;
+    return (
+      <div
+        className="w-full mb-6 bg-muted animate-pulse rounded-xl"
+        style={{ height: "clamp(260px, 42vw, 383px)" }}
+      />
+    );
   }
 
   return (

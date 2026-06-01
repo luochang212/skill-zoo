@@ -803,7 +803,6 @@ async fn fetch_github_repo_metadata(owner: &str, name: &str) -> Option<DiscoverR
     }
 }
 
-
 fn parse_repo_query(query: &str) -> Result<(String, String, String), String> {
     let query = query.trim();
 
