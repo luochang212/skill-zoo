@@ -53,12 +53,12 @@ export function SkillCardRow({
           <button
             type="button"
             onClick={onOpen}
-            className="text-left text-[14px] font-medium leading-tight cursor-pointer hover:underline truncate"
+            className="text-left text-[14px] font-semibold leading-tight cursor-pointer hover:underline truncate"
           >
             {skill.name}
           </button>
         ) : (
-          <span className="text-[14px] font-medium leading-tight truncate">{skill.name}</span>
+          <span className="text-[14px] font-semibold leading-tight truncate">{skill.name}</span>
         )}
         {installedSkill?.isMine && (
           <Badge
