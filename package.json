@@ -1,6 +1,6 @@
 {
   "name": "skill-zoo",
-  "version": "0.1.0",
+  "version": "0.2.8",
   "description": "Local GUI tool for managing Agent Skills",
   "type": "module",
   "scripts": {
