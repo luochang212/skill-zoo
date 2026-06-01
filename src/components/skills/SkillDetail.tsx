@@ -62,6 +62,11 @@ export function SkillDetail({
   const [updateSuccess, setUpdateSuccess] = useState(false);
   const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Auto-navigate back when skill disappears (deleted externally)
+  useEffect(() => {
+    if (!isLoading && !isError && !skill && onBack) onBack();
+  }, [skill, isLoading, isError, onBack]);
+
   // Clean up timer on unmount
   useEffect(() => {
     return () => {
@@ -166,7 +171,7 @@ export function SkillDetail({
   return (
     <div className="flex flex-col h-full" data-selectable>
       {/* Hero — skill may still be null during brief transition */}
-      {skill ? (
+      {skill && (
         <SkillHero
           skill={skill}
           onBack={onBack}
@@ -186,10 +191,6 @@ export function SkillDetail({
           removePending={removePending}
           updateSuccess={updateSuccess}
         />
-      ) : (
-        <div className="px-5 pt-4 pb-4">
-          <h1 className="text-xl font-bold tracking-tight">{skillName}</h1>
-        </div>
       )}
 
       {/* Security audit */}

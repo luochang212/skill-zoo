@@ -416,7 +416,7 @@ export function InstalledSkills({
                 </ScrollArea>
               )}
 
-              {category.type === "repo" && (
+              {category.type === "repo" && filtered.length > 0 && (
                 <RepoInfoPanel owner={category.owner} name={category.name} />
               )}
             </div>
