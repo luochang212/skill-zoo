@@ -1,7 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
-import { skillsApi, type RemoveSkillsResult, type UpdateAllResult } from "@/lib/api/skills";
-import { invalidateFor, type MutationName } from "@/hooks/queryInvalidation";
+import {
+  skillsApi,
+  type ArchiveSkillsResult,
+  type RemoveSkillsResult,
+  type RestoreArchivedSkillsResult,
+  type UpdateAllResult,
+} from "@/lib/api/skills";
+import { invalidateFor } from "@/hooks/queryInvalidation";
 import type { InstalledSkill } from "@/types/skills";
 import { useEffect } from "react";
 
@@ -9,6 +15,14 @@ export function useInstalledSkills() {
   return useQuery({
     queryKey: ["skills", "installed"],
     queryFn: () => skillsApi.getInstalledSkills(),
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useArchivedSkills() {
+  return useQuery({
+    queryKey: ["skills", "archived"],
+    queryFn: () => skillsApi.getArchivedSkills(),
     staleTime: 30 * 1000,
   });
 }
@@ -89,27 +103,48 @@ export function useRemoveSkill() {
 
 export function useRemoveSkills() {
   const qc = useQueryClient();
-  return useMutation<
-    RemoveSkillsResult,
-    Error,
-    string[],
-    { previous: InstalledSkill[] | undefined }
-  >({
+  return useMutation<RemoveSkillsResult, Error, string[]>({
     mutationFn: (skillIds: string[]) => skillsApi.removeSkills(skillIds),
-    onMutate: async (skillIds) => {
-      await qc.cancelQueries({ queryKey: ["skills", "installed"] });
-      const previous = qc.getQueryData<InstalledSkill[]>(["skills", "installed"]);
-      qc.setQueryData<InstalledSkill[]>(["skills", "installed"], (old) =>
-        old?.filter((s) => !skillIds.includes(s.id)),
-      );
-      return { previous };
-    },
-    onError: (_err, _skillIds, context) => {
-      if (context?.previous) {
-        qc.setQueryData(["skills", "installed"], context.previous);
-      }
-    },
     onSettled: () => invalidateFor(qc, "removeSkill"),
+  });
+}
+
+export function useArchiveSkill() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (skillId: string) => skillsApi.archiveSkill(skillId),
+    onSuccess: () => invalidateFor(qc, "archiveSkill"),
+  });
+}
+
+export function useArchiveSelectedSkills() {
+  const qc = useQueryClient();
+  return useMutation<ArchiveSkillsResult, Error, string[]>({
+    mutationFn: (skillIds: string[]) => skillsApi.archiveSkills(skillIds),
+    onSuccess: () => invalidateFor(qc, "archiveSkills"),
+  });
+}
+
+export function useRestoreArchivedSkill() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (archiveId: string) => skillsApi.restoreArchivedSkill(archiveId),
+    onSuccess: (skill) => {
+      qc.setQueryData<InstalledSkill[]>(["skills", "installed"], (old) => {
+        if (!old) return [skill];
+        const exists = old.some((s) => s.id === skill.id);
+        return exists ? old.map((s) => (s.id === skill.id ? skill : s)) : [skill, ...old];
+      });
+      invalidateFor(qc, "restoreArchivedSkill");
+    },
+  });
+}
+
+export function useRestoreArchivedSkills() {
+  const qc = useQueryClient();
+  return useMutation<RestoreArchivedSkillsResult, Error, string[]>({
+    mutationFn: (archiveIds: string[]) => skillsApi.restoreArchivedSkills(archiveIds),
+    onSuccess: () => invalidateFor(qc, "restoreArchivedSkills"),
   });
 }
 
@@ -134,6 +169,14 @@ export function useSkillContent(directory: string | null) {
     queryKey: ["skills", "content", directory],
     queryFn: () => skillsApi.readSkillMd(directory!),
     enabled: !!directory,
+  });
+}
+
+export function useArchivedSkillContent(archiveId: string | null) {
+  return useQuery({
+    queryKey: ["skills", "archived", "content", archiveId],
+    queryFn: () => skillsApi.readArchivedSkillMd(archiveId!),
+    enabled: !!archiveId,
   });
 }
 
@@ -284,18 +327,14 @@ export function useSkillAudit(owner?: string, repo?: string, slug?: string) {
 // ── Star / Create ──
 
 export function useStarSkill() {
-  return useStarMutation(skillsApi.starSkill, true, "starSkill");
+  return useStarMutation(skillsApi.starSkill, true);
 }
 
 export function useUnstarSkill() {
-  return useStarMutation(skillsApi.unstarSkill, false, "unstarSkill");
+  return useStarMutation(skillsApi.unstarSkill, false);
 }
 
-function useStarMutation(
-  apiFn: (id: string) => Promise<void>,
-  starred: boolean,
-  name: MutationName,
-) {
+function useStarMutation(apiFn: (id: string) => Promise<void>, starred: boolean) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: apiFn,
@@ -312,7 +351,6 @@ function useStarMutation(
         qc.setQueryData(["skills", "installed"], context.previous);
       }
     },
-    onSettled: () => invalidateFor(qc, name),
   });
 }
 

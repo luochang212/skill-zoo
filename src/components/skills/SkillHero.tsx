@@ -8,7 +8,7 @@ import { useAgentConfigs, getAgentColor, getAgentLabel } from "@/lib/agents";
 
 import { cn } from "@/lib/utils";
 import type { InstalledSkill } from "@/types/skills";
-import { Settings, Trash2, CircleArrowUp, FolderOpen } from "lucide-react";
+import { Archive, ArchiveRestore, Settings, Trash2, CircleArrowUp, FolderOpen } from "lucide-react";
 
 function getLinkedAgents(apps: Record<string, boolean>): string[] {
   return Object.entries(apps)
@@ -32,12 +32,18 @@ interface SkillHeroProps {
   onUpdate?: () => void;
   onConfigure?: () => void;
   onRemove?: () => void;
+  onArchive?: () => void;
+  onRestore?: () => void;
   onToggleStar?: () => void;
   onOpenDir?: () => void;
   onBack?: () => void;
   starred?: boolean;
   updatePending?: boolean;
   removePending?: boolean;
+  archivePending?: boolean;
+  restorePending?: boolean;
+  archiveDisabled?: boolean;
+  archiveDisabledReason?: string;
   updateSuccess?: boolean;
 }
 
@@ -46,12 +52,18 @@ export function SkillHero({
   onUpdate,
   onConfigure,
   onRemove,
+  onArchive,
+  onRestore,
   onToggleStar,
   onOpenDir,
   onBack,
   starred,
   updatePending,
   removePending,
+  archivePending,
+  restorePending,
+  archiveDisabled,
+  archiveDisabledReason,
   updateSuccess,
 }: SkillHeroProps) {
   const { t } = useTranslation();
@@ -136,6 +148,36 @@ export function SkillHero({
               title={t("skillHero.openInFileManager")}
             >
               <FolderOpen className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          {onRestore && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={onRestore}
+              disabled={restorePending}
+              title={restorePending ? t("common.restoring") : t("common.restore")}
+            >
+              <ArchiveRestore className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          {onArchive && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={onArchive}
+              disabled={archivePending || archiveDisabled}
+              title={
+                archiveDisabled
+                  ? (archiveDisabledReason ?? t("archiveDialog.dirtyHint"))
+                  : archivePending
+                    ? t("common.archiving")
+                    : t("common.archive")
+              }
+            >
+              <Archive className="h-3.5 w-3.5" />
             </Button>
           )}
           {onRemove && (

@@ -24,6 +24,12 @@ export interface InstalledSkill {
   updatedAt: number;
 }
 
+export interface ArchivedSkill extends InstalledSkill {
+  archiveId: string;
+  originalSkillId: string;
+  archivedAt: number;
+}
+
 export interface DiscoverableSkill {
   key: string;
   name: string;

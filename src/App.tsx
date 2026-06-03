@@ -23,6 +23,10 @@ import { useEditorState } from "@/lib/useEditorState";
 import {
   useUpdateSkill,
   useRemoveSkill,
+  useArchiveSkill,
+  useRestoreArchivedSkill,
+  useArchivedSkills,
+  useArchivedSkillContent,
   useStarSkill,
   useUnstarSkill,
   useSkillsWatcher,
@@ -76,11 +80,22 @@ export default function App() {
   const [view, setView] = useState<View>("local");
   const [showCreateSkill, setShowCreateSkill] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<DiscoverRepo | null>(null);
+  const [archivedEditor, setArchivedEditor] = useState<{ archiveId: string; name: string } | null>(
+    null,
+  );
   const editor = useEditorState();
   const updateMutation = useUpdateSkill();
   const removeMutation = useRemoveSkill();
+  const archiveMutation = useArchiveSkill();
+  const restoreMutation = useRestoreArchivedSkill();
   const starMutation = useStarSkill();
   const unstarMutation = useUnstarSkill();
+  const { data: archivedSkills, isLoading: archivedSkillsLoading } = useArchivedSkills();
+  const {
+    data: archivedContent = "",
+    isLoading: archivedContentLoading,
+    isError: archivedError,
+  } = useArchivedSkillContent(archivedEditor?.archiveId ?? null);
   const sidebarFilter = useSidebarFilter();
   useSkillsWatcher();
 
@@ -113,6 +128,35 @@ export default function App() {
     removeMutation.mutate(editor.skillId, { onSuccess: editor.closeEditor });
   };
 
+  const handleArchive = () => {
+    if (!editor.skillId || editor.dirty) return;
+    archiveMutation.mutate(editor.skillId, {
+      onSuccess: () => {
+        editor.closeEditor();
+        sidebarFilter.setCategory({ type: "archived" });
+      },
+    });
+  };
+
+  const handleOpenArchivedSkill = useCallback((archiveId: string, name: string) => {
+    setArchivedEditor({ archiveId, name });
+  }, []);
+
+  const handleCloseArchivedSkill = useCallback(() => {
+    setArchivedEditor(null);
+  }, []);
+
+  const handleRestoreArchivedSkill = () => {
+    if (!archivedEditor) return;
+    restoreMutation.mutate(archivedEditor.archiveId, {
+      onSuccess: (skill) => {
+        setArchivedEditor(null);
+        sidebarFilter.setCategory({ type: "all" });
+        editor.openEditor(skill.id, skill.directory, skill.name);
+      },
+    });
+  };
+
   const handleToggleStar = () => {
     if (!editor.skillId || !editor.skill) return;
     if (editor.skill.starred) {
@@ -140,6 +184,25 @@ export default function App() {
 
   // Determine what to render in main area
   const renderMain = () => {
+    if (archivedEditor) {
+      const archivedSkill =
+        archivedSkills?.find((skill) => skill.id === archivedEditor.archiveId) ?? null;
+      return (
+        <SkillDetail
+          skill={archivedSkill}
+          skillName={archivedEditor.name}
+          isLoading={archivedSkillsLoading || archivedContentLoading}
+          isError={archivedError}
+          content={archivedContent}
+          onChange={() => {}}
+          onBack={handleCloseArchivedSkill}
+          onRestore={handleRestoreArchivedSkill}
+          restorePending={restoreMutation.isPending}
+          readOnly
+        />
+      );
+    }
+
     if (editor.open) {
       return (
         <SkillDetail
@@ -152,9 +215,12 @@ export default function App() {
           onBack={editor.closeEditor}
           onUpdate={handleUpdate}
           onRemove={handleRemove}
+          onArchive={handleArchive}
           onToggleStar={handleToggleStar}
           updatePending={updateMutation.isPending}
           removePending={removeMutation.isPending}
+          archivePending={archiveMutation.isPending}
+          archiveDisabled={editor.dirty}
           onSave={editor.save}
           savePending={editor.savePending}
           dirty={editor.dirty}
@@ -174,6 +240,7 @@ export default function App() {
         {view === "local" && (
           <InstalledSkills
             onViewSkill={editor.openEditor}
+            onViewArchivedSkill={handleOpenArchivedSkill}
             category={sidebarFilter.category}
             onSelectCategory={sidebarFilter.selectCategory}
             onCreateSkill={handleOpenCreateSkill}
@@ -213,14 +280,22 @@ export default function App() {
         <Header
           view={view}
           onViewChange={setView}
-          hideTabs={editor.open || showCreateSkill || !!selectedRepo}
+          hideTabs={editor.open || !!archivedEditor || showCreateSkill || !!selectedRepo}
           onDragMouseDown={handleDragMouseDown}
         />
         <main className="flex-1 min-h-0">
           <ErrorBoundary>
             <AnimatePresence>
               <motion.div
-                key={editor.open ? `edit-${editor.skillId}` : showCreateSkill ? "create" : view}
+                key={
+                  archivedEditor
+                    ? `archive-${archivedEditor.archiveId}`
+                    : editor.open
+                      ? `edit-${editor.skillId}`
+                      : showCreateSkill
+                        ? "create"
+                        : view
+                }
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}

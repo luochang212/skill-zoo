@@ -21,11 +21,13 @@ interface SkillContentPaneProps {
   emptyHint?: string;
   previewContent?: string;
   updatedAt?: string;
+  updatedLabel?: string;
   directory?: string;
   // SKILL.md save controls (passed through from parent)
   onSave?: () => void;
   savePending?: boolean;
   dirty?: boolean;
+  readOnly?: boolean;
 }
 
 const SPLIT_MIN = 20;
@@ -63,10 +65,12 @@ export function SkillContentPane({
   emptyHint,
   previewContent,
   updatedAt,
+  updatedLabel,
   directory,
   onSave,
   savePending,
   dirty,
+  readOnly = false,
 }: SkillContentPaneProps) {
   const { t } = useTranslation();
 
@@ -87,7 +91,7 @@ export function SkillContentPane({
   const [fileEditContent, setFileEditContent] = useState<string | null>(null);
 
   // ── File tree query (always active when directory is set) ──
-  const { data: nodes = [] } = useSkillFiles(directory ?? null);
+  const { data: nodes = [] } = useSkillFiles(readOnly ? null : (directory ?? null));
 
   // ── Resolve selected node ──
   const allFiles = flattenNodes(nodes);
@@ -127,7 +131,11 @@ export function SkillContentPane({
     ? (previewContent ?? content)
     : (fileEditContent ?? fileData ?? "");
   const editableContent = isSkillMdActive ? content : (fileEditContent ?? fileData ?? "");
-  const handleChange = isSkillMdActive ? onChange : (v: string) => setFileEditContent(v);
+  const handleChange = readOnly
+    ? () => {}
+    : isSkillMdActive
+      ? onChange
+      : (v: string) => setFileEditContent(v);
   const isDirty = !isSkillMdActive && fileEditContent !== null && fileEditContent !== fileData;
 
   const handleFileSave = useCallback(() => {
@@ -231,53 +239,64 @@ export function SkillContentPane({
         role="tablist"
       >
         {/* Sidebar toggle */}
-        <button
-          onClick={() => setSidebarOpen((v) => !v)}
-          title={sidebarOpen ? t("skillFiles.hideSidebar") : t("skillFiles.showSidebar")}
-          className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0"
-        >
-          {sidebarOpen ? (
-            <PanelLeftClose className="h-3.5 w-3.5" />
-          ) : (
-            <PanelLeftOpen className="h-3.5 w-3.5" />
-          )}
-        </button>
+        {!readOnly && (
+          <button
+            onClick={() => setSidebarOpen((v) => !v)}
+            title={sidebarOpen ? t("skillFiles.hideSidebar") : t("skillFiles.showSidebar")}
+            className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0"
+          >
+            {sidebarOpen ? (
+              <PanelLeftClose className="h-3.5 w-3.5" />
+            ) : (
+              <PanelLeftOpen className="h-3.5 w-3.5" />
+            )}
+          </button>
+        )}
 
         {/* View/Edit/Split pill */}
-        <button
-          onClick={() => {
-            const next: ContentTab =
-              activeTab === "overview" ? "edit" : activeTab === "edit" ? "split" : "overview";
-            handleTabChange(next);
-          }}
-          className="inline-flex items-center bg-muted rounded-xl p-0.5 gap-0.5 cursor-pointer"
-        >
-          {[
-            { id: "overview" as ContentTab, icon: Eye, key: "skill.view" },
-            { id: "edit" as ContentTab, icon: Pencil, key: "skill.edit" },
-            { id: "split" as ContentTab, icon: Columns2, key: "skill.split" },
-          ].map(({ id, icon: Icon, key }) => (
-            <span
-              key={id}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleTabChange(id);
-              }}
-              className={cn(
-                "px-2.5 py-1 h-6 text-[11px] rounded-lg font-medium inline-flex items-center gap-1 transition-all duration-200",
-                activeTab === id
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <Icon className="h-3 w-3" />
-              {t(key)}
+        {readOnly ? (
+          <span className="inline-flex items-center bg-muted rounded-xl p-0.5 gap-0.5">
+            <span className="px-2.5 py-1 h-6 text-[11px] rounded-lg font-medium inline-flex items-center gap-1 bg-background text-foreground shadow-sm">
+              <Eye className="h-3 w-3" />
+              {t("skill.view")}
             </span>
-          ))}
-        </button>
+          </span>
+        ) : (
+          <button
+            onClick={() => {
+              const next: ContentTab =
+                activeTab === "overview" ? "edit" : activeTab === "edit" ? "split" : "overview";
+              handleTabChange(next);
+            }}
+            className="inline-flex items-center bg-muted rounded-xl p-0.5 gap-0.5 cursor-pointer"
+          >
+            {[
+              { id: "overview" as ContentTab, icon: Eye, key: "skill.view" },
+              { id: "edit" as ContentTab, icon: Pencil, key: "skill.edit" },
+              { id: "split" as ContentTab, icon: Columns2, key: "skill.split" },
+            ].map(({ id, icon: Icon, key }) => (
+              <span
+                key={id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleTabChange(id);
+                }}
+                className={cn(
+                  "px-2.5 py-1 h-6 text-[11px] rounded-lg font-medium inline-flex items-center gap-1 transition-all duration-200",
+                  activeTab === id
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Icon className="h-3 w-3" />
+                {t(key)}
+              </span>
+            ))}
+          </button>
+        )}
 
         {/* Save button — shown when dirty; hidden in overview mode for SKILL.md */}
-        {(isSkillMdActive ? dirty && activeTab !== "overview" : isDirty) && (
+        {!readOnly && (isSkillMdActive ? dirty && activeTab !== "overview" : isDirty) && (
           <button
             onClick={isSkillMdActive ? onSave : handleFileSave}
             disabled={isSkillMdActive ? (savePending ?? false) : saveFileMutation.isPending}
@@ -290,11 +309,12 @@ export function SkillContentPane({
         )}
 
         {/* Updated timestamp — shown whenever the save button is absent */}
-        {updatedAt && !(isSkillMdActive ? dirty && activeTab !== "overview" : isDirty) && (
-          <span className="ml-auto text-[10px] text-muted-foreground tabular-nums">
-            {t("skill.updated")} {formatRelativeDate(Number(updatedAt))}
-          </span>
-        )}
+        {updatedAt &&
+          (readOnly || !(isSkillMdActive ? dirty && activeTab !== "overview" : isDirty)) && (
+            <span className="ml-auto text-[10px] text-muted-foreground tabular-nums">
+              {updatedLabel ?? t("skill.updated")} {formatRelativeDate(Number(updatedAt))}
+            </span>
+          )}
       </div>
 
       {/* ── Below tab bar: sidebar + content side by side ── */}
@@ -367,6 +387,7 @@ export function SkillContentPane({
                 value={editableContent}
                 onChange={(e) => handleChange(e.target.value)}
                 onScroll={onEditScroll}
+                readOnly={readOnly}
                 className="w-full h-full resize-none bg-background p-4 font-mono text-[13px] leading-relaxed focus:outline-none"
                 spellCheck={false}
                 aria-label={t("skill.edit")}

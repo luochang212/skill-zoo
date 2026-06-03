@@ -18,17 +18,14 @@ describe("invalidateFor", () => {
     }
   });
 
-  it("does not invalidate unrelated queries", () => {
+  it("does not include pure metadata mutations", () => {
     const queryClient = new QueryClient();
     const spy = vi.spyOn(queryClient, "invalidateQueries");
 
-    invalidateFor(queryClient, "starSkill");
+    expect(INVALIDATION_MAP).not.toHaveProperty("starSkill");
+    expect(INVALIDATION_MAP).not.toHaveProperty("unstarSkill");
+    expect(INVALIDATION_MAP).not.toHaveProperty("setSkillIsMine");
 
-    // starSkill should only invalidate ["skills", "installed"]
-    expect(spy).toHaveBeenCalledTimes(1);
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["skills", "installed"] });
-    expect(spy).not.toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: ["skills", "symlinks"] }),
-    );
+    expect(spy).not.toHaveBeenCalled();
   });
 });

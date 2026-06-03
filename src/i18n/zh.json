@@ -15,6 +15,10 @@
     "update": "更新",
     "updating": "更新中...",
     "removing": "删除中...",
+    "archive": "归档",
+    "archiving": "归档中...",
+    "restore": "恢复",
+    "restoring": "恢复中...",
     "all": "全部",
     "uninstall": "卸载",
     "collapse": "收起"
@@ -28,9 +32,11 @@
     "title": "技能",
     "all": "全部",
     "star": "收藏",
+    "archive": "归档",
     "mySkills": "我的技能",
     "consistency": "一致性",
-    "repos": "仓库"
+    "repos": "仓库",
+    "unassigned": "Unassigned"
   },
   "repoLoadStage": {
     "downloading": "正在下载...",
@@ -57,12 +63,15 @@
     "installSelected": "安装所选",
     "recentlyViewed": "最近浏览",
     "clearHistory": "清空",
+    "archiveSelected": "归档所选",
+    "restoreSelected": "恢复所选",
     "removeSelected": "删除所选"
   },
   "installed": {
     "searchPlaceholder": "搜索已安装...",
     "loadingInstalled": "正在加载已安装的技能...",
     "createSkill": "创建技能",
+    "archiveLoadFailed": "归档无法加载。",
     "noMatch": "没有匹配筛选条件的已安装技能。"
   },
   "skill": {
@@ -72,6 +81,7 @@
     "split": "分屏",
     "files": "文件",
     "updated": "更新于",
+    "archived": "归档于",
     "noContent": "此技能没有内容。",
     "noContentHintSwitch": "切换到编辑模式以编写或粘贴技能内容。",
     "noContentHintType": "在左侧开始输入以查看预览。",
@@ -138,7 +148,24 @@
     "title": "删除技能",
     "description": "确定要删除",
     "warning": "Agent 关联和本地文件将同步移除。",
-    "batchDescription": "确认删除以下 {{count}} 个技能？"
+    "batchDescription": "确认删除以下 {{count}} 个技能？",
+    "batchPartialFailed": "{{count}} 个技能删除失败。"
+  },
+  "archiveDialog": {
+    "title": "归档技能",
+    "description": "归档",
+    "warning": "它会从活跃技能和 Agent 关联中移除，但可从归档栏恢复。",
+    "dirtyHint": "请先保存或放弃更改，再归档此技能。",
+    "restoreTitle": "恢复技能",
+    "batchTitle": "归档技能",
+    "batchDescription": "确认归档以下 {{count}} 个技能？",
+    "batchPartialFailed": "{{count}} 个技能归档失败。"
+  },
+  "restoreDialog": {
+    "batchTitle": "恢复技能",
+    "batchDescription": "确认恢复以下 {{count}} 个技能？",
+    "warning": "技能将恢复到原来的目录，并尽量恢复之前的 Agent 关联。",
+    "batchPartialFailed": "{{count}} 个技能恢复失败。"
   },
   "symlink": {
     "title": "符号链接状态",

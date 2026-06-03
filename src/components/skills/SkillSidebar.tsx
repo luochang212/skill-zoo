@@ -1,6 +1,15 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { User, Star, Folder, Layers, ShieldCheck, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  Archive,
+  User,
+  Star,
+  Folder,
+  Layers,
+  ShieldCheck,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { InstalledSkill } from "@/types/skills";
 import type { SidebarCategory } from "@/hooks/useSidebarFilter";
@@ -9,6 +18,7 @@ import { cn } from "@/lib/utils";
 
 interface SkillSidebarProps {
   skills: InstalledSkill[];
+  archivedCount?: number;
   consistencyCount?: number;
   category: SidebarCategory;
   onSelectCategory: (cat: SidebarCategory) => void;
@@ -16,6 +26,7 @@ interface SkillSidebarProps {
 
 export function SkillSidebar({
   skills,
+  archivedCount = 0,
   consistencyCount = 0,
   category,
   onSelectCategory,
@@ -133,6 +144,25 @@ export function SkillSidebar({
             </span>
           </button>
 
+          {/* Archive */}
+          <button
+            onClick={() => onSelectCategory({ type: "archived" })}
+            className={cn(
+              "w-full px-4 py-2.5 flex items-center text-[13px] transition-colors",
+              isActive({ type: "archived" })
+                ? "bg-primary/5 text-foreground border-l-2 border-l-primary"
+                : "text-foreground/70 hover:bg-accent/50 hover:text-foreground",
+            )}
+          >
+            <span className="flex items-center gap-2.5 min-w-0 flex-1">
+              <Archive className="h-4 w-4 shrink-0" />
+              <span>{t("sidebar.archive")}</span>
+            </span>
+            <span className="shrink-0 ml-2 text-[11px] text-muted-foreground bg-muted/70 px-2 py-0.5 rounded-full min-w-[1.75rem] text-center">
+              {archivedCount}
+            </span>
+          </button>
+
           {/* Consistency */}
           {consistencyCount > 0 && (
             <button
@@ -205,6 +235,19 @@ export function SkillSidebar({
                   </TooltipContent>
                 </Tooltip>
               ))}
+              <button
+                onClick={() => onSelectCategory({ type: "unassigned" })}
+                className={cn(
+                  "w-full px-4 py-2 flex items-center text-[13px] transition-colors pl-8",
+                  isActive({ type: "unassigned" })
+                    ? "bg-primary/5 text-foreground border-l-2 border-l-primary"
+                    : "text-foreground/70 hover:bg-accent/50 hover:text-foreground",
+                )}
+              >
+                <span className="flex items-center min-w-0 flex-1">
+                  <span className="truncate">{t("sidebar.unassigned")}</span>
+                </span>
+              </button>
             </div>
           </div>
         </ScrollArea>

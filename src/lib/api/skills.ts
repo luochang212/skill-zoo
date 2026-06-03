@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   AgentPathInfo,
   AgentConfig,
+  ArchivedSkill,
   Banner,
   DiscoverRepo,
   DiscoverableSkill,
@@ -26,6 +27,22 @@ export const skillsApi = {
   removeSkill: (skillId: string) => invoke<void>("remove_skill", { skillId }),
 
   removeSkills: (skillIds: string[]) => invoke<RemoveSkillsResult>("remove_skills", { skillIds }),
+
+  archiveSkill: (skillId: string) => invoke<void>("archive_skill", { skillId }),
+
+  archiveSkills: (skillIds: string[]) =>
+    invoke<ArchiveSkillsResult>("archive_skills", { skillIds }),
+
+  restoreArchivedSkill: (archiveId: string) =>
+    invoke<InstalledSkill>("restore_archived_skill", { archiveId }),
+
+  restoreArchivedSkills: (archiveIds: string[]) =>
+    invoke<RestoreArchivedSkillsResult>("restore_archived_skills", { archiveIds }),
+
+  getArchivedSkills: () => invoke<ArchivedSkill[]>("get_archived_skills"),
+
+  readArchivedSkillMd: (archiveId: string) =>
+    invoke<string>("read_archived_skill_md", { archiveId }),
 
   readSkillMd: (directory: string) => invoke<string>("read_skill_md", { directory }),
 
@@ -134,6 +151,26 @@ export interface RemoveSkillsResult {
 
 export interface RemoveSkillFailure {
   skillId: string;
+  error: string;
+}
+
+export interface ArchiveSkillsResult {
+  archived: string[];
+  failed: ArchiveSkillFailure[];
+}
+
+export interface ArchiveSkillFailure {
+  skillId: string;
+  error: string;
+}
+
+export interface RestoreArchivedSkillsResult {
+  restored: string[];
+  failed: RestoreArchivedSkillFailure[];
+}
+
+export interface RestoreArchivedSkillFailure {
+  archiveId: string;
   error: string;
 }
 

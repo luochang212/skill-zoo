@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
-import { useStarSkill, useUnstarSkill } from "./useSkills";
+import { useRestoreArchivedSkill, useStarSkill, useUnstarSkill } from "./useSkills";
 import { createQueryWrapper } from "@/test/utils";
 import type { InstalledSkill } from "@/types/skills";
 
@@ -74,6 +74,23 @@ describe("useStarSkill", () => {
     const cached = queryClient.getQueryData<InstalledSkill[]>(["skills", "installed"]);
     expect(cached?.find((s) => s.id === "skill-1")?.starred).toBe(false);
   });
+
+  it("does not invalidate installed skills after a successful metadata update", async () => {
+    vi.mocked(invoke).mockResolvedValue(undefined);
+    const { wrapper, queryClient } = createQueryWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    queryClient.setQueryData(["skills", "installed"], mockSkills);
+
+    const { result } = renderHook(() => useStarSkill(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync("skill-1");
+    });
+
+    expect(invalidateSpy).not.toHaveBeenCalled();
+    const cached = queryClient.getQueryData<InstalledSkill[]>(["skills", "installed"]);
+    expect(cached?.find((s) => s.id === "skill-1")?.starred).toBe(true);
+  });
 });
 
 describe("useUnstarSkill", () => {
@@ -117,5 +134,37 @@ describe("useUnstarSkill", () => {
 
     const cached = queryClient.getQueryData<InstalledSkill[]>(["skills", "installed"]);
     expect(cached?.find((s) => s.id === "skill-2")?.starred).toBe(true);
+  });
+});
+
+describe("useRestoreArchivedSkill", () => {
+  beforeEach(() => {
+    vi.mocked(invoke).mockReset();
+  });
+
+  it("writes the restored skill into the installed skills cache before refetch completes", async () => {
+    const restoredSkill: InstalledSkill = {
+      id: "skill-3",
+      name: "Restored Skill",
+      directory: "restored-skill",
+      apps: { "claude-code": true },
+      origin: "ssot",
+      starred: false,
+      isMine: false,
+      installedAt: 5000,
+      updatedAt: 6000,
+    };
+    vi.mocked(invoke).mockResolvedValue(restoredSkill);
+    const { wrapper, queryClient } = createQueryWrapper();
+
+    queryClient.setQueryData(["skills", "installed"], mockSkills);
+
+    const { result } = renderHook(() => useRestoreArchivedSkill(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync("restored-skill-archive-id");
+    });
+
+    const cached = queryClient.getQueryData<InstalledSkill[]>(["skills", "installed"]);
+    expect(cached?.find((s) => s.id === "skill-3")).toEqual(restoredSkill);
   });
 });

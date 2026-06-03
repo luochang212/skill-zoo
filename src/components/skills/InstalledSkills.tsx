@@ -1,11 +1,15 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  useArchivedSkills,
+  useArchiveSelectedSkills,
   useInstalledSkills,
   useRemoveSkills,
+  useRestoreArchivedSkills,
   useStarSkill,
   useUnstarSkill,
 } from "@/hooks/useSkills";
+import { toast } from "sonner";
 import { useConsistencyCheck } from "@/hooks/useSkillIssues";
 import { useConsistencyLabelSettings } from "@/hooks/useConsistencyLabelSettings";
 import { useVisibleAgentOrder, useHideNonSsot } from "@/hooks/useSettings";
@@ -28,13 +32,14 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { RepoInfoPanel } from "@/components/skills/RepoInfoPanel";
-import { AlertTriangle, ArrowUp, ArrowDown, Trash2 } from "lucide-react";
+import { AlertTriangle, Archive, ArrowUp, ArrowDown, RotateCcw, Trash2 } from "lucide-react";
 import type { ViewMode } from "@/components/skills/ViewModeToggle";
 import type { SidebarCategory } from "@/hooks/useSidebarFilter";
-import type { InstalledSkill } from "@/types/skills";
+import type { ArchivedSkill, InstalledSkill } from "@/types/skills";
 
 interface InstalledSkillsProps {
   onViewSkill: (id: string, directory: string, name: string) => void;
+  onViewArchivedSkill: (archiveId: string, name: string) => void;
   category: SidebarCategory;
   onSelectCategory: (cat: SidebarCategory) => void;
   onCreateSkill?: () => void;
@@ -42,6 +47,7 @@ interface InstalledSkillsProps {
 
 type SortField = "name" | "repo" | "updatedAt";
 type SortDirection = "asc" | "desc";
+type BatchAction = "archive" | "remove" | "restore";
 
 function SortArrow({ active, direction }: { active: boolean; direction: SortDirection }) {
   if (!active) return null;
@@ -51,6 +57,8 @@ function SortArrow({ active, direction }: { active: boolean; direction: SortDire
 function ListHeader({
   allSelected,
   onToggleSelectAll,
+  selectable = true,
+  dateLabel = "Updated",
   sortField,
   sortDirection,
   onSort,
@@ -60,6 +68,8 @@ function ListHeader({
   onSort: (field: SortField) => void;
   allSelected: boolean;
   onToggleSelectAll: () => void;
+  selectable?: boolean;
+  dateLabel?: string;
 }) {
   const headerBtn = (field: SortField, label: string, className: string) => (
     <button
@@ -75,30 +85,100 @@ function ListHeader({
   return (
     <div className="flex items-center gap-4 px-5 py-1.5 border-b border-border/40">
       <div className="w-8 shrink-0 flex justify-center">
-        <Checkbox checked={allSelected} onCheckedChange={onToggleSelectAll} />
+        {selectable && <Checkbox checked={allSelected} onCheckedChange={onToggleSelectAll} />}
       </div>
       {headerBtn("name", "Name", "w-48 shrink-0")}
       {headerBtn("repo", "Repo", "flex-1 min-w-0 hidden @2xl/main:flex")}
-      {headerBtn("updatedAt", "Updated", "w-28 shrink-0 hidden @md/main:flex")}
+      {headerBtn("updatedAt", dateLabel, "w-28 shrink-0 hidden @md/main:flex")}
       <div className="w-8 shrink-0 hidden @lg/main:block" />
     </div>
   );
 }
 
+function BatchConfirmDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  items,
+  confirmLabel,
+  confirmVariant = "default",
+  confirmPending,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  description: string;
+  items: Array<{ id: string; name: string }>;
+  confirmLabel: string;
+  confirmVariant?: "default" | "destructive";
+  confirmPending?: boolean;
+  onConfirm: () => void;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[380px]" data-selectable>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        <ScrollArea className="max-h-40 border rounded-md">
+          <div className="p-2 space-y-1">
+            {items.map((skill) => (
+              <p
+                key={skill.id}
+                className="text-[13px] leading-tight truncate text-muted-foreground"
+              >
+                {skill.name}
+              </p>
+            ))}
+          </div>
+        </ScrollArea>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+            {t("common.cancel")}
+          </Button>
+          <Button
+            variant={confirmVariant}
+            size="sm"
+            disabled={confirmPending || items.length === 0}
+            onClick={onConfirm}
+          >
+            {confirmLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function InstalledSkills({
   onViewSkill,
+  onViewArchivedSkill,
   category,
   onSelectCategory,
   onCreateSkill,
 }: InstalledSkillsProps) {
   const { t } = useTranslation();
   const { data: skills, isLoading, isError, refetch } = useInstalledSkills();
+  const {
+    data: archivedSkills,
+    isLoading: archivedLoading,
+    isError: archivedError,
+    error: archivedLoadError,
+    refetch: refetchArchived,
+  } = useArchivedSkills();
   const { duplicateGroups, nameMismatches, issuesMap, consistencyCount } = useConsistencyCheck(
     skills ?? [],
   );
   const starMutation = useStarSkill();
   const unstarMutation = useUnstarSkill();
   const removeSkillsMutation = useRemoveSkills();
+  const archiveSkillsMutation = useArchiveSelectedSkills();
+  const restoreArchivedSkillsMutation = useRestoreArchivedSkills();
   const visibleAgentOrder = useVisibleAgentOrder();
   const { data: hideNonSsot } = useHideNonSsot();
   const { data: agentConfigs } = useAgentConfigs();
@@ -121,7 +201,7 @@ export function InstalledSkills({
   const [sortField, setSortField] = useState<SortField>("updatedAt");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [batchAction, setBatchAction] = useState<BatchAction | null>(null);
 
   const handleToggleStar = (skill: InstalledSkill) => {
     if (skill.starred) {
@@ -139,7 +219,7 @@ export function InstalledSkills({
     if (viewMode === "grid") setSelectedIds(new Set());
   }, [viewMode]);
 
-  if (isLoading) {
+  if (isLoading || (category.type === "archived" && archivedLoading)) {
     return (
       <div className="flex h-full">
         {/* Skeleton sidebar — mirrors SkillSidebar: header + icon-label-count rows */}
@@ -210,6 +290,8 @@ export function InstalledSkills({
   }
 
   const skillsList = skills ?? [];
+  const archivedList = archivedSkills ?? [];
+  const isArchiveView = category.type === "archived";
 
   // Apply hideNonSsot setting first — this affects both sidebar counts and main list
   const visibleSkills = skillsList.filter((s) => {
@@ -217,22 +299,54 @@ export function InstalledSkills({
     return true;
   });
 
+  if (isArchiveView && archivedError) {
+    return (
+      <div className="flex h-full relative">
+        <SkillSidebar
+          skills={visibleSkills}
+          archivedCount={archivedList.length}
+          consistencyCount={consistencyCount}
+          category={category}
+          onSelectCategory={onSelectCategory}
+        />
+        <div className="flex-1 min-w-0 flex items-center justify-center p-6">
+          <div className="text-center space-y-3 max-w-md">
+            <AlertTriangle className="h-8 w-8 text-destructive/60 mx-auto" />
+            <p className="text-sm font-medium text-destructive">
+              {t("installed.archiveLoadFailed")}
+            </p>
+            <p className="text-xs text-muted-foreground break-words">
+              {String(archivedLoadError)}
+            </p>
+            <Button size="sm" variant="outline" onClick={() => refetchArchived()}>
+              {t("error.retry")}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Apply sidebar category filter
-  const categoryFiltered = visibleSkills.filter((s) => {
-    switch (category.type) {
-      case "starred":
-        return s.starred;
-      case "mine":
-        return s.isMine;
-      case "repo":
-        return s.repoOwner === category.owner && s.repoName === category.name;
-      case "consistency":
-        return true; // ConsistencyPanel handles its own rendering
-      case "all":
-      default:
-        return true;
-    }
-  });
+  const categoryFiltered = isArchiveView
+    ? archivedList
+    : visibleSkills.filter((s) => {
+        switch (category.type) {
+          case "starred":
+            return s.starred;
+          case "mine":
+            return s.isMine;
+          case "repo":
+            return s.repoOwner === category.owner && s.repoName === category.name;
+          case "unassigned":
+            return !(s.repoOwner && s.repoName);
+          case "consistency":
+            return true; // ConsistencyPanel handles its own rendering
+          case "all":
+          default:
+            return true;
+        }
+      });
 
   // Apply search + agent filter on top of category filter
   const filtered = categoryFiltered.filter((s) => {
@@ -259,8 +373,13 @@ export function InstalledSkills({
     });
   };
 
-  const handleDeselectAll = () => {
-    setSelectedIds(new Set());
+  const handleDeselectVisible = () => {
+    const visibleIds = new Set(sorted.map((s) => s.id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      visibleIds.forEach((id) => next.delete(id));
+      return next;
+    });
   };
 
   const sorted = filtered.toSorted((a, b) => {
@@ -281,8 +400,8 @@ export function InstalledSkills({
       }
 
       case "updatedAt": {
-        const aTime = a.updatedAt ?? 0;
-        const bTime = b.updatedAt ?? 0;
+        const aTime = isArchiveView ? ((a as ArchivedSkill).archivedAt ?? 0) : (a.updatedAt ?? 0);
+        const bTime = isArchiveView ? ((b as ArchivedSkill).archivedAt ?? 0) : (b.updatedAt ?? 0);
         return dir * (aTime - bTime);
       }
 
@@ -292,16 +411,75 @@ export function InstalledSkills({
   });
 
   const handleSelectAll = () => {
-    setSelectedIds(new Set(sorted.map((s) => s.id)));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      sorted.forEach((s) => next.add(s.id));
+      return next;
+    });
   };
 
-  const allSelected = sorted.length > 0 && selectedIds.size === sorted.length;
+  const visibleSelectedSkills = sorted.filter((s) => selectedIds.has(s.id));
+  const visibleSelectedIds = visibleSelectedSkills.map((s) => s.id);
+  const allSelected = sorted.length > 0 && visibleSelectedIds.length === sorted.length;
+
+  const clearSucceededSelection = (ids: string[]) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.delete(id));
+      return next;
+    });
+  };
+
+  const handleBatchArchive = () => {
+    const skillIds = visibleSelectedIds;
+    setBatchAction(null);
+    archiveSkillsMutation.mutate(skillIds, {
+      onSuccess: (result) => {
+        clearSucceededSelection(result.archived);
+        if (result.failed.length > 0) {
+          toast.warning(t("archiveDialog.batchPartialFailed", { count: result.failed.length }));
+        }
+      },
+    });
+  };
+
+  const handleBatchRemove = () => {
+    const skillIds = visibleSelectedIds;
+    setBatchAction(null);
+    removeSkillsMutation.mutate(skillIds, {
+      onSuccess: (result) => {
+        clearSucceededSelection(result.removed);
+        if (result.failed.length > 0) {
+          toast.warning(t("removeDialog.batchPartialFailed", { count: result.failed.length }));
+        }
+      },
+    });
+  };
+
+  const handleBatchRestore = () => {
+    const archiveIds = visibleSelectedIds;
+    setBatchAction(null);
+    restoreArchivedSkillsMutation.mutate(archiveIds, {
+      onSuccess: (result) => {
+        clearSucceededSelection(result.restored);
+        if (result.failed.length > 0) {
+          toast.warning(t("restoreDialog.batchPartialFailed", { count: result.failed.length }));
+        }
+      },
+    });
+  };
+
+  const batchDialogItems = visibleSelectedSkills.map((skill) => ({
+    id: skill.id,
+    name: skill.name,
+  }));
 
   return (
     <div className="flex h-full relative">
       {/* Sidebar */}
       <SkillSidebar
         skills={visibleSkills}
+        archivedCount={archivedList.length}
         consistencyCount={consistencyCount}
         category={category}
         onSelectCategory={onSelectCategory}
@@ -380,12 +558,20 @@ export function InstalledSkills({
                       {sorted.map((skill) => (
                         <SkillCard
                           key={skill.id}
-                          skill={skill}
+                          skill={
+                            isArchiveView
+                              ? { ...skill, updatedAt: (skill as ArchivedSkill).archivedAt }
+                              : skill
+                          }
                           isInstalled
-                          onOpen={() => onViewSkill(skill.id, skill.directory, skill.name)}
-                          onToggleStar={() => handleToggleStar(skill)}
+                          onOpen={() =>
+                            isArchiveView
+                              ? onViewArchivedSkill(skill.id, skill.name)
+                              : onViewSkill(skill.id, skill.directory, skill.name)
+                          }
+                          onToggleStar={isArchiveView ? undefined : () => handleToggleStar(skill)}
                           starred={skill.starred}
-                          issues={getFilteredIssues(skill.id)}
+                          issues={isArchiveView ? undefined : getFilteredIssues(skill.id)}
                         />
                       ))}
                     </div>
@@ -396,17 +582,27 @@ export function InstalledSkills({
                         sortDirection={sortDirection}
                         onSort={handleSort}
                         allSelected={allSelected}
-                        onToggleSelectAll={allSelected ? handleDeselectAll : handleSelectAll}
+                        onToggleSelectAll={allSelected ? handleDeselectVisible : handleSelectAll}
+                        selectable
+                        dateLabel={isArchiveView ? t("skill.archived") : t("skill.updated")}
                       />
                       {sorted.map((skill) => (
                         <SkillCardRow
                           key={skill.id}
-                          skill={skill}
+                          skill={
+                            isArchiveView
+                              ? { ...skill, updatedAt: (skill as ArchivedSkill).archivedAt }
+                              : skill
+                          }
                           isInstalled
-                          onOpen={() => onViewSkill(skill.id, skill.directory, skill.name)}
-                          onToggleStar={() => handleToggleStar(skill)}
+                          onOpen={() =>
+                            isArchiveView
+                              ? onViewArchivedSkill(skill.id, skill.name)
+                              : onViewSkill(skill.id, skill.directory, skill.name)
+                          }
+                          onToggleStar={isArchiveView ? undefined : () => handleToggleStar(skill)}
                           starred={skill.starred}
-                          issues={getFilteredIssues(skill.id)}
+                          issues={isArchiveView ? undefined : getFilteredIssues(skill.id)}
                           selected={selectedIds.has(skill.id)}
                           onToggleSelect={() => handleToggleSelect(skill.id)}
                         />
@@ -424,74 +620,94 @@ export function InstalledSkills({
         </div>
 
         {/* Floating action bar */}
-        {viewMode !== "grid" && selectedIds.size > 0 && (
+        {viewMode !== "grid" && visibleSelectedIds.length > 0 && (
           <div className="border-t border-border bg-background/95 backdrop-blur-sm pl-5 pr-6 py-3 flex items-center justify-between shrink-0">
             <span className="text-sm text-muted-foreground">
-              {t("browse.selectedCount", { count: selectedIds.size })}
+              {t("browse.selectedCount", { count: visibleSelectedIds.length })}
             </span>
-            <Button
-              variant="destructive"
-              size="sm"
-              className="h-7 text-xs rounded-lg"
-              onClick={() => setConfirmOpen(true)}
-            >
-              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-              {t("browse.removeSelected")}
-            </Button>
+            <div className="flex items-center gap-2">
+              {isArchiveView ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs rounded-lg"
+                  disabled={restoreArchivedSkillsMutation.isPending}
+                  onClick={() => setBatchAction("restore")}
+                >
+                  <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                  {t("browse.restoreSelected")}
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs rounded-lg"
+                    disabled={archiveSkillsMutation.isPending || removeSkillsMutation.isPending}
+                    onClick={() => setBatchAction("archive")}
+                  >
+                    <Archive className="h-3.5 w-3.5 mr-1.5" />
+                    {t("browse.archiveSelected")}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="h-7 text-xs rounded-lg"
+                    disabled={archiveSkillsMutation.isPending || removeSkillsMutation.isPending}
+                    onClick={() => setBatchAction("remove")}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                    {t("browse.removeSelected")}
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         )}
 
-        {/* Batch remove confirmation dialog */}
-        <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-          <DialogContent className="sm:max-w-[380px]" data-selectable>
-            <DialogHeader>
-              <DialogTitle>{t("removeDialog.title")}</DialogTitle>
-              <DialogDescription>
-                {t("removeDialog.batchDescription", { count: selectedIds.size })}{" "}
-                {t("removeDialog.warning")}
-              </DialogDescription>
-            </DialogHeader>
-            <ScrollArea className="max-h-40 border rounded-md">
-              <div className="p-2 space-y-1">
-                {Array.from(selectedIds).map((id) => {
-                  const skill = sorted.find((s) => s.id === id);
-                  return skill ? (
-                    <p
-                      key={id}
-                      className="text-[13px] leading-tight truncate text-muted-foreground"
-                    >
-                      {skill.name}
-                    </p>
-                  ) : null;
-                })}
-              </div>
-            </ScrollArea>
-            <DialogFooter>
-              <Button variant="outline" size="sm" onClick={() => setConfirmOpen(false)}>
-                {t("common.cancel")}
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                disabled={removeSkillsMutation.isPending}
-                onClick={() => {
-                  setConfirmOpen(false);
-                  removeSkillsMutation.mutate(Array.from(selectedIds), {
-                    onSuccess: (result) => {
-                      setSelectedIds((prev) => {
-                        const next = new Set(prev);
-                        result.removed.forEach((id) => next.delete(id));
-                        return next;
-                      });
-                    },
-                  });
-                }}
-              >
-                {t("common.remove")}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <BatchConfirmDialog
+          open={batchAction === "archive"}
+          onOpenChange={(open) => setBatchAction(open ? "archive" : null)}
+          title={t("archiveDialog.batchTitle")}
+          description={`${t("archiveDialog.batchDescription", { count: visibleSelectedIds.length })} ${t(
+            "archiveDialog.warning",
+          )}`}
+          items={batchDialogItems}
+          confirmLabel={
+            archiveSkillsMutation.isPending ? t("common.archiving") : t("common.archive")
+          }
+          confirmPending={archiveSkillsMutation.isPending}
+          onConfirm={handleBatchArchive}
+        />
+
+        <BatchConfirmDialog
+          open={batchAction === "restore"}
+          onOpenChange={(open) => setBatchAction(open ? "restore" : null)}
+          title={t("restoreDialog.batchTitle")}
+          description={`${t("restoreDialog.batchDescription", { count: visibleSelectedIds.length })} ${t(
+            "restoreDialog.warning",
+          )}`}
+          items={batchDialogItems}
+          confirmLabel={
+            restoreArchivedSkillsMutation.isPending ? t("common.restoring") : t("common.restore")
+          }
+          confirmPending={restoreArchivedSkillsMutation.isPending}
+          onConfirm={handleBatchRestore}
+        />
+
+        <BatchConfirmDialog
+          open={batchAction === "remove"}
+          onOpenChange={(open) => setBatchAction(open ? "remove" : null)}
+          title={t("removeDialog.title")}
+          description={`${t("removeDialog.batchDescription", { count: visibleSelectedIds.length })} ${t(
+            "removeDialog.warning",
+          )}`}
+          items={batchDialogItems}
+          confirmLabel={t("common.remove")}
+          confirmVariant="destructive"
+          confirmPending={removeSkillsMutation.isPending}
+          onConfirm={handleBatchRemove}
+        />
       </div>
     </div>
   );

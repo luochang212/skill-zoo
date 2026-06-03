@@ -3,8 +3,10 @@ import { useState, useCallback } from "react";
 export type SidebarCategory =
   | { type: "all" }
   | { type: "starred" }
+  | { type: "archived" }
   | { type: "mine" }
   | { type: "consistency" }
+  | { type: "unassigned" }
   | { type: "repo"; owner: string; name: string };
 
 export function useSidebarFilter() {
@@ -22,5 +24,5 @@ export function useSidebarFilter() {
     setCategory({ type: "all" });
   }, []);
 
-  return { category, selectCategory, clearFilter };
+  return { category, selectCategory, setCategory, clearFilter };
 }

@@ -15,6 +15,10 @@
     "update": "Update",
     "updating": "Updating...",
     "removing": "Removing...",
+    "archive": "Archive",
+    "archiving": "Archiving...",
+    "restore": "Restore",
+    "restoring": "Restoring...",
     "all": "All",
     "uninstall": "Uninstall",
     "collapse": "Collapse"
@@ -28,9 +32,11 @@
     "title": "Skills",
     "all": "All",
     "star": "Star",
+    "archive": "Archive",
     "mySkills": "My Skills",
     "consistency": "Consistency",
-    "repos": "Repos"
+    "repos": "Repos",
+    "unassigned": "Unassigned"
   },
   "repoLoadStage": {
     "downloading": "Downloading...",
@@ -57,12 +63,15 @@
     "installSelected": "Install selected",
     "recentlyViewed": "Recently Viewed",
     "clearHistory": "Clear",
+    "archiveSelected": "Archive selected",
+    "restoreSelected": "Restore selected",
     "removeSelected": "Remove selected"
   },
   "installed": {
     "searchPlaceholder": "Search installed...",
     "loadingInstalled": "Loading installed skills...",
     "createSkill": "Create Skill",
+    "archiveLoadFailed": "Archive could not be loaded.",
     "noMatch": "No installed skills match your filters."
   },
   "skill": {
@@ -72,6 +81,7 @@
     "split": "Split",
     "files": "Files",
     "updated": "Updated",
+    "archived": "Archived",
     "noContent": "This skill has no content.",
     "noContentHintSwitch": "Switch to Edit to write or paste skill content.",
     "noContentHintType": "Start typing on the left to see a preview.",
@@ -138,7 +148,24 @@
     "title": "Remove Skill",
     "description": "Are you sure you want to remove",
     "warning": "Agent links and local files will also be removed.",
-    "batchDescription": "Confirm remove {{count}} skills?"
+    "batchDescription": "Confirm remove {{count}} skills?",
+    "batchPartialFailed": "{{count}} skill(s) could not be removed."
+  },
+  "archiveDialog": {
+    "title": "Archive Skill",
+    "description": "Archive",
+    "warning": "It will be removed from active skills and agent links, but can be restored from Archive.",
+    "dirtyHint": "Save or discard changes before archiving this skill.",
+    "restoreTitle": "Restore Skill",
+    "batchTitle": "Archive Skills",
+    "batchDescription": "Confirm archive {{count}} skills?",
+    "batchPartialFailed": "{{count}} skill(s) could not be archived."
+  },
+  "restoreDialog": {
+    "batchTitle": "Restore Skills",
+    "batchDescription": "Confirm restore {{count}} skills?",
+    "warning": "Skills will be restored to their original directories and previous agent links when possible.",
+    "batchPartialFailed": "{{count}} skill(s) could not be restored."
   },
   "symlink": {
     "title": "Symlink Status",

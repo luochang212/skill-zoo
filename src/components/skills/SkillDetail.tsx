@@ -28,13 +28,19 @@ interface SkillDetailProps {
   onBack?: () => void;
   onUpdate?: () => void;
   onRemove?: () => void;
+  onArchive?: () => void;
+  onRestore?: () => void;
   onToggleStar?: () => void;
   updatePending?: boolean;
   removePending?: boolean;
+  archivePending?: boolean;
+  restorePending?: boolean;
+  archiveDisabled?: boolean;
   onTabChange?: (tab: ContentTab) => void;
   onSave?: () => void;
   savePending?: boolean;
   dirty?: boolean;
+  readOnly?: boolean;
 }
 
 export function SkillDetail({
@@ -47,18 +53,25 @@ export function SkillDetail({
   onBack,
   onUpdate,
   onRemove,
+  onArchive,
+  onRestore,
   onToggleStar,
   updatePending,
   removePending,
+  archivePending,
+  restorePending,
+  archiveDisabled,
   onTabChange,
   onSave,
   savePending,
   dirty,
+  readOnly,
 }: SkillDetailProps) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<ContentTab>("overview");
   const [configureOpen, setConfigureOpen] = useState(false);
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const [updateSuccess, setUpdateSuccess] = useState(false);
   const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -93,6 +106,11 @@ export function SkillDetail({
   const handleRemoveConfirm = () => {
     setRemoveConfirmOpen(false);
     onRemove?.();
+  };
+
+  const handleArchiveConfirm = () => {
+    setArchiveConfirmOpen(false);
+    onArchive?.();
   };
 
   // Show skeleton while skill metadata is loading
@@ -176,25 +194,35 @@ export function SkillDetail({
           skill={skill}
           onBack={onBack}
           onUpdate={onUpdate ? handleUpdate : undefined}
-          onConfigure={() => setConfigureOpen(true)}
+          onConfigure={readOnly ? undefined : () => setConfigureOpen(true)}
           onRemove={onRemove ? handleRemoveClick : undefined}
+          onArchive={onArchive ? () => setArchiveConfirmOpen(true) : undefined}
+          onRestore={onRestore}
           onToggleStar={onToggleStar}
-          onOpenDir={() => {
-            if (skill.homePath) {
-              skillsApi.openSkillPath(skill.homePath);
-            } else {
-              skillsApi.openSkillDir(skill.directory);
-            }
-          }}
+          onOpenDir={
+            readOnly
+              ? undefined
+              : () => {
+                  if (skill.homePath) {
+                    skillsApi.openSkillPath(skill.homePath);
+                  } else {
+                    skillsApi.openSkillDir(skill.directory);
+                  }
+                }
+          }
           starred={skill.starred}
           updatePending={updatePending}
           removePending={removePending}
+          archivePending={archivePending}
+          restorePending={restorePending}
+          archiveDisabled={archiveDisabled}
+          archiveDisabledReason={t("archiveDialog.dirtyHint")}
           updateSuccess={updateSuccess}
         />
       )}
 
       {/* Security audit */}
-      {skill?.repoOwner && skill.repoName && skill.directory && (
+      {!readOnly && skill?.repoOwner && skill.repoName && skill.directory && (
         <SkillAuditCard owner={skill.repoOwner} repo={skill.repoName} slug={skill.directory} />
       )}
 
@@ -205,11 +233,19 @@ export function SkillDetail({
         activeTab={activeTab}
         onTabChange={handleTabChange}
         isLoading={isLoading}
-        updatedAt={skill?.updatedAt != null ? String(skill.updatedAt) : undefined}
+        updatedAt={
+          readOnly && skill && "archivedAt" in skill
+            ? String(skill.archivedAt)
+            : skill?.updatedAt != null
+              ? String(skill.updatedAt)
+              : undefined
+        }
+        updatedLabel={readOnly ? t("skill.archived") : undefined}
         directory={skill?.directory}
         onSave={onSave}
         savePending={savePending}
         dirty={dirty}
+        readOnly={readOnly}
       />
 
       {/* Configure dialog */}
@@ -240,6 +276,33 @@ export function SkillDetail({
             </Button>
             <Button variant="destructive" size="sm" onClick={handleRemoveConfirm}>
               {t("common.remove")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Archive confirmation dialog */}
+      <Dialog open={archiveConfirmOpen} onOpenChange={setArchiveConfirmOpen}>
+        <DialogContent className="sm:max-w-[380px]">
+          <DialogHeader>
+            <DialogTitle>{t("archiveDialog.title")}</DialogTitle>
+            <DialogDescription>
+              {t("archiveDialog.description")}{" "}
+              <span className="font-medium text-foreground">{skillName}</span>?{" "}
+              {t("archiveDialog.warning")}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setArchiveConfirmOpen(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleArchiveConfirm}
+              disabled={archivePending || archiveDisabled}
+            >
+              {archivePending ? t("common.archiving") : t("common.archive")}
             </Button>
           </DialogFooter>
         </DialogContent>
