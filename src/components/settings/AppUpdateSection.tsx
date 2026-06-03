@@ -82,6 +82,7 @@ function StatusLabel({
     case "downloading":
       return (
         <span className="text-xs text-muted-foreground">
+          {update ? `v${update.version} ` : ""}
           {t("settings.updater.downloading")}
           {downloaded > 0 ? ` (${formatBytes(downloaded)})` : ""}
         </span>
@@ -130,7 +131,7 @@ function UpdateButton({
       return (
         <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" disabled>
           <Download className="h-3.5 w-3.5" />
-          {t("settings.updater.downloadInstall")}
+          {t("settings.updater.downloading")}
         </Button>
       );
     case "ready-to-restart":
@@ -160,6 +161,30 @@ export function AppUpdateSection() {
       .catch(() => setIsPortable(true));
   }, []);
 
+  const downloadUpdate = useCallback(
+    async (current: Update) => {
+      setStatus("downloading");
+      setDownloaded(0);
+      try {
+        await current.downloadAndInstall((event) => {
+          switch (event.event) {
+            case "Progress":
+              setDownloaded((prev) => prev + event.data.chunkLength);
+              break;
+            case "Finished":
+              setStatus("ready-to-restart");
+              break;
+          }
+        });
+        setStatus("ready-to-restart");
+      } catch {
+        toast.error(t("settings.updater.installFailed"));
+        setStatus("available");
+      }
+    },
+    [t],
+  );
+
   const handleCheck = useCallback(async () => {
     if (checkingRef.current) return;
     checkingRef.current = true;
@@ -169,7 +194,7 @@ export function AppUpdateSection() {
       if (result) {
         setUpdate(result);
         updateRef.current = result;
-        setStatus("available");
+        await downloadUpdate(result);
       } else {
         toast.success(t("settings.updater.upToDate"));
         setStatus("idle");
@@ -180,30 +205,13 @@ export function AppUpdateSection() {
     } finally {
       checkingRef.current = false;
     }
-  }, [t]);
+  }, [downloadUpdate, t]);
 
   const handleDownload = useCallback(async () => {
     const current = updateRef.current;
     if (!current) return;
-    setStatus("downloading");
-    setDownloaded(0);
-    try {
-      await current.downloadAndInstall((event) => {
-        switch (event.event) {
-          case "Progress":
-            setDownloaded((prev) => prev + event.data.chunkLength);
-            break;
-          case "Finished":
-            setStatus("ready-to-restart");
-            break;
-        }
-      });
-      setStatus("ready-to-restart");
-    } catch {
-      toast.error(t("settings.updater.installFailed"));
-      setStatus("available");
-    }
-  }, []);
+    await downloadUpdate(current);
+  }, [downloadUpdate]);
 
   const handleRestart = useCallback(async () => {
     try {

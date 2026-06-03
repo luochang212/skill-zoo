@@ -168,7 +168,8 @@ bun add @tauri-apps/plugin-updater@^2 @tauri-apps/plugin-process@^2
 
 ```
 idle → checking → up-to-date
-                → available → downloading → ready-to-restart
+                → downloading → ready-to-restart
+                → available (download retry) → downloading → ready-to-restart
                 → error → idle (retry)
 
 Portable: always shows "GitHub Releases" link button
@@ -179,8 +180,8 @@ Portable: always shows "GitHub Releases" link button
 | `idle` | "Check for Updates" button | `check()` |
 | `checking` | Spinner, disabled button | Wait |
 | `up-to-date` | "Up to date" | None |
-| `available` | Version number + "Download & Install" | `downloadAndInstall()` |
-| `downloading` | Cumulative byte progress | Wait |
+| `downloading` | Version number + cumulative byte progress | Wait |
+| `available` | Version number + "Download & Install" | Retry `downloadAndInstall()` after a download failure |
 | `ready-to-restart` | "Restart Now" button | `relaunch()` |
 | `error` | Friendly message + Retry | `check()` |
 
@@ -196,7 +197,7 @@ Portable: always shows "GitHub Releases" link button
 ```tsx
 try {
   const result = await check();
-  if (result) { /* available */ }
+  if (result) { /* downloadAndInstall() immediately */ }
   else { /* up-to-date */ }
 } catch {
   // Network error, 404, rate limit, etc.

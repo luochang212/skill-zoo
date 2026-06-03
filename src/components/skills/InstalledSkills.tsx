@@ -315,9 +315,7 @@ export function InstalledSkills({
             <p className="text-sm font-medium text-destructive">
               {t("installed.archiveLoadFailed")}
             </p>
-            <p className="text-xs text-muted-foreground break-words">
-              {String(archivedLoadError)}
-            </p>
+            <p className="text-xs text-muted-foreground break-words">{String(archivedLoadError)}</p>
             <Button size="sm" variant="outline" onClick={() => refetchArchived()}>
               {t("error.retry")}
             </Button>

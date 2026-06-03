@@ -10,6 +10,7 @@ use crate::services::skill::{
 use crate::store::AppState;
 use serde::Serialize;
 use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 use tauri_plugin_opener::OpenerExt;
 
@@ -123,14 +124,56 @@ fn format_archive_app_error(action: &str, error: impl std::fmt::Display) -> Stri
     format!("{action} failed: {detail} ({message})")
 }
 
-fn is_under_skill_dir(p: &std::path::Path) -> bool {
-    let agents_dir = config::get_agents_skills_dir();
-    p.starts_with(&agents_dir)
-        || config::AGENTS.iter().any(|agent| {
-            config::get_agent_skills_dir(agent.id)
-                .map(|d| p.starts_with(&d))
-                .unwrap_or(false)
-        })
+fn known_skill_roots() -> Vec<PathBuf> {
+    std::iter::once(config::get_agents_skills_dir())
+        .chain(
+            config::AGENTS
+                .iter()
+                .filter_map(|agent| config::get_agent_skills_dir(agent.id)),
+        )
+        .collect()
+}
+
+fn canonical_path_for_boundary(path: &Path, must_exist: bool) -> Option<PathBuf> {
+    if must_exist || std::fs::symlink_metadata(path).is_ok() {
+        return path.canonicalize().ok();
+    }
+
+    let parent = path.parent()?;
+    let file_name = path.file_name()?;
+    Some(parent.canonicalize().ok()?.join(file_name))
+}
+
+fn is_path_under_roots(path: &Path, roots: &[PathBuf], must_exist: bool) -> bool {
+    if !path.is_absolute() {
+        return false;
+    }
+
+    let Some(real_path) = canonical_path_for_boundary(path, must_exist) else {
+        return false;
+    };
+
+    roots
+        .iter()
+        .filter_map(|root| root.canonicalize().ok())
+        .any(|root| real_path == root || real_path.starts_with(root))
+}
+
+fn is_existing_path_under_skill_dir(path: &Path) -> bool {
+    is_path_under_roots(path, &known_skill_roots(), true)
+}
+
+fn is_writable_path_under_skill_dir(path: &Path) -> bool {
+    is_path_under_roots(path, &known_skill_roots(), false)
+}
+
+#[cfg(feature = "test-helpers")]
+pub fn is_path_under_skill_roots_for_test(
+    path: &Path,
+    roots: &[PathBuf],
+    must_exist: bool,
+) -> bool {
+    is_path_under_roots(path, roots, must_exist)
 }
 
 static REPO_SEGMENT_RE: LazyLock<Regex> =
@@ -1035,7 +1078,7 @@ pub fn read_skill_file_path(path: String) -> Result<String, String> {
     if !p.is_absolute() {
         return Err("Path must be absolute".into());
     }
-    if !is_under_skill_dir(p) {
+    if !is_existing_path_under_skill_dir(p) {
         return Err("Path is not under a known skill directory".into());
     }
     if !p.is_file() {
@@ -1061,7 +1104,7 @@ pub fn write_skill_file_path(
         return Err("Path must be absolute".into());
     }
     let agents_dir = config::get_agents_skills_dir();
-    if !is_under_skill_dir(p) {
+    if !is_writable_path_under_skill_dir(p) {
         return Err("Path is not under a known skill directory".into());
     }
     atomic_write(p, content).map_err(|e| e.to_string())?;
@@ -1129,7 +1172,7 @@ pub fn open_skill_path(app_handle: tauri::AppHandle, path: String) -> Result<(),
         return Err("Path must be absolute".into());
     }
     // Verify the path is under a known skill directory
-    if !is_under_skill_dir(p) {
+    if !is_existing_path_under_skill_dir(p) {
         return Err("Path is not under a known skill directory".into());
     }
     if !p.exists() {

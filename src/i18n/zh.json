@@ -60,12 +60,12 @@
     "noSearchResult": "未找到仓库。",
     "selectAll": "全选",
     "selectedCount": "已选 {{count}} 个",
-    "installSelected": "安装所选",
+    "installSelected": "批量安装",
     "recentlyViewed": "最近浏览",
     "clearHistory": "清空",
-    "archiveSelected": "归档所选",
-    "restoreSelected": "恢复所选",
-    "removeSelected": "删除所选"
+    "archiveSelected": "批量归档",
+    "restoreSelected": "批量恢复",
+    "removeSelected": "批量删除"
   },
   "installed": {
     "searchPlaceholder": "搜索已安装...",
