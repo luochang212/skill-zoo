@@ -1,5 +1,7 @@
+pub mod archive;
 pub mod metadata;
 
+pub use archive::{ArchiveManifest, ArchivedSkill};
 pub use metadata::MetadataStore;
 
 use crate::config;

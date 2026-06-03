@@ -124,6 +124,18 @@ pub fn get_repo_zip_cache_dir() -> PathBuf {
     get_app_config_dir().join("cache/repo-zips")
 }
 
+pub fn get_archive_dir() -> PathBuf {
+    get_app_config_dir().join("archive")
+}
+
+pub fn get_archive_skills_dir() -> PathBuf {
+    get_archive_dir().join("skills")
+}
+
+pub fn get_archive_manifest_file() -> PathBuf {
+    get_archive_dir().join("manifest.json")
+}
+
 pub fn get_agents_skills_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))

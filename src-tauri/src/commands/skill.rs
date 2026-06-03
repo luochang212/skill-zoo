@@ -1,6 +1,6 @@
 use crate::config;
 use crate::config::{AgentConfig, AgentPathInfo};
-use crate::persistence::atomic_write;
+use crate::persistence::{atomic_write, ArchiveManifest, ArchivedSkill};
 use crate::services::cli::CliService;
 use crate::services::lock::SkillLock;
 use crate::services::skill::{
@@ -60,6 +60,67 @@ fn validate_skill_name(name: &str) -> Result<(), String> {
         );
     }
     Ok(())
+}
+
+static ARCHIVE_ID_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$").unwrap());
+
+fn validate_archive_id(archive_id: &str) -> Result<(), String> {
+    if !ARCHIVE_ID_RE.is_match(archive_id) {
+        return Err("Invalid archive id".into());
+    }
+    Ok(())
+}
+
+fn format_archive_io_error(action: &str, path: &std::path::Path, error: &std::io::Error) -> String {
+    let detail = match error.kind() {
+        std::io::ErrorKind::PermissionDenied => {
+            "Permission denied. On Windows this often means the skill folder or one of its files is open in another app, terminal, antivirus scan, or file indexer."
+        }
+        std::io::ErrorKind::AlreadyExists => {
+            "The destination already exists. Resolve the conflicting folder before trying again."
+        }
+        std::io::ErrorKind::NotFound => {
+            "The source folder is missing. Refresh the local skills list and try again."
+        }
+        _ => {
+            let msg = error.to_string().to_lowercase();
+            if msg.contains("cross-device")
+                || msg.contains("different device")
+                || msg.contains("not same device")
+                || msg.contains("not on the same device")
+                || msg.contains("os error 17")
+            {
+                "The source and destination appear to be on different drives or volumes. Skill Zoo cannot move archived skills across filesystems safely yet."
+            } else if msg.contains("access is denied") || msg.contains("being used by another process") {
+                "Access was denied. On Windows this often means the skill folder or one of its files is open in another app, terminal, antivirus scan, or file indexer."
+            } else {
+                "Filesystem operation failed."
+            }
+        }
+    };
+    format!("{action} failed for {}: {detail} ({error})", path.display())
+}
+
+fn format_archive_app_error(action: &str, error: impl std::fmt::Display) -> String {
+    let message = error.to_string();
+    let lower = message.to_lowercase();
+    let detail = if lower.contains("access is denied")
+        || lower.contains("permission denied")
+        || lower.contains("being used by another process")
+    {
+        "Permission denied. On Windows this often means a file or folder is open in another app, terminal, antivirus scan, or file indexer."
+    } else if lower.contains("cross-device")
+        || lower.contains("different device")
+        || lower.contains("not same device")
+        || lower.contains("not on the same device")
+        || lower.contains("os error 17")
+    {
+        "The source and destination appear to be on different drives or volumes. Skill Zoo cannot move archived skills across filesystems safely yet."
+    } else {
+        return format!("{action} failed: {message}");
+    };
+    format!("{action} failed: {detail} ({message})")
 }
 
 fn is_under_skill_dir(p: &std::path::Path) -> bool {
@@ -337,6 +398,34 @@ pub struct RemoveSkillFailure {
     pub error: String,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchiveSkillsResult {
+    pub archived: Vec<String>,
+    pub failed: Vec<ArchiveSkillFailure>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchiveSkillFailure {
+    pub skill_id: String,
+    pub error: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreArchivedSkillsResult {
+    pub restored: Vec<String>,
+    pub failed: Vec<RestoreArchivedSkillFailure>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreArchivedSkillFailure {
+    pub archive_id: String,
+    pub error: String,
+}
+
 #[tauri::command]
 pub async fn remove_skills(
     state: State<'_, AppState>,
@@ -348,7 +437,13 @@ pub async fn remove_skills(
     for skill_id in &skill_ids {
         let skill = match SkillService::find_in_cache(&state.skill_cache, skill_id) {
             Ok(Some(s)) => s,
-            Ok(None) => continue,
+            Ok(None) => {
+                failed.push(RemoveSkillFailure {
+                    skill_id: skill_id.clone(),
+                    error: format!("Skill not found: {skill_id}"),
+                });
+                continue;
+            }
             Err(e) => {
                 failed.push(RemoveSkillFailure {
                     skill_id: skill_id.clone(),
@@ -397,6 +492,421 @@ pub async fn remove_skills(
     }
 
     Ok(RemoveSkillsResult { removed, failed })
+}
+
+#[tauri::command]
+pub fn get_archived_skills() -> Result<Vec<ArchivedSkill>, String> {
+    let manifest = ArchiveManifest::load().map_err(|e| e.to_string())?;
+    let mut skills: Vec<ArchivedSkill> = manifest.skills.values().cloned().collect();
+    skills.sort_by(|a, b| {
+        b.archived_at
+            .cmp(&a.archived_at)
+            .then_with(|| a.name.cmp(&b.name))
+    });
+    Ok(skills)
+}
+
+#[tauri::command]
+pub fn read_archived_skill_md(archive_id: String) -> Result<String, String> {
+    validate_archive_id(&archive_id)?;
+    let manifest = ArchiveManifest::load().map_err(|e| e.to_string())?;
+    if !manifest.skills.contains_key(&archive_id) {
+        return Err(format!("Archived skill not found: {archive_id}"));
+    }
+    let skill_md = ArchiveManifest::archive_skill_dir(&archive_id).join("SKILL.md");
+    if !skill_md.exists() {
+        return Err(format!(
+            "Archived SKILL.md is missing for {archive_id}: {}. The archive entry exists, but its files may have been moved or deleted outside Skill Zoo.",
+            skill_md.display()
+        ));
+    }
+    std::fs::read_to_string(&skill_md)
+        .map_err(|e| format_archive_io_error("Read archived SKILL.md", &skill_md, &e))
+}
+
+fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String> {
+    let skills = SkillService::read_all_skills(&state.skill_cache, &state.metadata)
+        .map_err(|e| e.to_string())?;
+    let skill = skills
+        .into_iter()
+        .find(|s| s.id == skill_id)
+        .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
+
+    let home_path = skill
+        .home_path
+        .clone()
+        .ok_or_else(|| "Skill has no physical home path, cannot archive".to_string())?;
+    let home = std::path::PathBuf::from(&home_path);
+    if !home.exists() || is_symlink_or_junction(&home) {
+        return Err(format!(
+            "Skill home path is not an archiveable directory: {home_path}"
+        ));
+    }
+
+    let archive_id = ArchiveManifest::make_archive_id(&skill.id, &skill.directory);
+    validate_archive_id(&archive_id)?;
+    let archive_dir = ArchiveManifest::archive_skill_dir(&archive_id);
+    if archive_dir.exists() {
+        return Err(format!(
+            "Cannot archive {}: archive destination already exists at {}. Restore or move that archived copy before trying again.",
+            skill.name,
+            archive_dir.display()
+        ));
+    }
+
+    let old_manifest = ArchiveManifest::load().map_err(|e| e.to_string())?;
+    if old_manifest.skills.contains_key(&archive_id) {
+        return Err(format!("Skill is already archived: {}", skill.name));
+    }
+
+    let old_cache = state.skill_cache.read().map_err(|e| e.to_string())?.clone();
+    let old_metadata = state.metadata.read().map_err(|e| e.to_string())?.clone();
+    let old_lock = SkillLock::read().map_err(|e| e.to_string())?;
+    let lock_key = if old_lock.skills.contains_key(&skill.directory) {
+        Some(skill.directory.clone())
+    } else if old_lock.skills.contains_key(&skill.name) {
+        Some(skill.name.clone())
+    } else {
+        None
+    };
+    let lock_entry = lock_key
+        .as_ref()
+        .and_then(|key| old_lock.skills.get(key).cloned());
+    let archived_skill = ArchivedSkill::from_installed(
+        skill.clone(),
+        archive_id.clone(),
+        lock_key.clone(),
+        lock_entry,
+    );
+
+    let mut manifest = old_manifest.clone();
+    manifest
+        .skills
+        .insert(archive_id.clone(), archived_skill.clone());
+    manifest.save().map_err(|e| e.to_string())?;
+
+    if let Some(parent) = archive_dir.parent() {
+        if let Err(e) = std::fs::create_dir_all(parent) {
+            let _ = old_manifest.save();
+            return Err(format_archive_io_error(
+                "Create archive directory",
+                parent,
+                &e,
+            ));
+        }
+    }
+
+    if let Err(e) = std::fs::rename(&home, &archive_dir) {
+        let _ = old_manifest.save();
+        return Err(format_archive_io_error(
+            "Move skill into archive",
+            &archive_dir,
+            &e,
+        ));
+    }
+
+    let mut removed_agents: Vec<String> = Vec::new();
+    let rollback = |message: String, removed_agents: &[String]| -> String {
+        if archive_dir.exists() && !home.exists() {
+            if let Some(parent) = home.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = std::fs::rename(&archive_dir, &home);
+        }
+        for agent in removed_agents {
+            let _ = SkillService::toggle_symlink(&skill.directory, &home_path, agent, true);
+        }
+        if let Ok(mut cache) = state.skill_cache.write() {
+            *cache = old_cache.clone();
+            let _ = cache.save();
+        }
+        if let Ok(mut metadata) = state.metadata.write() {
+            *metadata = old_metadata.clone();
+            let _ = metadata.save();
+        }
+        let _ = old_lock.write();
+        let _ = old_manifest.save();
+        message
+    };
+
+    for (agent, enabled) in &archived_skill.apps {
+        if !enabled {
+            continue;
+        }
+        match SkillService::toggle_symlink(&skill.directory, &home_path, agent, false) {
+            Ok(()) => removed_agents.push(agent.clone()),
+            Err(e) => {
+                return Err(rollback(
+                    format_archive_app_error("Remove agent link while archiving", e),
+                    &removed_agents,
+                ))
+            }
+        }
+    }
+
+    {
+        let mut cache = state
+            .skill_cache
+            .write()
+            .map_err(|e| rollback(format!("Cache lock: {e}"), &removed_agents))?;
+        cache.skills.retain(|s| s.id != skill.id);
+        if let Err(e) = cache.save() {
+            return Err(rollback(e.to_string(), &removed_agents));
+        }
+    }
+
+    {
+        let mut metadata = state
+            .metadata
+            .write()
+            .map_err(|e| rollback(format!("Metadata lock: {e}"), &removed_agents))?;
+        metadata.remove(&skill.id);
+        if let Err(e) = metadata.save() {
+            return Err(rollback(e.to_string(), &removed_agents));
+        }
+    }
+
+    if let Some(key) = lock_key {
+        let mut lock = old_lock.clone();
+        lock.skills.remove(&key);
+        if let Err(e) = lock.write() {
+            return Err(rollback(e.to_string(), &removed_agents));
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn archive_skill(state: State<'_, AppState>, skill_id: String) -> Result<(), String> {
+    archive_skill_inner(&state, skill_id)
+}
+
+#[tauri::command]
+pub fn archive_skills(
+    state: State<'_, AppState>,
+    skill_ids: Vec<String>,
+) -> Result<ArchiveSkillsResult, String> {
+    let mut archived: Vec<String> = Vec::new();
+    let mut failed: Vec<ArchiveSkillFailure> = Vec::new();
+
+    for skill_id in skill_ids {
+        match archive_skill_inner(&state, skill_id.clone()) {
+            Ok(()) => archived.push(skill_id),
+            Err(e) => failed.push(ArchiveSkillFailure { skill_id, error: e }),
+        }
+    }
+
+    Ok(ArchiveSkillsResult { archived, failed })
+}
+
+#[tauri::command]
+pub fn restore_archived_skill(
+    state: State<'_, AppState>,
+    archive_id: String,
+) -> Result<InstalledSkill, String> {
+    let restored_id = restore_archived_skill_inner(&state, archive_id)?;
+    let skills = SkillService::read_all_skills(&state.skill_cache, &state.metadata)
+        .map_err(|e| e.to_string())?;
+    skills
+        .into_iter()
+        .find(|s| s.id == restored_id)
+        .ok_or_else(|| "Skill restored but not found in cache".to_string())
+}
+
+#[tauri::command]
+pub fn restore_archived_skills(
+    state: State<'_, AppState>,
+    archive_ids: Vec<String>,
+) -> Result<RestoreArchivedSkillsResult, String> {
+    let mut restored: Vec<String> = Vec::new();
+    let mut failed: Vec<RestoreArchivedSkillFailure> = Vec::new();
+
+    for archive_id in archive_ids {
+        match restore_archived_skill_inner(&state, archive_id.clone()) {
+            Ok(_) => restored.push(archive_id),
+            Err(e) => failed.push(RestoreArchivedSkillFailure {
+                archive_id,
+                error: e,
+            }),
+        }
+    }
+
+    Ok(RestoreArchivedSkillsResult { restored, failed })
+}
+
+fn restore_archived_skill_inner(state: &AppState, archive_id: String) -> Result<String, String> {
+    validate_archive_id(&archive_id)?;
+    let old_manifest = ArchiveManifest::load().map_err(|e| e.to_string())?;
+    let archived_skill = old_manifest
+        .skills
+        .get(&archive_id)
+        .cloned()
+        .ok_or_else(|| format!("Archived skill not found: {archive_id}"))?;
+
+    let archive_dir = ArchiveManifest::archive_skill_dir(&archive_id);
+    if !archive_dir.exists() {
+        return Err(format!(
+            "Archived directory is missing: {}. The archive entry exists, but its files may have been moved or deleted outside Skill Zoo.",
+            archive_dir.display()
+        ));
+    }
+
+    let restore_path = archived_skill
+        .home_path
+        .as_ref()
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            if archived_skill.origin == "ssot" {
+                config::get_agents_skills_dir().join(&archived_skill.directory)
+            } else {
+                archived_skill
+                    .home_agent
+                    .as_deref()
+                    .and_then(config::get_agent_skills_dir)
+                    .unwrap_or_else(config::get_agents_skills_dir)
+                    .join(&archived_skill.directory)
+            }
+        });
+    if restore_path.exists() {
+        return Err(format!(
+            "Cannot restore: destination already exists at {}. Move, rename, archive, or remove the existing skill folder before restoring this archived skill.",
+            restore_path.display()
+        ));
+    }
+
+    let old_cache = state.skill_cache.read().map_err(|e| e.to_string())?.clone();
+    let old_metadata = state.metadata.read().map_err(|e| e.to_string())?.clone();
+    let old_lock = SkillLock::read().map_err(|e| e.to_string())?;
+
+    if let Some(parent) = restore_path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format_archive_io_error("Create restore directory", parent, &e))?;
+    }
+    std::fs::rename(&archive_dir, &restore_path)
+        .map_err(|e| format_archive_io_error("Move archived skill back", &restore_path, &e))?;
+
+    let mut restored_agents: Vec<String> = Vec::new();
+    let rollback = |message: String, restored_agents: &[String]| -> String {
+        for agent in restored_agents {
+            let _ = SkillService::toggle_symlink(
+                &archived_skill.directory,
+                &restore_path.to_string_lossy(),
+                agent,
+                false,
+            );
+        }
+        if restore_path.exists() && !archive_dir.exists() {
+            if let Some(parent) = archive_dir.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = std::fs::rename(&restore_path, &archive_dir);
+        }
+        if let Ok(mut cache) = state.skill_cache.write() {
+            *cache = old_cache.clone();
+            let _ = cache.save();
+        }
+        if let Ok(mut metadata) = state.metadata.write() {
+            *metadata = old_metadata.clone();
+            let _ = metadata.save();
+        }
+        let _ = old_lock.write();
+        let _ = old_manifest.save();
+        message
+    };
+
+    if let Some(lock_entry) = archived_skill.lock_entry.clone() {
+        let mut lock = old_lock.clone();
+        let key = archived_skill
+            .lock_key
+            .clone()
+            .unwrap_or_else(|| archived_skill.directory.clone());
+        lock.skills.insert(key, lock_entry);
+        if let Err(e) = lock.write() {
+            return Err(rollback(e.to_string(), &restored_agents));
+        }
+    }
+
+    {
+        let mut metadata = state
+            .metadata
+            .write()
+            .map_err(|e| rollback(format!("Metadata lock: {e}"), &restored_agents))?;
+        if archived_skill.starred || archived_skill.is_mine {
+            metadata.entries.insert(
+                archived_skill.original_skill_id.clone(),
+                crate::persistence::metadata::SkillMetadata {
+                    starred: archived_skill.starred,
+                    is_mine: archived_skill.is_mine,
+                },
+            );
+        } else {
+            metadata.remove(&archived_skill.original_skill_id);
+        }
+        if let Err(e) = metadata.save() {
+            return Err(rollback(e.to_string(), &restored_agents));
+        }
+    }
+
+    let entry = SkillService::scan_single_skill(&archived_skill.directory)
+        .map_err(|e| rollback(e.to_string(), &restored_agents))?;
+    let restored_id = entry.id.clone();
+    if let Err(e) = SkillService::upsert_cache_entry(&state.skill_cache, entry) {
+        return Err(rollback(e.to_string(), &restored_agents));
+    }
+
+    for (agent, enabled) in &archived_skill.apps {
+        if !enabled {
+            continue;
+        }
+        let Some(agent_dir) = config::get_agent_skills_dir(agent) else {
+            continue;
+        };
+        if !agent_dir.exists() {
+            continue;
+        }
+        let agent_skill_path = agent_dir.join(&archived_skill.directory);
+        if agent_skill_path.exists() && !is_symlink_or_junction(&agent_skill_path) {
+            let is_native_home = agent_skill_path == restore_path
+                || agent_skill_path
+                    .canonicalize()
+                    .ok()
+                    .zip(restore_path.canonicalize().ok())
+                    .is_some_and(|(agent_path, restore_path)| agent_path == restore_path);
+            if is_native_home {
+                continue;
+            }
+            return Err(rollback(
+                format!(
+                    "Restore agent link failed: destination already exists at {} and is a real directory, not a symlink.",
+                    agent_skill_path.display()
+                ),
+                &restored_agents,
+            ));
+        }
+        match SkillService::toggle_symlink(
+            &archived_skill.directory,
+            &restore_path.to_string_lossy(),
+            agent,
+            true,
+        ) {
+            Ok(()) => restored_agents.push(agent.clone()),
+            Err(e) => {
+                return Err(rollback(
+                    format_archive_app_error("Restore agent link", e),
+                    &restored_agents,
+                ))
+            }
+        }
+    }
+
+    let mut manifest = old_manifest.clone();
+    manifest.skills.remove(&archive_id);
+    if let Err(e) = manifest.save() {
+        return Err(rollback(e.to_string(), &restored_agents));
+    }
+
+    Ok(restored_id)
 }
 
 #[tauri::command]
