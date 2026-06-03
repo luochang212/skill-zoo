@@ -2,6 +2,13 @@ import { Command, Option } from "commander";
 import { createInterface } from "node:readline/promises";
 import { stdin as defaultStdin, stdout as defaultStdout } from "node:process";
 import { archiveSkillRefs, listArchivedSkills, restoreArchiveIds } from "./protocol/archive.js";
+import {
+  inspectArchivedSkill,
+  inspectInstalledSkill,
+  runDoctor,
+  type DoctorReport,
+  type InspectSkillData,
+} from "./protocol/diagnostics.js";
 import { getAllAgentPaths } from "./protocol/paths.js";
 import { rebuildCache, scanInstalledSkills } from "./protocol/scan.js";
 import { CliError, messageFromError } from "./lib/errors.js";
@@ -39,6 +46,40 @@ export function createProgram(io: IO = defaultIO()): Command {
     .description("Agent-native CLI for Skill Zoo")
     .version(CLI_VERSION)
     .addOption(new Option("--home <path>", "override the user home directory").hideHelp())
+    .addHelpText(
+      "after",
+      `
+
+Command map:
+  Discover:  list, status, paths
+  Explain:   inspect
+  Maintain:  doctor, refresh
+  Change:    archive, restore
+
+Common workflows:
+  Inspect local state:
+    $ skill-zoo doctor --json
+    $ skill-zoo inspect <skill-ref> --json
+
+  Archive safely:
+    $ skill-zoo archive <skill-ref> --dry-run --json
+    $ skill-zoo archive <skill-ref> --yes --json
+
+  Restore safely:
+    $ skill-zoo restore <archive-id> --dry-run --json
+    $ skill-zoo restore <archive-id> --yes --json
+
+Help:
+  $ skill-zoo help <command>
+  $ skill-zoo <command> --help
+
+Agent defaults:
+  Prefer --json for automation.
+  Run write commands with --dry-run first.
+  Doctor warnings do not fail automation; errors do.
+  The CLI does not notify a running desktop app; refresh or restart the app after writes.
+`,
+    )
     .configureOutput({
       writeOut: (value) => io.stdout.write(value),
       writeErr: (value) => io.stderr.write(value),
@@ -46,8 +87,8 @@ export function createProgram(io: IO = defaultIO()): Command {
 
   program
     .command("list")
-    .description("List installed or archived skills")
-    .option("--archived", "list archived skills")
+    .description("Discover installed skills")
+    .option("--archived", "show archived skills instead")
     .option("--json", "print machine-readable JSON")
     .action(async (options: CommonOptions & { archived?: boolean }) =>
       withErrors(io, withHome(program, options), async () => {
@@ -64,15 +105,13 @@ export function createProgram(io: IO = defaultIO()): Command {
 
   program
     .command("status")
-    .description("Show Skill Zoo local state summary")
-    .option("--refresh", "rebuild skills-cache.json from the filesystem")
+    .description("Summarize installed and archived skill counts")
+    .option("--refresh", "rebuild skills-cache.json before summarizing")
     .option("--json", "print machine-readable JSON")
     .action(async (options: CommonOptions & { refresh?: boolean }) =>
       withErrors(io, withHome(program, options), async () => {
         const opts = withHome(program, options);
-        const installed = opts.refresh
-          ? await rebuildCache(opts.home)
-          : await scanInstalledSkills(opts.home);
+        const installed = opts.refresh ? await rebuildCache(opts.home) : await scanInstalledSkills(opts.home);
         const archived = await listArchivedSkills(opts.home);
         const data = {
           installedCount: installed.length,
@@ -90,8 +129,24 @@ export function createProgram(io: IO = defaultIO()): Command {
     );
 
   program
+    .command("refresh")
+    .description("Rebuild the local skill cache")
+    .option("--json", "print machine-readable JSON")
+    .action(async (options: CommonOptions) =>
+      withErrors(io, withHome(program, options), async () => {
+        const opts = withHome(program, options);
+        const installed = await rebuildCache(opts.home);
+        const data = {
+          installedCount: installed.length,
+          refreshed: true,
+        };
+        writeSuccess(io, opts, data, undefined, `Refreshed ${data.installedCount} installed skill(s).\n`);
+      }),
+    );
+
+  program
     .command("paths")
-    .description("Show Skill Zoo and agent paths")
+    .description("Show Skill Zoo and agent filesystem paths")
     .option("--json", "print machine-readable JSON")
     .action(async (options: CommonOptions) =>
       withErrors(io, withHome(program, options), async () => {
@@ -108,12 +163,52 @@ export function createProgram(io: IO = defaultIO()): Command {
     );
 
   program
+    .command("inspect")
+    .description("Explain one installed or archived skill")
+    .argument("<skill-ref>", "installed skill id/directory/name, or archive id with --archived")
+    .option("--archived", "inspect an archived skill by archive id")
+    .option("--json", "print machine-readable JSON")
+    .action(async (ref: string, options: CommonOptions & { archived?: boolean }) =>
+      withErrors(io, withHome(program, options), async () => {
+        const opts = withHome(program, options);
+        const data = opts.archived
+          ? await inspectArchivedSkill(opts.home, ref)
+          : await inspectInstalledSkill(opts.home, ref);
+        writeSuccess(io, opts, data, undefined, formatInspect(data));
+      }),
+    );
+
+  program
+    .command("doctor")
+    .description("Diagnose local Skill Zoo state")
+    .option("--json", "print machine-readable JSON")
+    .action(async (options: CommonOptions) =>
+      withErrors(io, withHome(program, options), async () => {
+        const opts = withHome(program, options);
+        const report = await runDoctor(opts.home);
+        writeResult(io, opts, report.status !== "error", report, undefined, formatDoctor(report));
+        if (report.status === "error") {
+          process.exitCode = 1;
+        }
+      }),
+    );
+
+  program
     .command("archive")
-    .description("Archive installed skills")
+    .description("Move installed skills into Skill Zoo archive")
     .argument("<skill-ref...>", "skill id, directory, or name")
     .option("--dry-run", "show changes without writing")
     .option("--yes", "skip confirmation")
     .option("--json", "print machine-readable JSON")
+    .addHelpText(
+      "after",
+      `
+
+Safe workflow:
+  $ skill-zoo archive code-audit --dry-run --json
+  $ skill-zoo archive code-audit --yes --json
+`,
+    )
     .action(async (refs: string[], options: WriteOptions) =>
       withErrors(io, withHome(program, options), async () => {
         const opts = withHome(program, options);
@@ -136,11 +231,20 @@ export function createProgram(io: IO = defaultIO()): Command {
 
   program
     .command("restore")
-    .description("Restore archived skills")
+    .description("Move archived skills back into active skill directories")
     .argument("<archive-id...>", "archive ids")
     .option("--dry-run", "show changes without writing")
     .option("--yes", "skip confirmation")
     .option("--json", "print machine-readable JSON")
+    .addHelpText(
+      "after",
+      `
+
+Safe workflow:
+  $ skill-zoo restore code-audit-a1b2c3d4 --dry-run --json
+  $ skill-zoo restore code-audit-a1b2c3d4 --yes --json
+`,
+    )
     .action(async (archiveIds: string[], options: WriteOptions) =>
       withErrors(io, withHome(program, options), async () => {
         const opts = withHome(program, options);
@@ -253,6 +357,46 @@ function formatBatch(label: string, succeeded: string[], failed: { ref: string; 
     lines.push(`Failed: ${failed.map((item) => `${item.ref}: ${item.error}`).join("; ")}`);
   }
   return `${lines.join("\n") || "No changes."}\n`;
+}
+
+function formatInspect(data: InspectSkillData): string {
+  const lines = [
+    `${data.kind}: ${data.id}`,
+    `name: ${data.name}`,
+    `directory: ${data.directory}`,
+    `origin: ${data.origin}`,
+  ];
+  if (data.archiveId) {
+    lines.push(`archiveId: ${data.archiveId}`);
+  }
+  if (data.originalSkillId) {
+    lines.push(`originalSkillId: ${data.originalSkillId}`);
+  }
+  if (data.homePath) {
+    lines.push(`homePath: ${data.homePath}`);
+  }
+  if (data.homeAgent) {
+    lines.push(`homeAgent: ${data.homeAgent}`);
+  }
+  const enabledAgents = Object.entries(data.apps)
+    .filter(([, enabled]) => enabled)
+    .map(([agent]) => agent);
+  lines.push(`apps: ${enabledAgents.join(", ") || "(none)"}`);
+  if (data.source.sourceUrl) {
+    lines.push(`source: ${data.source.sourceUrl}`);
+  } else if (data.source.repoOwner && data.source.repoName) {
+    lines.push(`source: ${data.source.repoOwner}/${data.source.repoName}`);
+  }
+  lines.push(`starred: ${data.starred}`);
+  lines.push(`isMine: ${data.isMine}`);
+  return `${lines.join("\n")}\n`;
+}
+
+function formatDoctor(report: DoctorReport): string {
+  const checks = report.checks.length === 0
+    ? ["ok: No local Skill Zoo state found."]
+    : report.checks.map((check) => `${check.status}: ${check.message}`);
+  return `Status: ${report.status}\n${checks.join("\n")}\n`;
 }
 
 function formatArchiveData(

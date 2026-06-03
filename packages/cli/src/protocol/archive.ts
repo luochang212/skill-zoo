@@ -19,6 +19,7 @@ import type {
   InstalledSkill,
   SkillLockEntry,
 } from "./types.js";
+import { resolveSkillRefs } from "./refs.js";
 import { CLI_VERSION } from "../version.js";
 import { CliError, messageFromError } from "../lib/errors.js";
 import {
@@ -49,8 +50,6 @@ export interface RestoreResult {
   failed: BatchFailure[];
   changes: Change[];
 }
-
-type ResolvedSkillRef = { ref: string; skill: InstalledSkill } | { ref: string; error: string };
 
 export async function listArchivedSkills(home?: string): Promise<ArchivedSkill[]> {
   const manifest = await readArchiveManifest(home);
@@ -398,32 +397,6 @@ function getRestorePath(home: string | undefined, archived: ArchivedSkill): stri
 
   const homeAgentDir = archived.homeAgent ? getAgentSkillsDir(home, archived.homeAgent) : undefined;
   return path.join(homeAgentDir ?? getPaths(home).agentsSkillsDir, archived.directory);
-}
-
-function resolveSkillRefs(skills: InstalledSkill[], refs: string[]): ResolvedSkillRef[] {
-  return refs.map((ref) => {
-    const matches = skills.filter((skill) => skill.id === ref || skill.directory === ref || skill.name === ref);
-    if (matches.length === 0) {
-      return { ref, error: `Skill not found: ${ref}` };
-    }
-
-    const unique = new Map(matches.map((skill) => [skill.id, skill]));
-    if (unique.size > 1) {
-      return {
-        ref,
-        error: `Skill reference is ambiguous: ${ref}. Matches: ${[...unique.values()]
-          .map((skill) => skill.id)
-          .join(", ")}`,
-      };
-    }
-
-    const skill = [...unique.values()][0];
-    if (!skill) {
-      return { ref, error: `Skill not found: ${ref}` };
-    }
-
-    return { ref, skill };
-  });
 }
 
 async function rollbackArchive(
