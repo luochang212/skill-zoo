@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.9] — 2026-06-03
+
+### Added
+- Draggable agent ordering — reorder agents by drag-and-drop.
+- Skill archive management UI with archive persistence.
+
+### Changed
+- Refined archived skill UI and visual treatment.
+- Improved update flow and path validation.
+- Split vendor chunks for smaller production bundles.
+- Removed unused `@radix-ui/react-select`, `@radix-ui/react-tabs`, and 5 dead files.
+
+### Fixed
+- Skill card hover clipping and name font weight.
+
 ## [0.2.8] — 2026-06-02
 
 ### Fixed
