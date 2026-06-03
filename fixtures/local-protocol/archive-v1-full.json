@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "skills": {
+    "demo-abc123": {
+      "id": "demo-abc123",
+      "archiveId": "demo-abc123",
+      "originalSkillId": "repo:owner/repo:demo",
+      "name": "demo",
+      "yamlName": "Demo Skill",
+      "description": "Archived demo skill",
+      "directory": "demo",
+      "repoOwner": "owner",
+      "repoName": "repo",
+      "sourceUrl": "https://github.com/owner/repo",
+      "apps": {
+        "claude": true,
+        "codex": true,
+        "gemini": false
+      },
+      "origin": "ssot",
+      "homePath": "/tmp/.agents/skills/demo",
+      "contentHash": "sha256-demo",
+      "homeAgent": null,
+      "starred": true,
+      "isMine": false,
+      "installedAt": 1767300000,
+      "updatedAt": 1767386400,
+      "archivedAt": 1767472800,
+      "lockKey": "demo",
+      "lockEntry": {
+        "source": "owner/repo",
+        "sourceType": "github",
+        "sourceUrl": "https://github.com/owner/repo",
+        "ref": "main",
+        "skillPath": "skills/demo",
+        "skillFolderHash": "sha256-demo",
+        "installedAt": "2026-01-02T03:04:05Z",
+        "updatedAt": "2026-01-03T03:04:05Z",
+        "commitSha": "abc123"
+      },
+      "archivedByVersion": "0.2.9",
+      "reason": null
+    }
+  }
+}

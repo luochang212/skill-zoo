@@ -72,9 +72,25 @@ Add a new version section before the previous release entry:
 
 Use today's date. Group changes under **Added**, **Changed**, **Fixed** headings. Review commits since the last tag with `git log --oneline v<LAST>..HEAD` to ensure nothing is missed.
 
-Do NOT commit yet — all changes go into one commit in Step 4.
+Do NOT commit yet — all changes go into one commit in Step 5.
 
-### 3. Update Version Files
+### 3. Protocol Impact Check
+
+After writing the changelog, decide whether this release changes the desktop-owned local protocol. Desktop is the source of truth for local state; the CLI is an adjunct control surface and must follow the desktop protocol.
+
+Use changed paths as review prompts, not automatic gates. Relevant prompts include desktop persistence structs, archive/restore behavior, local state paths or shapes, schema versions, and CLI protocol read/write code. Trigger the protocol gate only when the release changes desktop-owned local state shape, paths, schema versions, lock/archive write semantics, or user-visible compatibility/migration behavior.
+
+If there is no protocol impact, note it internally and continue. Do not add "no impact" lines to CHANGELOG or commit messages.
+
+If there is protocol impact, verify before continuing:
+
+1. `AGENTS.md` guidance still reflects the desktop-owned protocol relationship.
+2. `docs/local-protocol.md` reflects the current desktop protocol.
+3. `fixtures/local-protocol/` represents the desktop protocol, not CLI implementation convenience.
+4. CLI and Rust protocol fixture tests pass.
+5. CHANGELOG mentions any user-visible compatibility, migration, or breaking behavior.
+
+### 4. Update Version Files
 
 Update `src-tauri/Cargo.toml` to match the release version:
 
@@ -91,9 +107,9 @@ sed -i '' 's/"version": ".*"/"version": "X.Y.Z"/' package.json
 
 Do NOT update `docs/version.json` here — CI updates it automatically after the release is published.
 
-Do NOT commit yet — all changes go into one commit in Step 4.
+Do NOT commit yet — all changes go into one commit in Step 5.
 
-### 4. Verify Prerequisites
+### 5. Verify Prerequisites
 
 Run all checks in order. If any fails, fix and re-run the full sequence until clean — formatting changes can cascade into lint results. Any fixes become part of the same release commit.
 
@@ -114,7 +130,7 @@ git add CHANGELOG.md src-tauri/Cargo.toml src-tauri/Cargo.lock package.json
 git commit -m "chore: release vX.Y.Z"
 ```
 
-### 5. Tag and Push
+### 6. Tag and Push
 
 > **CRITICAL:** Pushing a `v*` tag triggers CI to build and publish a release. **Always tell the user explicitly that a push is about to happen and get their consent before executing.** Never push without approval.
 
@@ -124,7 +140,7 @@ git tag v0.1.2
 git push origin v0.1.2
 ```
 
-### 6. CI Jobs (triggered by `v*` tag)
+### 7. CI Jobs (triggered by `v*` tag)
 
 | Job | Outcome |
 |---|---|
