@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StarButton } from "@/components/skills/StarButton";
 import { SkillBadges } from "@/components/skills/SkillBadges";
+import { Archive } from "lucide-react";
 import type { DiscoverableSkill, InstalledSkill } from "@/types/skills";
 import type { SkillIssues } from "@/hooks/useSkillIssues";
 
@@ -28,6 +29,7 @@ export function SkillCard({
 }: SkillCardProps) {
   const { t } = useTranslation();
   const installedSkill = isInstalled ? (skill as InstalledSkill) : null;
+  const isArchived = "archivedAt" in skill;
 
   return (
     <Card
@@ -61,20 +63,21 @@ export function SkillCard({
             <SkillBadges issues={issues} />
           </div>
           <div className="flex items-center gap-1 shrink-0">
+            {isArchived && <Archive className="h-4 w-4 text-foreground/35" />}
             {isInstalled && onToggleStar && (
               <StarButton starred={starred ?? false} onToggle={onToggleStar} />
             )}
           </div>
         </div>
         {"repoOwner" in skill && skill.repoOwner && (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-foreground/55">
             {skill.repoOwner}/{skill.repoName}
           </p>
         )}
       </CardHeader>
       <CardContent className="px-4 pb-3 pt-0">
         {skill.description && (
-          <p className="text-[13px] text-muted-foreground/80 line-clamp-2 mb-2 leading-relaxed">
+          <p className="text-[13px] text-foreground/55 line-clamp-2 mb-2 leading-relaxed">
             {skill.description}
           </p>
         )}
