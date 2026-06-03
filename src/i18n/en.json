@@ -284,7 +284,8 @@
       "hiddenHint": "Hidden agents won't appear in skill configuration or receive symlinked skills.",
       "minOneWarning": "At least one agent must remain visible.",
       "visible": "Visible",
-      "hidden": "Hidden"
+      "hidden": "Hidden",
+      "reorder": "Reorder {{agent}}"
     },
     "about": {
       "title": "About",
