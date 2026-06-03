@@ -38,7 +38,7 @@ export function Header({ view, onViewChange, hideTabs, onDragMouseDown }: Header
         {hideTabs ? (
           <div className="flex items-center justify-between h-full">
             <h1
-              className="italic tracking-tight leading-tight shrink-0 pl-[5.25rem]"
+              className="italic tracking-tight leading-tight shrink-0 pl-[5.75rem]"
               style={{
                 fontFamily: LOGO_FONT,
               }}
@@ -48,7 +48,7 @@ export function Header({ view, onViewChange, hideTabs, onDragMouseDown }: Header
           </div>
         ) : (
           <nav className="grid grid-cols-[1fr_auto_1fr] items-center h-full">
-            <div className="flex justify-start pl-[5.25rem]">
+            <div className="flex justify-start pl-[5.75rem]">
               <h1
                 className="italic tracking-tight leading-tight"
                 style={{
