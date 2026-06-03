@@ -13,30 +13,59 @@
           <p class="eyebrow">Local console</p>
           <h1>Skill Zoo</h1>
         </div>
-        <div class="status-strip" id="statusStrip">
-          <div class="metric">
-            <span class="metric-value" id="installedCount">-</span>
-            <span class="metric-label">Installed</span>
+        <div class="status-cluster" id="statusStrip">
+          <div class="status-strip">
+            <div class="metric">
+              <span class="metric-value" id="installedCount">-</span>
+              <span class="metric-label">Installed</span>
+            </div>
+            <div class="metric">
+              <span class="metric-value" id="archivedCount">-</span>
+              <span class="metric-label">Archived</span>
+            </div>
+            <button class="metric metric-button" id="doctorToggle" type="button">
+              <span class="metric-value" id="doctorStatus">-</span>
+              <span class="metric-label" id="doctorLabel">Doctor</span>
+            </button>
+            <button class="metric metric-button" id="consistencyToggle" type="button">
+              <span class="metric-value" id="consistencyStatus">-</span>
+              <span class="metric-label" id="consistencyLabel">Consistency</span>
+            </button>
           </div>
-          <div class="metric">
-            <span class="metric-value" id="archivedCount">-</span>
-            <span class="metric-label">Archived</span>
-          </div>
-          <button class="doctor-pill" id="doctorToggle" type="button">Doctor: -</button>
-          <button class="button primary" id="refreshButton" type="button">Refresh</button>
+          <button class="icon-button" id="refreshButton" type="button" title="Refresh local state" aria-label="Refresh local state">
+            <span aria-hidden="true">↻</span>
+          </button>
         </div>
       </header>
 
       <div class="modal-backdrop hidden" id="doctorPanel" aria-hidden="true">
-        <section class="doctor-modal" role="dialog" aria-modal="true" aria-labelledby="doctorTitle">
+        <section class="status-modal" role="dialog" aria-modal="true" aria-labelledby="doctorTitle">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">Local diagnostics</p>
               <h2 id="doctorTitle">Doctor checks</h2>
             </div>
-            <button class="button ghost" id="doctorClose" type="button">Close</button>
+            <div class="panel-actions">
+              <button class="button ghost" id="doctorFixPreview" type="button">Preview fix</button>
+              <button class="button primary" id="doctorFixRun" type="button">Run fix</button>
+              <button class="button ghost" id="doctorClose" type="button">Close</button>
+            </div>
           </div>
+          <div id="doctorFixHost"></div>
           <div id="doctorChecks" class="checks"></div>
+        </section>
+      </div>
+
+      <div class="modal-backdrop hidden" id="consistencyPanel" aria-hidden="true">
+        <section class="status-modal" role="dialog" aria-modal="true" aria-labelledby="consistencyTitle">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Skill consistency</p>
+              <h2 id="consistencyTitle">Consistency issues</h2>
+            </div>
+            <button class="button ghost" id="consistencyClose" type="button">Close</button>
+          </div>
+          <div id="consistencyIssues" class="checks"></div>
         </section>
       </div>
 

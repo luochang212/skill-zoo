@@ -45,14 +45,19 @@ input {
 }
 
 .topbar {
-  height: 76px;
+  min-height: 82px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 20px;
   padding: 0 18px;
   background: rgba(255, 253, 248, 0.86);
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
+}
+
+.topbar > div:first-child {
+  min-width: 140px;
 }
 
 .eyebrow {
@@ -82,14 +87,25 @@ h3 {
   font-size: 14px;
 }
 
-.status-strip {
+.status-cluster {
+  min-width: 0;
+  flex: 1;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
 }
 
+.status-strip {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 108px);
+  gap: 6px;
+}
+
 .metric {
-  width: 112px;
+  min-width: 0;
+  width: 100%;
   height: 50px;
   display: grid;
   align-content: center;
@@ -99,28 +115,80 @@ h3 {
   border: 1px solid var(--line);
 }
 
+.metric-button {
+  cursor: pointer;
+  text-align: left;
+}
+
+.metric-button:hover {
+  background: #fff;
+  border-color: #c8bda9;
+}
+
+.metric-button.ok .metric-value {
+  color: var(--ok);
+}
+
+.metric-button.warn .metric-value {
+  color: var(--warn);
+}
+
+.metric-button.error .metric-value {
+  color: var(--danger);
+}
+
 .metric-value {
   display: block;
+  min-width: 0;
+  overflow: hidden;
   font-size: 18px;
   line-height: 1;
   font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .metric-label {
   display: block;
+  min-width: 0;
+  overflow: hidden;
   color: var(--muted);
   font-size: 11px;
   line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .button,
-.doctor-pill,
 .segment {
   height: 34px;
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--ink);
   cursor: pointer;
+}
+
+.icon-button {
+  width: 50px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #bad0d7;
+  background: #fff;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.icon-button:hover {
+  background: rgba(23, 107, 135, 0.08);
+}
+
+.icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .button {
@@ -149,25 +217,6 @@ h3 {
   opacity: 0.55;
 }
 
-.doctor-pill {
-  min-width: 118px;
-  padding: 0 12px;
-  font-weight: 700;
-  text-align: left;
-}
-
-.doctor-pill.ok {
-  color: var(--ok);
-}
-
-.doctor-pill.warn {
-  color: var(--warn);
-}
-
-.doctor-pill.error {
-  color: var(--danger);
-}
-
 .hidden {
   display: none !important;
 }
@@ -182,8 +231,8 @@ h3 {
   background: rgba(35, 33, 28, 0.42);
 }
 
-.doctor-modal {
-  width: min(860px, 100%);
+.status-modal {
+  width: min(1040px, 100%);
   max-height: min(720px, calc(100vh - 56px));
   overflow: auto;
   padding: 16px;
@@ -198,6 +247,12 @@ h3 {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 12px;
+}
+
+.panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .checks {
@@ -233,6 +288,74 @@ h3 {
   color: var(--muted);
   overflow-wrap: anywhere;
   font-size: 11px;
+}
+
+.issue-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  background: #fbfaf5;
+  font-size: 13px;
+  text-align: left;
+}
+
+.issue-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.issue-title {
+  font-weight: 800;
+}
+
+.issue-kind {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.issue-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.issue-paths {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.empty-text {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.fix-result {
+  margin: 0 0 12px;
+  padding: 10px;
+  border: 1px solid #d6bd82;
+  background: #fff8e8;
+}
+
+.fix-result h3 {
+  margin-bottom: 8px;
+}
+
+.fix-actions {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  overflow-wrap: anywhere;
 }
 
 .workspace {
@@ -383,6 +506,28 @@ th:nth-child(4) {
   color: var(--muted);
   font-size: 11px;
   font-weight: 700;
+}
+
+.issue-badges {
+  margin-top: 5px;
+}
+
+.issue-badge {
+  border-color: #e1c184;
+  background: #fff8e8;
+  color: #73530f;
+}
+
+.issue-badge.conflict {
+  border-color: #d8aba5;
+  background: #fff0ee;
+  color: var(--danger);
+}
+
+.issue-badge.mismatch {
+  border-color: #b9d1dc;
+  background: #edf7fa;
+  color: var(--accent);
 }
 
 .detail-pane {
@@ -636,4 +781,21 @@ th:nth-child(4) {
   color: #fff;
   font-size: 13px;
   box-shadow: var(--shadow);
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    padding: 14px 18px;
+  }
+
+  .status-cluster {
+    width: 100%;
+  }
+
+  .status-strip {
+    flex: 1;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }

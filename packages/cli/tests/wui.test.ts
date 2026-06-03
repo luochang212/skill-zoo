@@ -49,11 +49,17 @@ describe("wui server", () => {
     try {
       const payload = await getJson<{
         ok: boolean;
-        data: { installed: unknown[]; status: { installedCount: number } };
+        data: {
+          installed: unknown[];
+          consistency: { status: string; summary: { total: number } };
+          status: { installedCount: number; consistencyStatus: string };
+        };
       }>(handle, "/api/state");
 
       expect(payload.ok).toBe(true);
       expect(payload.data.status.installedCount).toBe(1);
+      expect(payload.data.status.consistencyStatus).toBe("warn");
+      expect(payload.data.consistency.summary.total).toBe(1);
       expect(payload.data.installed).toHaveLength(1);
     } finally {
       await handle.close();
@@ -73,6 +79,46 @@ describe("wui server", () => {
 
       expect(payload.ok).toBe(true);
       expect(payload.data.content).toContain("# Skill");
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it("serves consistency reports", async () => {
+    const home = await makeTempHome();
+    const paths = getPaths(home);
+    await writeSkill(path.join(paths.agentsSkillsDir, "demo"), "name: Demo");
+    const handle = await startWuiServer({ home, port: 0, token: "test-token" });
+    try {
+      const payload = await getJson<{
+        ok: boolean;
+        data: { status: string; summary: { mismatch: number } };
+      }>(handle, "/api/consistency");
+
+      expect(payload.ok).toBe(true);
+      expect(payload.data.status).toBe("warn");
+      expect(payload.data.summary.mismatch).toBe(1);
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it("dry-runs doctor fix through the WUI API", async () => {
+    const home = await makeTempHome();
+    const paths = getPaths(home);
+    await writeSkill(path.join(paths.agentsSkillsDir, "demo"), "name: Demo");
+    const handle = await startWuiServer({ home, port: 0, token: "test-token" });
+    try {
+      const payload = await postJson<{
+        ok: boolean;
+        data: { dryRun: boolean; actions: { kind: string; status: string }[] };
+      }>(handle, "/api/doctor/fix", { dryRun: true });
+
+      expect(payload.ok).toBe(true);
+      expect(payload.data.dryRun).toBe(true);
+      expect(payload.data.actions).toContainEqual(
+        expect.objectContaining({ kind: "rebuild-cache", status: "planned" }),
+      );
     } finally {
       await handle.close();
     }

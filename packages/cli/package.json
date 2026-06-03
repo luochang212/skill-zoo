@@ -9,6 +9,7 @@
   },
   "files": [
     "dist",
+    "wui",
     "README.md"
   ],
   "scripts": {

@@ -7,15 +7,27 @@ const state = {
   content: "",
   inspect: null,
   pendingPlan: null,
+  doctorFixResult: null,
 };
 
 const els = {
   installedCount: document.querySelector("#installedCount"),
   archivedCount: document.querySelector("#archivedCount"),
   doctorToggle: document.querySelector("#doctorToggle"),
+  doctorStatus: document.querySelector("#doctorStatus"),
+  doctorLabel: document.querySelector("#doctorLabel"),
   doctorPanel: document.querySelector("#doctorPanel"),
   doctorClose: document.querySelector("#doctorClose"),
+  doctorFixPreview: document.querySelector("#doctorFixPreview"),
+  doctorFixRun: document.querySelector("#doctorFixRun"),
+  doctorFixHost: document.querySelector("#doctorFixHost"),
   doctorChecks: document.querySelector("#doctorChecks"),
+  consistencyToggle: document.querySelector("#consistencyToggle"),
+  consistencyStatus: document.querySelector("#consistencyStatus"),
+  consistencyLabel: document.querySelector("#consistencyLabel"),
+  consistencyPanel: document.querySelector("#consistencyPanel"),
+  consistencyClose: document.querySelector("#consistencyClose"),
+  consistencyIssues: document.querySelector("#consistencyIssues"),
   refreshButton: document.querySelector("#refreshButton"),
   skillRows: document.querySelector("#skillRows"),
   detailPane: document.querySelector("#detailPane"),
@@ -59,14 +71,24 @@ function bindEvents() {
   });
   els.doctorToggle.addEventListener("click", openDoctorModal);
   els.doctorClose.addEventListener("click", closeDoctorModal);
+  els.doctorFixPreview.addEventListener("click", () => runDoctorFix(true));
+  els.doctorFixRun.addEventListener("click", () => runDoctorFix(false));
+  els.consistencyToggle.addEventListener("click", openConsistencyModal);
+  els.consistencyClose.addEventListener("click", closeConsistencyModal);
   els.doctorPanel.addEventListener("click", (event) => {
     if (event.target === els.doctorPanel) {
       closeDoctorModal();
     }
   });
+  els.consistencyPanel.addEventListener("click", (event) => {
+    if (event.target === els.consistencyPanel) {
+      closeConsistencyModal();
+    }
+  });
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closeDoctorModal();
+      closeConsistencyModal();
     }
   });
   els.searchInput.addEventListener("input", renderRows);
@@ -103,12 +125,17 @@ function reconcileSelection() {
 }
 
 function renderStatus() {
-  const { status, doctor } = state.data;
+  const { status, doctor, consistency } = state.data;
   const counts = countDoctorChecks(doctor.checks);
   els.installedCount.textContent = String(status.installedCount);
   els.archivedCount.textContent = String(status.archivedCount);
-  els.doctorToggle.textContent = `Doctor: ${status.doctorStatus}${counts.error ? ` (${counts.error})` : counts.warn ? ` (${counts.warn})` : ""}`;
-  els.doctorToggle.className = `doctor-pill ${status.doctorStatus}`;
+  els.doctorStatus.textContent = status.doctorStatus;
+  els.doctorLabel.textContent = counts.error ? `Doctor · ${counts.error} error` : counts.warn ? `Doctor · ${counts.warn} warn` : "Doctor";
+  els.doctorToggle.className = `metric metric-button ${status.doctorStatus}`;
+  const consistencyTotal = consistency?.summary?.total || 0;
+  els.consistencyStatus.textContent = String(consistencyTotal);
+  els.consistencyLabel.textContent = "Consistency";
+  els.consistencyToggle.className = `metric metric-button ${status.consistencyStatus || consistency?.status || "ok"}`;
   const checks = [...doctor.checks].sort(compareDoctorChecks);
   els.doctorChecks.innerHTML = checks.length
     ? checks.map((check) => `
@@ -121,6 +148,11 @@ function renderStatus() {
         </div>
       `).join("")
     : `<div class="check"><strong>ok</strong><span>No local Skill Zoo state found.</span></div>`;
+  const issues = [...(consistency?.issues || [])].sort(compareConsistencyIssues);
+  els.consistencyIssues.innerHTML = issues.length
+    ? issues.map(renderConsistencyIssue).join("")
+    : `<div class="check"><strong class="ok">ok</strong><span>No consistency issues detected.</span></div>`;
+  renderDoctorFixResult();
 }
 
 function renderRows() {
@@ -135,6 +167,7 @@ function renderRows() {
           <td>
             <span class="skill-name">${escapeHtml(skill.name)}</span>
             <span class="skill-desc">${escapeHtml(skill.description || skill.directory || "")}</span>
+            ${state.kind === "installed" ? renderIssueBadges(skill) : ""}
           </td>
           <td>
             <span class="skill-desc">${escapeHtml(repoLabel(skill) || "unassigned")}</span>
@@ -197,6 +230,7 @@ function renderDetail(loading = false) {
       <h2>${escapeHtml(skill.name)}</h2>
       <p class="empty">${escapeHtml(skill.description || "No description.")}</p>
       ${renderAgents(skill.apps)}
+      ${!archived ? renderIssueBadges(skill) : ""}
     </div>
 
     <div class="meta-grid">
@@ -307,6 +341,23 @@ async function executePlan() {
   toast(`${type === "archive" ? "Archived" : "Restored"} skill.`);
 }
 
+async function runDoctorFix(dryRun) {
+  els.doctorFixPreview.disabled = true;
+  els.doctorFixRun.disabled = true;
+  try {
+    const result = await api("/api/doctor/fix", {
+      method: "POST",
+      body: { dryRun },
+    });
+    state.doctorFixResult = result.data;
+    await loadState();
+    toast(dryRun ? "Prepared doctor fix preview." : "Ran doctor fix.");
+  } finally {
+    els.doctorFixPreview.disabled = false;
+    els.doctorFixRun.disabled = false;
+  }
+}
+
 async function api(path, options = {}) {
   const response = await fetch(path, {
     method: options.method || "GET",
@@ -353,6 +404,20 @@ function renderAgents(apps) {
   return `<div class="badge-row">${agents || `<span class="badge">no agents</span>`}</div>`;
 }
 
+function renderIssueBadges(skill) {
+  const issues = consistencyIssuesForSkill(skill);
+  if (!issues.length) return "";
+  const badges = issues
+    .map((issue) => `<span class="badge issue-badge ${escapeAttr(issue.kind)}">${escapeHtml(issue.kind)}</span>`)
+    .join("");
+  return `<div class="badge-row issue-badges">${badges}</div>`;
+}
+
+function consistencyIssuesForSkill(skill) {
+  const issues = state.data?.consistency?.issues || [];
+  return issues.filter((issue) => issue.skills?.some((item) => item.id === skill.id));
+}
+
 function sourceLabel(skill) {
   if (skill.sourceUrl) return skill.sourceUrl;
   if (skill.repoOwner && skill.repoName) return `${skill.repoOwner}/${skill.repoName}`;
@@ -382,6 +447,59 @@ function countDoctorChecks(checks) {
 function compareDoctorChecks(left, right) {
   const rank = { error: 0, warn: 1, ok: 2 };
   return (rank[left.status] ?? 3) - (rank[right.status] ?? 3);
+}
+
+function compareConsistencyIssues(left, right) {
+  const rank = { conflict: 0, duplicate: 1, mismatch: 2 };
+  return (rank[left.kind] ?? 3) - (rank[right.kind] ?? 3) || left.name.localeCompare(right.name);
+}
+
+function renderConsistencyIssue(issue) {
+  const paths = (issue.skills || [])
+    .map((skill) => {
+      const source = skill.homePath || skill.directory || skill.id;
+      const label = `${skill.origin || "unknown"} · ${skill.id}`;
+      return `<span>${escapeHtml(label)}<br>${escapeHtml(source)}</span>`;
+    })
+    .join("");
+  return `
+    <article class="issue-card">
+      <header>
+        <span class="issue-title">${escapeHtml(issue.name)}</span>
+        <span class="issue-kind">${escapeHtml(issue.kind)}</span>
+      </header>
+      <p>${escapeHtml(issue.message)}</p>
+      <p>${escapeHtml(issue.recommendation)}</p>
+      <div class="issue-paths">${paths || "<span>No paths.</span>"}</div>
+    </article>
+  `;
+}
+
+function renderDoctorFixResult() {
+  if (!state.doctorFixResult) {
+    els.doctorFixHost.innerHTML = "";
+    return;
+  }
+
+  const result = state.doctorFixResult;
+  const actions = result.actions || [];
+  els.doctorFixHost.innerHTML = `
+    <div class="fix-result">
+      <h3>${result.dryRun ? "Fix preview" : "Fix result"}</h3>
+      <p class="empty-text">Before: ${escapeHtml(result.before?.status || "-")} · After: ${escapeHtml(result.after?.status || "-")}</p>
+      <div class="fix-actions">
+        ${
+          actions.length
+            ? actions.map((action) => {
+                const target = action.target ? ` -> ${action.target}` : "";
+                const error = action.error ? ` (${action.error})` : "";
+                return `<span>${escapeHtml(`${action.status}: ${action.kind}: ${action.path || "-"}${target}${error}`)}</span>`;
+              }).join("")
+            : "<span>No low-risk fixes available.</span>"
+        }
+      </div>
+    </div>
+  `;
 }
 
 function markdownToHtml(markdown) {
@@ -532,7 +650,9 @@ function toast(message) {
 }
 
 function setRefreshState(label, disabled) {
-  els.refreshButton.textContent = label;
+  els.refreshButton.querySelector("span").textContent = disabled ? "…" : "↻";
+  els.refreshButton.setAttribute("aria-label", label);
+  els.refreshButton.title = label;
   els.refreshButton.disabled = disabled;
   els.refreshButton.classList.toggle("loading", disabled);
 }
@@ -545,6 +665,16 @@ function openDoctorModal() {
 function closeDoctorModal() {
   els.doctorPanel.classList.add("hidden");
   els.doctorPanel.setAttribute("aria-hidden", "true");
+}
+
+function openConsistencyModal() {
+  els.consistencyPanel.classList.remove("hidden");
+  els.consistencyPanel.setAttribute("aria-hidden", "false");
+}
+
+function closeConsistencyModal() {
+  els.consistencyPanel.classList.add("hidden");
+  els.consistencyPanel.setAttribute("aria-hidden", "true");
 }
 
 function showFatal(message) {

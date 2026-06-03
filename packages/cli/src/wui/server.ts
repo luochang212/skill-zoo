@@ -6,7 +6,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { archiveSkillRefs, listArchivedSkills, restoreArchiveIds } from "../protocol/archive.js";
-import { inspectArchivedSkill, inspectInstalledSkill, runDoctor } from "../protocol/diagnostics.js";
+import { runConsistency } from "../protocol/consistency.js";
+import { fixDoctor, inspectArchivedSkill, inspectInstalledSkill, runDoctor } from "../protocol/diagnostics.js";
 import { getAllAgentPaths } from "../protocol/paths.js";
 import { rebuildCache, scanInstalledSkills } from "../protocol/scan.js";
 import { readArchivedSkillMd, readInstalledSkillMd } from "../protocol/content.js";
@@ -167,21 +168,24 @@ async function handleApi(
   const method = request.method ?? "GET";
 
   if (method === "GET" && url.pathname === "/api/state") {
-    const [installed, archived, doctor, paths] = await Promise.all([
+    const [installed, archived, doctor, consistency, paths] = await Promise.all([
       scanInstalledSkills(context.home),
       listArchivedSkills(context.home),
       runDoctor(context.home),
+      runConsistency(context.home),
       Promise.resolve(getAllAgentPaths(context.home)),
     ]);
     writeOk(response, {
       installed,
       archived,
       doctor,
+      consistency,
       paths,
       status: {
         installedCount: installed.length,
         archivedCount: archived.length,
         doctorStatus: doctor.status,
+        consistencyStatus: consistency.status,
       },
     });
     return;
@@ -195,6 +199,17 @@ async function handleApi(
 
   if (method === "GET" && url.pathname === "/api/doctor") {
     writeOk(response, await runDoctor(context.home));
+    return;
+  }
+
+  if (method === "POST" && url.pathname === "/api/doctor/fix") {
+    const body = await readJsonBody<{ dryRun?: boolean }>(request);
+    writeOk(response, await fixDoctor(context.home, { dryRun: body.dryRun }));
+    return;
+  }
+
+  if (method === "GET" && url.pathname === "/api/consistency") {
+    writeOk(response, await runConsistency(context.home));
     return;
   }
 

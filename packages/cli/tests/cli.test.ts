@@ -245,4 +245,78 @@ describe("CLI output", () => {
     expect(process.exitCode).toBe(1);
     process.exitCode = undefined;
   });
+
+  it("dry-runs doctor fix as a successful JSON command", async () => {
+    const home = await makeTempHome();
+    const paths = getPaths(home);
+    await writeSkill(path.join(paths.agentsSkillsDir, "demo"), "name: Demo");
+    const stdout = new CaptureStream();
+    const stderr = new CaptureStream();
+    process.exitCode = undefined;
+
+    await runCli(["--home", home, "doctor", "fix", "--dry-run", "--json"], {
+      stdout,
+      stderr,
+      stdin: process.stdin,
+    });
+
+    const payload = JSON.parse(stdout.toString()) as {
+      ok: boolean;
+      data: { dryRun: boolean; actions: { kind: string; status: string }[] };
+    };
+    expect(stderr.toString()).toBe("");
+    expect(payload.ok).toBe(true);
+    expect(payload.data.dryRun).toBe(true);
+    expect(payload.data.actions).toContainEqual(
+      expect.objectContaining({ kind: "rebuild-cache", status: "planned" }),
+    );
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("refuses doctor fix writes without confirmation in non-interactive shells", async () => {
+    const home = await makeTempHome();
+    const paths = getPaths(home);
+    await writeSkill(path.join(paths.agentsSkillsDir, "demo"), "name: Demo");
+    const stdout = new CaptureStream();
+    const stderr = new CaptureStream();
+    process.exitCode = undefined;
+
+    await runCli(["--home", home, "doctor", "fix", "--json"], {
+      stdout,
+      stderr,
+      stdin: process.stdin,
+    });
+
+    const payload = JSON.parse(stdout.toString()) as { ok: boolean; error: string };
+    expect(stderr.toString()).toBe("");
+    expect(payload.ok).toBe(false);
+    expect(payload.error).toContain("Refusing to write without --yes");
+    expect(process.exitCode).toBe(1);
+    process.exitCode = undefined;
+  });
+
+  it("reports consistency warnings without failing automation", async () => {
+    const home = await makeTempHome();
+    const paths = getPaths(home);
+    await writeSkill(path.join(paths.agentsSkillsDir, "demo"), "name: Demo");
+    const stdout = new CaptureStream();
+    const stderr = new CaptureStream();
+    process.exitCode = undefined;
+
+    await runCli(["--home", home, "consistency", "--json"], {
+      stdout,
+      stderr,
+      stdin: process.stdin,
+    });
+
+    const payload = JSON.parse(stdout.toString()) as {
+      ok: boolean;
+      data: { status: string; summary: { mismatch: number } };
+    };
+    expect(stderr.toString()).toBe("");
+    expect(payload.ok).toBe(true);
+    expect(payload.data.status).toBe("warn");
+    expect(payload.data.summary.mismatch).toBe(1);
+    expect(process.exitCode).toBeUndefined();
+  });
 });

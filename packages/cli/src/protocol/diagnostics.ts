@@ -2,11 +2,12 @@ import path from "node:path";
 import { AGENTS } from "./agents.js";
 import { getAgentSkillsDir, getPaths } from "./paths.js";
 import { resolveOneSkillRef } from "./refs.js";
-import { scanCacheEntries, scanInstalledSkills } from "./scan.js";
+import { rebuildCache, scanCacheEntries, scanInstalledSkills } from "./scan.js";
 import { assertWritableSchema, readArchiveManifest, readCache, readLock } from "./store.js";
 import type { ArchivedSkill, InstalledSkill } from "./types.js";
 import { CliError, messageFromError } from "../lib/errors.js";
 import {
+  createAgentLink,
   isSymlinkOrJunction,
   pathExists,
   pathStartsWith,
@@ -55,6 +56,24 @@ export interface DoctorCheck {
 export interface DoctorReport {
   status: DoctorStatus;
   checks: DoctorCheck[];
+}
+
+export type DoctorFixActionStatus = "planned" | "applied" | "skipped" | "failed";
+
+export interface DoctorFixAction {
+  kind: "rebuild-cache" | "replace-link";
+  status: DoctorFixActionStatus;
+  message: string;
+  path?: string;
+  target?: string;
+  error?: string;
+}
+
+export interface DoctorFixResult {
+  dryRun: boolean;
+  before: DoctorReport;
+  actions: DoctorFixAction[];
+  after: DoctorReport;
 }
 
 export async function inspectInstalledSkill(home: string | undefined, ref: string): Promise<InspectSkillData> {
@@ -112,6 +131,22 @@ export async function runDoctor(home?: string): Promise<DoctorReport> {
   return {
     status: summarizeStatus(checks),
     checks,
+  };
+}
+
+export async function fixDoctor(home: string | undefined, options: { dryRun?: boolean } = {}): Promise<DoctorFixResult> {
+  const dryRun = Boolean(options.dryRun);
+  const before = await runDoctor(home);
+  const actions: DoctorFixAction[] = [];
+
+  await planAndApplyLinkFixes(before, actions, dryRun);
+  await planAndApplyCacheFix(home, before, actions, dryRun);
+
+  return {
+    dryRun,
+    before,
+    actions,
+    after: dryRun ? before : await runDoctor(home),
   };
 }
 
@@ -253,13 +288,9 @@ async function checkSkillAgentLinks(
     }
 
     if (!(await isSymlinkOrJunction(linkPath))) {
-      checks.push({
-        id: "agent-link",
-        status: "error",
-        message: `Agent skill path exists but is not a symlink: ${skill.id} -> ${agent.id}`,
-        path: linkPath,
-        expected: skill.homePath,
-      });
+      // A real agent-native directory with the same name is a content consistency
+      // issue, not a doctor repair target. Consistency reports decide whether it
+      // is a duplicate or conflict without moving user files.
       continue;
     }
 
@@ -314,6 +345,76 @@ function summarizeStatus(checks: DoctorCheck[]): DoctorStatus {
     return "warn";
   }
   return "ok";
+}
+
+async function planAndApplyLinkFixes(
+  report: DoctorReport,
+  actions: DoctorFixAction[],
+  dryRun: boolean,
+): Promise<void> {
+  for (const check of report.checks) {
+    if (check.id !== "agent-link" || check.status !== "error" || !check.path || !check.expected) {
+      continue;
+    }
+
+    const action: DoctorFixAction = {
+      kind: "replace-link",
+      status: dryRun ? "planned" : "applied",
+      message: dryRun ? "Would replace invalid agent link." : "Replaced invalid agent link.",
+      path: check.path,
+      target: check.expected,
+    };
+
+    try {
+      if (!(await isSymlinkOrJunction(check.path))) {
+        action.status = "skipped";
+        action.message = "Skipped non-symlink agent path; report it with consistency instead.";
+      } else if (!(await pathExists(check.expected))) {
+        action.status = "failed";
+        action.message = "Cannot replace agent link because the expected target is missing.";
+        action.error = `Missing target: ${check.expected}`;
+      } else if (!dryRun) {
+        await createAgentLink(check.path, check.expected);
+      }
+    } catch (error) {
+      action.status = "failed";
+      action.message = "Failed to replace invalid agent link.";
+      action.error = messageFromError(error);
+    }
+
+    actions.push(action);
+  }
+}
+
+async function planAndApplyCacheFix(
+  home: string | undefined,
+  report: DoctorReport,
+  actions: DoctorFixAction[],
+  dryRun: boolean,
+): Promise<void> {
+  const staleCache = report.checks.some((check) => check.id === "cache-freshness" && check.status === "warn");
+  if (!staleCache) {
+    return;
+  }
+
+  const action: DoctorFixAction = {
+    kind: "rebuild-cache",
+    status: dryRun ? "planned" : "applied",
+    message: dryRun ? "Would rebuild stale skill cache." : "Rebuilt stale skill cache.",
+    path: getPaths(home).skillsCacheFile,
+  };
+
+  try {
+    if (!dryRun) {
+      await rebuildCache(home);
+    }
+  } catch (error) {
+    action.status = "failed";
+    action.message = "Failed to rebuild stale skill cache.";
+    action.error = messageFromError(error);
+  }
+
+  actions.push(action);
 }
 
 function setsEqual(left: Set<string>, right: Set<string>): boolean {

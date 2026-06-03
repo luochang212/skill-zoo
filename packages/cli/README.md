@@ -12,7 +12,7 @@ skill-zoo --help
 ```text
 Discover:  list, status, paths
 Explain:   inspect
-Maintain:  doctor, refresh
+Maintain:  doctor, doctor fix, consistency, refresh
 Change:    archive, restore
 UI:        wui
 ```
@@ -21,6 +21,9 @@ UI:        wui
 
 ```bash
 skill-zoo doctor
+skill-zoo doctor fix --dry-run
+skill-zoo doctor fix --yes
+skill-zoo consistency --json
 skill-zoo inspect code-audit
 
 skill-zoo archive code-audit --dry-run
@@ -50,6 +53,10 @@ Archived skills are restored and inspected by archive id, for example `code-audi
 Run `archive` and `restore` with `--dry-run` first. In non-interactive shells, write commands require `--yes`.
 
 `doctor` reports `ok`, `warn`, or `error`. Warnings are advisory; errors should block automation and write operations until resolved.
+
+`doctor fix` repairs only low-risk health issues: stale skill cache and invalid symlinks that should point at an existing Skill Zoo skill. It never moves or deletes real skill directories.
+
+`consistency` reports app-aligned skill consistency issues for agents to inspect: duplicate same-content skills, conflicting same-name skills, and `SKILL.md` frontmatter names that differ from directory names. Consistency warnings do not fail automation by default.
 
 The CLI does not notify a running desktop app. If the GUI looks stale after CLI changes, run `skill-zoo refresh` or refresh/restart the app.
 

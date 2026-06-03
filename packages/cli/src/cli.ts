@@ -2,10 +2,13 @@ import { Command, Option } from "commander";
 import { createInterface } from "node:readline/promises";
 import { stdin as defaultStdin, stdout as defaultStdout } from "node:process";
 import { archiveSkillRefs, listArchivedSkills, restoreArchiveIds } from "./protocol/archive.js";
+import { runConsistency, type ConsistencyReport } from "./protocol/consistency.js";
 import {
+  fixDoctor,
   inspectArchivedSkill,
   inspectInstalledSkill,
   runDoctor,
+  type DoctorFixResult,
   type DoctorReport,
   type InspectSkillData,
 } from "./protocol/diagnostics.js";
@@ -60,14 +63,19 @@ export function createProgram(io: IO = defaultIO()): Command {
 Command map:
   Discover:  list, status, paths
   Explain:   inspect
-  Maintain:  doctor, refresh
+  Maintain:  doctor, doctor fix, consistency, refresh
   Change:    archive, restore
   UI:        wui
 
 Common workflows:
   Inspect local state:
     $ skill-zoo doctor --json
+    $ skill-zoo consistency --json
     $ skill-zoo inspect <skill-ref> --json
+
+  Repair low-risk doctor issues:
+    $ skill-zoo doctor fix --dry-run --json
+    $ skill-zoo doctor fix --yes --json
 
   Archive safely:
     $ skill-zoo archive <skill-ref> --dry-run --json
@@ -189,7 +197,7 @@ Agent defaults:
       }),
     );
 
-  program
+  const doctorCommand = program
     .command("doctor")
     .description("Diagnose local Skill Zoo state")
     .option("--json", "print machine-readable JSON")
@@ -201,6 +209,54 @@ Agent defaults:
         if (report.status === "error") {
           process.exitCode = 1;
         }
+      }),
+    );
+
+  doctorCommand
+    .command("fix")
+    .description("Repair low-risk doctor issues")
+    .option("--dry-run", "show changes without writing")
+    .option("--yes", "skip confirmation")
+    .addHelpText(
+      "after",
+      `
+
+Safe workflow:
+  $ skill-zoo doctor fix --dry-run --json
+  $ skill-zoo doctor fix --yes --json
+
+Inherited options:
+  --json  print machine-readable JSON
+`,
+    )
+    .action(async (options: WriteOptions, command: Command) => {
+      const parentOptions = (command.parent?.opts() ?? {}) as CommonOptions;
+      const localOptions: WriteOptions = {
+        ...options,
+        json: options.json ?? parentOptions.json,
+      };
+      return withErrors(io, withHome(program, localOptions), async () => {
+        const opts = withHome(program, localOptions);
+        await requireConfirmation(io, opts, "Repair low-risk doctor issues?");
+        const result = await fixDoctor(opts.home, { dryRun: opts.dryRun });
+        const failed = result.actions.some((action) => action.status === "failed");
+        const ok = !failed && (opts.dryRun || result.after.status !== "error");
+        writeResult(io, opts, ok, result, undefined, formatDoctorFix(result));
+        if (!ok) {
+          process.exitCode = failed ? 1 : 2;
+        }
+      });
+    });
+
+  program
+    .command("consistency")
+    .description("Report skill content and naming consistency issues")
+    .option("--json", "print machine-readable JSON")
+    .action(async (options: CommonOptions) =>
+      withErrors(io, withHome(program, options), async () => {
+        const opts = withHome(program, options);
+        const report = await runConsistency(opts.home);
+        writeSuccess(io, opts, report, undefined, formatConsistency(report));
       }),
     );
 
@@ -434,6 +490,37 @@ function formatDoctor(report: DoctorReport): string {
     ? ["ok: No local Skill Zoo state found."]
     : report.checks.map((check) => `${check.status}: ${check.message}`);
   return `Status: ${report.status}\n${checks.join("\n")}\n`;
+}
+
+function formatDoctorFix(result: DoctorFixResult): string {
+  const lines = [
+    `Before: ${result.before.status}`,
+    `After: ${result.after.status}`,
+  ];
+  if (result.actions.length === 0) {
+    lines.push("No low-risk fixes available.");
+  } else {
+    for (const action of result.actions) {
+      const target = action.target ? ` -> ${action.target}` : "";
+      const suffix = action.error ? ` (${action.error})` : "";
+      lines.push(`${action.status}: ${action.kind}: ${action.path ?? "(local state)"}${target}${suffix}`);
+    }
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+function formatConsistency(report: ConsistencyReport): string {
+  const lines = [
+    `Status: ${report.status}`,
+    `Issues: ${report.summary.total}`,
+    `Duplicates: ${report.summary.duplicate}`,
+    `Conflicts: ${report.summary.conflict}`,
+    `Mismatches: ${report.summary.mismatch}`,
+  ];
+  for (const issue of report.issues) {
+    lines.push(`${issue.kind}: ${issue.message}`);
+  }
+  return `${lines.join("\n")}\n`;
 }
 
 function formatArchiveData(
