@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Skill Zoo WUI</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Local console</p>
+          <h1>Skill Zoo</h1>
+        </div>
+        <div class="status-strip" id="statusStrip">
+          <div class="metric">
+            <span class="metric-value" id="installedCount">-</span>
+            <span class="metric-label">Installed</span>
+          </div>
+          <div class="metric">
+            <span class="metric-value" id="archivedCount">-</span>
+            <span class="metric-label">Archived</span>
+          </div>
+          <button class="doctor-pill" id="doctorToggle" type="button">Doctor: -</button>
+          <button class="button primary" id="refreshButton" type="button">Refresh</button>
+        </div>
+      </header>
+
+      <div class="modal-backdrop hidden" id="doctorPanel" aria-hidden="true">
+        <section class="doctor-modal" role="dialog" aria-modal="true" aria-labelledby="doctorTitle">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Local diagnostics</p>
+              <h2 id="doctorTitle">Doctor checks</h2>
+            </div>
+            <button class="button ghost" id="doctorClose" type="button">Close</button>
+          </div>
+          <div id="doctorChecks" class="checks"></div>
+        </section>
+      </div>
+
+      <main class="workspace">
+        <section class="list-pane">
+          <div class="toolbar">
+            <div class="segmented" role="tablist" aria-label="Skill view">
+              <button class="segment active" data-kind="installed" type="button">Installed</button>
+              <button class="segment" data-kind="archived" type="button">Archived</button>
+            </div>
+            <input id="searchInput" class="search" type="search" placeholder="Search skills" />
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Repository</th>
+                  <th>Agents</th>
+                  <th>Updated</th>
+                </tr>
+              </thead>
+              <tbody id="skillRows">
+                <tr>
+                  <td colspan="4" class="empty">Loading...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <aside class="detail-pane" id="detailPane">
+          <div class="empty-detail">
+            <p class="eyebrow">No selection</p>
+            <h2>Select a skill</h2>
+            <p>Choose an installed or archived skill to inspect local metadata and SKILL.md.</p>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

@@ -14,6 +14,7 @@ Discover:  list, status, paths
 Explain:   inspect
 Maintain:  doctor, refresh
 Change:    archive, restore
+UI:        wui
 ```
 
 ## Common Workflows
@@ -27,6 +28,8 @@ skill-zoo archive code-audit --yes
 
 skill-zoo restore code-audit-a1b2c3d4 --dry-run
 skill-zoo restore code-audit-a1b2c3d4 --yes
+
+skill-zoo wui
 ```
 
 Each command supports help:
@@ -49,6 +52,19 @@ Run `archive` and `restore` with `--dry-run` first. In non-interactive shells, w
 `doctor` reports `ok`, `warn`, or `error`. Warnings are advisory; errors should block automation and write operations until resolved.
 
 The CLI does not notify a running desktop app. If the GUI looks stale after CLI changes, run `skill-zoo refresh` or refresh/restart the app.
+
+## Local Web UI
+
+`skill-zoo wui` starts a lightweight local management console at `127.0.0.1:8280` and opens it in your browser.
+
+```bash
+skill-zoo wui
+skill-zoo wui --port 8281 --no-open
+```
+
+The WUI is a local console for auditing installed skills, reading `SKILL.md`, running doctor/refresh, and safely previewing archive/restore changes. It is intentionally smaller than the desktop app and does not try to replace desktop-only workflows.
+
+The server binds to localhost and uses a per-session token in the opened URL for API calls.
 
 ## Automation
 

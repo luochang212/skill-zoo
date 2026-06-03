@@ -18,6 +18,13 @@ import {
   jsonEnvelope,
 } from "./output.js";
 import { CLI_VERSION } from "./version.js";
+import {
+  DEFAULT_WUI_PORT,
+  openBrowser,
+  parseWuiPort,
+  startWuiServer,
+  waitForWuiShutdown,
+} from "./wui/server.js";
 
 interface IO {
   stdout: NodeJS.WritableStream;
@@ -55,6 +62,7 @@ Command map:
   Explain:   inspect
   Maintain:  doctor, refresh
   Change:    archive, restore
+  UI:        wui
 
 Common workflows:
   Inspect local state:
@@ -68,6 +76,9 @@ Common workflows:
   Restore safely:
     $ skill-zoo restore <archive-id> --dry-run --json
     $ skill-zoo restore <archive-id> --yes --json
+
+  Open local Web UI:
+    $ skill-zoo wui
 
 Help:
   $ skill-zoo help <command>
@@ -262,6 +273,32 @@ Safe workflow:
         if (exitCode !== 0) {
           process.exitCode = exitCode;
         }
+      }),
+    );
+
+  program
+    .command("wui")
+    .description("Start the lightweight local Web UI")
+    .option("--port <number>", "port to listen on", parseWuiPort, DEFAULT_WUI_PORT)
+    .option("--no-open", "print the URL without opening a browser")
+    .addHelpText(
+      "after",
+      `
+
+Examples:
+  $ skill-zoo wui
+  $ skill-zoo wui --port 8281 --no-open
+`,
+    )
+    .action(async (options: GlobalOptions & { port: number; open?: boolean }) =>
+      withErrors(io, withHome(program, options), async () => {
+        const opts = withHome(program, options);
+        const handle = await startWuiServer({ home: opts.home, port: opts.port });
+        io.stdout.write(`Skill Zoo WUI: ${handle.url}\n`);
+        if (opts.open !== false) {
+          openBrowser(handle.url);
+        }
+        await waitForWuiShutdown(handle.server);
       }),
     );
 
