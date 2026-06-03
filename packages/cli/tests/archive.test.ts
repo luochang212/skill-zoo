@@ -5,6 +5,7 @@ import { archiveSkillRefs, makeArchiveId, restoreArchiveIds } from "../src/proto
 import { getPaths } from "../src/protocol/paths.js";
 import { readArchiveManifest, readCache, readLock, readMetadata } from "../src/protocol/store.js";
 import { isSymlinkOrJunction, pathExists } from "../src/lib/io.js";
+import { CLI_VERSION } from "../src/version.js";
 import { createDirLink, makeTempHome, writeJson, writeSkill } from "./helpers.js";
 
 describe("archive and restore", () => {
@@ -35,7 +36,7 @@ describe("archive and restore", () => {
       originalSkillId: skillId,
       name: "code-audit",
       lockKey: "code-audit",
-      archivedByVersion: "skill-zoo-cli@0.1.0",
+      archivedByVersion: `skill-zoo-cli@${CLI_VERSION}`,
     });
     expect((await readLock(home)).skills["code-audit"]).toBeUndefined();
     expect((await readMetadata(home)).entries[skillId]).toBeUndefined();

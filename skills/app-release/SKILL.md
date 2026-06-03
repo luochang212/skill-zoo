@@ -1,5 +1,5 @@
 ---
-name: release
+name: app-release
 description: Use when the user asks to release a new version, ship a build, or publish a Skill Zoo release. Also use when a tag push results in Homebrew 404 errors or missing artifact failures.
 ---
 
