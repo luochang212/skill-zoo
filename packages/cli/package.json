@@ -1,0 +1,35 @@
+{
+  "name": "skill-zoo",
+  "version": "0.1.0",
+  "description": "Agent-native CLI for Skill Zoo",
+  "type": "module",
+  "bin": {
+    "skill-zoo": "dist/index.js",
+    "szoo": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --target node20 --dts --clean",
+    "dev": "tsx src/index.ts",
+    "prepack": "npm run build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "commander": "^14.0.2",
+    "yaml": "^2.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "tsup": "^8.5.1",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
+  }
+}

@@ -1,8 +1,12 @@
 {
-  "name": "skill-zoo",
+  "name": "skill-zoo-workspace",
   "version": "0.2.9",
   "description": "Local GUI tool for managing Agent Skills",
+  "private": true,
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "bunx --bun vite",
     "build": "bunx --bun vite build",
@@ -16,7 +20,10 @@
     "lint:rs": "cargo clippy --manifest-path src-tauri/Cargo.toml --features test-helpers -- -D warnings",
     "format:rs": "cargo fmt --manifest-path src-tauri/Cargo.toml",
     "format:rs:check": "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check",
-    "test:rs": "cargo test --manifest-path src-tauri/Cargo.toml --features test-helpers"
+    "test:rs": "cargo test --manifest-path src-tauri/Cargo.toml --features test-helpers",
+    "cli:build": "cd packages/cli && bun run build",
+    "cli:test": "cd packages/cli && bun run test",
+    "cli:typecheck": "cd packages/cli && bun run typecheck"
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.5.0",
