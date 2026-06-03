@@ -2,7 +2,8 @@ import { Command, Option } from "commander";
 import { createInterface } from "node:readline/promises";
 import { stdin as defaultStdin, stdout as defaultStdout } from "node:process";
 import { archiveSkillRefs, listArchivedSkills, restoreArchiveIds } from "./protocol/archive.js";
-import { runConsistency, type ConsistencyReport } from "./protocol/consistency.js";
+import { runConsistency, type ConsistencyIssueKind, type ConsistencyReport } from "./protocol/consistency.js";
+import { readArchivedSkillMd, readInstalledSkillMd } from "./protocol/content.js";
 import {
   fixDoctor,
   inspectArchivedSkill,
@@ -12,8 +13,10 @@ import {
   type DoctorReport,
   type InspectSkillData,
 } from "./protocol/diagnostics.js";
+import { AGENTS } from "./protocol/agents.js";
 import { getAllAgentPaths } from "./protocol/paths.js";
 import { rebuildCache, scanInstalledSkills } from "./protocol/scan.js";
+import type { InstalledSkill, SkillOrigin } from "./protocol/types.js";
 import { CliError, messageFromError } from "./lib/errors.js";
 import {
   formatArchivedList,
@@ -48,6 +51,15 @@ interface WriteOptions extends CommonOptions {
   yes?: boolean;
 }
 
+interface ListOptions extends CommonOptions {
+  archived?: boolean;
+  agent?: string;
+  origin?: string;
+  issue?: string;
+}
+
+type ListIssueFilter = ConsistencyIssueKind | "any";
+
 export function createProgram(io: IO = defaultIO()): Command {
   const program = new Command();
 
@@ -62,15 +74,18 @@ export function createProgram(io: IO = defaultIO()): Command {
 
 Command map:
   Discover:  list, status, paths
-  Explain:   inspect
+  Explain:   inspect, show
   Maintain:  doctor, doctor fix, consistency, refresh
   Change:    archive, restore
   UI:        wui
 
 Common workflows:
   Inspect local state:
+    $ skill-zoo status --json
+    $ skill-zoo paths
     $ skill-zoo doctor --json
     $ skill-zoo consistency --json
+    $ skill-zoo show <skill-ref>
     $ skill-zoo inspect <skill-ref> --json
 
   Repair low-risk doctor issues:
@@ -108,15 +123,32 @@ Agent defaults:
     .command("list")
     .description("Discover installed skills")
     .option("--archived", "show archived skills instead")
+    .option("--agent <id>", "filter installed skills enabled for an agent")
+    .option("--origin <origin>", "filter installed skills by origin: ssot or agent")
+    .option("--issue <kind>", "filter installed skills by consistency issue: any, duplicate, conflict, or mismatch")
     .option("--json", "print machine-readable JSON")
-    .action(async (options: CommonOptions & { archived?: boolean }) =>
+    .addHelpText(
+      "after",
+      `
+
+Installed filters:
+  $ skill-zoo list --agent codex
+  $ skill-zoo list --origin ssot
+  $ skill-zoo list --issue conflict
+
+Archived skills:
+  $ skill-zoo list --archived
+`,
+    )
+    .action(async (options: ListOptions) =>
       withErrors(io, withHome(program, options), async () => {
         const opts = withHome(program, options);
         if (opts.archived) {
+          assertNoInstalledListFilters(opts);
           const skills = await listArchivedSkills(opts.home);
           writeSuccess(io, opts, skills, undefined, formatArchivedList(skills));
         } else {
-          const skills = await scanInstalledSkills(opts.home);
+          const skills = await filterInstalledSkills(opts.home, await scanInstalledSkills(opts.home), opts);
           writeSuccess(io, opts, skills, undefined, formatSkillList(skills));
         }
       }),
@@ -127,6 +159,15 @@ Agent defaults:
     .description("Summarize installed and archived skill counts")
     .option("--refresh", "rebuild skills-cache.json before summarizing")
     .option("--json", "print machine-readable JSON")
+    .addHelpText(
+      "after",
+      `
+
+Examples:
+  $ skill-zoo status
+  $ skill-zoo status --refresh --json
+`,
+    )
     .action(async (options: CommonOptions & { refresh?: boolean }) =>
       withErrors(io, withHome(program, options), async () => {
         const opts = withHome(program, options);
@@ -151,6 +192,15 @@ Agent defaults:
     .command("refresh")
     .description("Rebuild the local skill cache")
     .option("--json", "print machine-readable JSON")
+    .addHelpText(
+      "after",
+      `
+
+Examples:
+  $ skill-zoo refresh
+  $ skill-zoo refresh --json
+`,
+    )
     .action(async (options: CommonOptions) =>
       withErrors(io, withHome(program, options), async () => {
         const opts = withHome(program, options);
@@ -167,6 +217,15 @@ Agent defaults:
     .command("paths")
     .description("Show Skill Zoo and agent filesystem paths")
     .option("--json", "print machine-readable JSON")
+    .addHelpText(
+      "after",
+      `
+
+Examples:
+  $ skill-zoo paths
+  $ skill-zoo paths --json
+`,
+    )
     .action(async (options: CommonOptions) =>
       withErrors(io, withHome(program, options), async () => {
         const opts = withHome(program, options);
@@ -187,6 +246,15 @@ Agent defaults:
     .argument("<skill-ref>", "installed skill id/directory/name, or archive id with --archived")
     .option("--archived", "inspect an archived skill by archive id")
     .option("--json", "print machine-readable JSON")
+    .addHelpText(
+      "after",
+      `
+
+Examples:
+  $ skill-zoo inspect code-audit
+  $ skill-zoo inspect code-audit-a1b2c3d4 --archived --json
+`,
+    )
     .action(async (ref: string, options: CommonOptions & { archived?: boolean }) =>
       withErrors(io, withHome(program, options), async () => {
         const opts = withHome(program, options);
@@ -194,6 +262,31 @@ Agent defaults:
           ? await inspectArchivedSkill(opts.home, ref)
           : await inspectInstalledSkill(opts.home, ref);
         writeSuccess(io, opts, data, undefined, formatInspect(data));
+      }),
+    );
+
+  program
+    .command("show")
+    .description("Print one skill's SKILL.md")
+    .argument("<skill-ref>", "installed skill id/directory/name, or archive id with --archived")
+    .option("--archived", "show an archived skill by archive id")
+    .option("--json", "print machine-readable JSON")
+    .addHelpText(
+      "after",
+      `
+
+Examples:
+  $ skill-zoo show code-audit
+  $ skill-zoo show code-audit-a1b2c3d4 --archived
+`,
+    )
+    .action(async (ref: string, options: CommonOptions & { archived?: boolean }) =>
+      withErrors(io, withHome(program, options), async () => {
+        const opts = withHome(program, options);
+        const content = opts.archived
+          ? await readArchivedSkillMd(opts.home, ref)
+          : await readInstalledSkillMd(opts.home, ref);
+        writeSuccess(io, opts, { archived: Boolean(opts.archived), ref, content }, undefined, content);
       }),
     );
 
@@ -217,6 +310,7 @@ Agent defaults:
     .description("Repair low-risk doctor issues")
     .option("--dry-run", "show changes without writing")
     .option("--yes", "skip confirmation")
+    .option("--json", "print machine-readable JSON")
     .addHelpText(
       "after",
       `
@@ -224,9 +318,6 @@ Agent defaults:
 Safe workflow:
   $ skill-zoo doctor fix --dry-run --json
   $ skill-zoo doctor fix --yes --json
-
-Inherited options:
-  --json  print machine-readable JSON
 `,
     )
     .action(async (options: WriteOptions, command: Command) => {
@@ -252,6 +343,15 @@ Inherited options:
     .command("consistency")
     .description("Report skill content and naming consistency issues")
     .option("--json", "print machine-readable JSON")
+    .addHelpText(
+      "after",
+      `
+
+Examples:
+  $ skill-zoo consistency
+  $ skill-zoo consistency --json
+`,
+    )
     .action(async (options: CommonOptions) =>
       withErrors(io, withHome(program, options), async () => {
         const opts = withHome(program, options);
@@ -379,6 +479,64 @@ function defaultIO(): IO {
     stderr: process.stderr,
     stdin: defaultStdin,
   };
+}
+
+async function filterInstalledSkills(
+  home: string | undefined,
+  skills: InstalledSkill[],
+  options: ListOptions,
+): Promise<InstalledSkill[]> {
+  let filtered = skills;
+
+  if (options.agent) {
+    const agent = validateAgentFilter(options.agent);
+    filtered = filtered.filter((skill) => skill.apps[agent] === true);
+  }
+
+  if (options.origin) {
+    const origin = validateOriginFilter(options.origin);
+    filtered = filtered.filter((skill) => skill.origin === origin);
+  }
+
+  if (options.issue) {
+    const issue = validateIssueFilter(options.issue);
+    const report = await runConsistency(home);
+    const issueSkillIds = new Set(
+      report.issues
+        .filter((item) => issue === "any" || item.kind === issue)
+        .flatMap((item) => item.skills.map((skill) => skill.id)),
+    );
+    filtered = filtered.filter((skill) => issueSkillIds.has(skill.id));
+  }
+
+  return filtered;
+}
+
+function assertNoInstalledListFilters(options: ListOptions): void {
+  if (options.agent || options.origin || options.issue) {
+    throw new CliError("List filters --agent, --origin, and --issue are only supported for installed skills.");
+  }
+}
+
+function validateAgentFilter(agent: string): string {
+  if (!AGENTS.some((item) => item.id === agent)) {
+    throw new CliError(`Unknown agent: ${agent}. Expected one of: ${AGENTS.map((item) => item.id).join(", ")}`);
+  }
+  return agent;
+}
+
+function validateOriginFilter(origin: string): SkillOrigin {
+  if (origin !== "ssot" && origin !== "agent") {
+    throw new CliError(`Invalid origin: ${origin}. Expected ssot or agent.`);
+  }
+  return origin;
+}
+
+function validateIssueFilter(issue: string): ListIssueFilter {
+  if (issue !== "any" && issue !== "duplicate" && issue !== "conflict" && issue !== "mismatch") {
+    throw new CliError(`Invalid issue filter: ${issue}. Expected any, duplicate, conflict, or mismatch.`);
+  }
+  return issue;
 }
 
 async function withErrors(

@@ -11,7 +11,7 @@ skill-zoo --help
 
 ```text
 Discover:  list, status, paths
-Explain:   inspect
+Explain:   inspect, show
 Maintain:  doctor, doctor fix, consistency, refresh
 Change:    archive, restore
 UI:        wui
@@ -20,11 +20,20 @@ UI:        wui
 ## Common Workflows
 
 ```bash
+skill-zoo status
+skill-zoo status --refresh --json
+skill-zoo paths
 skill-zoo doctor
 skill-zoo doctor fix --dry-run
 skill-zoo doctor fix --yes
 skill-zoo consistency --json
+skill-zoo list --agent codex
+skill-zoo list --origin ssot
+skill-zoo list --issue conflict
+skill-zoo list --archived
+skill-zoo show code-audit
 skill-zoo inspect code-audit
+skill-zoo refresh
 
 skill-zoo archive code-audit --dry-run
 skill-zoo archive code-audit --yes
@@ -47,6 +56,17 @@ skill-zoo archive --help
 Installed skills can be referenced by id, directory, or name. If a reference matches more than one installed skill, the command fails instead of guessing.
 
 Archived skills are restored and inspected by archive id, for example `code-audit-a1b2c3d4`.
+
+`show` prints the raw `SKILL.md` for an installed skill, or for an archived skill when used with `--archived`.
+
+`list` filters apply to installed skills:
+
+```bash
+skill-zoo list --agent codex
+skill-zoo list --origin ssot
+skill-zoo list --issue any
+skill-zoo list --issue conflict
+```
 
 ## Safety
 
