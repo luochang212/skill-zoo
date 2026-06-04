@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ShieldCheck, ShieldAlert, ShieldX, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,7 @@ interface SkillAuditCardProps {
   owner: string;
   repo: string;
   slug: string;
+  compact?: boolean;
 }
 
 const STATUS_CONFIG = {
@@ -32,9 +33,30 @@ function getRiskColor(riskLevel?: string) {
   );
 }
 
-export function SkillAuditCard({ owner, repo, slug }: SkillAuditCardProps) {
+function AuditEmptyState({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 rounded-md bg-muted/50 px-2.5 py-2 text-[11px] text-muted-foreground">
+      <ShieldAlert className="h-3.5 w-3.5 shrink-0 opacity-70" />
+      <span className="leading-relaxed">{label}</span>
+    </div>
+  );
+}
+
+export function SkillAuditCard({ owner, repo, slug, compact }: SkillAuditCardProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!expanded || !compact) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setExpanded(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [expanded, compact]);
 
   const {
     data: audits = [],
@@ -45,6 +67,73 @@ export function SkillAuditCard({ owner, repo, slug }: SkillAuditCardProps) {
     expanded ? repo : undefined,
     expanded ? slug : undefined,
   );
+
+  const auditBody = (
+    <div className={cn("space-y-2 px-3 pb-3 pt-2", !compact && "border-t border-border")}>
+      {isLoading ? (
+        <div className="space-y-2.5">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="flex items-center gap-2">
+              <Skeleton className="h-3.5 w-3.5 rounded-full shrink-0" />
+              <Skeleton className="h-3 w-24 shrink-0" />
+              <Skeleton className="h-3.5 w-10 rounded-full" />
+            </div>
+          ))}
+        </div>
+      ) : isError || audits.length === 0 ? (
+        <AuditEmptyState label={t("audit.unavailable")} />
+      ) : (
+        audits.map((audit) => {
+          const config =
+            STATUS_CONFIG[audit.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.warn;
+          const Icon = config.icon;
+          return (
+            <div key={audit.slug} className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Icon className={cn("h-3.5 w-3.5 shrink-0", config.color)} />
+                <span className="text-xs text-foreground">{audit.provider}</span>
+                {getRiskColor(audit.riskLevel)}
+              </div>
+              {audit.summary && (
+                <p className="text-[11px] text-muted-foreground pl-5.5 leading-relaxed">
+                  {audit.summary}
+                </p>
+              )}
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+
+  if (compact) {
+    return (
+      <div className="flex justify-end w-full">
+        <div ref={containerRef} className="relative">
+          <button
+            className="h-6 inline-flex items-center gap-1.5 rounded-lg bg-muted px-2.5 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+            onClick={() => setExpanded(!expanded)}
+            aria-expanded={expanded}
+          >
+            <ShieldCheck className="h-3.5 w-3.5" />
+            {t("audit.title")}
+            <ChevronDown
+              className={cn("h-3.5 w-3.5 transition-transform", expanded && "rotate-180")}
+            />
+          </button>
+
+          {expanded && (
+            <div
+              className="absolute right-0 top-8 z-50 rounded-lg border border-border bg-popover shadow-lg"
+              style={{ width: "min(20rem, calc(100vw - 2.5rem))" }}
+            >
+              {auditBody}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-5 mb-3 rounded-lg border border-border bg-card">
@@ -65,43 +154,7 @@ export function SkillAuditCard({ owner, repo, slug }: SkillAuditCardProps) {
         />
       </button>
 
-      {expanded && (
-        <div className="px-3 pb-3 space-y-2 border-t border-border pt-2">
-          {isLoading ? (
-            <div className="space-y-2.5">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <Skeleton className="h-3.5 w-3.5 rounded-full shrink-0" />
-                  <Skeleton className="h-3 w-24 shrink-0" />
-                  <Skeleton className="h-3.5 w-10 rounded-full" />
-                </div>
-              ))}
-            </div>
-          ) : isError || audits.length === 0 ? (
-            <p className="text-[11px] text-muted-foreground py-1">{t("audit.unavailable")}</p>
-          ) : (
-            audits.map((audit) => {
-              const config =
-                STATUS_CONFIG[audit.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.warn;
-              const Icon = config.icon;
-              return (
-                <div key={audit.slug} className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Icon className={cn("h-3.5 w-3.5 shrink-0", config.color)} />
-                    <span className="text-xs text-foreground">{audit.provider}</span>
-                    {getRiskColor(audit.riskLevel)}
-                  </div>
-                  {audit.summary && (
-                    <p className="text-[11px] text-muted-foreground pl-5.5 leading-relaxed">
-                      {audit.summary}
-                    </p>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-      )}
+      {expanded && auditBody}
     </div>
   );
 }

@@ -218,7 +218,7 @@
   },
   "audit": {
     "title": "Security Audit",
-    "unavailable": "Unable to load security audit data."
+    "unavailable": "No security audit results available"
   },
   "unsavedDialog": {
     "title": "Unsaved Changes",

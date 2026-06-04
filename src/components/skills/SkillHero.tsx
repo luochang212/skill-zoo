@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { StarButton } from "@/components/skills/StarButton";
@@ -45,6 +46,7 @@ interface SkillHeroProps {
   archiveDisabled?: boolean;
   archiveDisabledReason?: string;
   updateSuccess?: boolean;
+  auditSlot?: ReactNode;
 }
 
 export function SkillHero({
@@ -65,6 +67,7 @@ export function SkillHero({
   archiveDisabled,
   archiveDisabledReason,
   updateSuccess,
+  auditSlot,
 }: SkillHeroProps) {
   const { t } = useTranslation();
   const { data: agentConfigs } = useAgentConfigs();
@@ -75,7 +78,7 @@ export function SkillHero({
   const overflowCount = linkedAgents.length - visibleAgents.length;
 
   return (
-    <div className="px-5 pt-4 pb-3">
+    <div className="px-5 pt-4 pb-2">
       {/* Name + repo link + actions row */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
@@ -195,31 +198,36 @@ export function SkillHero({
         </div>
       </div>
 
-      {/* Agent badges */}
-      {linkedAgents.length > 0 && agentConfigs && (
-        <div className="mt-2 inline-flex items-center gap-1.5">
-          {visibleAgents.map((agent) => {
-            const color = getAgentColor(agent, agentConfigs);
-            return (
-              <span
-                key={agent}
-                className={cn(
-                  "px-2.5 py-1 h-6 text-[11px] rounded-lg font-medium",
-                  color.bg,
-                  color.text,
-                  color.darkBg,
-                  color.darkText,
-                )}
-              >
-                {getAgentLabel(agent, agentConfigs)}
+      {/* Agent badges + audit */}
+      {((linkedAgents.length > 0 && agentConfigs) || auditSlot) && (
+        <div className="mt-2 flex items-start justify-between gap-3">
+          <div className="min-w-0 inline-flex flex-wrap items-center gap-1.5">
+            {linkedAgents.length > 0 &&
+              agentConfigs &&
+              visibleAgents.map((agent) => {
+                const color = getAgentColor(agent, agentConfigs);
+                return (
+                  <span
+                    key={agent}
+                    className={cn(
+                      "px-2.5 py-1 h-6 text-[11px] rounded-lg font-medium",
+                      color.bg,
+                      color.text,
+                      color.darkBg,
+                      color.darkText,
+                    )}
+                  >
+                    {getAgentLabel(agent, agentConfigs)}
+                  </span>
+                );
+              })}
+            {linkedAgents.length > 0 && agentConfigs && overflowCount > 0 && (
+              <span className="px-2.5 py-1 h-6 text-[11px] rounded-lg text-muted-foreground font-medium bg-muted">
+                +{overflowCount}
               </span>
-            );
-          })}
-          {overflowCount > 0 && (
-            <span className="px-2.5 py-1 h-6 text-[11px] rounded-lg text-muted-foreground font-medium bg-muted">
-              +{overflowCount}
-            </span>
-          )}
+            )}
+          </div>
+          {auditSlot && <div className="min-w-0 flex-1">{auditSlot}</div>}
         </div>
       )}
     </div>

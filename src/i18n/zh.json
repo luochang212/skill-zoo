@@ -218,7 +218,7 @@
   },
   "audit": {
     "title": "安全审计",
-    "unavailable": "无法加载安全审计数据。"
+    "unavailable": "暂无可用的安全审计结果"
   },
   "unsavedDialog": {
     "title": "未保存的更改",

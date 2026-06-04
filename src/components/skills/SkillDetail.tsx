@@ -220,12 +220,17 @@ export function SkillDetail({
           archiveDisabled={archiveDisabled}
           archiveDisabledReason={t("archiveDialog.dirtyHint")}
           updateSuccess={updateSuccess}
+          auditSlot={
+            !readOnly && skill.repoOwner && skill.repoName && skill.directory ? (
+              <SkillAuditCard
+                owner={skill.repoOwner}
+                repo={skill.repoName}
+                slug={skill.directory}
+                compact
+              />
+            ) : undefined
+          }
         />
-      )}
-
-      {/* Security audit */}
-      {!readOnly && skill?.repoOwner && skill.repoName && skill.directory && (
-        <SkillAuditCard owner={skill.repoOwner} repo={skill.repoName} slug={skill.directory} />
       )}
 
       {/* Content pane */}
