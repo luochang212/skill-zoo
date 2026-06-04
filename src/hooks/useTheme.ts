@@ -4,10 +4,12 @@ import { settingsApi } from "@/lib/api/settings";
 
 export type Theme = "light" | "dark" | "system";
 
+function systemPrefersDark() {
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
+}
+
 export function applyTheme(theme: Theme) {
-  const isDark =
-    theme === "dark" ||
-    (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const isDark = theme === "dark" || (theme === "system" && systemPrefersDark());
   document.documentElement.classList.toggle("dark", isDark);
 
   // Sync native window theme so the title bar blends in on Windows.
@@ -17,7 +19,7 @@ export function applyTheme(theme: Theme) {
 export function useTheme() {
   const [theme, setThemeState] = useState<Theme>(() => {
     const stored = localStorage.getItem("theme") as Theme | null;
-    return stored ?? "light";
+    return stored ?? "system";
   });
 
   // Apply theme on mount and when it changes
@@ -28,7 +30,8 @@ export function useTheme() {
   // Listen for system preference changes when using "system" theme
   useEffect(() => {
     if (theme !== "system") return;
-    const mql = window.matchMedia("(prefers-color-scheme: dark)");
+    const mql = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!mql) return;
     const handler = () => applyTheme("system");
     mql.addEventListener("change", handler);
     return () => mql.removeEventListener("change", handler);

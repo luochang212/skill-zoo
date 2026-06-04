@@ -101,7 +101,7 @@ export default function App() {
   useSkillsWatcher();
 
   useEffect(() => {
-    const theme = (localStorage.getItem("theme") as string | null) ?? "light";
+    const theme = (localStorage.getItem("theme") as string | null) ?? "system";
     applyTheme(theme as "light" | "dark" | "system");
   }, []);
 
