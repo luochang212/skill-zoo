@@ -31,8 +31,8 @@ interface RepoInfoPanelProps {
   name: string;
 }
 
-const PULL_REFRESH_THRESHOLD = 96;
-const PULL_REFRESH_MAX = 118;
+const PULL_REFRESH_THRESHOLD = 128;
+const PULL_REFRESH_MAX = 150;
 const MIN_REFRESH_SPINNER_MS = 700;
 
 function usePullToRefresh({
@@ -111,7 +111,7 @@ function usePullToRefresh({
 
       event.preventDefault();
       setDistance((current) => {
-        const next = Math.min(PULL_REFRESH_MAX, current + Math.abs(event.deltaY) * 0.18);
+        const next = Math.min(PULL_REFRESH_MAX, current + Math.abs(event.deltaY) * 0.10);
         if (next >= PULL_REFRESH_THRESHOLD) {
           triggerRefresh();
           return PULL_REFRESH_THRESHOLD;
@@ -120,7 +120,7 @@ function usePullToRefresh({
       });
 
       if (wheelResetTimerRef.current) clearTimeout(wheelResetTimerRef.current);
-      wheelResetTimerRef.current = setTimeout(() => setDistance(0), 180);
+      wheelResetTimerRef.current = setTimeout(() => setDistance(0), 220);
     },
     [atTop, disabled, triggerRefresh],
   );
@@ -202,7 +202,7 @@ export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
     <>
       {/* Persistent GitHub toggle button */}
       <motion.button
-        className="group absolute -right-3 bottom-4 w-[40px] h-[40px] rounded-full bg-background/60
+        className="group absolute -right-[7px] bottom-[18px] w-[40px] h-[40px] rounded-full bg-background/60
                    backdrop-blur-md border border-border/50 shadow-lg flex items-center
                    justify-center hover:bg-background/80 hover:border-border/80 z-20"
         onClick={handleToggle}
@@ -259,7 +259,7 @@ export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
 
               <ScrollArea
                 viewportRef={viewportRef}
-                className="h-full overflow-hidden rounded-t-[18px] px-5 py-4"
+                className="h-full overflow-hidden px-5 pt-4 pb-0"
               >
                 <div className="space-y-4">
                   {/* Header */}
