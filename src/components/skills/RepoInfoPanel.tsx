@@ -54,15 +54,17 @@ export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
       <AnimatePresence>
         {!collapsed && (
           <motion.div
-            className="shrink-0 w-[35%] min-w-[450px] flex flex-col rounded-t-xl bg-[#faf7f2] dark:bg-[#161412]
-                       border border-b-0 border-border/30 shadow-md ml-4"
+            className="shrink-0 w-[32%] min-w-[360px] flex flex-col rounded-t-[18px] bg-popover
+                       border border-b-0 border-border/65 dark:border-white/10
+                       shadow-[0_12px_32px_rgba(15,23,42,0.10)] dark:shadow-[0_22px_55px_rgba(0,0,0,0.45)]
+                       ml-4"
             data-selectable
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%", transition: { duration: 0.2, ease: "easeIn" } }}
             transition={{ duration: 0.2, ease: "easeOut" }}
           >
-            <ScrollArea className="flex-1 px-5 py-4">
+            <ScrollArea className="flex-1 overflow-hidden rounded-t-[18px] px-5 py-4">
               <div className="space-y-4">
                 {/* Header */}
                 <div>
