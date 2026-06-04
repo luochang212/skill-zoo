@@ -85,11 +85,11 @@ export const skillsApi = {
   previewSkillMd: (owner: string, name: string, branch: string | undefined, skillDir: string) =>
     invoke<string>("preview_skill_md", { owner, name, branch, skillDir }),
 
-  getRepoMetadata: (owner: string, name: string) =>
-    invoke<DiscoverRepo>("get_repo_metadata", { owner, name }),
+  getRepoMetadata: (owner: string, name: string, force?: boolean) =>
+    invoke<DiscoverRepo>("get_repo_metadata", { owner, name, force }),
 
-  getRepoReadme: (owner: string, name: string, branch?: string) =>
-    invoke<string>("get_repo_readme", { owner, name, branch }),
+  getRepoReadme: (owner: string, name: string, branch?: string, force?: boolean) =>
+    invoke<string>("get_repo_readme", { owner, name, branch, force }),
 
   // ── Discover (skills.sh) ──
 

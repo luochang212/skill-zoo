@@ -1417,7 +1417,7 @@ pub fn search_repo(query: String) -> Result<DiscoverRepo, String> {
 }
 
 /// Cache entry keyed by "owner/name", stored in ~/.skill-zoo/repo-metadata-cache.json
-const REPO_METADATA_CACHE_TTL: u64 = 86400; // 24 hours in seconds
+const REPO_METADATA_CACHE_TTL: u64 = 7 * 86400; // 7 days in seconds
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct RepoMetadataCacheEntry {
@@ -1445,19 +1445,27 @@ fn save_repo_metadata_cache(cache: &std::collections::HashMap<String, RepoMetada
 }
 
 #[tauri::command]
-pub async fn get_repo_metadata(owner: String, name: String) -> Result<DiscoverRepo, String> {
+pub async fn get_repo_metadata(
+    owner: String,
+    name: String,
+    force: Option<bool>,
+) -> Result<DiscoverRepo, String> {
     validate_repo_segments(&owner, &name, "main")?;
+    let force = force.unwrap_or(false);
     let key = format!("{owner}/{name}");
     let mut cache = load_repo_metadata_cache();
+    let stale_cache = cache.get(&key).map(|entry| entry.data.clone());
 
     // Check disk cache
-    if let Some(entry) = cache.get(&key) {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        if now.saturating_sub(entry.fetched_at) < REPO_METADATA_CACHE_TTL {
-            return Ok(entry.data.clone());
+    if !force {
+        if let Some(entry) = cache.get(&key) {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            if now.saturating_sub(entry.fetched_at) < REPO_METADATA_CACHE_TTL {
+                return Ok(entry.data.clone());
+            }
         }
     }
 
@@ -1477,6 +1485,8 @@ pub async fn get_repo_metadata(owner: String, name: String) -> Result<DiscoverRe
         );
         save_repo_metadata_cache(&cache);
         Ok(data)
+    } else if let Some(data) = stale_cache {
+        Ok(data)
     } else {
         Err("Network error fetching repo metadata".into())
     }
@@ -1484,7 +1494,7 @@ pub async fn get_repo_metadata(owner: String, name: String) -> Result<DiscoverRe
 
 // ── README cache ──
 
-const REPO_README_CACHE_TTL: u64 = 86400; // 24 hours
+const REPO_README_CACHE_TTL: u64 = 7 * 86400; // 7 days
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct RepoReadmeCacheEntry {
@@ -1541,24 +1551,70 @@ async fn fetch_repo_readme(owner: &str, name: &str, branch: &str) -> Result<Stri
     String::from_utf8(decoded).map_err(|_| ())
 }
 
+fn read_repo_readme_from_zip_path(zip_path: &Path) -> Result<String, ()> {
+    let file = std::fs::File::open(zip_path).map_err(|_| ())?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|_| ())?;
+
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).map_err(|_| ())?;
+        if !is_root_readme_path(entry.name()) {
+            continue;
+        }
+
+        let mut content = String::new();
+        std::io::Read::read_to_string(&mut entry, &mut content).map_err(|_| ())?;
+        return Ok(content);
+    }
+
+    Err(())
+}
+
+fn is_root_readme_path(path: &str) -> bool {
+    let mut parts = path.split('/').filter(|part| !part.is_empty());
+    let Some(_) = parts.next() else {
+        return false;
+    };
+    let Some(file_name) = parts.next() else {
+        return false;
+    };
+    if parts.next().is_some() {
+        return false;
+    }
+
+    matches!(
+        file_name.to_ascii_lowercase().as_str(),
+        "readme.md" | "readme.mdx" | "readme.markdown" | "readme.txt"
+    )
+}
+
+fn read_cached_repo_readme_from_zip(owner: &str, name: &str, branch: &str) -> Result<String, ()> {
+    let zip_path = CliService::cache_zip_path(owner, name, branch);
+    read_repo_readme_from_zip_path(&zip_path)
+}
+
 #[tauri::command]
 pub async fn get_repo_readme(
     owner: String,
     name: String,
     branch: Option<String>,
+    force: Option<bool>,
 ) -> Result<String, String> {
     let branch = branch.unwrap_or_else(|| "main".to_string());
+    let force = force.unwrap_or(false);
     validate_repo_segments(&owner, &name, &branch)?;
     let key = format!("{owner}/{name}/{branch}");
 
     let mut cache = load_readme_cache();
-    if let Some(entry) = cache.get(&key) {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        if now.saturating_sub(entry.fetched_at) < REPO_README_CACHE_TTL {
-            return Ok(entry.content.clone());
+    let stale_cache = cache.get(&key).map(|entry| entry.content.clone());
+    if !force {
+        if let Some(entry) = cache.get(&key) {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            if now.saturating_sub(entry.fetched_at) < REPO_README_CACHE_TTL {
+                return Ok(entry.content.clone());
+            }
         }
     }
 
@@ -1578,7 +1634,30 @@ pub async fn get_repo_readme(
             save_readme_cache(&cache);
             Ok(content)
         }
-        Err(()) => Err("Network error fetching README".into()),
+        Err(()) => {
+            if let Some(content) = stale_cache {
+                return Ok(content);
+            }
+
+            match read_cached_repo_readme_from_zip(&owner, &name, &branch) {
+                Ok(content) => {
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs();
+                    cache.insert(
+                        key,
+                        RepoReadmeCacheEntry {
+                            content: content.clone(),
+                            fetched_at: now,
+                        },
+                    );
+                    save_readme_cache(&cache);
+                    Ok(content)
+                }
+                Err(()) => Err("Network error fetching README".into()),
+            }
+        }
     }
 }
 
@@ -1886,4 +1965,48 @@ pub async fn create_skill(
         .into_iter()
         .find(|s| s.id == entry_id)
         .ok_or_else(|| "Skill disappeared after creation".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use zip::write::SimpleFileOptions;
+
+    fn write_test_zip(entries: &[(&str, &str)]) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("repo.zip");
+        let file = std::fs::File::create(&path).expect("create zip");
+        let mut zip = zip::ZipWriter::new(file);
+        let options = SimpleFileOptions::default();
+
+        for (name, content) in entries {
+            zip.start_file(name, options).expect("start file");
+            zip.write_all(content.as_bytes()).expect("write file");
+        }
+
+        zip.finish().expect("finish zip");
+        dir
+    }
+
+    #[test]
+    fn reads_root_readme_from_cached_repo_zip() {
+        let dir = write_test_zip(&[
+            ("repo-main/docs/README.md", "nested"),
+            ("repo-main/README.md", "# Root README"),
+        ]);
+
+        let content = read_repo_readme_from_zip_path(&dir.path().join("repo.zip")).unwrap();
+
+        assert_eq!(content, "# Root README");
+    }
+
+    #[test]
+    fn ignores_nested_readme_in_cached_repo_zip() {
+        let dir = write_test_zip(&[("repo-main/docs/README.md", "nested")]);
+
+        let result = read_repo_readme_from_zip_path(&dir.path().join("repo.zip"));
+
+        assert!(result.is_err());
+    }
 }
