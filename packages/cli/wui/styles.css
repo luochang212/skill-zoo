@@ -418,14 +418,14 @@ h3 {
   overflow: auto;
 }
 
-table {
+.list-pane table {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
 }
 
-th,
-td {
+.list-pane th,
+.list-pane td {
   padding: 9px 12px;
   border-bottom: 1px solid var(--line);
   text-align: left;
@@ -433,7 +433,7 @@ td {
   font-size: 13px;
 }
 
-th {
+.list-pane th {
   position: sticky;
   top: 0;
   z-index: 1;
@@ -452,23 +452,23 @@ tr[data-row].selected {
   background: rgba(23, 107, 135, 0.08);
 }
 
-td:first-child,
-th:first-child {
+.list-pane td:first-child,
+.list-pane th:first-child {
   width: 36%;
 }
 
-td:nth-child(2),
-th:nth-child(2) {
+.list-pane td:nth-child(2),
+.list-pane th:nth-child(2) {
   width: 18%;
 }
 
-td:nth-child(3),
-th:nth-child(3) {
+.list-pane td:nth-child(3),
+.list-pane th:nth-child(3) {
   width: 28%;
 }
 
-td:nth-child(4),
-th:nth-child(4) {
+.list-pane td:nth-child(4),
+.list-pane th:nth-child(4) {
   width: 18%;
 }
 
@@ -647,7 +647,8 @@ th:nth-child(4) {
 .markdown p,
 .markdown ul,
 .markdown ol,
-.markdown blockquote {
+.markdown blockquote,
+.markdown table {
   margin: 9px 0;
 }
 
@@ -674,6 +675,40 @@ th:nth-child(4) {
   background: var(--code);
   color: #f8fafc;
   border: 1px solid #111827;
+}
+
+.markdown table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.markdown th,
+.markdown td {
+  min-width: 120px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.45;
+  vertical-align: top;
+  white-space: normal;
+}
+
+.markdown th {
+  position: static;
+  background: var(--panel-2);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: none;
+}
+
+.markdown tbody tr:nth-child(even) {
+  background: #faf7ef;
 }
 
 .markdown code {

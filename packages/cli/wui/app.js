@@ -5,6 +5,7 @@ const state = {
   selectedRef: null,
   selected: null,
   content: "",
+  contentHtml: "",
   inspect: null,
   pendingPlan: null,
   doctorFixResult: null,
@@ -207,6 +208,7 @@ async function loadDetail(skill) {
   }
   state.inspect = inspect.data;
   state.content = content.data.content;
+  state.contentHtml = content.data.html || "";
   renderDetail();
 }
 
@@ -256,7 +258,7 @@ function renderDetail(loading = false) {
         <span>SKILL.md</span>
         <span>${loading ? "Loading" : contentStats(state.content)}</span>
       </div>
-      <div class="markdown">${loading ? "<p>Loading content...</p>" : markdownToHtml(state.content || "")}</div>
+      <div class="markdown">${loading ? "<p>Loading content...</p>" : state.contentHtml || "<p>No content.</p>"}</div>
     </section>
   `;
 
@@ -500,137 +502,6 @@ function renderDoctorFixResult() {
       </div>
     </div>
   `;
-}
-
-function markdownToHtml(markdown) {
-  const { frontmatter, body } = splitFrontmatter(markdown);
-  const lines = body.split(/\r?\n/);
-  const html = [];
-  let inCode = false;
-  let inList = false;
-  let listType = null;
-
-  if (frontmatter) {
-    html.push(renderFrontmatter(frontmatter));
-  }
-
-  const closeList = () => {
-    if (!inList) return;
-    html.push(listType === "ol" ? "</ol>" : "</ul>");
-    inList = false;
-    listType = null;
-  };
-
-  for (const line of lines) {
-    if (line.startsWith("```")) {
-      closeList();
-      html.push(inCode ? "</code></pre>" : "<pre><code>");
-      inCode = !inCode;
-      continue;
-    }
-    if (inCode) {
-      html.push(`${escapeHtml(line)}\n`);
-      continue;
-    }
-    if (/^\s*[-*]\s+/.test(line)) {
-      if (!inList || listType !== "ul") {
-        closeList();
-        html.push("<ul>");
-        inList = true;
-        listType = "ul";
-      }
-      html.push(`<li>${inlineMarkdown(line.replace(/^\s*[-*]\s+/, ""))}</li>`);
-      continue;
-    }
-    if (/^\s*\d+\.\s+/.test(line)) {
-      if (!inList || listType !== "ol") {
-        closeList();
-        html.push("<ol>");
-        inList = true;
-        listType = "ol";
-      }
-      html.push(`<li>${inlineMarkdown(line.replace(/^\s*\d+\.\s+/, ""))}</li>`);
-      continue;
-    }
-    closeList();
-    if (line.startsWith("# ")) {
-      html.push(`<h1>${inlineMarkdown(line.slice(2))}</h1>`);
-    } else if (line.startsWith("## ")) {
-      html.push(`<h2>${inlineMarkdown(line.slice(3))}</h2>`);
-    } else if (line.startsWith("### ")) {
-      html.push(`<h3>${inlineMarkdown(line.slice(4))}</h3>`);
-    } else if (/^---+$/.test(line.trim())) {
-      html.push("<hr>");
-    } else if (line.startsWith(">")) {
-      html.push(`<blockquote>${inlineMarkdown(line.replace(/^>\s?/, ""))}</blockquote>`);
-    } else if (line.trim() === "") {
-      html.push("");
-    } else {
-      html.push(`<p>${inlineMarkdown(line)}</p>`);
-    }
-  }
-  closeList();
-  if (inCode) html.push("</code></pre>");
-  return html.join("");
-}
-
-function splitFrontmatter(markdown) {
-  const lines = markdown.split(/\r?\n/);
-  if (lines[0] !== "---") {
-    return { frontmatter: "", body: markdown };
-  }
-  const end = lines.findIndex((line, index) => index > 0 && line === "---");
-  if (end === -1) {
-    return { frontmatter: "", body: markdown };
-  }
-  return {
-    frontmatter: lines.slice(1, end).join("\n"),
-    body: lines.slice(end + 1).join("\n").trimStart(),
-  };
-}
-
-function renderFrontmatter(frontmatter) {
-  const rows = frontmatter
-    .split(/\r?\n/)
-    .filter((line) => line.trim())
-    .map((line) => {
-      const index = line.indexOf(":");
-      if (index === -1) {
-        return `<div class="fm-row"><span class="fm-key">meta</span><span>${escapeHtml(line)}</span></div>`;
-      }
-      return `
-        <div class="fm-row">
-          <span class="fm-key">${escapeHtml(line.slice(0, index).trim())}</span>
-          <span>${inlineMarkdown(line.slice(index + 1).trim() || "-")}</span>
-        </div>
-      `;
-    })
-    .join("");
-  return `
-    <aside class="frontmatter">
-      <div class="frontmatter-title">Frontmatter</div>
-      ${rows || `<div class="fm-row"><span class="fm-key">empty</span><span>-</span></div>`}
-    </aside>
-  `;
-}
-
-function inlineMarkdown(value) {
-  let html = escapeHtml(value);
-  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
-  html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, label, href) => {
-    const safeHref = safeUrl(href);
-    return safeHref ? `<a href="${safeHref}" target="_blank" rel="noreferrer">${label}</a>` : label;
-  });
-  return html;
-}
-
-function safeUrl(value) {
-  const url = String(value).trim();
-  if (/^(https?:|mailto:|#)/.test(url)) {
-    return escapeAttr(url);
-  }
-  return "";
 }
 
 function contentStats(content) {

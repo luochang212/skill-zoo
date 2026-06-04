@@ -14,6 +14,7 @@ import { readArchivedSkillMd, readInstalledSkillMd } from "../protocol/content.j
 import { CliError, messageFromError } from "../lib/errors.js";
 import { pathExists } from "../lib/io.js";
 import { jsonEnvelope, type JsonEnvelope } from "../output.js";
+import { renderSkillMarkdown } from "./markdown.js";
 
 export const DEFAULT_WUI_PORT = 8280;
 export const WUI_HOST = "127.0.0.1";
@@ -235,7 +236,7 @@ async function handleApi(
     const content = kind === "archived"
       ? await readArchivedSkillMd(context.home, ref)
       : await readInstalledSkillMd(context.home, ref);
-    writeOk(response, { content });
+    writeOk(response, { content, html: renderSkillMarkdown(content) });
     return;
   }
 

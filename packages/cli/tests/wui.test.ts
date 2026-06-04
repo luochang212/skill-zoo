@@ -1,10 +1,12 @@
 import path from "node:path";
+import { promises as fs } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createProgram } from "../src/cli.js";
 import { pathExists } from "../src/lib/io.js";
 import { getPaths } from "../src/protocol/paths.js";
 import { readArchiveManifest } from "../src/protocol/store.js";
 import { parseWuiPort, startWuiServer, type WuiServerHandle } from "../src/wui/server.js";
+import { renderSkillMarkdown } from "../src/wui/markdown.js";
 import { makeTempHome, writeSkill } from "./helpers.js";
 
 describe("wui command", () => {
@@ -69,16 +71,21 @@ describe("wui server", () => {
   it("serves installed skill markdown content", async () => {
     const home = await makeTempHome();
     const paths = getPaths(home);
-    await writeSkill(path.join(paths.agentsSkillsDir, "demo"), "name: Demo");
+    await fs.mkdir(path.join(paths.agentsSkillsDir, "demo"), { recursive: true });
+    await fs.writeFile(
+      path.join(paths.agentsSkillsDir, "demo", "SKILL.md"),
+      ["---", "name: Demo", "description: Demo skill", "---", "", "| A | B |", "| - | - |", "| 1 | 2 |"].join("\n"),
+    );
     const handle = await startWuiServer({ home, port: 0, token: "test-token" });
     try {
-      const payload = await getJson<{ ok: boolean; data: { content: string } }>(
+      const payload = await getJson<{ ok: boolean; data: { content: string; html: string } }>(
         handle,
         "/api/content?kind=installed&ref=ssot%3Ademo",
       );
 
       expect(payload.ok).toBe(true);
-      expect(payload.data.content).toContain("# Skill");
+      expect(payload.data.content).toContain("| A | B |");
+      expect(payload.data.html).toContain("<table>");
     } finally {
       await handle.close();
     }
@@ -164,6 +171,30 @@ describe("wui server", () => {
     } finally {
       await first.close();
     }
+  });
+});
+
+describe("wui markdown rendering", () => {
+  it("renders GFM markdown tables", () => {
+    const html = renderSkillMarkdown([
+      "# Skill",
+      "",
+      "| Do | Do not |",
+      "| --- | --- |",
+      "| Render tables | Show pipes as plain text |",
+    ].join("\n"));
+
+    expect(html).toContain("<table>");
+    expect(html).toContain("<th>Do</th>");
+    expect(html).toContain("<td>Render tables</td>");
+  });
+
+  it("escapes raw HTML in skill markdown", () => {
+    const html = renderSkillMarkdown("before\n\n<script>alert('x')</script>\n\nafter");
+
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("before");
+    expect(html).toContain("after");
   });
 });
 
