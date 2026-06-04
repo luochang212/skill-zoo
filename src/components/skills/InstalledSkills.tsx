@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { memo, useMemo, useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
   useArchivedSkills,
@@ -10,7 +10,7 @@ import {
   useUnstarSkill,
 } from "@/hooks/useSkills";
 import { toast } from "sonner";
-import { useConsistencyCheck } from "@/hooks/useSkillIssues";
+import { useConsistencyCheck, type SkillIssues } from "@/hooks/useSkillIssues";
 import { useConsistencyLabelSettings } from "@/hooks/useConsistencyLabelSettings";
 import { useVisibleAgentOrder, useHideNonSsot } from "@/hooks/useSettings";
 import { useAgentConfigs } from "@/lib/agents";
@@ -48,6 +48,9 @@ interface InstalledSkillsProps {
 type SortField = "name" | "repo" | "updatedAt";
 type SortDirection = "asc" | "desc";
 type BatchAction = "archive" | "remove" | "restore";
+
+const EMPTY_SKILLS: InstalledSkill[] = [];
+const EMPTY_ARCHIVED_SKILLS: ArchivedSkill[] = [];
 
 function SortArrow({ active, direction }: { active: boolean; direction: SortDirection }) {
   if (!active) return null;
@@ -155,7 +158,7 @@ function BatchConfirmDialog({
   );
 }
 
-export function InstalledSkills({
+export const InstalledSkills = memo(function InstalledSkills({
   onViewSkill,
   onViewArchivedSkill,
   category,
@@ -184,16 +187,6 @@ export function InstalledSkills({
   const { data: agentConfigs } = useAgentConfigs();
   const { showDuplicate, showConflict, showMismatch } = useConsistencyLabelSettings();
 
-  const getFilteredIssues = (skillId: string) => {
-    const issues = issuesMap.get(skillId);
-    if (!issues) return undefined;
-    const activeFlags: Record<string, boolean> = {};
-    if (showConflict && issues.hasConflict) activeFlags.hasConflict = true;
-    if (showMismatch && issues.isMismatch) activeFlags.isMismatch = true;
-    if (showDuplicate && issues.isDuplicate) activeFlags.isDuplicate = true;
-    return Object.keys(activeFlags).length > 0 ? (activeFlags as typeof issues) : undefined;
-  };
-
   const [search, setSearch] = useState("");
   const [agentFilter, setAgentFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
@@ -218,6 +211,118 @@ export function InstalledSkills({
   useEffect(() => {
     if (viewMode === "grid") setSelectedIds(new Set());
   }, [viewMode]);
+
+  const skillsList = skills ?? EMPTY_SKILLS;
+  const archivedList = archivedSkills ?? EMPTY_ARCHIVED_SKILLS;
+  const isArchiveView = category.type === "archived";
+
+  const visibleSkills = useMemo(
+    () => skillsList.filter((s) => !hideNonSsot || s.origin === "ssot"),
+    [hideNonSsot, skillsList],
+  );
+
+  const filteredIssuesMap = useMemo(() => {
+    const result = new Map<string, SkillIssues>();
+    for (const [skillId, issues] of issuesMap) {
+      const activeFlags: Record<string, boolean> = {};
+      if (showConflict && issues.hasConflict) activeFlags.hasConflict = true;
+      if (showMismatch && issues.isMismatch) activeFlags.isMismatch = true;
+      if (showDuplicate && issues.isDuplicate) activeFlags.isDuplicate = true;
+      if (Object.keys(activeFlags).length > 0) {
+        result.set(skillId, activeFlags as typeof issues);
+      }
+    }
+    return result;
+  }, [issuesMap, showConflict, showDuplicate, showMismatch]);
+
+  const categoryFiltered = useMemo(
+    () =>
+      isArchiveView
+        ? archivedList
+        : visibleSkills.filter((s) => {
+            switch (category.type) {
+              case "starred":
+                return s.starred;
+              case "mine":
+                return s.isMine;
+              case "repo":
+                return s.repoOwner === category.owner && s.repoName === category.name;
+              case "unassigned":
+                return !(s.repoOwner && s.repoName);
+              case "consistency":
+                return true; // ConsistencyPanel handles its own rendering
+              case "all":
+              default:
+                return true;
+            }
+          }),
+    [archivedList, category, isArchiveView, visibleSkills],
+  );
+
+  const filtered = useMemo(
+    () =>
+      categoryFiltered.filter((s) => {
+        if (search && !s.name.toLowerCase().includes(search.toLowerCase())) return false;
+        if (agentFilter !== "all" && !s.apps[agentFilter]) return false;
+        return true;
+      }),
+    [agentFilter, categoryFiltered, search],
+  );
+
+  const sorted = useMemo(
+    () =>
+      filtered.toSorted((a, b) => {
+        const dir = sortDirection === "asc" ? 1 : -1;
+
+        switch (sortField) {
+          case "name":
+            return dir * a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+
+          case "repo": {
+            const aRepo = a.repoOwner && a.repoName ? `${a.repoOwner}/${a.repoName}` : "";
+            const bRepo = b.repoOwner && b.repoName ? `${b.repoOwner}/${b.repoName}` : "";
+            // Empty values always last
+            if (!aRepo && bRepo) return 1;
+            if (aRepo && !bRepo) return -1;
+            if (!aRepo && !bRepo) return 0;
+            return dir * aRepo.localeCompare(bRepo, undefined, { sensitivity: "base" });
+          }
+
+          case "updatedAt": {
+            const aTime = isArchiveView
+              ? ((a as ArchivedSkill).archivedAt ?? 0)
+              : (a.updatedAt ?? 0);
+            const bTime = isArchiveView
+              ? ((b as ArchivedSkill).archivedAt ?? 0)
+              : (b.updatedAt ?? 0);
+            return dir * (aTime - bTime);
+          }
+
+          default:
+            return 0;
+        }
+      }),
+    [filtered, isArchiveView, sortDirection, sortField],
+  );
+
+  const visibleSelectedSkills = useMemo(
+    () => sorted.filter((s) => selectedIds.has(s.id)),
+    [selectedIds, sorted],
+  );
+  const visibleSelectedIds = useMemo(
+    () => visibleSelectedSkills.map((s) => s.id),
+    [visibleSelectedSkills],
+  );
+  const allSelected = sorted.length > 0 && visibleSelectedIds.length === sorted.length;
+
+  const batchDialogItems = useMemo(
+    () =>
+      visibleSelectedSkills.map((skill) => ({
+        id: skill.id,
+        name: skill.name,
+      })),
+    [visibleSelectedSkills],
+  );
 
   if (isLoading || (category.type === "archived" && archivedLoading)) {
     return (
@@ -289,16 +394,6 @@ export function InstalledSkills({
     );
   }
 
-  const skillsList = skills ?? [];
-  const archivedList = archivedSkills ?? [];
-  const isArchiveView = category.type === "archived";
-
-  // Apply hideNonSsot setting first — this affects both sidebar counts and main list
-  const visibleSkills = skillsList.filter((s) => {
-    if (hideNonSsot && s.origin !== "ssot") return false;
-    return true;
-  });
-
   if (isArchiveView && archivedError) {
     return (
       <div className="flex h-full relative">
@@ -324,34 +419,6 @@ export function InstalledSkills({
       </div>
     );
   }
-
-  // Apply sidebar category filter
-  const categoryFiltered = isArchiveView
-    ? archivedList
-    : visibleSkills.filter((s) => {
-        switch (category.type) {
-          case "starred":
-            return s.starred;
-          case "mine":
-            return s.isMine;
-          case "repo":
-            return s.repoOwner === category.owner && s.repoName === category.name;
-          case "unassigned":
-            return !(s.repoOwner && s.repoName);
-          case "consistency":
-            return true; // ConsistencyPanel handles its own rendering
-          case "all":
-          default:
-            return true;
-        }
-      });
-
-  // Apply search + agent filter on top of category filter
-  const filtered = categoryFiltered.filter((s) => {
-    if (search && !s.name.toLowerCase().includes(search.toLowerCase())) return false;
-    if (agentFilter !== "all" && !s.apps[agentFilter]) return false;
-    return true;
-  });
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -380,34 +447,6 @@ export function InstalledSkills({
     });
   };
 
-  const sorted = filtered.toSorted((a, b) => {
-    const dir = sortDirection === "asc" ? 1 : -1;
-
-    switch (sortField) {
-      case "name":
-        return dir * a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-
-      case "repo": {
-        const aRepo = a.repoOwner && a.repoName ? `${a.repoOwner}/${a.repoName}` : "";
-        const bRepo = b.repoOwner && b.repoName ? `${b.repoOwner}/${b.repoName}` : "";
-        // Empty values always last
-        if (!aRepo && bRepo) return 1;
-        if (aRepo && !bRepo) return -1;
-        if (!aRepo && !bRepo) return 0;
-        return dir * aRepo.localeCompare(bRepo, undefined, { sensitivity: "base" });
-      }
-
-      case "updatedAt": {
-        const aTime = isArchiveView ? ((a as ArchivedSkill).archivedAt ?? 0) : (a.updatedAt ?? 0);
-        const bTime = isArchiveView ? ((b as ArchivedSkill).archivedAt ?? 0) : (b.updatedAt ?? 0);
-        return dir * (aTime - bTime);
-      }
-
-      default:
-        return 0;
-    }
-  });
-
   const handleSelectAll = () => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -415,10 +454,6 @@ export function InstalledSkills({
       return next;
     });
   };
-
-  const visibleSelectedSkills = sorted.filter((s) => selectedIds.has(s.id));
-  const visibleSelectedIds = visibleSelectedSkills.map((s) => s.id);
-  const allSelected = sorted.length > 0 && visibleSelectedIds.length === sorted.length;
 
   const clearSucceededSelection = (ids: string[]) => {
     setSelectedIds((prev) => {
@@ -467,13 +502,8 @@ export function InstalledSkills({
     });
   };
 
-  const batchDialogItems = visibleSelectedSkills.map((skill) => ({
-    id: skill.id,
-    name: skill.name,
-  }));
-
   return (
-    <div className="flex h-full relative">
+    <div className="flex h-full relative" style={{ contain: "layout paint" }}>
       {/* Sidebar */}
       <SkillSidebar
         skills={visibleSkills}
@@ -569,7 +599,7 @@ export function InstalledSkills({
                           }
                           onToggleStar={isArchiveView ? undefined : () => handleToggleStar(skill)}
                           starred={skill.starred}
-                          issues={isArchiveView ? undefined : getFilteredIssues(skill.id)}
+                          issues={isArchiveView ? undefined : filteredIssuesMap.get(skill.id)}
                         />
                       ))}
                     </div>
@@ -600,7 +630,7 @@ export function InstalledSkills({
                           }
                           onToggleStar={isArchiveView ? undefined : () => handleToggleStar(skill)}
                           starred={skill.starred}
-                          issues={isArchiveView ? undefined : getFilteredIssues(skill.id)}
+                          issues={isArchiveView ? undefined : filteredIssuesMap.get(skill.id)}
                           selected={selectedIds.has(skill.id)}
                           onToggleSelect={() => handleToggleSelect(skill.id)}
                         />
@@ -709,4 +739,4 @@ export function InstalledSkills({
       </div>
     </div>
   );
-}
+});

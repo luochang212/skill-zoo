@@ -328,14 +328,24 @@ export function SkillContentPane({
           className="h-full shrink-0 overflow-hidden"
           style={{
             width: sidebarOpen ? sidebarWidth : 0,
-            transition: sidebarDragging ? "none" : "width 0.2s",
           }}
         >
-          <SkillFileTree
-            nodes={nodes}
-            selectedPath={selectedFilePath ?? undefined}
-            onSelectFile={(node) => setSelectedFilePath(node.path)}
-          />
+          <div
+            className={cn(
+              "h-full transition-[transform,opacity] duration-200 ease-out",
+              sidebarOpen ? "translate-x-0 opacity-100" : "-translate-x-full opacity-0",
+            )}
+            style={{
+              width: sidebarWidth,
+              willChange: sidebarDragging ? undefined : "transform, opacity",
+            }}
+          >
+            <SkillFileTree
+              nodes={nodes}
+              selectedPath={selectedFilePath ?? undefined}
+              onSelectFile={(node) => setSelectedFilePath(node.path)}
+            />
+          </div>
         </div>
 
         {/* Sidebar resize divider */}

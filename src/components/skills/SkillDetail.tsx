@@ -11,6 +11,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { SkillHero } from "@/components/skills/SkillHero";
+import { BackButton } from "@/components/ui/BackButton";
 import { ConfigureDialog } from "@/components/skills/ConfigureDialog";
 import { SkillContentPane, type ContentTab } from "@/components/skills/SkillContentPane";
 import { SkillAuditCard } from "@/components/skills/SkillAuditCard";
@@ -121,9 +122,10 @@ export function SkillDetail({
           {/* Name + actions row (mirrors SkillHero layout) */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Skeleton className="h-6 w-6 rounded-md" />
-              <Skeleton className="h-6 w-16 rounded-lg" />
-              <Skeleton className="h-6 w-32" />
+              {onBack && <BackButton onClick={onBack} title={t("common.back")} />}
+              <h1 className="text-xl font-bold tracking-tight leading-tight truncate">
+                {skillName}
+              </h1>
             </div>
             <div className="flex items-center gap-1">
               <Skeleton className="h-7 w-7 rounded-md" />

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Archive,
@@ -34,44 +34,51 @@ export function SkillSidebar({
   const { t } = useTranslation();
   const [reposExpanded, setReposExpanded] = useState(true);
 
-  const starredCount = skills.filter((s) => s.starred).length;
-  const mineCount = skills.filter((s) => s.isMine).length;
+  const { starredCount, mineCount, repos } = useMemo(() => {
+    const repoMap = new Map<
+      string,
+      { owner: string; name: string; count: number; maxUpdatedAt: number }
+    >();
+    let nextStarredCount = 0;
+    let nextMineCount = 0;
 
-  // Aggregate repos with counts and max updatedAt
-  const repoMap = new Map<
-    string,
-    { owner: string; name: string; count: number; maxUpdatedAt: number }
-  >();
-  for (const s of skills) {
-    if (s.repoOwner && s.repoName) {
-      const key = `${s.repoOwner}/${s.repoName}`;
-      const existing = repoMap.get(key);
-      if (existing) {
-        existing.count++;
-        if (s.updatedAt && s.updatedAt > existing.maxUpdatedAt) {
-          existing.maxUpdatedAt = s.updatedAt;
+    for (const s of skills) {
+      if (s.starred) nextStarredCount++;
+      if (s.isMine) nextMineCount++;
+
+      if (s.repoOwner && s.repoName) {
+        const key = `${s.repoOwner}/${s.repoName}`;
+        const existing = repoMap.get(key);
+        if (existing) {
+          existing.count++;
+          if (s.updatedAt && s.updatedAt > existing.maxUpdatedAt) {
+            existing.maxUpdatedAt = s.updatedAt;
+          }
+        } else {
+          repoMap.set(key, {
+            owner: s.repoOwner,
+            name: s.repoName,
+            count: 1,
+            maxUpdatedAt: s.updatedAt,
+          });
         }
-      } else {
-        repoMap.set(key, {
-          owner: s.repoOwner,
-          name: s.repoName,
-          count: 1,
-          maxUpdatedAt: s.updatedAt,
-        });
       }
     }
-  }
-  const repos = Array.from(repoMap.values()).toSorted((a, b) => {
-    // Missing time → end
-    if (!a.maxUpdatedAt && !b.maxUpdatedAt)
+
+    const nextRepos = Array.from(repoMap.values()).toSorted((a, b) => {
+      // Missing time → end
+      if (!a.maxUpdatedAt && !b.maxUpdatedAt)
+        return a.owner.localeCompare(b.owner) || a.name.localeCompare(b.name);
+      if (!a.maxUpdatedAt) return 1;
+      if (!b.maxUpdatedAt) return -1;
+      // Descending by maxUpdatedAt
+      if (b.maxUpdatedAt !== a.maxUpdatedAt) return b.maxUpdatedAt - a.maxUpdatedAt;
+      // Tiebreak: alphabetical
       return a.owner.localeCompare(b.owner) || a.name.localeCompare(b.name);
-    if (!a.maxUpdatedAt) return 1;
-    if (!b.maxUpdatedAt) return -1;
-    // Descending by maxUpdatedAt
-    if (b.maxUpdatedAt !== a.maxUpdatedAt) return b.maxUpdatedAt - a.maxUpdatedAt;
-    // Tiebreak: alphabetical
-    return a.owner.localeCompare(b.owner) || a.name.localeCompare(b.name);
-  });
+    });
+
+    return { starredCount: nextStarredCount, mineCount: nextMineCount, repos: nextRepos };
+  }, [skills]);
 
   const isActive = (cat: SidebarCategory) =>
     category.type === cat.type && JSON.stringify(category) === JSON.stringify(cat);

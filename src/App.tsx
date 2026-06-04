@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, Component, type ReactNode } from "react";
+import { useState, useCallback, useEffect, useRef, Component, type ReactNode } from "react";
 
 import { motion, AnimatePresence } from "framer-motion";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -83,6 +83,7 @@ export default function App() {
   const [archivedEditor, setArchivedEditor] = useState<{ archiveId: string; name: string } | null>(
     null,
   );
+  const detailOverlayRef = useRef<HTMLDivElement>(null);
   const editor = useEditorState();
   const updateMutation = useUpdateSkill();
   const removeMutation = useRemoveSkill();
@@ -103,6 +104,14 @@ export default function App() {
     const theme = (localStorage.getItem("theme") as string | null) ?? "light";
     applyTheme(theme as "light" | "dark" | "system");
   }, []);
+
+  const hasLocalDetail = view === "local" && !showCreateSkill && (editor.open || !!archivedEditor);
+
+  useEffect(() => {
+    if (hasLocalDetail) {
+      detailOverlayRef.current?.focus();
+    }
+  }, [hasLocalDetail, editor.skillId, archivedEditor?.archiveId]);
 
   const handleDragMouseDown = async (e: React.MouseEvent) => {
     if (e.buttons !== 1) return;
@@ -182,8 +191,7 @@ export default function App() {
     [editor],
   );
 
-  // Determine what to render in main area
-  const renderMain = () => {
+  const renderSkillDetail = () => {
     if (archivedEditor) {
       const archivedSkill =
         archivedSkills?.find((skill) => skill.id === archivedEditor.archiveId) ?? null;
@@ -228,6 +236,24 @@ export default function App() {
       );
     }
 
+    return null;
+  };
+
+  const renderLocalSkills = () => (
+    <InstalledSkills
+      onViewSkill={editor.openEditor}
+      onViewArchivedSkill={handleOpenArchivedSkill}
+      category={sidebarFilter.category}
+      onSelectCategory={sidebarFilter.selectCategory}
+      onCreateSkill={handleOpenCreateSkill}
+    />
+  );
+
+  // Determine what to render in main area
+  const renderMain = () => {
+    const detail = renderSkillDetail();
+    if (detail) return detail;
+
     if (showCreateSkill) {
       return <SkillCreateView onClose={handleCloseCreateSkill} onCreated={handleCreatedSkill} />;
     }
@@ -237,15 +263,7 @@ export default function App() {
         {view === "discover" && (
           <BrowseSkills selectedRepo={selectedRepo} onSelectRepo={setSelectedRepo} />
         )}
-        {view === "local" && (
-          <InstalledSkills
-            onViewSkill={editor.openEditor}
-            onViewArchivedSkill={handleOpenArchivedSkill}
-            category={sidebarFilter.category}
-            onSelectCategory={sidebarFilter.selectCategory}
-            onCreateSkill={handleOpenCreateSkill}
-          />
-        )}
+        {view === "local" && renderLocalSkills()}
         {view === "settings" && <SettingsView />}
       </>
     );
@@ -285,26 +303,40 @@ export default function App() {
         />
         <main className="flex-1 min-h-0">
           <ErrorBoundary>
-            <AnimatePresence>
-              <motion.div
-                key={
-                  archivedEditor
-                    ? `archive-${archivedEditor.archiveId}`
-                    : editor.open
-                      ? `edit-${editor.skillId}`
-                      : showCreateSkill
-                        ? "create"
-                        : view
-                }
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                className="h-full"
-              >
-                {renderMain()}
-              </motion.div>
-            </AnimatePresence>
+            {view === "local" && !showCreateSkill ? (
+              <div className="h-full relative">
+                <div
+                  className="h-full"
+                  aria-hidden={hasLocalDetail ? true : undefined}
+                  inert={hasLocalDetail ? true : undefined}
+                >
+                  {renderLocalSkills()}
+                </div>
+                {(editor.open || archivedEditor) && (
+                  <div
+                    ref={detailOverlayRef}
+                    tabIndex={-1}
+                    className="absolute inset-0 z-10 bg-background"
+                    style={{ contain: "layout paint" }}
+                  >
+                    {renderSkillDetail()}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={showCreateSkill ? "create" : view}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="h-full"
+                >
+                  {renderMain()}
+                </motion.div>
+              </AnimatePresence>
+            )}
           </ErrorBoundary>
         </main>
       </div>
