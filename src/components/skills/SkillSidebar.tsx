@@ -16,9 +16,19 @@ import type { SidebarCategory } from "@/hooks/useSidebarFilter";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
+function CountBadge({ count }: { count: number }) {
+  return (
+    <span className="shrink-0 ml-2 text-[11px] text-muted-foreground bg-muted/70 px-2 py-0.5 rounded-full min-w-[1.75rem] text-center">
+      {count}
+    </span>
+  );
+}
+
 interface SkillSidebarProps {
   skills: InstalledSkill[];
+  countSkills?: InstalledSkill[];
   archivedCount?: number;
+  countArchivedCount?: number;
   consistencyCount?: number;
   category: SidebarCategory;
   onSelectCategory: (cat: SidebarCategory) => void;
@@ -26,7 +36,9 @@ interface SkillSidebarProps {
 
 export function SkillSidebar({
   skills,
+  countSkills = skills,
   archivedCount = 0,
+  countArchivedCount = archivedCount,
   consistencyCount = 0,
   category,
   onSelectCategory,
@@ -34,23 +46,30 @@ export function SkillSidebar({
   const { t } = useTranslation();
   const [reposExpanded, setReposExpanded] = useState(true);
 
-  const { starredCount, mineCount, repos } = useMemo(() => {
-    const repoMap = new Map<
-      string,
-      { owner: string; name: string; count: number; maxUpdatedAt: number }
-    >();
+  const countSkillIds = useMemo(() => new Set(countSkills.map((s) => s.id)), [countSkills]);
+
+  const { starredCount, filteredStarredCount, mineCount, filteredMineCount, repos } = useMemo(() => {
+    const repoMap = new Map<string, { owner: string; name: string; maxUpdatedAt: number }>();
     let nextStarredCount = 0;
+    let nextFilteredStarredCount = 0;
     let nextMineCount = 0;
+    let nextFilteredMineCount = 0;
 
     for (const s of skills) {
-      if (s.starred) nextStarredCount++;
-      if (s.isMine) nextMineCount++;
+      const countsTowardFilter = countSkillIds.has(s.id);
+      if (s.starred) {
+        nextStarredCount++;
+        if (countsTowardFilter) nextFilteredStarredCount++;
+      }
+      if (s.isMine) {
+        nextMineCount++;
+        if (countsTowardFilter) nextFilteredMineCount++;
+      }
 
       if (s.repoOwner && s.repoName) {
         const key = `${s.repoOwner}/${s.repoName}`;
         const existing = repoMap.get(key);
         if (existing) {
-          existing.count++;
           if (s.updatedAt && s.updatedAt > existing.maxUpdatedAt) {
             existing.maxUpdatedAt = s.updatedAt;
           }
@@ -58,7 +77,6 @@ export function SkillSidebar({
           repoMap.set(key, {
             owner: s.repoOwner,
             name: s.repoName,
-            count: 1,
             maxUpdatedAt: s.updatedAt,
           });
         }
@@ -77,11 +95,22 @@ export function SkillSidebar({
       return a.owner.localeCompare(b.owner) || a.name.localeCompare(b.name);
     });
 
-    return { starredCount: nextStarredCount, mineCount: nextMineCount, repos: nextRepos };
-  }, [skills]);
+    return {
+      starredCount: nextStarredCount,
+      filteredStarredCount: nextFilteredStarredCount,
+      mineCount: nextMineCount,
+      filteredMineCount: nextFilteredMineCount,
+      repos: nextRepos,
+    };
+  }, [countSkillIds, skills]);
 
   const isActive = (cat: SidebarCategory) =>
     category.type === cat.type && JSON.stringify(category) === JSON.stringify(cat);
+
+  const allCount = isActive({ type: "all" }) ? countSkills.length : skills.length;
+  const starCount = isActive({ type: "starred" }) ? filteredStarredCount : starredCount;
+  const mySkillsCount = isActive({ type: "mine" }) ? filteredMineCount : mineCount;
+  const archiveCount = isActive({ type: "archived" }) ? countArchivedCount : archivedCount;
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -108,9 +137,7 @@ export function SkillSidebar({
               <Layers className="h-4 w-4 shrink-0" />
               <span>{t("sidebar.all")}</span>
             </span>
-            <span className="shrink-0 ml-2 text-[11px] text-muted-foreground bg-muted/70 px-2 py-0.5 rounded-full min-w-[1.75rem] text-center">
-              {skills.length}
-            </span>
+            <CountBadge count={allCount} />
           </button>
 
           {/* Star */}
@@ -127,9 +154,7 @@ export function SkillSidebar({
               <Star className="h-4 w-4 shrink-0" />
               <span>{t("sidebar.star")}</span>
             </span>
-            <span className="shrink-0 ml-2 text-[11px] text-muted-foreground bg-muted/70 px-2 py-0.5 rounded-full min-w-[1.75rem] text-center">
-              {starredCount}
-            </span>
+            <CountBadge count={starCount} />
           </button>
 
           {/* My Skills */}
@@ -146,9 +171,7 @@ export function SkillSidebar({
               <User className="h-4 w-4 shrink-0" />
               <span>{t("sidebar.mySkills")}</span>
             </span>
-            <span className="shrink-0 ml-2 text-[11px] text-muted-foreground bg-muted/70 px-2 py-0.5 rounded-full min-w-[1.75rem] text-center">
-              {mineCount}
-            </span>
+            <CountBadge count={mySkillsCount} />
           </button>
 
           {/* Consistency */}
@@ -166,9 +189,7 @@ export function SkillSidebar({
                 <ShieldCheck className="h-4 w-4 shrink-0" />
                 <span>{t("sidebar.consistency")}</span>
               </span>
-              <span className="shrink-0 ml-2 text-[11px] text-muted-foreground bg-muted/70 px-2 py-0.5 rounded-full min-w-[1.75rem] text-center">
-                {consistencyCount}
-              </span>
+              <CountBadge count={consistencyCount} />
             </button>
           )}
 
@@ -186,9 +207,7 @@ export function SkillSidebar({
               <Archive className="h-4 w-4 shrink-0" />
               <span>{t("sidebar.archive")}</span>
             </span>
-            <span className="shrink-0 ml-2 text-[11px] text-muted-foreground bg-muted/70 px-2 py-0.5 rounded-full min-w-[1.75rem] text-center">
-              {archivedCount}
-            </span>
+            <CountBadge count={archiveCount} />
           </button>
 
           {/* Repos */}

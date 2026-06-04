@@ -80,6 +80,12 @@ Run `archive` and `restore` with `--dry-run` first. In non-interactive shells, w
 
 The CLI does not notify a running desktop app. If the GUI looks stale after CLI changes, run `skill-zoo refresh` or refresh/restart the app.
 
+## Local Development
+
+```bash
+bun run dev -- wui
+```
+
 ## Local Web UI
 
 `skill-zoo wui` starts a lightweight local management console at `127.0.0.1:8280` and opens it in your browser.
