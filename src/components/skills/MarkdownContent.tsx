@@ -181,10 +181,12 @@ export function MarkdownContent({
   const { frontmatter, body } = useMemo(() => parseFrontmatter(content), [content]);
 
   return (
-    <div className="prose prose-sm prose-neutral dark:prose-invert
+    <div
+      className="prose prose-sm prose-neutral dark:prose-invert
                   prose-headings:font-semibold prose-headings:tracking-tight
                   prose-h1:text-xl prose-h2:text-lg prose-h3:text-base prose-h4:text-sm
-                  max-w-none overflow-x-auto">
+                  max-w-none overflow-x-auto"
+    >
       {frontmatter && <FrontmatterCard data={frontmatter} />}
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}

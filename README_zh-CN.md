@@ -13,7 +13,7 @@
 
 ![app-screenshot](docs/header-image.webp)
 
-本地 Agent Skills 管理工具 — 发现、安装、管理 Claude Code、Codex、Cursor、Hermes、OpenClaw 等 AI 编程工具的技能。
+本地 Agent Skills 管理工具 — 发现、安装、管理 Claude Code、Codex、Gemini、OpenCode、Cursor、Trae、Hermes、OpenClaw 等 AI 编程工具的技能。
 
 <!-- ## 为什么选择 Skill Zoo？
 
@@ -36,6 +36,8 @@ Skill Zoo 让你在一个地方**浏览**、**安装**、**编辑**和**同步**
 - **批量操作**：批量安装、删除、合并重复技能
 - **安全审计**：展示来自 skills.sh 社区的审计评分
 - **技能审查**：主动检测三种不一致情形，提醒用户修复问题
+- **技能归档**：将技能转到归档区暂存，降低上下文负担
+- **CLI + WUI**：为 Coding Agent 和人类提供 Skill Zoo 的控制入口
 
 ## ✨ 技术栈
 
@@ -50,7 +52,7 @@ Skill Zoo 让你在一个地方**浏览**、**安装**、**编辑**和**同步**
 | 编辑器 | CodeMirror 6 |
 | 代码检查 | oxlint + clippy |
 | 格式化 | oxfmt + cargo fmt |
-| 测试 | Vitest |
+| 测试 | Vitest + Rust tests |
 | 包管理 | Bun |
 
 ## 📦 安装
@@ -82,6 +84,21 @@ brew install --cask skill-zoo
 
 </details>
 
+## 🙌 CLI
+
+当你希望从 Agent、终端或自动化脚本中管理 Skill Zoo 时，可以安装 npm CLI：
+
+```bash
+npm install -g skill-zoo
+skill-zoo --help
+
+skill-zoo list           # 列出已安装技能
+skill-zoo doctor --fix   # 诊断并修复常见问题
+skill-zoo wui            # 启动本地 Web 管理界面
+```
+
+参考：[Skill Zoo CLI](https://www.npmjs.com/package/skill-zoo)
+
 ## 📁 项目结构
 
 ```
@@ -107,7 +124,14 @@ skill-zoo/
 │   ├── resources/          # 轮播图、推荐仓库
 │   ├── Cargo.toml
 │   └── tauri.conf.json
-├── docs/                   # 截图
+├── packages/
+│   └── cli/                # npm CLI 和轻量本地 Web UI
+│       ├── src/            # CLI 命令、本地协议、WUI 服务
+│       ├── tests/          # CLI 和协议测试
+│       └── wui/            # skill-zoo wui 提供的浏览器资源
+├── docs/                   # 截图和本地协议文档
+├── fixtures/               # 桌面应用拥有的本地协议 fixtures
+├── skills/                 # 项目自动化 Skills
 ├── package.json
 └── vite.config.ts
 ```
@@ -132,11 +156,16 @@ bun run format
 
 # 运行测试
 bun run test
+bun run cli:test
 
 # Rust（后端）
 bun run lint:rs
 bun run format:rs:check
 bun run test:rs
+
+# CLI
+bun run cli:typecheck
+bun run cli:build
 
 # 生产构建
 bun run tauri build

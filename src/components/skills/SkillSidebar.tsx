@@ -48,61 +48,62 @@ export function SkillSidebar({
 
   const countSkillIds = useMemo(() => new Set(countSkills.map((s) => s.id)), [countSkills]);
 
-  const { starredCount, filteredStarredCount, mineCount, filteredMineCount, repos } = useMemo(() => {
-    const repoMap = new Map<string, { owner: string; name: string; maxUpdatedAt: number }>();
-    let nextStarredCount = 0;
-    let nextFilteredStarredCount = 0;
-    let nextMineCount = 0;
-    let nextFilteredMineCount = 0;
+  const { starredCount, filteredStarredCount, mineCount, filteredMineCount, repos } =
+    useMemo(() => {
+      const repoMap = new Map<string, { owner: string; name: string; maxUpdatedAt: number }>();
+      let nextStarredCount = 0;
+      let nextFilteredStarredCount = 0;
+      let nextMineCount = 0;
+      let nextFilteredMineCount = 0;
 
-    for (const s of skills) {
-      const countsTowardFilter = countSkillIds.has(s.id);
-      if (s.starred) {
-        nextStarredCount++;
-        if (countsTowardFilter) nextFilteredStarredCount++;
-      }
-      if (s.isMine) {
-        nextMineCount++;
-        if (countsTowardFilter) nextFilteredMineCount++;
-      }
+      for (const s of skills) {
+        const countsTowardFilter = countSkillIds.has(s.id);
+        if (s.starred) {
+          nextStarredCount++;
+          if (countsTowardFilter) nextFilteredStarredCount++;
+        }
+        if (s.isMine) {
+          nextMineCount++;
+          if (countsTowardFilter) nextFilteredMineCount++;
+        }
 
-      if (s.repoOwner && s.repoName) {
-        const key = `${s.repoOwner}/${s.repoName}`;
-        const existing = repoMap.get(key);
-        if (existing) {
-          if (s.updatedAt && s.updatedAt > existing.maxUpdatedAt) {
-            existing.maxUpdatedAt = s.updatedAt;
+        if (s.repoOwner && s.repoName) {
+          const key = `${s.repoOwner}/${s.repoName}`;
+          const existing = repoMap.get(key);
+          if (existing) {
+            if (s.updatedAt && s.updatedAt > existing.maxUpdatedAt) {
+              existing.maxUpdatedAt = s.updatedAt;
+            }
+          } else {
+            repoMap.set(key, {
+              owner: s.repoOwner,
+              name: s.repoName,
+              maxUpdatedAt: s.updatedAt,
+            });
           }
-        } else {
-          repoMap.set(key, {
-            owner: s.repoOwner,
-            name: s.repoName,
-            maxUpdatedAt: s.updatedAt,
-          });
         }
       }
-    }
 
-    const nextRepos = Array.from(repoMap.values()).toSorted((a, b) => {
-      // Missing time → end
-      if (!a.maxUpdatedAt && !b.maxUpdatedAt)
+      const nextRepos = Array.from(repoMap.values()).toSorted((a, b) => {
+        // Missing time → end
+        if (!a.maxUpdatedAt && !b.maxUpdatedAt)
+          return a.owner.localeCompare(b.owner) || a.name.localeCompare(b.name);
+        if (!a.maxUpdatedAt) return 1;
+        if (!b.maxUpdatedAt) return -1;
+        // Descending by maxUpdatedAt
+        if (b.maxUpdatedAt !== a.maxUpdatedAt) return b.maxUpdatedAt - a.maxUpdatedAt;
+        // Tiebreak: alphabetical
         return a.owner.localeCompare(b.owner) || a.name.localeCompare(b.name);
-      if (!a.maxUpdatedAt) return 1;
-      if (!b.maxUpdatedAt) return -1;
-      // Descending by maxUpdatedAt
-      if (b.maxUpdatedAt !== a.maxUpdatedAt) return b.maxUpdatedAt - a.maxUpdatedAt;
-      // Tiebreak: alphabetical
-      return a.owner.localeCompare(b.owner) || a.name.localeCompare(b.name);
-    });
+      });
 
-    return {
-      starredCount: nextStarredCount,
-      filteredStarredCount: nextFilteredStarredCount,
-      mineCount: nextMineCount,
-      filteredMineCount: nextFilteredMineCount,
-      repos: nextRepos,
-    };
-  }, [countSkillIds, skills]);
+      return {
+        starredCount: nextStarredCount,
+        filteredStarredCount: nextFilteredStarredCount,
+        mineCount: nextMineCount,
+        filteredMineCount: nextFilteredMineCount,
+        repos: nextRepos,
+      };
+    }, [countSkillIds, skills]);
 
   const isActive = (cat: SidebarCategory) =>
     category.type === cat.type && JSON.stringify(category) === JSON.stringify(cat);

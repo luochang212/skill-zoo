@@ -13,7 +13,7 @@
 
 ![app-screenshot](docs/header-image.webp)
 
-Local Agent Skills Manager — Discover, install, and manage skills for AI coding tools including Claude Code, Codex, Cursor, Hermes, OpenClaw and more.
+Local Agent Skills Manager — Discover, install, and manage skills for AI coding tools including Claude Code, Codex, Gemini, OpenCode, Cursor, Trae, Hermes, OpenClaw and more.
 
 <!-- ## Why Skill Zoo?
 
@@ -36,6 +36,8 @@ Skill Zoo gives you a single place to **browse**, **install**, **edit**, and **s
 - **Batch Operations**: Install, delete, or merge duplicate skills in bulk
 - **Security Audit**: View community audit scores from skills.sh
 - **Consistency Check**: Proactively detect three types of inconsistencies and prompt fixes
+- **Skill Archive**: Move skills into the archive as temporary storage to reduce context load
+- **CLI + WUI**: Provide Skill Zoo control surfaces for Coding Agents and humans
 
 ## ✨ Tech Stack
 
@@ -50,7 +52,7 @@ Skill Zoo gives you a single place to **browse**, **install**, **edit**, and **s
 | Editor | CodeMirror 6 |
 | Lint | oxlint + clippy |
 | Format | oxfmt + cargo fmt |
-| Testing | Vitest |
+| Testing | Vitest + Rust tests |
 | Package Manager | Bun |
 
 ## 📦 Installation
@@ -82,6 +84,21 @@ Download the portable `.zip` from [Releases](https://github.com/luochang212/skil
 
 </details>
 
+## 🙌 CLI
+
+When you want to manage Skill Zoo from an agent, terminal, or automation, install the npm CLI:
+
+```bash
+npm install -g skill-zoo
+skill-zoo --help
+
+skill-zoo list           # List installed skills
+skill-zoo doctor --fix   # Diagnose and fix common issues
+skill-zoo wui            # Start the local Web UI
+```
+
+See: [Skill Zoo CLI](https://www.npmjs.com/package/skill-zoo)
+
 ## 📁 Project Structure
 
 ```
@@ -107,7 +124,14 @@ skill-zoo/
 │   ├── resources/          # Carousel banners, recommended repos
 │   ├── Cargo.toml
 │   └── tauri.conf.json
-├── docs/                   # Screenshots
+├── packages/
+│   └── cli/                # npm CLI and lightweight local Web UI
+│       ├── src/            # CLI commands, local protocol, WUI server
+│       ├── tests/          # CLI and protocol tests
+│       └── wui/            # Browser assets served by skill-zoo wui
+├── docs/                   # Screenshots and local protocol docs
+├── fixtures/               # Desktop-owned local protocol fixtures
+├── skills/                 # Project automation skills
 ├── package.json
 └── vite.config.ts
 ```
@@ -132,11 +156,16 @@ bun run format
 
 # Run tests
 bun run test
+bun run cli:test
 
 # Rust (backend)
 bun run lint:rs
 bun run format:rs:check
 bun run test:rs
+
+# CLI
+bun run cli:typecheck
+bun run cli:build
 
 # Build for production
 bun run tauri build

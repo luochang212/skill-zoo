@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.3.0] — 2026-06-05
+
+### Added
+- Skill Zoo npm CLI (`npx skill-zoo`) — install, scan, status, and archive management from terminal.
+- Lightweight Skill Zoo Web UI (WUI) — browser-based skill management dashboard.
+- CLI diagnostics and inspect commands for troubleshooting installed skills.
+- CLI doctor command with fix mode and cross-agent consistency checks.
+- Pull-to-refresh with resilient caching for repository panel.
+- Sidebar skill counts now reflect toolbar search query and agent filter.
+- Local protocol documentation and cross-platform test fixtures.
+
+### Changed
+- Default app theme now follows system preference instead of forcing dark.
+- Archive/restore plan moved from detail pane to modal dialog.
+- Security audit repositioned into SkillHero as a compact popover.
+- WUI markdown rendering moved to server-side for cleaner client code.
+- Repository panel layout and markdown heading styles refined.
+- Improved local skill detail navigation performance.
+- Split app-release and npm-release into separate agent skills.
+- Removed unused vendor chunk splitting config.
+
+### Fixed
+- Archive directory watcher now invalidates archived query cache on rescan.
+- Pull-to-refresh parameters tuned; prose `<code>` visibility restored in markdown.
+
 ## [0.2.9] — 2026-06-03
 
 ### Added

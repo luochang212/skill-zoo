@@ -111,7 +111,7 @@ function usePullToRefresh({
 
       event.preventDefault();
       setDistance((current) => {
-        const next = Math.min(PULL_REFRESH_MAX, current + Math.abs(event.deltaY) * 0.10);
+        const next = Math.min(PULL_REFRESH_MAX, current + Math.abs(event.deltaY) * 0.1);
         if (next >= PULL_REFRESH_THRESHOLD) {
           triggerRefresh();
           return PULL_REFRESH_THRESHOLD;
