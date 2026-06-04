@@ -61,6 +61,7 @@ export const INVALIDATION_MAP = {
   updateAllSkills: [["skills", "installed"]],
   rescanSkills: [
     ["skills", "installed"],
+    ["skills", "archived"],
     ["skills", "symlinks"],
   ],
   saveSkillContent: [

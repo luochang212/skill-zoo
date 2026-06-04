@@ -15,6 +15,10 @@ fn collect_watch_dirs() -> Vec<PathBuf> {
     if agents_dir.exists() {
         dirs.push(agents_dir);
     }
+    let archive_dir = config::get_archive_dir();
+    if archive_dir.exists() {
+        dirs.push(archive_dir);
+    }
     for agent in config::AGENTS {
         if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
             if agent_dir.exists() {
