@@ -2,6 +2,11 @@
 
 Read `CLAUDE.md` first. This file adds agent-specific guardrails and does not replace the full project guide.
 
+## Project Layout
+
+- **Desktop app** — `src-tauri/`
+- **CLI** — `packages/cli/`
+
 ## Local Protocol Guardrails
 
 The desktop app owns Skill Zoo's local protocol. The CLI is an adjunct control surface that must conform to desktop-owned local state; it must not define an independent schema or change protocol fixtures for its own convenience.

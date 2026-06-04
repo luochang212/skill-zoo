@@ -12,7 +12,6 @@ export interface SkillZooPaths {
   archiveManifestFile: string;
   metadataFile: string;
   skillsCacheFile: string;
-  hashCacheFile: string;
 }
 
 export interface AgentPathInfo {
@@ -42,7 +41,6 @@ export function getPaths(homeInput?: string): SkillZooPaths {
     archiveManifestFile: path.join(archiveDir, "manifest.json"),
     metadataFile: path.join(appConfigDir, "metadata.json"),
     skillsCacheFile: path.join(appConfigDir, "skills-cache.json"),
-    hashCacheFile: path.join(appConfigDir, "hash-cache.json"),
   };
 }
 

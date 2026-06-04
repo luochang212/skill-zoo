@@ -150,6 +150,12 @@ Do not commit generated tarballs or temporary install directories.
 
 Publish only after typecheck, tests, build, and `npm publish --dry-run` pass. Before the real `npm publish`, summarize the package name, version, dist tag, and tarball contents, then ask the user for explicit confirmation.
 
+**Working directory does not persist between tool calls.** Always include `cd <path>` in the command itself — never assume a previous `cd` still applies. When publishing from a workspace sub-package, use an absolute `cd` prefix:
+
+```bash
+cd /path/to/repo/packages/cli && npm publish --auth-type=web
+```
+
 Preferred command after user confirmation:
 
 ```bash
@@ -157,23 +163,22 @@ cd packages/cli
 npm publish --auth-type=web
 ```
 
-If npm requires browser authentication and the non-interactive command only prints redacted URLs, rerun in a TTY so npm prints the real browser-auth prompt:
+### Non-TTY browser authentication
+
+In agent environments (Claude Code, Cowork, CI), npm detects non-interactive terminals and redacts browser auth URLs as `***`. This blocks you from opening the link for the user. To get the real URL, wrap the command with `script -q /dev/null` to simulate a TTY:
 
 ```bash
-npm publish --auth-type=web
+script -q /dev/null npm publish --auth-type=web 2>&1 &
+sleep 8
+# grep the real URL from output, then:
+open "https://www.npmjs.com/auth/cli/<id>"
 ```
 
-In an agent environment, start the command in a TTY session and keep it running. When npm prints:
+The `script` wrapper causes npm to print the full `https://www.npmjs.com/auth/cli/<id>` URL instead of `***`. Extract it, open it in the user's browser, and keep the background process alive while they authenticate.
 
-```text
-Authenticate your account at:
-https://www.npmjs.com/auth/cli/<id>
-Press ENTER to open in the browser...
-```
+The same `script -q /dev/null` trick works for `npm login --auth-type=web` if the initial login also needs browser auth.
 
-press Enter in the TTY to let npm open the user's default browser. The user completes npm authentication in the browser. Keep the terminal session running while the browser flow completes.
-
-Keep polling the publish process until it exits. Success looks like:
+Success looks like:
 
 ```text
 + skill-zoo@X.Y.Z
@@ -206,7 +211,7 @@ Do not include private account identifiers, browser auth URLs, npm auth IDs, aut
 |---|---|---|
 | `You cannot publish over the previously published versions` | Local version already exists on npm | Ask the user to confirm the new version, then bump `packages/cli/package.json`, sync lockfile, and rerun checks |
 | npm asks for additional authentication | npm account requires an interactive verification step | Retry with `npm publish --auth-type=web` in a TTY and use browser auth |
-| Browser auth URL is `***` | npm redacted URL in non-TTY output | Rerun in a TTY and press Enter to open browser |
+| Browser auth URL is `***` | npm redacted URL in non-TTY output | Wrap with `script -q /dev/null npm publish --auth-type=web 2>&1 &`, extract the real URL from output, then `open` it |
 | Tests fail after version bump | Hardcoded expected version | Prefer asserting against `CLI_VERSION` |
 | Dry-run includes unexpected files | Bad `files` whitelist or generated artifacts | Fix package manifest before publishing |
 | Bin command fails after tarball install | `bin` path, shebang, executable bit, or bundle issue | Fix before publishing and rerun tarball install check |
@@ -223,14 +228,16 @@ npm view skill-zoo version dist-tags --json
 
 # ask the user to confirm the exact version, then bump packages/cli/package.json and bun.lock if needed
 
-cd packages/cli
+cd /path/to/repo/packages/cli
 npm run typecheck
 npm test
 npm run build
 npm publish --dry-run
 
 # summarize dry-run results and ask the user to confirm the real publish
-npm publish --auth-type=web
+# in non-TTY (agent) environments, use script wrapper to get real auth URL:
+script -q /dev/null npm publish --auth-type=web 2>&1 &
+# extract URL, open in browser, wait for user to authenticate
 
 npm view skill-zoo@X.Y.Z version dist.tarball time --json
 npm dist-tag ls skill-zoo
