@@ -241,6 +241,10 @@ h3 {
   box-shadow: 0 24px 80px rgba(35, 33, 28, 0.32);
 }
 
+.action-modal {
+  width: min(640px, 100%);
+}
+
 .panel-heading {
   display: flex;
   align-items: center;
@@ -566,6 +570,26 @@ tr[data-row].selected {
   margin-bottom: 14px;
 }
 
+.detail-titlebar {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.detail-title {
+  min-width: 0;
+}
+
+.detail-title h2 {
+  overflow-wrap: anywhere;
+}
+
+.detail-actions {
+  flex-shrink: 0;
+}
+
 .meta-grid {
   display: grid;
   grid-template-columns: 98px 1fr;
@@ -791,6 +815,10 @@ tr[data-row].selected {
   background: #fff8e8;
 }
 
+.action-plan {
+  margin: 0;
+}
+
 .plan h3 {
   margin-bottom: 8px;
 }
@@ -804,6 +832,11 @@ tr[data-row].selected {
   border: 1px solid var(--line);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
+}
+
+.modal-actions {
+  justify-content: flex-end;
+  margin-bottom: 0;
 }
 
 .toast {

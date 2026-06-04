@@ -69,6 +69,19 @@
         </section>
       </div>
 
+      <div class="modal-backdrop hidden" id="actionPanel" aria-hidden="true">
+        <section class="status-modal action-modal" role="dialog" aria-modal="true" aria-labelledby="actionTitle">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow" id="actionEyebrow">Skill action</p>
+              <h2 id="actionTitle">Confirm action</h2>
+            </div>
+            <button class="button ghost" id="actionClose" type="button">Close</button>
+          </div>
+          <div id="actionHost"></div>
+        </section>
+      </div>
+
       <main class="workspace">
         <section class="list-pane">
           <div class="toolbar">

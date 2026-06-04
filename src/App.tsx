@@ -1,4 +1,12 @@
-import { useState, useCallback, useEffect, useRef, Component, type ReactNode } from "react";
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  Component,
+  type ReactNode,
+} from "react";
 
 import { motion, AnimatePresence } from "framer-motion";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -107,7 +115,7 @@ export default function App() {
 
   const hasLocalDetail = view === "local" && !showCreateSkill && (editor.open || !!archivedEditor);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (hasLocalDetail) {
       detailOverlayRef.current?.focus();
     }

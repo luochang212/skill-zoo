@@ -29,6 +29,11 @@ const els = {
   consistencyPanel: document.querySelector("#consistencyPanel"),
   consistencyClose: document.querySelector("#consistencyClose"),
   consistencyIssues: document.querySelector("#consistencyIssues"),
+  actionPanel: document.querySelector("#actionPanel"),
+  actionClose: document.querySelector("#actionClose"),
+  actionEyebrow: document.querySelector("#actionEyebrow"),
+  actionTitle: document.querySelector("#actionTitle"),
+  actionHost: document.querySelector("#actionHost"),
   refreshButton: document.querySelector("#refreshButton"),
   skillRows: document.querySelector("#skillRows"),
   detailPane: document.querySelector("#detailPane"),
@@ -76,6 +81,7 @@ function bindEvents() {
   els.doctorFixRun.addEventListener("click", () => runDoctorFix(false));
   els.consistencyToggle.addEventListener("click", openConsistencyModal);
   els.consistencyClose.addEventListener("click", closeConsistencyModal);
+  els.actionClose.addEventListener("click", closeActionModal);
   els.doctorPanel.addEventListener("click", (event) => {
     if (event.target === els.doctorPanel) {
       closeDoctorModal();
@@ -86,10 +92,16 @@ function bindEvents() {
       closeConsistencyModal();
     }
   });
+  els.actionPanel.addEventListener("click", (event) => {
+    if (event.target === els.actionPanel) {
+      closeActionModal();
+    }
+  });
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closeDoctorModal();
       closeConsistencyModal();
+      closeActionModal();
     }
   });
   els.searchInput.addEventListener("input", renderRows);
@@ -99,6 +111,7 @@ function bindEvents() {
       state.selectedRef = null;
       state.selected = null;
       state.pendingPlan = null;
+      closeActionModal();
       els.segments.forEach((item) => item.classList.toggle("active", item === segment));
       renderRows();
       renderDetail();
@@ -189,6 +202,7 @@ function renderRows() {
       state.selectedRef = ref;
       state.selected = skill;
       state.pendingPlan = null;
+      closeActionModal();
       renderRows();
       await loadDetail(skill);
     });
@@ -228,8 +242,19 @@ function renderDetail(loading = false) {
   const archived = state.kind === "archived";
   els.detailPane.innerHTML = `
     <div class="detail-header">
-      <p class="eyebrow">${archived ? "Archived skill" : "Installed skill"}</p>
-      <h2>${escapeHtml(skill.name)}</h2>
+      <div class="detail-titlebar">
+        <div class="detail-title">
+          <p class="eyebrow">${archived ? "Archived skill" : "Installed skill"}</p>
+          <h2>${escapeHtml(skill.name)}</h2>
+        </div>
+        <div class="detail-actions">
+          ${
+            archived
+              ? `<button class="button primary" id="planRestore" type="button">Restore...</button>`
+              : `<button class="button danger" id="planArchive" type="button">Archive...</button>`
+          }
+        </div>
+      </div>
       <p class="empty">${escapeHtml(skill.description || "No description.")}</p>
       ${renderAgents(skill.apps)}
       ${!archived ? renderIssueBadges(skill) : ""}
@@ -242,16 +267,6 @@ function renderDetail(loading = false) {
       <span class="meta-key">Home path</span><span class="meta-value">${escapeHtml(skill.homePath || "-")}</span>
       <span class="meta-key">Source</span><span class="meta-value">${escapeHtml(sourceLabel(skill))}</span>
     </div>
-
-    <div class="action-row">
-      ${
-        archived
-          ? `<button class="button primary" id="planRestore" type="button">Preview restore</button>`
-          : `<button class="button danger" id="planArchive" type="button">Preview archive</button>`
-      }
-    </div>
-
-    <div id="planHost">${renderPlan()}</div>
 
     <section class="preview">
       <div class="preview-title">
@@ -266,78 +281,119 @@ function renderDetail(loading = false) {
   const planRestore = document.querySelector("#planRestore");
   planArchive?.addEventListener("click", () => previewArchive(skill));
   planRestore?.addEventListener("click", () => previewRestore(skill));
-  bindPlanButtons();
 }
 
-function renderPlan() {
-  if (!state.pendingPlan) return "";
-  const { type, result } = state.pendingPlan;
+function renderActionModal() {
+  const plan = state.pendingPlan;
+  if (!plan) {
+    els.actionHost.innerHTML = "";
+    return;
+  }
+
+  const archive = plan.type === "archive";
+  const skillName = plan.skill?.name || "selected skill";
+  els.actionEyebrow.textContent = archive ? "Archive preview" : "Restore preview";
+  els.actionTitle.textContent = `${archive ? "Archive" : "Restore"} ${skillName}?`;
+
+  if (plan.loading) {
+    els.actionHost.innerHTML = `<p class="empty-text">Preparing ${archive ? "archive" : "restore"} preview...</p>`;
+    return;
+  }
+
+  const result = plan.result || {};
   const changes = result.changes || result.data?.changes || [];
   const failed = result.data?.failed || [];
-  return `
-    <div class="plan">
-      <h3>${type === "archive" ? "Archive preview" : "Restore preview"}</h3>
+  els.actionHost.innerHTML = `
+    <div class="plan action-plan">
       ${
         failed.length
-          ? `<p class="empty">${escapeHtml(failed.map((item) => `${item.ref}: ${item.error}`).join("; "))}</p>`
-          : `<p class="empty">Review planned filesystem changes before executing.</p>`
+          ? `<p class="empty-text">${escapeHtml(failed.map((item) => `${item.ref}: ${item.error}`).join("; "))}</p>`
+          : `<p class="empty-text">Review planned filesystem changes before executing.</p>`
       }
       <div class="changes">${changes.length ? changes.map(formatChange).join("<br>") : "No changes."}</div>
-      <div class="action-row">
-        <button class="button primary" id="executePlan" type="button" ${failed.length ? "disabled" : ""}>Execute</button>
+      <div class="action-row modal-actions">
         <button class="button ghost" id="cancelPlan" type="button">Cancel</button>
+        <button class="button ${archive ? "danger" : "primary"}" id="executePlan" type="button" ${failed.length ? "disabled" : ""}>${archive ? "Archive skill" : "Restore skill"}</button>
       </div>
     </div>
   `;
-}
-
-function bindPlanButtons() {
-  document.querySelector("#cancelPlan")?.addEventListener("click", () => {
-    state.pendingPlan = null;
-    renderDetail();
-  });
+  document.querySelector("#cancelPlan")?.addEventListener("click", closeActionModal);
   document.querySelector("#executePlan")?.addEventListener("click", executePlan);
 }
 
 async function previewArchive(skill) {
-  const result = await api("/api/archive", {
-    method: "POST",
-    body: { refs: [refFor(skill)], dryRun: true },
-    allowError: true,
-  });
-  state.pendingPlan = { type: "archive", result };
-  renderDetail();
+  const ref = refFor(skill);
+  state.pendingPlan = { type: "archive", skill, ref, result: null, loading: true };
+  openActionModal();
+  let result;
+  try {
+    result = await api("/api/archive", {
+      method: "POST",
+      body: { refs: [ref], dryRun: true },
+      allowError: true,
+    });
+  } catch (error) {
+    result = { data: { failed: [{ ref, error: error.message || String(error) }] }, changes: [] };
+  }
+  if (state.pendingPlan?.type !== "archive" || state.pendingPlan.ref !== ref) return;
+  state.pendingPlan = { type: "archive", skill, ref, result, loading: false };
+  renderActionModal();
 }
 
 async function previewRestore(skill) {
-  const result = await api("/api/restore", {
-    method: "POST",
-    body: { archiveIds: [refFor(skill)], dryRun: true },
-    allowError: true,
-  });
-  state.pendingPlan = { type: "restore", result };
-  renderDetail();
+  const ref = refFor(skill);
+  state.pendingPlan = { type: "restore", skill, ref, result: null, loading: true };
+  openActionModal();
+  let result;
+  try {
+    result = await api("/api/restore", {
+      method: "POST",
+      body: { archiveIds: [ref], dryRun: true },
+      allowError: true,
+    });
+  } catch (error) {
+    result = { data: { failed: [{ ref, error: error.message || String(error) }] }, changes: [] };
+  }
+  if (state.pendingPlan?.type !== "restore" || state.pendingPlan.ref !== ref) return;
+  state.pendingPlan = { type: "restore", skill, ref, result, loading: false };
+  renderActionModal();
 }
 
 async function executePlan() {
-  if (!state.pendingPlan || !state.selected) return;
+  if (!state.pendingPlan || !state.pendingPlan.skill || state.pendingPlan.loading) return;
   const type = state.pendingPlan.type;
-  if (type === "archive") {
-    await api("/api/archive", {
-      method: "POST",
-      body: { refs: [refFor(state.selected)], dryRun: false },
-    });
-    state.kind = "archived";
-  } else {
-    await api("/api/restore", {
-      method: "POST",
-      body: { archiveIds: [refFor(state.selected)], dryRun: false },
-    });
-    state.kind = "installed";
+  const ref = state.pendingPlan.ref;
+  const executeButton = document.querySelector("#executePlan");
+  if (executeButton) {
+    executeButton.disabled = true;
+    executeButton.textContent = type === "archive" ? "Archiving..." : "Restoring...";
+  }
+  try {
+    if (type === "archive") {
+      await api("/api/archive", {
+        method: "POST",
+        body: { refs: [ref], dryRun: false },
+      });
+      state.kind = "archived";
+    } else {
+      await api("/api/restore", {
+        method: "POST",
+        body: { archiveIds: [ref], dryRun: false },
+      });
+      state.kind = "installed";
+    }
+  } catch (error) {
+    if (executeButton) {
+      executeButton.disabled = false;
+      executeButton.textContent = type === "archive" ? "Archive skill" : "Restore skill";
+    }
+    toast(error.message || `${type === "archive" ? "Archive" : "Restore"} failed.`);
+    return;
   }
   state.selected = null;
   state.selectedRef = null;
   state.pendingPlan = null;
+  closeActionModal();
   els.segments.forEach((segment) => segment.classList.toggle("active", segment.dataset.kind === state.kind));
   await loadState();
   toast(`${type === "archive" ? "Archived" : "Restored"} skill.`);
@@ -546,6 +602,19 @@ function openConsistencyModal() {
 function closeConsistencyModal() {
   els.consistencyPanel.classList.add("hidden");
   els.consistencyPanel.setAttribute("aria-hidden", "true");
+}
+
+function openActionModal() {
+  els.actionPanel.classList.remove("hidden");
+  els.actionPanel.setAttribute("aria-hidden", "false");
+  renderActionModal();
+}
+
+function closeActionModal() {
+  state.pendingPlan = null;
+  els.actionPanel.classList.add("hidden");
+  els.actionPanel.setAttribute("aria-hidden", "true");
+  renderActionModal();
 }
 
 function showFatal(message) {
