@@ -414,8 +414,8 @@ impl SkillService {
         cache: &SkillCache,
         metadata: &MetadataStore,
     ) -> Result<Vec<InstalledSkill>, AppError> {
-        let mut skills = Vec::with_capacity(cache.skills.len());
-        for entry in &cache.skills {
+        let mut skills = Vec::with_capacity(cache.skills().len());
+        for entry in cache.skills() {
             let mut skill: InstalledSkill = entry.clone().into();
             let meta = metadata.get(&entry.id);
             skill.starred = meta.starred;
@@ -481,7 +481,7 @@ impl SkillService {
             .write()
             .map_err(|e| AppError::Parse(format!("Cache lock: {e}")))?;
 
-        new_cache.skills = entries;
+        new_cache.replace_all(entries);
         new_cache.save()?;
 
         let m = metadata
@@ -835,7 +835,7 @@ impl SkillService {
         let c = cache
             .read()
             .map_err(|e| AppError::Parse(format!("Cache lock: {e}")))?;
-        Ok(c.skills.iter().find(|s| s.id == skill_id).cloned())
+        Ok(c.find_by_id(skill_id).cloned())
     }
 
     /// Scan a single skill directory and return a cache entry for it.
@@ -1057,13 +1057,7 @@ impl SkillService {
         let mut c = cache
             .write()
             .map_err(|e| AppError::Parse(format!("Cache lock: {e}")))?;
-        if let Some(existing) = c.skills.iter_mut().find(|s| s.id == entry.id) {
-            let installed_at = existing.installed_at;
-            *existing = entry;
-            existing.installed_at = installed_at;
-        } else {
-            c.skills.push(entry);
-        }
+        c.upsert(entry);
         c.save()
     }
 
@@ -1072,7 +1066,7 @@ impl SkillService {
         let mut c = cache
             .write()
             .map_err(|e| AppError::Parse(format!("Cache lock: {e}")))?;
-        c.skills.retain(|s| s.id != skill_id);
+        c.remove(skill_id);
         c.save()
     }
 
@@ -1120,7 +1114,7 @@ impl SkillService {
         let visible_agents = Self::get_visible_agents(settings);
         let mut statuses = Vec::new();
 
-        for skill in &cache.skills {
+        for skill in cache.skills() {
             let target_path = if let Some(ref hp) = skill.home_path {
                 std::path::PathBuf::from(hp)
             } else {
@@ -1305,7 +1299,7 @@ impl SkillService {
             let c = cache
                 .read()
                 .map_err(|e| AppError::Parse(format!("Cache lock: {e}")))?;
-            c.skills
+            c.skills()
                 .iter()
                 .filter(|s| s.name == skill_name)
                 .cloned()
@@ -1389,7 +1383,7 @@ impl SkillService {
             let mut c = cache
                 .write()
                 .map_err(|e| AppError::Parse(format!("Cache lock: {e}")))?;
-            c.skills.retain(|s| s.name != skill_name);
+            c.remove_where(|s| s.name == skill_name);
             c.save()?;
         }
         let entry = Self::scan_single_skill(skill_name)?;

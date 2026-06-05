@@ -273,7 +273,6 @@ pub async fn get_installed_skills(
             .skill_cache
             .read()
             .map_err(|e| e.to_string())?
-            .skills
             .is_empty();
         if !is_empty {
             return SkillService::read_all_skills(&state.skill_cache, &state.metadata)
@@ -386,7 +385,7 @@ pub async fn update_all_skills(state: State<'_, AppState>) -> Result<UpdateAllRe
 
     let dirs: Vec<String> = {
         let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-        cache.skills.iter().map(|s| s.directory.clone()).collect()
+        cache.iter().map(|s| s.directory.clone()).collect()
     };
     let (entries, _failed) = SkillService::scan_skills_batch(&dirs);
     for entry in entries {
@@ -691,7 +690,7 @@ fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String>
             .skill_cache
             .write()
             .map_err(|e| rollback(format!("Cache lock: {e}"), &removed_agents))?;
-        cache.skills.retain(|s| s.id != skill.id);
+        cache.remove(&skill.id);
         if let Err(e) = cache.save() {
             return Err(rollback(e.to_string(), &removed_agents));
         }
@@ -1736,7 +1735,7 @@ pub async fn get_repo_skills(
 
     let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
     let installed_dirs: std::collections::HashSet<String> =
-        cache.skills.iter().map(|s| s.directory.clone()).collect();
+        cache.iter().map(|s| s.directory.clone()).collect();
 
     for skill in &mut skills {
         skill.installed = installed_dirs.contains(&skill.directory);
@@ -1833,7 +1832,7 @@ pub async fn search_skills_sh(
     // Build installed set from cache
     let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
     let installed_dirs: std::collections::HashSet<String> =
-        cache.skills.iter().map(|s| s.directory.clone()).collect();
+        cache.iter().map(|s| s.directory.clone()).collect();
 
     let mut skills = Vec::new();
     for s in api_result.skills {

@@ -50,8 +50,8 @@ pub fn run() {
             // Load the persisted derived cache so the UI can render immediately,
             // then reconcile with filesystem truth in the background.
             let skill_cache = persistence::SkillCache::load()
-                .unwrap_or_else(|_| persistence::SkillCache { skills: Vec::new() });
-            let should_reconcile_cache = !skill_cache.skills.is_empty();
+                .unwrap_or_else(|_| persistence::SkillCache::empty());
+            let should_reconcile_cache = !skill_cache.is_empty();
             let metadata =
                 persistence::MetadataStore::load().unwrap_or_else(|_| persistence::MetadataStore {
                     entries: std::collections::HashMap::new(),

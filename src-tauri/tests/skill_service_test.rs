@@ -75,9 +75,7 @@ fn test_read_all_skills_uses_cached_apps() {
         ("codex".to_string(), true),
         ("claude-code".to_string(), false),
     ]);
-    let cache = RwLock::new(SkillCache {
-        skills: vec![entry],
-    });
+    let cache = RwLock::new(SkillCache::from_entries(vec![entry]));
     let metadata = RwLock::new(MetadataStore {
         entries: HashMap::new(),
     });

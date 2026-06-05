@@ -6,7 +6,7 @@ pub use metadata::MetadataStore;
 
 use crate::config;
 use crate::error::{self, AppError};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -46,20 +46,77 @@ pub struct SkillCacheEntry {
 }
 
 /// JSON snapshot of filesystem scan results. User metadata (starred, is_mine) is stored separately in MetadataStore.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct SkillCache {
-    pub skills: Vec<SkillCacheEntry>,
+    skills: Vec<SkillCacheEntry>,
+    by_id: HashMap<String, usize>,
 }
 
 impl SkillCache {
+    pub fn empty() -> Self {
+        Self::from_entries(Vec::new())
+    }
+
+    pub fn from_entries(skills: Vec<SkillCacheEntry>) -> Self {
+        let mut cache = Self {
+            skills,
+            by_id: HashMap::new(),
+        };
+        cache.rebuild_index();
+        cache
+    }
+
     pub fn load() -> Result<Self, AppError> {
         let path = config::get_app_config_dir().join("skills-cache.json");
         if !path.exists() {
-            return Ok(Self { skills: Vec::new() });
+            return Ok(Self::empty());
         }
         let content = std::fs::read_to_string(&path).map_err(|e| error::io(&path, e))?;
         serde_json::from_str(&content)
             .map_err(|e| AppError::Parse(format!("skills-cache.json: {e}")))
+    }
+
+    pub fn skills(&self) -> &[SkillCacheEntry] {
+        &self.skills
+    }
+
+    pub fn iter(&self) -> std::slice::Iter<'_, SkillCacheEntry> {
+        self.skills.iter()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.skills.is_empty()
+    }
+
+    pub fn find_by_id(&self, id: &str) -> Option<&SkillCacheEntry> {
+        self.by_id.get(id).and_then(|index| self.skills.get(*index))
+    }
+
+    pub fn replace_all(&mut self, skills: Vec<SkillCacheEntry>) {
+        self.skills = skills;
+        self.rebuild_index();
+    }
+
+    pub fn upsert(&mut self, entry: SkillCacheEntry) {
+        if let Some(index) = self.by_id.get(&entry.id).copied() {
+            let installed_at = self.skills[index].installed_at;
+            self.skills[index] = entry;
+            self.skills[index].installed_at = installed_at;
+            return;
+        }
+        let index = self.skills.len();
+        self.by_id.insert(entry.id.clone(), index);
+        self.skills.push(entry);
+    }
+
+    pub fn remove(&mut self, id: &str) {
+        self.skills.retain(|entry| entry.id != id);
+        self.rebuild_index();
+    }
+
+    pub fn remove_where(&mut self, mut predicate: impl FnMut(&SkillCacheEntry) -> bool) {
+        self.skills.retain(|entry| !predicate(entry));
+        self.rebuild_index();
     }
 
     pub fn save(&self) -> Result<(), AppError> {
@@ -70,6 +127,46 @@ impl SkillCache {
         let json = serde_json::to_string_pretty(self)
             .map_err(|e| AppError::Parse(format!("skills-cache.json: {e}")))?;
         atomic_write(&path, json).map_err(|e| error::io(&path, e))
+    }
+
+    fn rebuild_index(&mut self) {
+        self.by_id.clear();
+        for (index, entry) in self.skills.iter().enumerate() {
+            self.by_id.insert(entry.id.clone(), index);
+        }
+    }
+}
+
+impl Serialize for SkillCache {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        #[derive(Serialize)]
+        struct SkillCacheDisk<'a> {
+            skills: &'a [SkillCacheEntry],
+        }
+
+        SkillCacheDisk {
+            skills: &self.skills,
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for SkillCache {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct SkillCacheDisk {
+            #[serde(default)]
+            skills: Vec<SkillCacheEntry>,
+        }
+
+        let disk = SkillCacheDisk::deserialize(deserializer)?;
+        Ok(Self::from_entries(disk.skills))
     }
 }
 
