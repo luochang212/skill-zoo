@@ -6,7 +6,7 @@ use crate::services::cli::CliService;
 use crate::services::lock::{SkillLock, SkillLockEntry};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 use tauri::Emitter;
 
@@ -86,7 +86,7 @@ impl From<SkillCacheEntry> for InstalledSkill {
             repo_owner: e.repo_owner,
             repo_name: e.repo_name,
             source_url: e.source_url,
-            apps: HashMap::new(),
+            apps: e.apps,
             origin: e.origin,
             home_path: e.home_path,
             content_hash: e.content_hash,
@@ -405,11 +405,11 @@ impl SkillService {
     }
 
     // ──────────────────────────────────────────────
-    //  Read path: return cached skills + live symlinks
+    //  Read path: return cached skills
     // ──────────────────────────────────────────────
 
     /// Return installed skills from the JSON cache with metadata merged.
-    /// Does NOT detect agents (filesystem I/O) — caller must do that outside any lock.
+    /// Does not perform filesystem I/O.
     pub fn get_cached_skills(
         cache: &SkillCache,
         metadata: &MetadataStore,
@@ -425,12 +425,12 @@ impl SkillService {
         Ok(skills)
     }
 
-    /// Read cache + metadata, merge into InstalledSkill list, fill detect_agents.
+    /// Read cache + metadata, merge into InstalledSkill list.
     pub fn read_all_skills(
         skill_cache: &RwLock<SkillCache>,
         metadata: &RwLock<MetadataStore>,
     ) -> Result<Vec<InstalledSkill>, AppError> {
-        let mut skills = {
+        Ok({
             let cache = skill_cache
                 .read()
                 .map_err(|e: std::sync::PoisonError<_>| AppError::Cli(e.to_string()))?;
@@ -438,17 +438,7 @@ impl SkillService {
                 .read()
                 .map_err(|e: std::sync::PoisonError<_>| AppError::Cli(e.to_string()))?;
             Self::get_cached_skills(&cache, &meta)?
-        };
-        Self::fill_detect_agents(&mut skills);
-        Ok(skills)
-    }
-
-    /// Fill in the `apps` field for each skill by detecting agent symlinks.
-    /// Must be called outside any lock — does filesystem I/O.
-    pub fn fill_detect_agents(skills: &mut [InstalledSkill]) {
-        for skill in skills.iter_mut() {
-            skill.apps = Self::detect_agents(&skill.directory, &skill.home_path);
-        }
+        })
     }
 
     // ──────────────────────────────────────────────
@@ -456,8 +446,7 @@ impl SkillService {
     // ──────────────────────────────────────────────
 
     /// Rebuild the skill cache from filesystem + CLI + lock file.
-    /// Returns skills with metadata merged. Caller should call fill_detect_agents()
-    /// on the result (outside any lock) to populate the `apps` field.
+    /// Returns skills with metadata merged.
     pub async fn rebuild_cache(
         cache: &RwLock<SkillCache>,
         metadata: &RwLock<MetadataStore>,
@@ -521,17 +510,9 @@ impl SkillService {
         if scan_dirs.is_empty() {
             return;
         }
-        let lock_data: Option<SkillLock> = SkillLock::read().ok();
         let mut seen_ids: HashSet<String> = HashSet::new();
         for scan_dir in &scan_dirs {
-            Self::scan_dir_recursive_into(
-                scan_dir,
-                entries,
-                &mut seen_ids,
-                &lock_data,
-                scan_dir,
-                hash_cache,
-            );
+            Self::scan_dir_recursive_into(scan_dir, entries, &mut seen_ids, scan_dir, hash_cache);
         }
     }
 
@@ -590,7 +571,6 @@ impl SkillService {
         dir: &PathBuf,
         entries: &mut Vec<SkillCacheEntry>,
         seen_ids: &mut HashSet<String>,
-        lock_data: &Option<SkillLock>,
         scan_root: &PathBuf,
         hash_cache: &mut HashMap<String, (i64, String)>,
     ) {
@@ -618,88 +598,27 @@ impl SkillService {
             if crate::config::SKIP_DIRS.contains(&dir_name) {
                 continue;
             }
-            let skill_md = path.join("SKILL.md");
-            if skill_md.exists() {
-                let relative_dir = path
-                    .strip_prefix(scan_root)
-                    .unwrap_or(&path)
-                    .to_str()
-                    .unwrap_or(dir_name)
-                    .to_string();
-
-                let lock_entry = lock_data.as_ref().and_then(|lock| {
-                    lock.skills
-                        .get(&relative_dir)
-                        .or_else(|| lock.skills.get(dir_name))
-                });
-
-                let (repo_owner, repo_name, source_url) = lock_entry
-                    .map(|e| e.to_repo_info())
-                    .unwrap_or((None, None, None));
-
-                let (yaml_name, description) =
-                    Self::parse_skill_md(&skill_md).unwrap_or((dir_name.to_string(), None));
-                let yaml_name = CliService::strip_ansi(&yaml_name);
-                let yaml_name = if yaml_name == dir_name {
+            if path.join("SKILL.md").exists() {
+                let is_ssot = config::get_agents_skills_dir() == *scan_root;
+                let agent_id = if is_ssot {
                     None
                 } else {
-                    Some(yaml_name)
-                };
-
-                let is_ssot = config::get_agents_skills_dir() == *scan_root;
-                let origin = if is_ssot { "ssot" } else { "agent" };
-                let agent_id = if !is_ssot {
                     Some(
                         Self::detect_agent_for_path(scan_root)
                             .expect("scan_root should be SSOT or a known agent directory"),
                     )
-                } else {
-                    None
                 };
-                let id =
-                    Self::make_skill_id(origin, &relative_dir, &repo_owner, &repo_name, agent_id);
-                if !seen_ids.insert(id.clone()) {
+                let Ok(entry) =
+                    Self::scan_skill_root_with_cache(&path, scan_root, agent_id, hash_cache)
+                else {
+                    continue;
+                };
+                if !seen_ids.insert(entry.id.clone()) {
                     continue; // Already seen this ID, skip
                 }
-                let home_path = if is_ssot {
-                    let ssot_path = config::get_agents_skills_dir().join(&relative_dir);
-                    ssot_path.to_str().map(|s| s.to_string())
-                } else {
-                    // Agent directory scan — the entity dir IS the home path
-                    path.to_str().map(|s| s.to_string())
-                };
-                let content_hash = home_path
-                    .as_ref()
-                    .and_then(|p| Self::compute_content_hash_cached(p, hash_cache));
-                let home_agent = Self::detect_home_agent(&home_path, origin);
-
-                let now = chrono::Utc::now().timestamp();
-                let (installed_at, updated_at) = Self::resolve_timestamps(
-                    lock_entry,
-                    home_path.as_deref().unwrap_or(&relative_dir),
-                    now,
-                );
-
-                entries.push(SkillCacheEntry {
-                    id,
-                    name: dir_name.to_string(),
-                    yaml_name,
-                    description,
-                    directory: relative_dir,
-                    repo_owner,
-                    repo_name,
-                    source_url,
-                    origin: origin.to_string(),
-                    home_path,
-                    content_hash,
-                    home_agent,
-                    installed_at,
-                    updated_at,
-                });
+                entries.push(entry);
             } else {
-                Self::scan_dir_recursive_into(
-                    &path, entries, seen_ids, lock_data, scan_root, hash_cache,
-                );
+                Self::scan_dir_recursive_into(&path, entries, seen_ids, scan_root, hash_cache);
             }
         }
     }
@@ -989,6 +908,7 @@ impl SkillService {
             &repo_name,
             home_agent.as_deref(),
         );
+        let apps = Self::detect_agents(skill_dir, &home_path);
 
         Ok(SkillCacheEntry {
             id,
@@ -1003,9 +923,130 @@ impl SkillService {
             home_path,
             content_hash,
             home_agent,
+            apps,
             installed_at,
             updated_at,
         })
+    }
+
+    /// Scan concrete skill roots without guessing by directory name.
+    ///
+    /// Used by the filesystem watcher for incremental refresh. Each tuple is
+    /// `(skill_root, scan_root, agent_id)`, where `agent_id=None` means SSOT.
+    pub fn scan_skill_roots_batch(
+        skill_roots: &[(PathBuf, PathBuf, Option<String>)],
+    ) -> Result<Vec<SkillCacheEntry>, AppError> {
+        let mut hash_cache = Self::load_hash_cache();
+        let mut entries = Vec::with_capacity(skill_roots.len());
+        for (skill_root, scan_root, agent_id) in skill_roots {
+            entries.push(Self::scan_skill_root_with_cache(
+                skill_root,
+                scan_root,
+                agent_id.as_deref(),
+                &mut hash_cache,
+            )?);
+        }
+        Self::save_hash_cache(&hash_cache);
+        Ok(entries)
+    }
+
+    fn scan_skill_root_with_cache(
+        skill_root: &Path,
+        scan_root: &Path,
+        agent_id: Option<&str>,
+        hash_cache: &mut HashMap<String, (i64, String)>,
+    ) -> Result<SkillCacheEntry, AppError> {
+        let skill_md = skill_root.join("SKILL.md");
+        if !skill_md.exists() {
+            return Err(AppError::NotFound(format!(
+                "SKILL.md not found for skill root: {}",
+                skill_root.display()
+            )));
+        }
+
+        let dir_name = skill_root
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| {
+                AppError::Parse(format!("Invalid skill root: {}", skill_root.display()))
+            })?;
+        let relative_dir = skill_root
+            .strip_prefix(scan_root)
+            .unwrap_or(skill_root)
+            .to_str()
+            .ok_or_else(|| {
+                AppError::Parse(format!("Invalid skill path: {}", skill_root.display()))
+            })?
+            .to_string();
+
+        let lock_data: Option<SkillLock> = SkillLock::read().ok();
+        let lock_entry = lock_data.as_ref().and_then(|lock| {
+            lock.skills
+                .get(&relative_dir)
+                .or_else(|| lock.skills.get(dir_name))
+        });
+
+        let (repo_owner, repo_name, source_url) = lock_entry
+            .map(|e| e.to_repo_info())
+            .unwrap_or((None, None, None));
+
+        let (parsed_name, description) =
+            Self::parse_skill_md(&skill_md).unwrap_or((dir_name.to_string(), None));
+        let parsed_name = CliService::strip_ansi(&parsed_name);
+        let yaml_name = if parsed_name == dir_name {
+            None
+        } else {
+            Some(parsed_name)
+        };
+
+        let origin = if agent_id.is_some() { "agent" } else { "ssot" };
+        let id = Self::make_skill_id(origin, &relative_dir, &repo_owner, &repo_name, agent_id);
+        let home_path = skill_root.to_str().map(|s| s.to_string());
+        let content_hash = home_path
+            .as_ref()
+            .and_then(|p| Self::compute_content_hash_cached(p, hash_cache));
+        let home_agent = if origin == "agent" {
+            agent_id
+                .map(str::to_string)
+                .or_else(|| Self::detect_home_agent(&home_path, origin))
+        } else {
+            None
+        };
+        let apps = Self::detect_agents(&relative_dir, &home_path);
+        let now = chrono::Utc::now().timestamp();
+        let (installed_at, updated_at) = Self::resolve_timestamps(
+            lock_entry,
+            home_path.as_deref().unwrap_or(&relative_dir),
+            now,
+        );
+
+        Ok(SkillCacheEntry {
+            id,
+            name: dir_name.to_string(),
+            yaml_name,
+            description,
+            directory: relative_dir,
+            repo_owner,
+            repo_name,
+            source_url,
+            origin: origin.to_string(),
+            home_path,
+            content_hash,
+            home_agent,
+            apps,
+            installed_at,
+            updated_at,
+        })
+    }
+
+    #[cfg(feature = "test-helpers")]
+    pub fn scan_skill_root_for_test(
+        skill_root: &Path,
+        scan_root: &Path,
+        agent_id: Option<&str>,
+    ) -> Result<SkillCacheEntry, AppError> {
+        let mut hash_cache = HashMap::new();
+        Self::scan_skill_root_with_cache(skill_root, scan_root, agent_id, &mut hash_cache)
     }
 
     /// Insert or replace a cache entry and persist.

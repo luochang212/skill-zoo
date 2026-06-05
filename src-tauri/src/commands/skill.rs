@@ -279,12 +279,9 @@ pub async fn get_installed_skills(
         }
     }
     // Cache is empty (app just started) or force=true: rebuild from filesystem
-    let mut skills =
-        SkillService::rebuild_cache(&state.skill_cache, &state.metadata, &state.sync_in_progress)
-            .await
-            .map_err(|e| e.to_string())?;
-    SkillService::fill_detect_agents(&mut skills);
-    Ok(skills)
+    SkillService::rebuild_cache(&state.skill_cache, &state.metadata, &state.sync_in_progress)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// Best-effort refresh of commit SHA after update. Fails silently on error or rate-limit.

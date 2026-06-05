@@ -35,6 +35,7 @@ export interface SkillCacheEntry {
   homePath?: string | null;
   contentHash?: string | null;
   homeAgent?: string | null;
+  apps?: SkillApps;
   installedAt: number;
   updatedAt: number;
 }

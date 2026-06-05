@@ -2,7 +2,8 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { getPaths } from "../src/protocol/paths.js";
-import { scanInstalledSkills } from "../src/protocol/scan.js";
+import { rebuildCache, scanInstalledSkills } from "../src/protocol/scan.js";
+import { readCache } from "../src/protocol/store.js";
 import { createDirLink, makeTempHome, writeJson, writeSkill } from "./helpers.js";
 
 describe("scanInstalledSkills", () => {
@@ -47,5 +48,20 @@ describe("scanInstalledSkills", () => {
     expect(skills[0].contentHash).toMatch(/^[a-f0-9]{64}$/);
     expect(skills[0].apps.codex).toBe(true);
     expect(skills[0].apps["claude-code"]).toBe(false);
+  });
+
+  it("writes derived apps into skills cache on rebuild", async () => {
+    const home = await makeTempHome();
+    const paths = getPaths(home);
+    const skillDir = path.join(paths.agentsSkillsDir, "cached-apps");
+    await writeSkill(skillDir, "name: Cached Apps");
+    await fs.mkdir(path.join(home, ".codex", "skills"), { recursive: true });
+    await createDirLink(skillDir, path.join(home, ".codex", "skills", "cached-apps"));
+
+    await rebuildCache(home);
+    const cache = await readCache(home);
+
+    expect(cache.skills[0].apps?.codex).toBe(true);
+    expect(cache.skills[0].apps?.["claude-code"]).toBe(false);
   });
 });

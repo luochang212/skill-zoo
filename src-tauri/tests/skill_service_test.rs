@@ -1,6 +1,8 @@
 mod common;
 
-use common::SkillService;
+use common::{make_cache_entry, MetadataStore, SkillCache, SkillCacheEntry, SkillService};
+use std::collections::HashMap;
+use std::sync::RwLock;
 
 #[test]
 fn test_extract_frontmatter_no_closing_delimiter() {
@@ -43,6 +45,50 @@ fn test_parse_skill_md_falls_back_to_dir_name_when_no_frontmatter() {
 }
 
 #[test]
+fn test_skill_cache_entry_defaults_missing_apps() {
+    let json = r#"{
+        "id": "ssot:legacy",
+        "name": "legacy",
+        "yamlName": null,
+        "description": null,
+        "directory": "legacy",
+        "repoOwner": null,
+        "repoName": null,
+        "sourceUrl": null,
+        "origin": "ssot",
+        "homePath": null,
+        "contentHash": null,
+        "homeAgent": null,
+        "installedAt": 1000,
+        "updatedAt": 2000
+    }"#;
+
+    let entry: SkillCacheEntry = serde_json::from_str(json).expect("deserialize legacy entry");
+
+    assert!(entry.apps.is_empty());
+}
+
+#[test]
+fn test_read_all_skills_uses_cached_apps() {
+    let mut entry = make_cache_entry("ssot:cached", "cached", "cached");
+    entry.apps = HashMap::from([
+        ("codex".to_string(), true),
+        ("claude-code".to_string(), false),
+    ]);
+    let cache = RwLock::new(SkillCache {
+        skills: vec![entry],
+    });
+    let metadata = RwLock::new(MetadataStore {
+        entries: HashMap::new(),
+    });
+
+    let skills = SkillService::read_all_skills(&cache, &metadata).expect("read cached skills");
+
+    assert_eq!(skills[0].apps.get("codex"), Some(&true));
+    assert_eq!(skills[0].apps.get("claude-code"), Some(&false));
+}
+
+#[test]
 fn test_build_file_tree_level_does_not_recurse() {
     let dir = tempfile::tempdir().expect("tempdir");
     let skill_dir = dir.path().join("my-skill");
@@ -68,4 +114,52 @@ fn test_build_file_tree_level_does_not_recurse() {
     assert!(nodes
         .iter()
         .any(|node| node.name == "SKILL.md" && node.is_skill_md));
+}
+
+#[test]
+fn test_scan_skill_root_for_test_scans_ssot_root_without_directory_guessing() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let scan_root = dir.path().join("skills");
+    let skill_dir = scan_root.join("exact-scan-ssot-test");
+    std::fs::create_dir_all(&skill_dir).expect("create skill dir");
+    std::fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: Exact SSOT\ndescription: Precise scan\n---\n\n# Body",
+    )
+    .expect("write skill");
+    std::fs::write(skill_dir.join("notes.md"), "notes").expect("write notes");
+
+    let entry =
+        SkillService::scan_skill_root_for_test(&skill_dir, &scan_root, None).expect("scan root");
+
+    assert_eq!(entry.id, "ssot:exact-scan-ssot-test");
+    assert_eq!(entry.name, "exact-scan-ssot-test");
+    assert_eq!(entry.yaml_name.as_deref(), Some("Exact SSOT"));
+    assert_eq!(entry.description.as_deref(), Some("Precise scan"));
+    assert_eq!(entry.directory, "exact-scan-ssot-test");
+    assert_eq!(entry.origin, "ssot");
+    assert_eq!(entry.home_path.as_deref(), skill_dir.to_str());
+    assert_eq!(entry.home_agent, None);
+    assert!(entry.content_hash.is_some());
+}
+
+#[test]
+fn test_scan_skill_root_for_test_scans_agent_origin_without_ssot_fallback() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let scan_root = dir.path().join(".codex").join("skills");
+    let skill_dir = scan_root.join("dupe-skill");
+    std::fs::create_dir_all(&skill_dir).expect("create skill dir");
+    std::fs::write(skill_dir.join("SKILL.md"), "# Agent skill").expect("write skill");
+
+    let entry = SkillService::scan_skill_root_for_test(&skill_dir, &scan_root, Some("codex"))
+        .expect("scan root");
+
+    assert_eq!(entry.id, "agent:codex:dupe-skill");
+    assert_eq!(entry.name, "dupe-skill");
+    assert_eq!(entry.directory, "dupe-skill");
+    assert_eq!(entry.origin, "agent");
+    assert_eq!(entry.home_path.as_deref(), skill_dir.to_str());
+    assert_eq!(entry.home_agent.as_deref(), Some("codex"));
+    assert!(entry.apps.contains_key("codex"));
+    assert!(entry.content_hash.is_some());
 }

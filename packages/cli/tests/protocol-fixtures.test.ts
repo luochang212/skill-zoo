@@ -6,6 +6,7 @@ import { getPaths } from "../src/protocol/paths.js";
 import {
   assertWritableSchema,
   readArchiveManifest,
+  readCache,
   readLock,
 } from "../src/protocol/store.js";
 import { makeTempHome } from "./helpers.js";
@@ -54,6 +55,31 @@ describe("desktop local protocol fixtures", () => {
     expect(lock.skills).toEqual({});
     expect(manifest.version).toBe(1);
     expect(manifest.skills).toEqual({});
+  });
+
+  it("tolerates legacy skills cache entries without apps", async () => {
+    const home = await makeTempHome();
+    const paths = getPaths(home);
+    await fs.mkdir(path.dirname(paths.skillsCacheFile), { recursive: true });
+    await fs.writeFile(
+      paths.skillsCacheFile,
+      JSON.stringify({
+        skills: [
+          {
+            id: "ssot:legacy",
+            name: "legacy",
+            directory: "legacy",
+            origin: "ssot",
+            installedAt: 1000,
+            updatedAt: 2000,
+          },
+        ],
+      }),
+    );
+
+    const cache = await readCache(home);
+
+    expect(cache.skills[0].apps).toBeUndefined();
   });
 
   it("refuses writes for future desktop protocol versions", async () => {

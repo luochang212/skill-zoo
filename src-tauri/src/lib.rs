@@ -25,7 +25,7 @@ mod services;
 mod store;
 
 use store::AppState;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -47,9 +47,11 @@ pub fn run() {
                 }
             }
 
-            // Start with empty skill cache so the first get_installed_skills
-            // triggers a filesystem rebuild, keeping cache in sync with reality.
-            let skill_cache = persistence::SkillCache { skills: Vec::new() };
+            // Load the persisted derived cache so the UI can render immediately,
+            // then reconcile with filesystem truth in the background.
+            let skill_cache = persistence::SkillCache::load()
+                .unwrap_or_else(|_| persistence::SkillCache { skills: Vec::new() });
+            let should_reconcile_cache = !skill_cache.skills.is_empty();
             let metadata =
                 persistence::MetadataStore::load().unwrap_or_else(|_| persistence::MetadataStore {
                     entries: std::collections::HashMap::new(),
@@ -61,6 +63,25 @@ pub fn run() {
 
             let app_state = AppState::new(skill_cache, metadata, settings);
             app.manage(app_state);
+
+            if should_reconcile_cache {
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    let state = app_handle.state::<AppState>();
+                    match services::skill::SkillService::rebuild_cache(
+                        &state.skill_cache,
+                        &state.metadata,
+                        &state.sync_in_progress,
+                    )
+                    .await
+                    {
+                        Ok(_) => {
+                            let _ = app_handle.emit("skills-changed", ());
+                        }
+                        Err(e) => eprintln!("Failed to reconcile skill cache on startup: {e}"),
+                    }
+                });
+            }
 
             // Start filesystem watcher for auto-refresh on external changes
             let app_handle = app.handle().clone();

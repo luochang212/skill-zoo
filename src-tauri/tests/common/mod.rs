@@ -23,6 +23,7 @@ pub fn make_cache_entry(id: &str, name: &str, directory: &str) -> SkillCacheEntr
         home_path: None,
         content_hash: None,
         home_agent: None,
+        apps: std::collections::HashMap::new(),
         installed_at: 1000,
         updated_at: 2000,
     }

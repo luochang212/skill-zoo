@@ -36,7 +36,7 @@ export async function scanInstalledSkills(home?: string): Promise<InstalledSkill
     const meta = getMetadata(metadata, entry.id);
     skills.push({
       ...entry,
-      apps: await detectAgents(home, entry.directory, entry.homePath ?? undefined),
+      apps: entry.apps ?? (await detectAgents(home, entry.directory, entry.homePath ?? undefined)),
       starred: meta.starred,
       isMine: meta.isMine,
     });
@@ -55,7 +55,7 @@ export async function rebuildCache(home?: string): Promise<InstalledSkill[]> {
       const meta = getMetadata(metadata, entry.id);
       return {
         ...entry,
-        apps: await detectAgents(home, entry.directory, entry.homePath ?? undefined),
+        apps: entry.apps ?? (await detectAgents(home, entry.directory, entry.homePath ?? undefined)),
         starred: meta.starred,
         isMine: meta.isMine,
       };
@@ -139,6 +139,7 @@ async function scanDirRecursive(
       const homePath = isSsot ? path.join(getPaths(home).agentsSkillsDir, relativeDir) : entryPath;
       const now = Math.floor(Date.now() / 1000);
       const [installedAt, updatedAt] = await resolveTimestamps(lockEntry, homePath, now);
+      const apps = await detectAgents(home, relativeDir, homePath);
 
       entries.push({
         id,
@@ -153,6 +154,7 @@ async function scanDirRecursive(
         homePath,
         contentHash: await computeContentHash(homePath),
         homeAgent: await detectHomeAgent(home, homePath, origin),
+        apps,
         installedAt,
         updatedAt,
       });
