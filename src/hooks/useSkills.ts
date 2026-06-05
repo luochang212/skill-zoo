@@ -189,6 +189,19 @@ export function useSkillFiles(directory: string | null) {
   });
 }
 
+export function useSkillFileChildren(
+  directory: string | null,
+  parentPath: string | null,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: ["skills", "fileChildren", directory, parentPath],
+    queryFn: () => skillsApi.listSkillFileChildren(directory!, parentPath),
+    enabled: enabled && !!directory,
+    staleTime: 30 * 1000,
+  });
+}
+
 export function useSaveSkillContent() {
   const qc = useQueryClient();
   return useMutation({

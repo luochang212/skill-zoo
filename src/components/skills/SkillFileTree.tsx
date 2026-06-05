@@ -11,6 +11,7 @@ import {
   BookOpen,
   ChevronRight,
   ChevronDown,
+  Loader2,
 } from "lucide-react";
 import type { SkillFileNode } from "@/types/skills";
 
@@ -74,21 +75,43 @@ interface FileTreeNodeProps {
   node: SkillFileNode;
   depth: number;
   selectedPath?: string;
+  loadingPaths?: Set<string>;
+  errorPaths?: Set<string>;
+  onLoadChildren?: (node: SkillFileNode) => void;
+  onRetryChildren?: (node: SkillFileNode) => void;
   onSelectFile?: (node: SkillFileNode) => void;
 }
 
-function FileTreeNode({ node, depth, selectedPath, onSelectFile }: FileTreeNodeProps) {
-  const [expanded, setExpanded] = useState(depth === 0);
+function FileTreeNode({
+  node,
+  depth,
+  selectedPath,
+  loadingPaths,
+  errorPaths,
+  onLoadChildren,
+  onRetryChildren,
+  onSelectFile,
+}: FileTreeNodeProps) {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
+  const isLoading = loadingPaths?.has(node.path) ?? false;
+  const isError = errorPaths?.has(node.path) ?? false;
 
   const handleClick = useCallback(() => {
     if (node.isDir) {
-      setExpanded((v) => !v);
+      setExpanded((v) => {
+        const next = !v;
+        if (next && !node.children && !isLoading) {
+          onLoadChildren?.(node);
+        }
+        return next;
+      });
     } else if (onSelectFile) {
       onSelectFile(node);
     } else {
       skillsApi.openSkillPath(node.path).catch(() => {});
     }
-  }, [node, onSelectFile]);
+  }, [isLoading, node, onLoadChildren, onSelectFile]);
 
   const isSelected = !node.isDir && node.path === selectedPath;
   const Icon = node.isDir ? Folder : getFileIcon(node.name, node.isSkillMd);
@@ -124,17 +147,42 @@ function FileTreeNode({ node, depth, selectedPath, onSelectFile }: FileTreeNodeP
       </button>
 
       {/* Children — rendered when expanded */}
-      {node.isDir && expanded && node.children && (
+      {node.isDir && expanded && (
         <div>
-          {node.children.map((child) => (
-            <FileTreeNode
-              key={child.path}
-              node={child}
-              depth={depth + 1}
-              selectedPath={selectedPath}
-              onSelectFile={onSelectFile}
-            />
-          ))}
+          {isLoading ? (
+            <div
+              className="flex items-center gap-1.5 py-1 pr-2 text-[12px] text-muted-foreground"
+              style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
+            >
+              <span className="w-3 shrink-0" />
+              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+              <span className="truncate">{t("common.loading")}</span>
+            </div>
+          ) : isError ? (
+            <button
+              onClick={() => onRetryChildren?.(node)}
+              className="w-full flex items-center gap-1.5 py-1 pr-2 text-[12px] text-left text-destructive hover:bg-accent/50"
+              style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
+            >
+              <span className="w-3 shrink-0" />
+              <span className="truncate">{t("skillFiles.error")}</span>
+              <span className="text-muted-foreground">{t("error.retry")}</span>
+            </button>
+          ) : (
+            node.children?.map((child) => (
+              <FileTreeNode
+                key={child.path}
+                node={child}
+                depth={depth + 1}
+                selectedPath={selectedPath}
+                loadingPaths={loadingPaths}
+                errorPaths={errorPaths}
+                onLoadChildren={onLoadChildren}
+                onRetryChildren={onRetryChildren}
+                onSelectFile={onSelectFile}
+              />
+            ))
+          )}
         </div>
       )}
     </div>
@@ -143,12 +191,55 @@ function FileTreeNode({ node, depth, selectedPath, onSelectFile }: FileTreeNodeP
 
 interface SkillFileTreeProps {
   nodes: SkillFileNode[];
+  isLoading?: boolean;
+  isError?: boolean;
   selectedPath?: string;
+  loadingPaths?: Set<string>;
+  errorPaths?: Set<string>;
+  onRetry?: () => void;
+  onLoadChildren?: (node: SkillFileNode) => void;
+  onRetryChildren?: (node: SkillFileNode) => void;
   onSelectFile?: (node: SkillFileNode) => void;
 }
 
-export function SkillFileTree({ nodes, selectedPath, onSelectFile }: SkillFileTreeProps) {
+export function SkillFileTree({
+  nodes,
+  isLoading,
+  isError,
+  selectedPath,
+  loadingPaths,
+  errorPaths,
+  onRetry,
+  onLoadChildren,
+  onRetryChildren,
+  onSelectFile,
+}: SkillFileTreeProps) {
   const { t } = useTranslation();
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin mb-2" />
+        <p className="text-sm">{t("common.loading")}</p>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
+        <p className="text-sm text-destructive">{t("skillFiles.error")}</p>
+        {onRetry && (
+          <button
+            onClick={onRetry}
+            className="text-xs px-2.5 py-1 rounded-md border border-border hover:bg-accent transition-colors"
+          >
+            {t("error.retry")}
+          </button>
+        )}
+      </div>
+    );
+  }
 
   if (nodes.length === 0) {
     return (
@@ -167,6 +258,10 @@ export function SkillFileTree({ nodes, selectedPath, onSelectFile }: SkillFileTr
             node={node}
             depth={0}
             selectedPath={selectedPath}
+            loadingPaths={loadingPaths}
+            errorPaths={errorPaths}
+            onLoadChildren={onLoadChildren}
+            onRetryChildren={onRetryChildren}
             onSelectFile={onSelectFile}
           />
         ))}

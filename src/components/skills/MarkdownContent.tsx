@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
+import yaml from "js-yaml";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
@@ -60,7 +61,6 @@ function parseFrontmatter(raw: string): ParsedSkillMd {
     return { frontmatter: null, body: raw };
   }
 
-  // Find the closing ---
   const firstClose = trimmed.indexOf("---", 3);
   if (firstClose === -1) {
     return { frontmatter: null, body: raw };
@@ -69,54 +69,16 @@ function parseFrontmatter(raw: string): ParsedSkillMd {
   const yamlStr = trimmed.slice(3, firstClose).trim();
   const body = trimmed.slice(firstClose + 3).trimStart();
 
-  // Lightweight YAML parser — handles the skill frontmatter format
-  // (simple key-value pairs and simple string lists)
-  const frontmatter: Record<string, unknown> = {};
-  const lines = yamlStr.split("\n");
-  let currentKey = "";
-  let currentList: string[] = [];
-  let inList = false;
-
-  for (const line of lines) {
-    // List item (indented with "  - " or "- ")
-    if (/^(\s*)-\s+/.test(line)) {
-      if (!inList && currentKey) {
-        currentList = [];
-        inList = true;
-      }
-      const value = line.replace(/^(\s*)-\s+/, "").replace(/^["']|["']$/g, "");
-      currentList.push(value);
-      continue;
+  try {
+    const parsed = yaml.load(yamlStr);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return { frontmatter: parsed as Record<string, unknown>, body };
     }
-
-    // Flush previous list
-    if (inList && currentKey) {
-      frontmatter[currentKey] = currentList;
-      currentList = [];
-      inList = false;
-    }
-
-    // Key-value pair
-    const kvMatch = line.match(/^(\S[\w-]*)\s*:\s*(.*)$/);
-    if (kvMatch) {
-      currentKey = kvMatch[1];
-      const val = kvMatch[2].trim();
-      if (val) {
-        frontmatter[currentKey] = val.replace(/^["']|["']$/g, "");
-        inList = false;
-      } else {
-        // Value is empty — next lines may be a list
-        inList = false;
-      }
-    }
+  } catch {
+    // Invalid YAML — fall through to return no frontmatter
   }
 
-  // Flush remaining list
-  if (inList && currentKey) {
-    frontmatter[currentKey] = currentList;
-  }
-
-  return { frontmatter: Object.keys(frontmatter).length ? frontmatter : null, body };
+  return { frontmatter: null, body };
 }
 
 function FrontmatterCard({ data }: { data: Record<string, unknown> }) {
@@ -153,8 +115,10 @@ function FrontmatterCard({ data }: { data: Record<string, unknown> }) {
                   >
                     {String(value)}
                   </span>
+                ) : typeof value === "object" && value !== null ? (
+                  <code className="text-[0.7rem]">{JSON.stringify(value, null, 2)}</code>
                 ) : (
-                  String(value)
+                  String(value ?? "")
                 )}
               </td>
             </tr>

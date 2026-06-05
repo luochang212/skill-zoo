@@ -41,3 +41,31 @@ fn test_parse_skill_md_falls_back_to_dir_name_when_no_frontmatter() {
     assert_eq!(name, "my-skill");
     assert_eq!(desc, None);
 }
+
+#[test]
+fn test_build_file_tree_level_does_not_recurse() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let skill_dir = dir.path().join("my-skill");
+    std::fs::create_dir(&skill_dir).expect("create skill dir");
+    std::fs::create_dir(skill_dir.join("examples")).expect("create examples dir");
+    std::fs::create_dir(skill_dir.join("node_modules")).expect("create skipped dir");
+    std::fs::write(skill_dir.join("SKILL.md"), "# Skill").expect("write skill");
+    std::fs::write(skill_dir.join("z.txt"), "z").expect("write root file");
+    std::fs::write(skill_dir.join("examples").join("nested.md"), "nested").expect("write nested");
+    std::fs::write(skill_dir.join("node_modules").join("package.json"), "{}")
+        .expect("write skipped");
+
+    let nodes = SkillService::build_file_tree_level_for_test(&skill_dir).expect("list level");
+    let names: Vec<_> = nodes.iter().map(|node| node.name.as_str()).collect();
+
+    assert_eq!(names, vec!["examples", "SKILL.md", "z.txt"]);
+    let examples = nodes
+        .iter()
+        .find(|node| node.name == "examples")
+        .expect("examples");
+    assert!(examples.is_dir);
+    assert!(examples.children.is_none());
+    assert!(nodes
+        .iter()
+        .any(|node| node.name == "SKILL.md" && node.is_skill_md));
+}

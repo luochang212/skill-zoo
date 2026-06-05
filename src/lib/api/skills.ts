@@ -51,6 +51,9 @@ export const skillsApi = {
 
   listSkillFiles: (directory: string) => invoke<SkillFileNode[]>("list_skill_files", { directory }),
 
+  listSkillFileChildren: (directory: string, parentPath?: string | null) =>
+    invoke<SkillFileNode[]>("list_skill_file_children", { directory, parentPath }),
+
   readSkillFilePath: (path: string) => invoke<string>("read_skill_file_path", { path }),
 
   writeSkillFilePath: (path: string, content: string) =>

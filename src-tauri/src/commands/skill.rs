@@ -1017,6 +1017,16 @@ pub fn list_skill_files(directory: String) -> Result<Vec<SkillFileNode>, String>
 }
 
 #[tauri::command]
+pub fn list_skill_file_children(
+    directory: String,
+    parent_path: Option<String>,
+) -> Result<Vec<SkillFileNode>, String> {
+    validate_skill_directory(&directory)?;
+    SkillService::list_skill_file_children(&directory, parent_path.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn get_symlink_status(state: State<'_, AppState>) -> Result<Vec<SymlinkStatus>, String> {
     let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
     let settings = state.settings.lock().map_err(|e| e.to_string())?;

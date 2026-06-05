@@ -1431,6 +1431,125 @@ impl SkillService {
         )))
     }
 
+    /// List one directory level for a skill directory.
+    /// Searches SSOT first, then agent directories (same fallback as read_skill_md).
+    pub fn list_skill_file_children(
+        directory: &str,
+        parent_path: Option<&str>,
+    ) -> Result<Vec<SkillFileNode>, AppError> {
+        crate::commands::skill::validate_skill_directory(directory)
+            .map_err(AppError::BadRequest)?;
+
+        let skill_dir = Self::resolve_skill_dir(directory)?;
+        let target_dir = if let Some(parent_path) = parent_path {
+            if parent_path.is_empty() || parent_path.contains('\0') {
+                return Err(AppError::BadRequest("Invalid path".into()));
+            }
+            let target = std::path::PathBuf::from(parent_path);
+            if !target.is_absolute() {
+                return Err(AppError::BadRequest("Path must be absolute".into()));
+            }
+
+            let skill_root = skill_dir
+                .canonicalize()
+                .map_err(|e| crate::error::io(&skill_dir, e))?;
+            let target_real = target
+                .canonicalize()
+                .map_err(|e| crate::error::io(&target, e))?;
+            if target_real != skill_root && !target_real.starts_with(&skill_root) {
+                return Err(AppError::BadRequest(
+                    "Path is not under the requested skill directory".into(),
+                ));
+            }
+            if !target_real.is_dir() || is_symlink_or_junction(&target) {
+                return Err(AppError::BadRequest("Path is not a directory".into()));
+            }
+            target_real
+        } else {
+            skill_dir
+        };
+
+        let mut nodes = Vec::new();
+        Self::build_file_tree_level(&target_dir, &mut nodes)?;
+        Self::sort_nodes(&mut nodes);
+        Ok(nodes)
+    }
+
+    fn resolve_skill_dir(directory: &str) -> Result<std::path::PathBuf, AppError> {
+        let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+        let agents_dir = config::get_agents_skills_dir();
+        candidates.push(agents_dir.join(directory));
+        for agent in config::AGENTS {
+            if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
+                candidates.push(agent_dir.join(directory));
+            }
+        }
+
+        candidates
+            .into_iter()
+            .find(|skill_dir| skill_dir.is_dir())
+            .ok_or_else(|| {
+                AppError::NotFound(format!("Skill directory not found for: {directory}"))
+            })
+    }
+
+    fn build_file_tree_level(
+        dir: &std::path::Path,
+        nodes: &mut Vec<SkillFileNode>,
+    ) -> Result<(), AppError> {
+        let entries = std::fs::read_dir(dir).map_err(|e| crate::error::io(dir, e))?;
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                if crate::config::SKIP_DIRS.contains(&name) {
+                    continue;
+                }
+            }
+
+            if path.is_dir() && !is_symlink_or_junction(&path) {
+                nodes.push(SkillFileNode {
+                    name: path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    path: path.to_str().unwrap_or("").to_string(),
+                    is_dir: true,
+                    is_skill_md: false,
+                    children: None,
+                });
+            } else if path.is_file() || (is_symlink_or_junction(&path) && path.is_file()) {
+                let file_name = path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("")
+                    .to_string();
+
+                nodes.push(SkillFileNode {
+                    is_skill_md: file_name == "SKILL.md",
+                    name: file_name,
+                    path: path.to_str().unwrap_or("").to_string(),
+                    is_dir: false,
+                    children: None,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    #[cfg(feature = "test-helpers")]
+    pub fn build_file_tree_level_for_test(
+        dir: &std::path::Path,
+    ) -> Result<Vec<SkillFileNode>, AppError> {
+        let mut nodes = Vec::new();
+        Self::build_file_tree_level(dir, &mut nodes)?;
+        Self::sort_nodes(&mut nodes);
+        Ok(nodes)
+    }
+
     fn build_file_tree(dir: &std::path::Path, nodes: &mut Vec<SkillFileNode>) {
         let Ok(entries) = std::fs::read_dir(dir) else {
             return;

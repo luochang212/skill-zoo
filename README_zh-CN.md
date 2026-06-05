@@ -89,7 +89,7 @@ brew install --cask skill-zoo
 当你希望从 Agent、终端或自动化脚本中管理 Skill Zoo 时，可以安装 npm CLI：
 
 ```bash
-npm install -g skill-zoo
+npm i -g skill-zoo
 skill-zoo --help
 
 skill-zoo list           # 列出已安装技能

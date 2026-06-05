@@ -26,7 +26,7 @@ export function useEditorState() {
     isError: contentError,
   } = useSkillContent(open ? directory : "");
   const saveMutation = useSaveSkillContent();
-  const { data: installedSkills } = useInstalledSkills();
+  const { data: installedSkills, isLoading: skillsLoading } = useInstalledSkills();
 
   // Resolve the full skill object from installed skills list
   const skill =
@@ -102,7 +102,8 @@ export function useEditorState() {
     skillName,
     skill,
     dirty,
-    isLoading: contentLoading,
+    contentLoading,
+    skillLoading: open && skillsLoading,
     contentError,
     localContent,
     savePending: saveMutation.isPending,

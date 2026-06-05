@@ -75,7 +75,7 @@ describe("App local skill detail navigation", () => {
           return Promise.resolve({});
         case "read_skill_md":
           return Promise.resolve("# Skill content");
-        case "list_skill_files":
+        case "list_skill_file_children":
           return Promise.resolve([
             {
               name: "SKILL.md",

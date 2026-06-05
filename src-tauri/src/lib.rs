@@ -118,6 +118,7 @@ pub fn run() {
             commands::skill::set_skill_is_mine,
             commands::skill::create_skill,
             commands::skill::list_skill_files,
+            commands::skill::list_skill_file_children,
             commands::skill::read_skill_file_path,
             commands::skill::write_skill_file_path,
             commands::settings::get_settings,

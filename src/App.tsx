@@ -207,7 +207,8 @@ export default function App() {
         <SkillDetail
           skill={archivedSkill}
           skillName={archivedEditor.name}
-          isLoading={archivedSkillsLoading || archivedContentLoading}
+          skillLoading={archivedSkillsLoading}
+          contentLoading={archivedContentLoading}
           isError={archivedError}
           content={archivedContent}
           onChange={() => {}}
@@ -224,7 +225,8 @@ export default function App() {
         <SkillDetail
           skill={editor.skill}
           skillName={editor.skillName}
-          isLoading={editor.isLoading}
+          skillLoading={editor.skillLoading}
+          contentLoading={editor.contentLoading}
           isError={editor.contentError}
           content={editor.localContent}
           onChange={editor.updateContent}

@@ -89,7 +89,7 @@ Download the portable `.zip` from [Releases](https://github.com/luochang212/skil
 When you want to manage Skill Zoo from an agent, terminal, or automation, install the npm CLI:
 
 ```bash
-npm install -g skill-zoo
+npm i -g skill-zoo
 skill-zoo --help
 
 skill-zoo list           # List installed skills

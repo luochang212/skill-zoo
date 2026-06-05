@@ -1,11 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { MarkdownContent } from "@/components/skills/MarkdownContent";
 import { SkillFileTree } from "@/components/skills/SkillFileTree";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Eye, Pencil, Columns2, PanelLeftOpen, PanelLeftClose, FileX } from "lucide-react";
-import { useSkillFiles, useSkillFileContent, useSaveSkillFileContent } from "@/hooks/useSkills";
+import {
+  useSkillFileChildren,
+  useSkillFileContent,
+  useSaveSkillFileContent,
+} from "@/hooks/useSkills";
 import { skillsApi } from "@/lib/api/skills";
 import { formatRelativeDate } from "@/lib/date";
 import type { SkillFileNode } from "@/types/skills";
@@ -33,17 +38,70 @@ interface SkillContentPaneProps {
 const SPLIT_MIN = 20;
 const SPLIT_DEFAULT = 50;
 
-/** Flatten a tree of SkillFileNodes into a flat list of files (no dirs). */
-function flattenNodes(nodes: SkillFileNode[]): SkillFileNode[] {
-  const result: SkillFileNode[] = [];
+function findNodeByPath(nodes: SkillFileNode[], path: string | null): SkillFileNode | null {
+  if (!path) return null;
   for (const node of nodes) {
+    if (node.path === path) return node;
     if (node.isDir && node.children) {
-      result.push(...flattenNodes(node.children));
-    } else if (!node.isDir) {
-      result.push(node);
+      const match = findNodeByPath(node.children, path);
+      if (match) return match;
     }
   }
-  return result;
+  return null;
+}
+
+function findSkillMd(nodes: SkillFileNode[]): SkillFileNode | null {
+  for (const node of nodes) {
+    if (!node.isDir && node.isSkillMd) return node;
+    if (node.isDir && node.children) {
+      const match = findSkillMd(node.children);
+      if (match) return match;
+    }
+  }
+  return null;
+}
+
+function hasExtraLoadedFile(nodes: SkillFileNode[]): boolean {
+  return nodes.some((node) => {
+    if (node.isDir) return true;
+    return !node.isSkillMd;
+  });
+}
+
+function setNodeChildren(
+  nodes: SkillFileNode[],
+  path: string,
+  children: SkillFileNode[],
+): SkillFileNode[] {
+  return nodes.map((node) => {
+    if (node.path === path) {
+      return { ...node, children };
+    }
+    if (node.isDir && node.children) {
+      return { ...node, children: setNodeChildren(node.children, path, children) };
+    }
+    return node;
+  });
+}
+
+function mergeLoadedChildren(
+  nextNodes: SkillFileNode[],
+  currentNodes: SkillFileNode[],
+): SkillFileNode[] {
+  const currentByPath = new Map<string, SkillFileNode>();
+  const collect = (nodes: SkillFileNode[]) => {
+    for (const node of nodes) {
+      currentByPath.set(node.path, node);
+      if (node.children) collect(node.children);
+    }
+  };
+  collect(currentNodes);
+
+  return nextNodes.map((node) => {
+    if (!node.isDir) return node;
+    const current = currentByPath.get(node.path);
+    return current?.children ? { ...node, children: current.children } : node;
+  });
 }
 
 // Synced scroll helpers for split view
@@ -73,6 +131,7 @@ export function SkillContentPane({
   readOnly = false,
 }: SkillContentPaneProps) {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
 
   // ── Split pane state (for overview/edit/split) ──
   const [splitPct, setSplitPct] = useState(SPLIT_DEFAULT);
@@ -83,30 +142,57 @@ export function SkillContentPane({
   const syncSourceRef = useRef<{ source: "edit" | "preview"; time: number } | null>(null);
 
   // ── Sidebar + file selection state ──
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(!readOnly);
   const [sidebarWidth, setSidebarWidth] = useState(208); // px, matches w-52
   const [sidebarDragging, setSidebarDragging] = useState(false);
   const sidebarRowRef = useRef<HTMLDivElement>(null);
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [fileEditContent, setFileEditContent] = useState<string | null>(null);
+  const [nodes, setNodes] = useState<SkillFileNode[]>([]);
+  const [loadingDirPaths, setLoadingDirPaths] = useState<Set<string>>(() => new Set());
+  const [errorDirPaths, setErrorDirPaths] = useState<Set<string>>(() => new Set());
 
-  // ── File tree query (always active when directory is set) ──
-  const { data: nodes = [] } = useSkillFiles(readOnly ? null : (directory ?? null));
+  // ── File tree root query (default-open sidebar, lazy contents) ──
+  const {
+    data: rootNodes,
+    isLoading: rootLoading,
+    isError: rootError,
+    refetch: refetchRootNodes,
+  } = useSkillFileChildren(readOnly ? null : (directory ?? null), null);
 
-  // ── Resolve selected node ──
-  const allFiles = flattenNodes(nodes);
-  const selectedNode = allFiles.find((n) => n.path === selectedFilePath) ?? null;
+  // ── Resolve selected node from already loaded nodes ──
+  const selectedNode = findNodeByPath(nodes, selectedFilePath);
   const isSkillMdActive = selectedNode?.isSkillMd ?? true;
 
-  // ── Auto-select SKILL.md and expand sidebar if extra files exist ──
+  // ── Reset lazy tree when switching skills ──
+  useEffect(() => {
+    setNodes([]);
+    setSelectedFilePath(null);
+    setLoadingDirPaths(new Set());
+    setErrorDirPaths(new Set());
+    setSidebarOpen(!readOnly);
+  }, [directory, readOnly]);
+
+  // ── Seed root nodes and auto-select SKILL.md ──
+  useEffect(() => {
+    if (rootNodes) {
+      setNodes((current) => mergeLoadedChildren(rootNodes, current));
+      setSelectedFilePath((current) => {
+        if (current !== null) return current;
+        const skillMd = findSkillMd(rootNodes);
+        return skillMd?.path ?? null;
+      });
+      if (hasExtraLoadedFile(rootNodes)) setSidebarOpen(true);
+    }
+  }, [rootNodes]);
+
+  // ── Auto-select SKILL.md if it arrives via a loaded child directory ──
   useEffect(() => {
     if (selectedFilePath === null && nodes.length > 0) {
-      const skillMd = allFiles.find((n) => n.isSkillMd);
+      const skillMd = findSkillMd(nodes);
       if (skillMd) setSelectedFilePath(skillMd.path);
-      if (allFiles.some((n) => !n.isSkillMd)) setSidebarOpen(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes]);
+  }, [nodes, selectedFilePath]);
 
   // ── Reset local edit content when switching files ──
   useEffect(() => {
@@ -145,6 +231,51 @@ export function SkillContentPane({
       { onSuccess: () => setFileEditContent(null) },
     );
   }, [selectedFilePath, isDirty, fileEditContent, saveFileMutation]);
+
+  const handleLoadChildren = useCallback(
+    async (node: SkillFileNode) => {
+      if (!directory || readOnly || !node.isDir || node.children) return;
+
+      let shouldLoad = false;
+      setLoadingDirPaths((current) => {
+        if (current.has(node.path)) return current;
+        shouldLoad = true;
+        const next = new Set(current);
+        next.add(node.path);
+        return next;
+      });
+      if (!shouldLoad) return;
+
+      setErrorDirPaths((current) => {
+        const next = new Set(current);
+        next.delete(node.path);
+        return next;
+      });
+
+      try {
+        const children = await queryClient.fetchQuery({
+          queryKey: ["skills", "fileChildren", directory, node.path],
+          queryFn: () => skillsApi.listSkillFileChildren(directory, node.path),
+          staleTime: 30 * 1000,
+        });
+        setNodes((current) => setNodeChildren(current, node.path, children));
+        setErrorDirPaths((current) => {
+          const next = new Set(current);
+          next.delete(node.path);
+          return next;
+        });
+      } catch {
+        setErrorDirPaths((current) => new Set(current).add(node.path));
+      } finally {
+        setLoadingDirPaths((current) => {
+          const next = new Set(current);
+          next.delete(node.path);
+          return next;
+        });
+      }
+    },
+    [directory, queryClient, readOnly],
+  );
 
   // ── Tab change: only forward to parent for SKILL.md ──
   const handleTabChange = useCallback(
@@ -342,7 +473,14 @@ export function SkillContentPane({
           >
             <SkillFileTree
               nodes={nodes}
+              isLoading={rootLoading}
+              isError={rootError}
               selectedPath={selectedFilePath ?? undefined}
+              loadingPaths={loadingDirPaths}
+              errorPaths={errorDirPaths}
+              onRetry={() => refetchRootNodes()}
+              onLoadChildren={handleLoadChildren}
+              onRetryChildren={handleLoadChildren}
               onSelectFile={(node) => setSelectedFilePath(node.path)}
             />
           </div>

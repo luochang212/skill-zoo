@@ -22,7 +22,8 @@ import type { InstalledSkill } from "@/types/skills";
 interface SkillDetailProps {
   skill: InstalledSkill | null;
   skillName: string;
-  isLoading: boolean;
+  skillLoading?: boolean;
+  contentLoading: boolean;
   isError?: boolean;
   content: string;
   onChange: (content: string) => void;
@@ -47,7 +48,8 @@ interface SkillDetailProps {
 export function SkillDetail({
   skill,
   skillName,
-  isLoading,
+  skillLoading,
+  contentLoading,
   isError,
   content,
   onChange,
@@ -78,8 +80,8 @@ export function SkillDetail({
 
   // Auto-navigate back when skill disappears (deleted externally)
   useEffect(() => {
-    if (!isLoading && !isError && !skill && onBack) onBack();
-  }, [skill, isLoading, isError, onBack]);
+    if (!skillLoading && !isError && !skill && onBack) onBack();
+  }, [skill, skillLoading, isError, onBack]);
 
   // Clean up timer on unmount
   useEffect(() => {
@@ -114,84 +116,10 @@ export function SkillDetail({
     onArchive?.();
   };
 
-  // Show skeleton while skill metadata is loading
-  if (isLoading && !skill) {
-    return (
-      <div className="flex flex-col h-full">
-        <div className="px-5 pt-4 pb-3">
-          {/* Name + actions row (mirrors SkillHero layout) */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              {onBack && <BackButton onClick={onBack} title={t("common.back")} />}
-              <h1 className="text-xl font-bold tracking-tight leading-tight truncate">
-                {skillName}
-              </h1>
-            </div>
-            <div className="flex items-center gap-1">
-              <Skeleton className="h-7 w-7 rounded-md" />
-              <Skeleton className="h-7 w-7 rounded-md" />
-              <Skeleton className="h-7 w-7 rounded-md" />
-            </div>
-          </div>
-          {/* Agent badges row */}
-          <div className="mt-2 inline-flex items-center gap-1.5">
-            <Skeleton className="h-6 w-16 rounded-lg" />
-            <Skeleton className="h-6 w-14 rounded-lg" />
-            <Skeleton className="h-6 w-12 rounded-lg" />
-          </div>
-        </div>
-        {/* Content pane skeleton */}
-        <div className="flex-1 min-h-0 flex flex-col">
-          {/* Tab bar skeleton — mirrors SkillContentPane: sidebar toggle + tab pills + right-side meta */}
-          <div className="px-3 py-2 shrink-0 border-b border-border flex items-center gap-2">
-            <Skeleton className="h-6 w-6 rounded shrink-0" />
-            <div className="inline-flex items-center bg-muted rounded-xl p-0.5 gap-0.5">
-              <Skeleton className="h-6 w-16 rounded-lg" />
-              <Skeleton className="h-6 w-12 rounded-lg" />
-              <Skeleton className="h-6 w-14 rounded-lg" />
-            </div>
-            <Skeleton className="h-3 w-24 ml-auto" />
-          </div>
-          {/* Content lines — mimicking markdown content */}
-          <div className="flex-1 px-5 py-4 pr-6 space-y-3 overflow-hidden">
-            <Skeleton className="h-6 w-1/3" />
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-5/6" />
-            <Skeleton className="h-3 w-11/12" />
-            <div className="pt-3" />
-            <Skeleton className="h-5 w-1/4" />
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-4/5" />
-            <Skeleton className="h-3 w-3/4" />
-            <div className="pt-3" />
-            <Skeleton className="h-24 w-full rounded-lg" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (isError && !skill) {
-    return (
-      <div className="flex flex-col h-full">
-        <div className="px-5 pt-4 pb-4">
-          <h1 className="text-xl font-bold tracking-tight">{skillName}</h1>
-        </div>
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center space-y-3">
-            <AlertTriangle className="h-8 w-8 text-destructive/60 mx-auto" />
-            <p className="text-sm text-destructive">{t("error.generic")}</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col h-full" data-selectable>
-      {/* Hero — skill may still be null during brief transition */}
-      {skill && (
+      {/* Header stays available even while SKILL.md content is loading. */}
+      {skill ? (
         <SkillHero
           skill={skill}
           onBack={onBack}
@@ -231,29 +159,62 @@ export function SkillDetail({
             ) : undefined
           }
         />
+      ) : (
+        <div className="px-5 pt-4 pb-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-3 min-w-0">
+              {onBack && <BackButton onClick={onBack} title={t("common.back")} />}
+              <h1 className="text-xl font-bold tracking-tight leading-tight truncate">
+                {skillName}
+              </h1>
+            </div>
+            {skillLoading && (
+              <div className="flex items-center gap-1 shrink-0">
+                <Skeleton className="h-7 w-7 rounded-md" />
+                <Skeleton className="h-7 w-7 rounded-md" />
+                <Skeleton className="h-7 w-7 rounded-md" />
+              </div>
+            )}
+          </div>
+          {skillLoading && (
+            <div className="mt-2 inline-flex items-center gap-1.5">
+              <Skeleton className="h-6 w-16 rounded-lg" />
+              <Skeleton className="h-6 w-14 rounded-lg" />
+              <Skeleton className="h-6 w-12 rounded-lg" />
+            </div>
+          )}
+        </div>
       )}
 
-      {/* Content pane */}
-      <SkillContentPane
-        content={content}
-        onChange={onChange}
-        activeTab={activeTab}
-        onTabChange={handleTabChange}
-        isLoading={isLoading}
-        updatedAt={
-          readOnly && skill && "archivedAt" in skill
-            ? String(skill.archivedAt)
-            : skill?.updatedAt != null
-              ? String(skill.updatedAt)
-              : undefined
-        }
-        updatedLabel={readOnly ? t("skill.archived") : undefined}
-        directory={skill?.directory}
-        onSave={onSave}
-        savePending={savePending}
-        dirty={dirty}
-        readOnly={readOnly}
-      />
+      {isError && !skill ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center space-y-3">
+            <AlertTriangle className="h-8 w-8 text-destructive/60 mx-auto" />
+            <p className="text-sm text-destructive">{t("error.generic")}</p>
+          </div>
+        </div>
+      ) : (
+        <SkillContentPane
+          content={content}
+          onChange={onChange}
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          isLoading={contentLoading}
+          updatedAt={
+            readOnly && skill && "archivedAt" in skill
+              ? String(skill.archivedAt)
+              : skill?.updatedAt != null
+                ? String(skill.updatedAt)
+                : undefined
+          }
+          updatedLabel={readOnly ? t("skill.archived") : undefined}
+          directory={skill?.directory}
+          onSave={onSave}
+          savePending={savePending}
+          dirty={dirty}
+          readOnly={readOnly}
+        />
+      )}
 
       {/* Configure dialog */}
       {skill && (

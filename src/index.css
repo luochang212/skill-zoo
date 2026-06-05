@@ -36,46 +36,45 @@
   --radius-sm: calc(var(--radius) - 4px);
 }
 
-/* Dark mode: override highlight.js with dark theme colors */
-@layer base {
-  .dark pre code.hljs {
-    background: hsl(0 0% 14.9%);
-    color: hsl(0 0% 85%);
-  }
-  .dark .hljs-comment,
-  .dark .hljs-quote {
-    color: hsl(0 0% 65%);
-  }
-  .dark .hljs-keyword,
-  .dark .hljs-selector-tag {
-    color: hsl(293 70% 68%);
-  }
-  .dark .hljs-string,
-  .dark .hljs-addition {
-    color: hsl(130 50% 62%);
-  }
-  .dark .hljs-number,
-  .dark .hljs-literal {
-    color: hsl(25 80% 58%);
-  }
-  .dark .hljs-title,
-  .dark .hljs-section {
-    color: hsl(207 70% 68%);
-  }
-  .dark .hljs-type,
-  .dark .hljs-built_in {
-    color: hsl(38 80% 58%);
-  }
-  .dark .hljs-attr,
-  .dark .hljs-variable {
-    color: hsl(350 65% 65%);
-  }
-  .dark .hljs-deletion {
-    color: hsl(0 65% 60%);
-  }
-  .dark .hljs-meta {
-    color: hsl(0 0% 65%);
-  }
+/* Dark mode: override highlight.js with dark theme colors.
+   Must stay outside @layer so it beats the unlayered github.css import. */
+.dark pre code.hljs {
+  background: #252526;
+  color: hsl(0 0% 85%);
+}
+.dark .hljs-comment,
+.dark .hljs-quote {
+  color: hsl(0 0% 65%);
+}
+.dark .hljs-keyword,
+.dark .hljs-selector-tag {
+  color: hsl(293 70% 68%);
+}
+.dark .hljs-string,
+.dark .hljs-addition {
+  color: hsl(130 50% 62%);
+}
+.dark .hljs-number,
+.dark .hljs-literal {
+  color: hsl(25 80% 58%);
+}
+.dark .hljs-title,
+.dark .hljs-section {
+  color: hsl(207 70% 68%);
+}
+.dark .hljs-type,
+.dark .hljs-built_in {
+  color: hsl(38 80% 58%);
+}
+.dark .hljs-attr,
+.dark .hljs-variable {
+  color: hsl(350 65% 65%);
+}
+.dark .hljs-deletion {
+  color: hsl(0 65% 60%);
+}
+.dark .hljs-meta {
+  color: hsl(0 0% 65%);
 }
 
 /* Prose overrides — outside @layer to override Tailwind Typography */
@@ -89,12 +88,18 @@
 }
 .prose pre:not(:where([class~="not-prose"], [class~="not-prose"] *)) {
   @apply rounded-lg border border-border;
-  background: transparent !important;
+  /* Light mode: match highlight.js github.css (#fff);
+     clear Typography's --tw-prose-pre-bg (neutral[800]) which would show
+     dark gray padding around the code block. */
+  background: #ffffff !important;
   padding: 0 !important;
   /* Typography sets --tw-prose-pre-code to a light color (designed for dark
      pre bg). We cleared the bg, so reset the code text to inherit —
      highlight.js will colour individual tokens. */
   --tw-prose-pre-code: hsl(var(--foreground));
+}
+.dark .prose pre:not(:where([class~="not-prose"], [class~="not-prose"] *)) {
+  background: #252526 !important;
 }
 .prose code:not(pre code):not(:where([class~="not-prose"], [class~="not-prose"] *)) {
   @apply rounded-md px-1.5 py-0.5 text-[0.85em] font-medium;
