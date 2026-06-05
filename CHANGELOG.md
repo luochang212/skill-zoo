@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.1] — 2026-06-05
+
+### Added
+- Image preview in skill file tree — supports png, jpg, gif, webp, bmp, svg, avif, ico.
+- Image icon and teal color treatment for image files in sidebar.
+
+### Changed
+- Skills cache (`skills-cache.json`) entries now include an optional `apps` map with derived agent availability, avoiding filesystem I/O on every read.
+- Startup loads persisted skill cache immediately, reconciles with filesystem in background.
+- File watcher uses incremental skill rescan for content changes, reducing I/O on external modifications.
+- Skill data refreshed through file watcher without requiring a forced rebuild.
+- `SkillCache` struct refactored with private fields and HashMap index for O(1) ID lookup.
+
+### Fixed
+- CLI test fixture paths now resolve correctly under Vite/Vitest.
+
 ## [0.3.0] — 2026-06-05
 
 ### Added

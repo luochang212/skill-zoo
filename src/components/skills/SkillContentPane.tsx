@@ -69,7 +69,17 @@ function hasExtraLoadedFile(nodes: SkillFileNode[]): boolean {
   });
 }
 
-const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "avif", "ico"]);
+const IMAGE_EXTENSIONS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "bmp",
+  "svg",
+  "avif",
+  "ico",
+]);
 
 function getExtension(name: string): string {
   const i = name.lastIndexOf(".");
@@ -463,16 +473,16 @@ export function SkillContentPane({
         {!readOnly &&
           !isViewOnlyFile &&
           (isSkillMdActive ? dirty && effectiveActiveTab !== "overview" : isDirty) && (
-          <button
-            onClick={isSkillMdActive ? onSave : handleFileSave}
-            disabled={isSkillMdActive ? (savePending ?? false) : saveFileMutation.isPending}
-            className="ml-auto px-2.5 py-1 h-6 text-[11px] rounded-lg font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            {(isSkillMdActive ? savePending : saveFileMutation.isPending)
-              ? "…"
-              : t("skillFiles.save")}
-          </button>
-        )}
+            <button
+              onClick={isSkillMdActive ? onSave : handleFileSave}
+              disabled={isSkillMdActive ? (savePending ?? false) : saveFileMutation.isPending}
+              className="ml-auto px-2.5 py-1 h-6 text-[11px] rounded-lg font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {(isSkillMdActive ? savePending : saveFileMutation.isPending)
+                ? "…"
+                : t("skillFiles.save")}
+            </button>
+          )}
 
         {/* Updated timestamp — shown whenever the save button is absent */}
         {updatedAt &&
