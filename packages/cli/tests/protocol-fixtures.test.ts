@@ -98,7 +98,11 @@ describe("desktop local protocol fixtures", () => {
 });
 
 function fixturePath(name: string): string {
-  return fileURLToPath(new URL(`../../../fixtures/local-protocol/${name}`, import.meta.url));
+  // import.meta.dirname (Node 21.2+) avoids Vite /@fs/ prefix on import.meta.url
+  const dir = typeof import.meta.dirname === "string"
+    ? import.meta.dirname
+    : path.dirname(fileURLToPath(import.meta.url));
+  return path.resolve(dir, "../../../fixtures/local-protocol", name);
 }
 
 async function copyFixture(name: string, destination: string): Promise<void> {
