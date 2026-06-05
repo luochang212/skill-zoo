@@ -56,6 +56,8 @@ export const skillsApi = {
 
   readSkillFilePath: (path: string) => invoke<string>("read_skill_file_path", { path }),
 
+  readSkillImagePath: (path: string) => invoke<string>("read_skill_image_path", { path }),
+
   writeSkillFilePath: (path: string, content: string) =>
     invoke<void>("write_skill_file_path", { path, content }),
 

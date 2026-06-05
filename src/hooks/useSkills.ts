@@ -220,6 +220,15 @@ export function useSkillFileContent(path: string | null) {
   });
 }
 
+export function useSkillImageContent(path: string | null) {
+  return useQuery({
+    queryKey: ["skills", "image", path],
+    queryFn: () => skillsApi.readSkillImagePath(path!),
+    enabled: !!path,
+    retry: false,
+  });
+}
+
 export function useSaveSkillFileContent() {
   const qc = useQueryClient();
   return useMutation({

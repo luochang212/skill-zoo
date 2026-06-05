@@ -26,6 +26,8 @@ pub struct UpdateAllResult {
     pub errors: Vec<String>,
 }
 
+const MAX_IMAGE_PREVIEW_BYTES: u64 = 25 * 1024 * 1024;
+
 /// Validate that a skill directory name does not contain path traversal or
 /// other dangerous components.
 pub(crate) fn validate_skill_directory(directory: &str) -> Result<(), String> {
@@ -1095,6 +1097,52 @@ pub fn read_skill_file_path(path: String) -> Result<String, String> {
     String::from_utf8(bytes).map_err(|_| "BINARY_FILE".to_string())
 }
 
+fn image_mime_from_path(path: &Path) -> Option<&'static str> {
+    match path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
+        Some("png") => Some("image/png"),
+        Some("jpg") | Some("jpeg") => Some("image/jpeg"),
+        Some("gif") => Some("image/gif"),
+        Some("webp") => Some("image/webp"),
+        Some("bmp") => Some("image/bmp"),
+        Some("svg") => Some("image/svg+xml"),
+        Some("avif") => Some("image/avif"),
+        Some("ico") => Some("image/x-icon"),
+        _ => None,
+    }
+}
+
+/// Read an image at an absolute skill path and return a browser-displayable data URL.
+#[tauri::command]
+pub fn read_skill_image_path(path: String) -> Result<String, String> {
+    if path.is_empty() || path.contains('\0') {
+        return Err("Invalid path".into());
+    }
+    let p = std::path::Path::new(&path);
+    if !p.is_absolute() {
+        return Err("Path must be absolute".into());
+    }
+    if !is_existing_path_under_skill_dir(p) {
+        return Err("Path is not under a known skill directory".into());
+    }
+    if !p.is_file() {
+        return Err(format!("Not a file: {}", p.display()));
+    }
+    let mime = image_mime_from_path(p).ok_or_else(|| "UNSUPPORTED_IMAGE_FILE".to_string())?;
+    let metadata = std::fs::metadata(p).map_err(|e| e.to_string())?;
+    if metadata.len() > MAX_IMAGE_PREVIEW_BYTES {
+        return Err("IMAGE_TOO_LARGE".into());
+    }
+    let bytes = std::fs::read(p).map_err(|e| e.to_string())?;
+    use base64::Engine;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
+    Ok(format!("data:{mime};base64,{encoded}"))
+}
+
 /// Write content to a text file at an absolute skill path.
 /// Also updates the skill's lock timestamp and cache so updatedAt reflects the change.
 #[tauri::command]
@@ -2015,5 +2063,22 @@ mod tests {
         let result = read_repo_readme_from_zip_path(&dir.path().join("repo.zip"));
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn maps_supported_image_extensions_to_mime_types() {
+        assert_eq!(
+            image_mime_from_path(Path::new("/tmp/demo.PNG")),
+            Some("image/png")
+        );
+        assert_eq!(
+            image_mime_from_path(Path::new("/tmp/demo.jpeg")),
+            Some("image/jpeg")
+        );
+        assert_eq!(
+            image_mime_from_path(Path::new("/tmp/demo.svg")),
+            Some("image/svg+xml")
+        );
+        assert_eq!(image_mime_from_path(Path::new("/tmp/demo.txt")), None);
     }
 }

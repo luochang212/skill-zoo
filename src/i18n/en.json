@@ -98,6 +98,7 @@
     "empty": "No files found.",
     "error": "Could not load file tree.",
     "binaryFile": "Binary file — cannot preview in app",
+    "imageTooLarge": "Image is too large to preview in app",
     "openInFinder": "Open in Finder",
     "save": "Save",
     "showSidebar": "Show file sidebar",

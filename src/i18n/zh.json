@@ -98,6 +98,7 @@
     "empty": "未找到文件。",
     "error": "无法加载文件树。",
     "binaryFile": "二进制文件，无法在应用内预览",
+    "imageTooLarge": "图片过大，无法在应用内预览",
     "openInFinder": "在访达中打开",
     "save": "保存",
     "showSidebar": "显示文件侧边栏",

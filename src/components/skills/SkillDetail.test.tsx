@@ -107,6 +107,56 @@ describe("SkillDetail", () => {
     expect(invoke).not.toHaveBeenCalledWith("read_skill_file_path", expect.anything());
   });
 
+  it("previews image files from the file tree", async () => {
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === "list_skill_file_children") {
+        return Promise.resolve([
+          {
+            name: "SKILL.md",
+            path: "/tmp/skill-1/SKILL.md",
+            isDir: false,
+            isSkillMd: true,
+          },
+          {
+            name: "logo.png",
+            path: "/tmp/skill-1/logo.png",
+            isDir: false,
+            isSkillMd: false,
+          },
+        ]);
+      }
+      if (command === "read_skill_image_path") {
+        return Promise.resolve("data:image/png;base64,abc123");
+      }
+      return Promise.resolve(undefined);
+    });
+
+    renderWithQueryClient(
+      <SkillDetail
+        skill={skill}
+        skillName="Skill 1"
+        contentLoading={false}
+        content="# Skill content"
+        onChange={() => {}}
+      />,
+    );
+
+    await userEvent.click(await screen.findByText("logo.png"));
+
+    expect(await screen.findByRole("img", { name: "logo.png" })).toHaveAttribute(
+      "src",
+      "data:image/png;base64,abc123",
+    );
+    expect(invoke).toHaveBeenCalledWith("read_skill_image_path", {
+      path: "/tmp/skill-1/logo.png",
+    });
+    expect(invoke).not.toHaveBeenCalledWith("read_skill_file_path", {
+      path: "/tmp/skill-1/logo.png",
+    });
+    expect(screen.queryByText("Edit")).not.toBeInTheDocument();
+    expect(screen.queryByText("Split")).not.toBeInTheDocument();
+  });
+
   it("keeps loaded child directories when the root file tree refetches", async () => {
     vi.mocked(invoke).mockImplementation((command, args) => {
       switch (command) {

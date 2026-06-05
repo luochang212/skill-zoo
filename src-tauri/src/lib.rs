@@ -141,6 +141,7 @@ pub fn run() {
             commands::skill::list_skill_files,
             commands::skill::list_skill_file_children,
             commands::skill::read_skill_file_path,
+            commands::skill::read_skill_image_path,
             commands::skill::write_skill_file_path,
             commands::settings::get_settings,
             commands::settings::update_setting,

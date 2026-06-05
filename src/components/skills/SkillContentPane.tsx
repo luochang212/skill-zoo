@@ -9,6 +9,7 @@ import { Eye, Pencil, Columns2, PanelLeftOpen, PanelLeftClose, FileX } from "luc
 import {
   useSkillFileChildren,
   useSkillFileContent,
+  useSkillImageContent,
   useSaveSkillFileContent,
 } from "@/hooks/useSkills";
 import { skillsApi } from "@/lib/api/skills";
@@ -66,6 +67,17 @@ function hasExtraLoadedFile(nodes: SkillFileNode[]): boolean {
     if (node.isDir) return true;
     return !node.isSkillMd;
   });
+}
+
+const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "avif", "ico"]);
+
+function getExtension(name: string): string {
+  const i = name.lastIndexOf(".");
+  return i === -1 ? "" : name.slice(i + 1).toLowerCase();
+}
+
+function isImageFile(node: SkillFileNode | null): boolean {
+  return !!node && !node.isDir && IMAGE_EXTENSIONS.has(getExtension(node.name));
 }
 
 function setNodeChildren(
@@ -163,6 +175,7 @@ export function SkillContentPane({
   // ── Resolve selected node from already loaded nodes ──
   const selectedNode = findNodeByPath(nodes, selectedFilePath);
   const isSkillMdActive = selectedNode?.isSkillMd ?? true;
+  const isImageActive = isImageFile(selectedNode);
 
   // ── Reset lazy tree when switching skills ──
   useEffect(() => {
@@ -204,11 +217,26 @@ export function SkillContentPane({
     data: fileData,
     isLoading: fileLoading,
     error: fileError,
-  } = useSkillFileContent(isSkillMdActive ? null : selectedFilePath);
+  } = useSkillFileContent(isSkillMdActive || isImageActive ? null : selectedFilePath);
+  const {
+    data: imageData,
+    isLoading: imageLoading,
+    error: imageError,
+  } = useSkillImageContent(isImageActive ? selectedFilePath : null);
   const isBinary =
     typeof fileError === "string"
       ? fileError === "BINARY_FILE"
       : (fileError as Error | null)?.message === "BINARY_FILE";
+  const imageErrorMessage =
+    typeof imageError === "string" ? imageError : (imageError as Error | null)?.message;
+  const isViewOnlyFile = isImageActive || isBinary || !!imageError;
+  const effectiveActiveTab = isViewOnlyFile ? "overview" : activeTab;
+
+  useEffect(() => {
+    if (isViewOnlyFile && activeTab !== "overview") {
+      onTabChange("overview");
+    }
+  }, [activeTab, isViewOnlyFile, onTabChange]);
 
   const saveFileMutation = useSaveSkillFileContent();
 
@@ -361,6 +389,7 @@ export function SkillContentPane({
   const isMd =
     selectedNode?.name.toLowerCase().endsWith(".md") ||
     selectedNode?.name.toLowerCase().endsWith(".mdx");
+  const contentLoading = fileLoading || imageLoading || isLoading;
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
@@ -385,7 +414,7 @@ export function SkillContentPane({
         )}
 
         {/* View/Edit/Split pill */}
-        {readOnly ? (
+        {readOnly || isViewOnlyFile ? (
           <span className="inline-flex items-center bg-muted rounded-xl p-0.5 gap-0.5">
             <span className="px-2.5 py-1 h-6 text-[11px] rounded-lg font-medium inline-flex items-center gap-1 bg-background text-foreground shadow-sm">
               <Eye className="h-3 w-3" />
@@ -396,7 +425,11 @@ export function SkillContentPane({
           <button
             onClick={() => {
               const next: ContentTab =
-                activeTab === "overview" ? "edit" : activeTab === "edit" ? "split" : "overview";
+                effectiveActiveTab === "overview"
+                  ? "edit"
+                  : effectiveActiveTab === "edit"
+                    ? "split"
+                    : "overview";
               handleTabChange(next);
             }}
             className="inline-flex items-center bg-muted rounded-xl p-0.5 gap-0.5 cursor-pointer"
@@ -414,7 +447,7 @@ export function SkillContentPane({
                 }}
                 className={cn(
                   "px-2.5 py-1 h-6 text-[11px] rounded-lg font-medium inline-flex items-center gap-1 transition-all duration-200",
-                  activeTab === id
+                  effectiveActiveTab === id
                     ? "bg-background text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground",
                 )}
@@ -427,7 +460,9 @@ export function SkillContentPane({
         )}
 
         {/* Save button — shown when dirty; hidden in overview mode for SKILL.md */}
-        {!readOnly && (isSkillMdActive ? dirty && activeTab !== "overview" : isDirty) && (
+        {!readOnly &&
+          !isViewOnlyFile &&
+          (isSkillMdActive ? dirty && effectiveActiveTab !== "overview" : isDirty) && (
           <button
             onClick={isSkillMdActive ? onSave : handleFileSave}
             disabled={isSkillMdActive ? (savePending ?? false) : saveFileMutation.isPending}
@@ -441,7 +476,9 @@ export function SkillContentPane({
 
         {/* Updated timestamp — shown whenever the save button is absent */}
         {updatedAt &&
-          (readOnly || !(isSkillMdActive ? dirty && activeTab !== "overview" : isDirty)) && (
+          (readOnly ||
+            isViewOnlyFile ||
+            !(isSkillMdActive ? dirty && effectiveActiveTab !== "overview" : isDirty)) && (
             <span className="ml-auto text-[10px] text-muted-foreground tabular-nums">
               {updatedLabel ?? t("skill.updated")} {formatRelativeDate(Number(updatedAt))}
             </span>
@@ -500,11 +537,15 @@ export function SkillContentPane({
         )}
 
         {/* ── Content area ── */}
-        {isBinary ? (
+        {isBinary || imageError ? (
           /* Binary file notice */
           <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground">
             <FileX className="h-8 w-8 opacity-40" />
-            <p className="text-sm">{t("skillFiles.binaryFile")}</p>
+            <p className="text-sm">
+              {imageErrorMessage === "IMAGE_TOO_LARGE"
+                ? t("skillFiles.imageTooLarge")
+                : t("skillFiles.binaryFile")}
+            </p>
             <button
               onClick={() =>
                 selectedFilePath && skillsApi.openSkillPath(selectedFilePath).catch(() => {})
@@ -527,7 +568,11 @@ export function SkillContentPane({
               className="h-full min-w-0 overflow-hidden transition-[width] duration-300 ease-in-out"
               style={{
                 width:
-                  activeTab === "overview" ? "0%" : activeTab === "edit" ? "100%" : `${splitPct}%`,
+                  effectiveActiveTab === "overview"
+                    ? "0%"
+                    : effectiveActiveTab === "edit"
+                      ? "100%"
+                      : `${splitPct}%`,
               }}
             >
               <textarea
@@ -535,7 +580,7 @@ export function SkillContentPane({
                 value={editableContent}
                 onChange={(e) => handleChange(e.target.value)}
                 onScroll={onEditScroll}
-                readOnly={readOnly}
+                readOnly={readOnly || isImageActive}
                 className="w-full h-full resize-none bg-background p-4 font-mono text-[13px] leading-relaxed focus:outline-none"
                 spellCheck={false}
                 aria-label={t("skill.edit")}
@@ -550,10 +595,10 @@ export function SkillContentPane({
                 "hover:bg-primary/40",
                 "active:bg-primary/60",
                 dragging && "!bg-primary/60",
-                activeTab === "split" && "w-px hover:w-1",
-                activeTab === "split" && dragging && "!w-1",
+                effectiveActiveTab === "split" && "w-px hover:w-1",
+                effectiveActiveTab === "split" && dragging && "!w-1",
               )}
-              onMouseDown={activeTab === "split" ? onDividerDown : undefined}
+              onMouseDown={effectiveActiveTab === "split" ? onDividerDown : undefined}
               style={{ alignSelf: "stretch" }}
               role="separator"
               aria-orientation="vertical"
@@ -567,9 +612,9 @@ export function SkillContentPane({
               className="h-full min-w-0 overflow-hidden transition-[width] duration-300 ease-in-out"
               style={{
                 width:
-                  activeTab === "overview"
+                  effectiveActiveTab === "overview"
                     ? "100%"
-                    : activeTab === "edit"
+                    : effectiveActiveTab === "edit"
                       ? "0%"
                       : `${100 - splitPct}%`,
               }}
@@ -580,9 +625,17 @@ export function SkillContentPane({
                 onScroll={onPreviewScroll}
               >
                 <div className="px-5 py-4 pr-5">
-                  {fileLoading || isLoading ? (
+                  {contentLoading ? (
                     <div className="flex items-center justify-center py-12">
                       <div className="h-5 w-5 border-2 border-muted-foreground/20 border-t-foreground/60 rounded-full animate-spin" />
+                    </div>
+                  ) : isImageActive && imageData ? (
+                    <div className="flex min-h-[240px] items-center justify-center">
+                      <img
+                        src={imageData}
+                        alt={selectedNode?.name ?? ""}
+                        className="max-h-[calc(100vh-220px)] max-w-full rounded-md object-contain"
+                      />
                     </div>
                   ) : displayContent ? (
                     isSkillMdActive || isMd ? (
@@ -598,7 +651,7 @@ export function SkillContentPane({
                       <p className="text-xs mt-1">
                         {emptyHint
                           ? emptyHint
-                          : activeTab === "overview"
+                          : effectiveActiveTab === "overview"
                             ? t("skill.noContentHintSwitch")
                             : t("skill.noContentHintType")}
                       </p>

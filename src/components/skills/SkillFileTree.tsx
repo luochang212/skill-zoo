@@ -8,6 +8,7 @@ import {
   File,
   FileText,
   FileCode,
+  Image,
   BookOpen,
   ChevronRight,
   ChevronDown,
@@ -25,6 +26,16 @@ function getFileIcon(name: string, isSkillMd: boolean) {
   if (isSkillMd) return BookOpen;
   const ext = getExtension(name);
   switch (ext) {
+    case "png":
+    case "jpg":
+    case "jpeg":
+    case "gif":
+    case "webp":
+    case "bmp":
+    case "svg":
+    case "avif":
+    case "ico":
+      return Image;
     case "md":
     case "txt":
     case "rst":
@@ -51,6 +62,16 @@ function getIconColor(name: string, isSkillMd: boolean): string {
   if (isSkillMd) return "text-primary";
   const ext = getExtension(name);
   switch (ext) {
+    case "png":
+    case "jpg":
+    case "jpeg":
+    case "gif":
+    case "webp":
+    case "bmp":
+    case "svg":
+    case "avif":
+    case "ico":
+      return "text-teal-600 dark:text-teal-400";
     case "py":
       return "text-yellow-600 dark:text-yellow-400";
     case "sh":
