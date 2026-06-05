@@ -301,7 +301,7 @@
       "downloading": "下载中...",
       "restartNow": "立即重启",
       "checkFailed": "检查更新失败",
-      "installFailed": "安装失败"
+      "downloadFailed": "下载失败"
     },
     "feedback": {
       "title": "反馈",

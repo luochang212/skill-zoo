@@ -120,7 +120,7 @@ describe("AppUpdateSection", () => {
 
     await user.click(await screen.findByRole("button", { name: /check for updates/i }));
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Installation failed"));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Download failed"));
     await user.click(await screen.findByRole("button", { name: /update now/i }));
 
     await waitFor(() => expect(downloadAndInstall).toHaveBeenCalledTimes(2));

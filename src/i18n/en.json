@@ -301,7 +301,7 @@
       "downloading": "Downloading...",
       "restartNow": "Restart Now",
       "checkFailed": "Could not check for updates",
-      "installFailed": "Installation failed"
+      "downloadFailed": "Download failed"
     },
     "feedback": {
       "title": "Feedback",

@@ -178,7 +178,7 @@ export function AppUpdateSection() {
         });
         setStatus("ready-to-restart");
       } catch {
-        toast.error(t("settings.updater.installFailed"));
+        toast.error(t("settings.updater.downloadFailed"));
         setStatus("available");
       }
     },
