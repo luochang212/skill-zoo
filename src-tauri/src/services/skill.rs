@@ -470,12 +470,17 @@ impl SkillService {
         }
         let _guard = SyncGuard(sync_flag);
 
-        let mut entries: Vec<SkillCacheEntry> = Vec::new();
-        let mut hash_cache = Self::load_hash_cache();
-
-        Self::scan_filesystem_into(&mut entries, &mut hash_cache);
-
-        Self::save_hash_cache(&hash_cache);
+        // Run the heavy filesystem scan on the blocking thread pool so
+        // the async runtime stays free to handle incoming Tauri commands.
+        let entries = tokio::task::spawn_blocking(move || {
+            let mut entries: Vec<SkillCacheEntry> = Vec::new();
+            let mut hash_cache = Self::load_hash_cache();
+            Self::scan_filesystem_into(&mut entries, &mut hash_cache);
+            Self::save_hash_cache(&hash_cache);
+            entries
+        })
+        .await
+        .map_err(|e| AppError::Parse(format!("Cache rebuild panicked: {e}")))?;
 
         let mut new_cache = cache
             .write()

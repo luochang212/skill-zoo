@@ -205,7 +205,7 @@ export function SkillContentPane({
         const skillMd = findSkillMd(rootNodes);
         return skillMd?.path ?? null;
       });
-      if (hasExtraLoadedFile(rootNodes)) setSidebarOpen(true);
+      setSidebarOpen(hasExtraLoadedFile(rootNodes));
     }
   }, [rootNodes]);
 
