@@ -1,6 +1,10 @@
 mod common;
 
-use common::{make_cache_entry, MetadataStore, SkillCache, SkillCacheEntry, SkillService};
+use common::{
+    make_cache_entry, make_lock_entry, MetadataStore, SkillCache, SkillCacheEntry, SkillLock,
+    SkillService,
+};
+use skill_zoo_lib::services::skill::DiscoverableSkillInstallStatus;
 use std::collections::HashMap;
 use std::sync::RwLock;
 
@@ -84,6 +88,126 @@ fn test_read_all_skills_uses_cached_apps() {
 
     assert_eq!(skills[0].apps.get("codex"), Some(&true));
     assert_eq!(skills[0].apps.get("claude-code"), Some(&false));
+}
+
+#[test]
+fn test_classify_discoverable_skill_distinguishes_installed_and_conflict() {
+    let mut installed = make_cache_entry("repo:owner/repo:demo", "demo", "demo");
+    installed.repo_owner = Some("owner".to_string());
+    installed.repo_name = Some("repo".to_string());
+    let cache = SkillCache::from_entries(vec![installed]);
+    let mut lock = SkillLock {
+        version: 3,
+        skills: Default::default(),
+        dismissed: serde_json::json!({}),
+    };
+    lock.skills
+        .insert("demo".to_string(), make_lock_entry("owner/repo"));
+
+    assert_eq!(
+        SkillService::classify_discoverable_skill(
+            &cache,
+            &lock,
+            "demo",
+            "owner",
+            "repo",
+            Some("main"),
+        ),
+        (
+            DiscoverableSkillInstallStatus::Installed,
+            Some("repo:owner/repo:demo".to_string()),
+        )
+    );
+    assert_eq!(
+        SkillService::classify_discoverable_skill(
+            &cache,
+            &lock,
+            "demo",
+            "OWNER",
+            "REPO",
+            Some("main"),
+        ),
+        (
+            DiscoverableSkillInstallStatus::Installed,
+            Some("repo:owner/repo:demo".to_string()),
+        )
+    );
+    assert_eq!(
+        SkillService::classify_discoverable_skill(
+            &cache,
+            &lock,
+            "demo",
+            "other",
+            "repo",
+            Some("main"),
+        ),
+        (DiscoverableSkillInstallStatus::Conflict, None)
+    );
+    assert_eq!(
+        SkillService::classify_discoverable_skill(
+            &cache,
+            &lock,
+            "demo",
+            "owner",
+            "repo",
+            Some("other-branch"),
+        ),
+        (DiscoverableSkillInstallStatus::Conflict, None)
+    );
+}
+
+#[test]
+fn test_classify_discoverable_skill_treats_multiple_same_directory_entries_as_conflict() {
+    let cache = SkillCache::from_entries(vec![
+        make_cache_entry("ssot:demo", "demo", "demo"),
+        make_cache_entry("agent:codex:demo", "demo", "demo"),
+    ]);
+    let lock = SkillLock {
+        version: 3,
+        skills: Default::default(),
+        dismissed: serde_json::json!({}),
+    };
+
+    assert_eq!(
+        SkillService::classify_discoverable_skill(&cache, &lock, "demo", "owner", "repo", None,),
+        (DiscoverableSkillInstallStatus::Conflict, None)
+    );
+}
+
+#[test]
+fn test_classify_discoverable_skill_treats_missing_and_local_entries_conservatively() {
+    let lock = SkillLock {
+        version: 3,
+        skills: Default::default(),
+        dismissed: serde_json::json!({}),
+    };
+    assert_eq!(
+        SkillService::classify_discoverable_skill(
+            &SkillCache::empty(),
+            &lock,
+            "demo",
+            "owner",
+            "repo",
+            Some("main"),
+        ),
+        (DiscoverableSkillInstallStatus::Available, None)
+    );
+
+    let mut local = make_cache_entry("agent:codex:demo", "demo", "demo");
+    local.origin = "agent".to_string();
+    local.repo_owner = Some("owner".to_string());
+    local.repo_name = Some("repo".to_string());
+    assert_eq!(
+        SkillService::classify_discoverable_skill(
+            &SkillCache::from_entries(vec![local]),
+            &lock,
+            "demo",
+            "owner",
+            "repo",
+            None,
+        ),
+        (DiscoverableSkillInstallStatus::Conflict, None)
+    );
 }
 
 #[test]

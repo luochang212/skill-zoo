@@ -10,13 +10,14 @@ import { useRecentlyViewed } from "@/hooks/useRecentlyViewed";
 import { skillsApi } from "@/lib/api/skills";
 import { BannerCarousel } from "@/components/skills/BannerCarousel";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { RepoDetail } from "@/components/skills/RepoDetail";
 import type { DiscoverRepo } from "@/types/skills";
 import { Search, Loader2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 interface RepoCardProps {
   repo: DiscoverRepo;
@@ -32,8 +33,9 @@ function RepoCard({ repo, onClick, hideDescription }: RepoCardProps) {
     onClick();
   };
   return (
-    <Card
-      className="group rounded-xl hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+    <button
+      type="button"
+      className="group w-full text-left rounded-xl border bg-card text-card-foreground shadow-sm dark:shadow-[0_2px_8px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.05)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
       onClick={handleClick}
       data-selectable
     >
@@ -51,7 +53,7 @@ function RepoCard({ repo, onClick, hideDescription }: RepoCardProps) {
           </p>
         )}
       </CardContent>
-    </Card>
+    </button>
   );
 }
 
@@ -113,15 +115,23 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
       /^https?:\/\/github\.com\//.test(debouncedSearch ?? ""),
     [debouncedSearch],
   );
-  const { data: repoResult, isLoading: searchingRepo } = useSearchRepo(
-    isRepoQuery ? debouncedSearch : null,
-  );
-  const { data: skillsShResults, isLoading: searchingSkillsSh } =
-    useSearchSkillsSh(debouncedSearch);
+  const {
+    data: repoResult,
+    isLoading: searchingRepo,
+    isError: repoSearchError,
+    refetch: refetchRepoSearch,
+  } = useSearchRepo(isRepoQuery ? debouncedSearch : null);
+  const {
+    data: skillsShResults,
+    isLoading: searchingSkillsSh,
+    isError: skillsShSearchError,
+    refetch: refetchSkillsShSearch,
+  } = useSearchSkillsSh(debouncedSearch);
 
   const isSearching = searchingRepo || searchingSkillsSh;
   const skillsList = skillsShResults ?? [];
   const hasResults = !!repoResult || skillsList.length > 0;
+  const searchFailed = skillsShSearchError || (isRepoQuery && repoSearchError);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -163,6 +173,17 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
       }
     },
     [repos, navigateToRepo],
+  );
+
+  const handleSkillSearchResult = useCallback(
+    async (owner: string, name: string) => {
+      try {
+        navigateToRepo(await skillsApi.searchRepo(`${owner}/${name}`));
+      } catch (error) {
+        toast.error(String(error));
+      }
+    },
+    [navigateToRepo],
   );
 
   const handleBackFromRepo = useCallback(() => {
@@ -219,73 +240,85 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
 
             {/* Search dropdown with two sections */}
             {dropdownOpen && search.trim() && (
-              <ScrollArea className="absolute top-full left-0 right-0 mt-1 bg-popover border border-border rounded-lg shadow-lg z-50 max-h-[300px]">
-                {isSearching ? (
-                  <div className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    <span>{t("browse.searching")}</span>
-                  </div>
-                ) : !hasResults ? (
-                  <div className="px-4 py-3 text-sm text-muted-foreground">
-                    {t("browse.noSearchResult")}
-                  </div>
-                ) : (
-                  <>
-                    {/* Repository section — only when exact owner/name match found */}
-                    {repoResult && (
-                      <>
+              <div className="absolute top-full left-0 right-0 mt-1 z-50">
+                <ScrollArea className="max-h-[300px] bg-popover border border-border rounded-lg shadow-lg">
+                  {isSearching ? (
+                    <div className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>{t("browse.searching")}</span>
+                    </div>
+                  ) : !hasResults && searchFailed ? (
+                    <div className="flex items-center justify-between gap-3 px-4 py-3">
+                      <span className="text-sm text-destructive">{t("browse.searchFailed")}</span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          void refetchSkillsShSearch();
+                          if (isRepoQuery) void refetchRepoSearch();
+                        }}
+                      >
+                        {t("error.retry")}
+                      </Button>
+                    </div>
+                  ) : !hasResults ? (
+                    <div className="px-4 py-3 text-sm text-muted-foreground">
+                      {t("browse.noSearchResult")}
+                    </div>
+                  ) : (
+                    <>
+                      {/* Repository section — only when exact owner/name match found */}
+                      {repoResult && (
+                        <>
+                          <button
+                            className="w-full text-left px-4 py-2.5 hover:bg-accent/50 transition-colors flex items-center justify-between gap-3"
+                            onClick={() => navigateToRepo(repoResult)}
+                          >
+                            <div className="min-w-0">
+                              <p className="text-[11px] text-muted-foreground/60 uppercase tracking-wider mb-0.5">
+                                Repository
+                              </p>
+                              <p className="text-[13px] font-medium truncate">
+                                {repoResult.owner}/{repoResult.name}
+                              </p>
+                            </div>
+                            <span className="text-[11px] text-muted-foreground shrink-0">
+                              {t("browse.viewRepo")}
+                            </span>
+                          </button>
+                          <div className="border-t border-border/60" />
+                        </>
+                      )}
+
+                      {/* Skills section — skills.sh fuzzy search results */}
+                      {skillsList.map((skill) => (
                         <button
+                          key={skill.key}
                           className="w-full text-left px-4 py-2.5 hover:bg-accent/50 transition-colors flex items-center justify-between gap-3"
-                          onClick={() => navigateToRepo(repoResult)}
+                          onClick={() =>
+                            void handleSkillSearchResult(skill.repoOwner, skill.repoName)
+                          }
                         >
                           <div className="min-w-0">
-                            <p className="text-[11px] text-muted-foreground/60 uppercase tracking-wider mb-0.5">
-                              Repository
-                            </p>
-                            <p className="text-[13px] font-medium truncate">
-                              {repoResult.owner}/{repoResult.name}
-                            </p>
-                          </div>
-                          <span className="text-[11px] text-muted-foreground shrink-0">
-                            {t("browse.viewRepo")}
-                          </span>
-                        </button>
-                        <div className="border-t border-border/60" />
-                      </>
-                    )}
-
-                    {/* Skills section — skills.sh fuzzy search results */}
-                    {skillsList.map((skill) => (
-                      <button
-                        key={skill.key}
-                        className="w-full text-left px-4 py-2.5 hover:bg-accent/50 transition-colors flex items-center justify-between gap-3"
-                        onClick={() =>
-                          navigateToRepo({
-                            owner: skill.repoOwner,
-                            name: skill.repoName,
-                            branch: "main",
-                            description: undefined,
-                          })
-                        }
-                      >
-                        <div className="min-w-0">
-                          <p className="text-[13px] font-medium truncate">{skill.name}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[11px] text-muted-foreground/70 truncate">
-                              {skill.repoOwner}/{skill.repoName}
-                            </span>
-                            {skill.installs != null && (
-                              <span className="text-[10px] text-muted-foreground/50 shrink-0">
-                                {formatInstalls(skill.installs)} {t("browse.installs")}
+                            <p className="text-[13px] font-medium truncate">{skill.name}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[11px] text-muted-foreground/70 truncate">
+                                {skill.repoOwner}/{skill.repoName}
                               </span>
-                            )}
+                              {skill.installs != null && (
+                                <span className="text-[10px] text-muted-foreground/50 shrink-0">
+                                  {formatInstalls(skill.installs)} {t("browse.installs")}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      </button>
-                    ))}
-                  </>
-                )}
-              </ScrollArea>
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </ScrollArea>
+              </div>
             )}
           </div>
         </div>

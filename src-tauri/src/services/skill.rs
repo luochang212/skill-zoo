@@ -41,9 +41,19 @@ pub struct DiscoverableSkill {
     pub directory: String,
     pub repo_owner: String,
     pub repo_name: String,
-    pub installed: bool,
+    pub install_status: DiscoverableSkillInstallStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub installed_skill_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub installs: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DiscoverableSkillInstallStatus {
+    Available,
+    Installed,
+    Conflict,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -787,7 +797,8 @@ impl SkillService {
                 directory: dir_name.to_string(),
                 repo_owner: owner.to_string(),
                 repo_name: repo.to_string(),
-                installed: false,
+                install_status: DiscoverableSkillInstallStatus::Available,
+                installed_skill_id: None,
                 installs: None,
             });
         }
@@ -841,6 +852,54 @@ impl SkillService {
             .read()
             .map_err(|e| AppError::Parse(format!("Cache lock: {e}")))?;
         Ok(c.find_by_id(skill_id).cloned())
+    }
+
+    pub fn classify_discoverable_skill(
+        cache: &SkillCache,
+        lock: &SkillLock,
+        directory: &str,
+        repo_owner: &str,
+        repo_name: &str,
+        branch: Option<&str>,
+    ) -> (DiscoverableSkillInstallStatus, Option<String>) {
+        let matches: Vec<&SkillCacheEntry> = cache
+            .skills()
+            .iter()
+            .filter(|entry| entry.directory == directory)
+            .collect();
+
+        if matches.is_empty() {
+            return (DiscoverableSkillInstallStatus::Available, None);
+        }
+        if matches.len() != 1 {
+            return (DiscoverableSkillInstallStatus::Conflict, None);
+        }
+
+        let installed = matches[0];
+        let same_repo = installed.origin == "ssot"
+            && installed
+                .repo_owner
+                .as_deref()
+                .is_some_and(|owner| owner.eq_ignore_ascii_case(repo_owner))
+            && installed
+                .repo_name
+                .as_deref()
+                .is_some_and(|name| name.eq_ignore_ascii_case(repo_name));
+        let same_branch = branch.is_none_or(|expected| {
+            lock.skills
+                .get(directory)
+                .and_then(|entry| entry.branch.as_deref())
+                == Some(expected)
+        });
+
+        if same_repo && same_branch {
+            (
+                DiscoverableSkillInstallStatus::Installed,
+                Some(installed.id.clone()),
+            )
+        } else {
+            (DiscoverableSkillInstallStatus::Conflict, None)
+        }
     }
 
     /// Scan a single skill directory and return a cache entry for it.

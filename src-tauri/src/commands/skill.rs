@@ -1410,7 +1410,7 @@ async fn fetch_github_repo_metadata(owner: &str, name: &str) -> Option<DiscoverR
     }
 }
 
-fn parse_repo_query(query: &str) -> Result<(String, String, String), String> {
+fn parse_repo_query(query: &str) -> Result<(String, String, Option<String>), String> {
     let query = query.trim();
 
     if query.starts_with("http://") || query.starts_with("https://") {
@@ -1432,12 +1432,12 @@ fn parse_repo_query(query: &str) -> Result<(String, String, String), String> {
         let owner = segments[0].to_string();
         let name = segments[1].trim_end_matches(".git").to_string();
         let branch = if segments.len() >= 4 && segments[2] == "tree" {
-            segments[3].to_string()
+            Some(segments[3].to_string())
         } else {
-            "main".to_string()
+            None
         };
 
-        validate_repo_segments(&owner, &name, &branch)?;
+        validate_repo_segments(&owner, &name, branch.as_deref().unwrap_or("main"))?;
         Ok((owner, name, branch))
     } else {
         let parts: Vec<&str> = query.splitn(2, '/').collect();
@@ -1447,27 +1447,30 @@ fn parse_repo_query(query: &str) -> Result<(String, String, String), String> {
         let owner = parts[0].to_string();
         let name = parts[1].trim_end_matches(".git").to_string();
         validate_repo_segments(&owner, &name, "main")?;
-        Ok((owner, name, "main".to_string()))
+        Ok((owner, name, None))
     }
 }
 
 #[tauri::command]
-pub fn search_repo(query: String) -> Result<DiscoverRepo, String> {
+pub async fn search_repo(query: String) -> Result<DiscoverRepo, String> {
     let (owner, name, branch) = parse_repo_query(&query)?;
-    Ok(DiscoverRepo {
-        owner,
-        name,
-        branch,
-        description: None,
-        stars: None,
-        forks: None,
-        language: None,
-        license: None,
-        open_issues: None,
-        pushed_at: None,
-        topics: vec![],
-        html_url: None,
-    })
+    if let Some(branch) = branch {
+        return Ok(DiscoverRepo {
+            owner,
+            name,
+            branch,
+            description: None,
+            stars: None,
+            forks: None,
+            language: None,
+            license: None,
+            open_issues: None,
+            pushed_at: None,
+            topics: vec![],
+            html_url: None,
+        });
+    }
+    get_repo_metadata(owner, name, None).await
 }
 
 /// Cache entry keyed by "owner/name", stored in ~/.skill-zoo/repo-metadata-cache.json
@@ -1734,11 +1737,18 @@ pub async fn get_repo_skills(
             .map_err(|e| e.to_string())?;
 
     let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-    let installed_dirs: std::collections::HashSet<String> =
-        cache.iter().map(|s| s.directory.clone()).collect();
+    let lock = SkillLock::read().map_err(|e| e.to_string())?;
 
     for skill in &mut skills {
-        skill.installed = installed_dirs.contains(&skill.directory);
+        (skill.install_status, skill.installed_skill_id) =
+            SkillService::classify_discoverable_skill(
+                &cache,
+                &lock,
+                &skill.directory,
+                &owner,
+                &name,
+                Some(&branch),
+            );
     }
 
     Ok(RepoSkillsResult { skills, total })
@@ -1829,10 +1839,9 @@ pub async fn search_skills_sh(
         .await
         .map_err(|e| format!("Failed to parse skills.sh response: {e}"))?;
 
-    // Build installed set from cache
+    // Classify against the current filesystem-derived cache.
     let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-    let installed_dirs: std::collections::HashSet<String> =
-        cache.iter().map(|s| s.directory.clone()).collect();
+    let lock = SkillLock::read().map_err(|e| e.to_string())?;
 
     let mut skills = Vec::new();
     for s in api_result.skills {
@@ -1849,6 +1858,8 @@ pub async fn search_skills_sh(
         }
 
         let directory = s.skill_id.clone();
+        let (install_status, installed_skill_id) =
+            SkillService::classify_discoverable_skill(&cache, &lock, &directory, owner, repo, None);
         skills.push(DiscoverableSkill {
             key: s.id.clone(),
             name: s.name,
@@ -1856,7 +1867,8 @@ pub async fn search_skills_sh(
             directory,
             repo_owner: owner.to_string(),
             repo_name: repo.to_string(),
-            installed: installed_dirs.contains(&s.skill_id),
+            install_status,
+            installed_skill_id,
             installs: Some(s.installs),
         });
     }
@@ -2079,5 +2091,25 @@ mod tests {
             Some("image/svg+xml")
         );
         assert_eq!(image_mime_from_path(Path::new("/tmp/demo.txt")), None);
+    }
+
+    #[test]
+    fn repo_query_only_returns_a_branch_when_explicitly_provided() {
+        assert_eq!(
+            parse_repo_query("owner/repo").unwrap(),
+            ("owner".to_string(), "repo".to_string(), None)
+        );
+        assert_eq!(
+            parse_repo_query("https://github.com/owner/repo").unwrap(),
+            ("owner".to_string(), "repo".to_string(), None)
+        );
+        assert_eq!(
+            parse_repo_query("https://github.com/owner/repo/tree/master").unwrap(),
+            (
+                "owner".to_string(),
+                "repo".to_string(),
+                Some("master".to_string()),
+            )
+        );
     }
 }

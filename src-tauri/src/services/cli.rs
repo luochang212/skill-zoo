@@ -84,6 +84,18 @@ impl CliService {
         }
 
         let ssot_dir = config::get_agents_skills_dir();
+        let agent_dirs: Vec<PathBuf> = config::AGENTS
+            .iter()
+            .filter_map(|agent| config::get_agent_skills_dir(agent.id))
+            .collect();
+        Self::ensure_install_destinations_available(
+            &to_install
+                .iter()
+                .map(|(name, _, _)| name.as_str())
+                .collect::<Vec<_>>(),
+            &ssot_dir,
+            &agent_dirs,
+        )?;
         std::fs::create_dir_all(&ssot_dir).map_err(AppError::Io)?;
 
         let mut installed_names: Vec<String> = Vec::new();
@@ -100,8 +112,12 @@ impl CliService {
 
             match Self::copy_dir_contents(skill_path, &tmp_dir) {
                 Ok(_) => {
-                    if dest_dir.exists() {
-                        std::fs::remove_dir_all(&dest_dir).map_err(AppError::Io)?;
+                    if std::fs::symlink_metadata(&dest_dir).is_ok() {
+                        let _ = std::fs::remove_dir_all(&tmp_dir);
+                        errors.push(format!(
+                            "{skill_name}: destination appeared during installation"
+                        ));
+                        continue;
                     }
                     std::fs::rename(&tmp_dir, &dest_dir).map_err(AppError::Io)?;
                     installed_names.push(skill_name.clone());
@@ -126,6 +142,32 @@ impl CliService {
         }
 
         Ok(())
+    }
+
+    fn ensure_install_destinations_available(
+        skill_names: &[&str],
+        ssot_dir: &std::path::Path,
+        agent_dirs: &[PathBuf],
+    ) -> Result<(), AppError> {
+        let conflicts: Vec<&str> = skill_names
+            .iter()
+            .copied()
+            .filter(|name| {
+                std::fs::symlink_metadata(ssot_dir.join(name)).is_ok()
+                    || agent_dirs
+                        .iter()
+                        .any(|dir| std::fs::symlink_metadata(dir.join(name)).is_ok())
+            })
+            .collect();
+
+        if conflicts.is_empty() {
+            Ok(())
+        } else {
+            Err(AppError::BadRequest(format!(
+                "Cannot install because skill destination already exists: {}. Remove, rename, or archive the existing skill first.",
+                conflicts.join(", ")
+            )))
+        }
     }
 
     // ─── Update ─────────────────────────────────────────────────────
@@ -730,5 +772,34 @@ mod tests {
     #[test]
     fn test_parse_github_url_rejects_non_github() {
         assert!(CliService::parse_github_url("https://gitlab.com/foo/bar").is_err());
+    }
+
+    #[test]
+    fn install_preflight_rejects_existing_destination_before_writes() {
+        let root = tempfile::tempdir().unwrap();
+        let ssot = root.path().join("ssot");
+        let agent = root.path().join("agent");
+        std::fs::create_dir_all(agent.join("existing")).unwrap();
+
+        let result = CliService::ensure_install_destinations_available(
+            &["new", "existing"],
+            &ssot,
+            &[agent],
+        );
+
+        assert!(result.is_err());
+        assert!(!ssot.exists());
+    }
+
+    #[test]
+    fn install_preflight_accepts_unused_destinations() {
+        let root = tempfile::tempdir().unwrap();
+        let ssot = root.path().join("ssot");
+        let agent = root.path().join("agent");
+
+        let result =
+            CliService::ensure_install_destinations_available(&["one", "two"], &ssot, &[agent]);
+
+        assert!(result.is_ok());
     }
 }

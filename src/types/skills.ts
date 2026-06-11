@@ -37,7 +37,8 @@ export interface DiscoverableSkill {
   directory: string;
   repoOwner: string;
   repoName: string;
-  installed: boolean;
+  installStatus: "available" | "installed" | "conflict";
+  installedSkillId?: string;
   installs?: number;
 }
 

@@ -1,13 +1,11 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   useRepoSkills,
   useRefreshRepoSkills,
   useRepoMetadata,
   useInstallSkills,
-  useInstalledSkills,
   useRemoveSkill,
   useSkillPreview,
 } from "@/hooks/useSkills";
@@ -27,7 +25,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SkillInstallDialog } from "@/components/skills/SkillInstallDialog";
 import { MarkdownContent } from "@/components/skills/MarkdownContent";
-import type { DiscoverRepo, DiscoverableSkill, RepoSkillsResult } from "@/types/skills";
+import type { DiscoverRepo, DiscoverableSkill } from "@/types/skills";
 import { BackButton } from "@/components/ui/BackButton";
 import { AlertTriangle, Star, GitFork, ExternalLink, Check, RotateCw, Loader } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -45,7 +43,6 @@ interface RepoDetailProps {
 
 export function RepoDetail({ repo, onBack }: RepoDetailProps) {
   const { t } = useTranslation();
-  const qc = useQueryClient();
   const {
     data: skills,
     isLoading,
@@ -55,11 +52,6 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
   const { data: metadata } = useRepoMetadata(repo.owner, repo.name);
   const installMutation = useInstallSkills();
   const removeMutation = useRemoveSkill();
-  const { data: installedSkills = [] } = useInstalledSkills();
-  const dirToId = useMemo(
-    () => new Map(installedSkills.map((s) => [s.directory, s.id])),
-    [installedSkills],
-  );
 
   // Use GitHub API metadata when available, fall back to static data
   const description = metadata?.description ?? repo.description;
@@ -115,14 +107,6 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
     previewSkill?.directory ?? null,
   );
 
-  const skillsQueryKey = [
-    "repos",
-    "skills",
-    repo.owner,
-    repo.name,
-    repo.branch || undefined,
-  ] as const;
-
   const handleInstallSelected = () => {
     if (selectedInstallable.length === 0) return;
     setInstallSkills(selectedInstallable);
@@ -133,39 +117,17 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
   };
 
   const handleRemoveConfirm = () => {
-    if (!pendingRemove) return;
-    const skillId = dirToId.get(pendingRemove.directory);
+    if (!pendingRemove || removeMutation.isPending) return;
+    const skillId = pendingRemove.installedSkillId;
     if (!skillId) {
       setRemoveConfirmOpen(false);
       setPendingRemove(null);
       return;
     }
-    // Optimistic update: mark as uninstalled immediately
-    qc.setQueryData<RepoSkillsResult>(skillsQueryKey, (old) => {
-      if (!old) return old;
-      return {
-        ...old,
-        skills: old.skills.map((s) =>
-          s.key === pendingRemove.key ? { ...s, installed: false } : s,
-        ),
-      };
-    });
     removeMutation.mutate(skillId, {
       onSuccess: () => {
         setRemoveConfirmOpen(false);
         setPendingRemove(null);
-      },
-      onError: () => {
-        // Rollback on error
-        qc.setQueryData<RepoSkillsResult>(skillsQueryKey, (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            skills: old.skills.map((s) =>
-              s.key === pendingRemove.key ? { ...s, installed: true } : s,
-            ),
-          };
-        });
       },
     });
   };
@@ -179,24 +141,13 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
         onSuccess: () => {
           setInstallSkills(null);
           setSelectedKeys(new Set());
-          // Mark installed skills in cache without re-downloading the repo
-          qc.setQueryData<RepoSkillsResult>(skillsQueryKey, (old) => {
-            if (!old) return old;
-            const installedDirs = new Set(skillNames);
-            return {
-              ...old,
-              skills: old.skills.map((s) =>
-                installedDirs.has(s.directory) ? { ...s, installed: true } : s,
-              ),
-            };
-          });
         },
       },
     );
   };
 
   const { skills: skillList, total } = skills ?? { skills: [], total: 0 };
-  const installableSkills = skillList.filter((s) => !s.installed);
+  const installableSkills = skillList.filter((s) => s.installStatus === "available");
   const allSelected =
     installableSkills.length > 0 && selectedKeys.size === installableSkills.length;
   const selectedInstallable = installableSkills.filter((s) => selectedKeys.has(s.key));
@@ -346,14 +297,21 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
                     className="flex items-center gap-3 rounded-lg border border-border/40 px-4 py-3 hover:bg-accent/30 transition-colors"
                   >
                     <Checkbox
-                      checked={skill.installed || selectedKeys.has(skill.key)}
-                      disabled={skill.installed}
+                      checked={skill.installStatus === "installed" || selectedKeys.has(skill.key)}
+                      disabled={skill.installStatus !== "available"}
                       onCheckedChange={() => toggleKey(skill.key)}
-                      aria-label={skill.installed ? t("common.installed") : `Select ${skill.name}`}
+                      aria-label={
+                        skill.installStatus === "installed"
+                          ? t("common.installed")
+                          : skill.installStatus === "conflict"
+                            ? t("browse.nameConflict")
+                            : `Select ${skill.name}`
+                      }
                       className="shrink-0"
                     />
-                    <div
-                      className="min-w-0 flex-1 cursor-pointer"
+                    <button
+                      type="button"
+                      className="min-w-0 flex-1 cursor-pointer text-left"
                       onClick={() => setPreviewSkill(skill)}
                     >
                       <h4 className="text-[13px] font-medium hover:text-primary transition-colors">
@@ -364,8 +322,8 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
                           {skill.description}
                         </p>
                       )}
-                    </div>
-                    {skill.installed ? (
+                    </button>
+                    {skill.installStatus === "installed" ? (
                       <Button
                         size="sm"
                         variant="outline"
@@ -377,6 +335,14 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
                       >
                         {t("common.uninstall")}
                       </Button>
+                    ) : skill.installStatus === "conflict" ? (
+                      <Badge
+                        variant="destructive"
+                        className="h-7 shrink-0 px-2.5 text-xs font-medium"
+                        title={t("browse.nameConflictHint")}
+                      >
+                        {t("browse.nameConflict")}
+                      </Badge>
                     ) : (
                       <Button
                         size="sm"
@@ -430,10 +396,20 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setRemoveConfirmOpen(false)}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={removeMutation.isPending}
+              onClick={() => setRemoveConfirmOpen(false)}
+            >
               {t("common.cancel")}
             </Button>
-            <Button variant="destructive" size="sm" onClick={handleRemoveConfirm}>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={removeMutation.isPending}
+              onClick={handleRemoveConfirm}
+            >
               {t("common.remove")}
             </Button>
           </DialogFooter>
