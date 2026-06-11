@@ -13,11 +13,7 @@ export function useSidebarFilter() {
   const [category, setCategory] = useState<SidebarCategory>({ type: "all" });
 
   const selectCategory = useCallback((cat: SidebarCategory) => {
-    setCategory((prev) =>
-      prev.type === cat.type && JSON.stringify(prev) === JSON.stringify(cat)
-        ? { type: "all" }
-        : cat,
-    );
+    setCategory(cat);
   }, []);
 
   const clearFilter = useCallback(() => {

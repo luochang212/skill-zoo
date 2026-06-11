@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
-import { useRestoreArchivedSkill, useStarSkill, useUnstarSkill } from "./useSkills";
+import { useRepoReadme, useRestoreArchivedSkill, useStarSkill, useUnstarSkill } from "./useSkills";
 import { createQueryWrapper } from "@/test/utils";
 import type { InstalledSkill } from "@/types/skills";
 
@@ -166,5 +166,33 @@ describe("useRestoreArchivedSkill", () => {
 
     const cached = queryClient.getQueryData<InstalledSkill[]>(["skills", "installed"]);
     expect(cached?.find((s) => s.id === "skill-3")).toEqual(restoredSkill);
+  });
+});
+
+describe("useRepoReadme", () => {
+  beforeEach(() => {
+    vi.mocked(invoke).mockReset();
+  });
+
+  it("waits for the repository branch before requesting the README", async () => {
+    vi.mocked(invoke).mockResolvedValue("# README");
+    const { wrapper } = createQueryWrapper();
+    const { rerender } = renderHook(
+      ({ branch }: { branch?: string }) => useRepoReadme("owner", "repo", branch),
+      { wrapper, initialProps: { branch: undefined as string | undefined } },
+    );
+
+    expect(invoke).not.toHaveBeenCalled();
+
+    rerender({ branch: "master" });
+
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("get_repo_readme", {
+        owner: "owner",
+        name: "repo",
+        branch: "master",
+        force: undefined,
+      }),
+    );
   });
 });

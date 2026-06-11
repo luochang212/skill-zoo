@@ -303,7 +303,7 @@ export function useRepoReadme(owner: string | null, name: string | null, branch?
   return useQuery({
     queryKey: ["repos", "readme", owner, name, branch],
     queryFn: () => skillsApi.getRepoReadme(owner!, name!, branch ?? undefined),
-    enabled: !!owner && !!name,
+    enabled: !!owner && !!name && !!branch,
     staleTime: 7 * 24 * 60 * 60 * 1000,
     retry: false,
   });

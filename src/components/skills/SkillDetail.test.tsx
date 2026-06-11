@@ -65,6 +65,54 @@ describe("SkillDetail", () => {
     expect(onBack).toHaveBeenCalledOnce();
   });
 
+  it("shows update success only after the update resolves successfully", async () => {
+    let resolveUpdate!: () => void;
+    const onUpdate = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveUpdate = resolve;
+        }),
+    );
+
+    renderWithQueryClient(
+      <SkillDetail
+        skill={{ ...skill, repoOwner: "owner", repoName: "repo" }}
+        skillName="Skill 1"
+        contentLoading={false}
+        content="# Skill content"
+        onChange={() => {}}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    await userEvent.click(screen.getByTitle("Update from git"));
+    expect(screen.queryByTitle("Updated")).not.toBeInTheDocument();
+
+    resolveUpdate();
+
+    expect(await screen.findByTitle("Updated")).toBeInTheDocument();
+  });
+
+  it("does not show update success when the update fails", async () => {
+    const onUpdate = vi.fn(() => Promise.reject(new Error("network failed")));
+
+    renderWithQueryClient(
+      <SkillDetail
+        skill={{ ...skill, repoOwner: "owner", repoName: "repo" }}
+        skillName="Skill 1"
+        contentLoading={false}
+        content="# Skill content"
+        onChange={() => {}}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    await userEvent.click(screen.getByTitle("Update from git"));
+
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledOnce());
+    expect(screen.queryByTitle("Updated")).not.toBeInTheDocument();
+  });
+
   it("loads only the root file children when the detail opens", async () => {
     vi.mocked(invoke).mockImplementation((command) => {
       if (command === "list_skill_file_children") {

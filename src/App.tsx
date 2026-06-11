@@ -135,9 +135,9 @@ export default function App() {
     await win.startDragging();
   };
 
-  const handleUpdate = () => {
+  const handleUpdate = async () => {
     if (!editor.skillId) return;
-    updateMutation.mutate(editor.skillId);
+    await updateMutation.mutateAsync(editor.skillId);
   };
 
   const handleRemove = () => {

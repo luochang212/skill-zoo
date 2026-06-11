@@ -262,7 +262,10 @@ export const InstalledSkills = memo(function InstalledSkills({
               case "mine":
                 return s.isMine;
               case "repo":
-                return s.repoOwner === category.owner && s.repoName === category.name;
+                return (
+                  s.repoOwner?.toLowerCase() === category.owner.toLowerCase() &&
+                  s.repoName?.toLowerCase() === category.name.toLowerCase()
+                );
               case "unassigned":
                 return !(s.repoOwner && s.repoName);
               case "consistency":

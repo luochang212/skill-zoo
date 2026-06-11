@@ -28,7 +28,7 @@ interface SkillDetailProps {
   content: string;
   onChange: (content: string) => void;
   onBack?: () => void;
-  onUpdate?: () => void;
+  onUpdate?: () => Promise<unknown>;
   onRemove?: () => void;
   onArchive?: () => void;
   onRestore?: () => void;
@@ -95,11 +95,16 @@ export function SkillDetail({
     onTabChange?.(tab);
   };
 
-  const handleUpdate = () => {
-    onUpdate?.();
-    setUpdateSuccess(true);
-    if (successTimerRef.current) clearTimeout(successTimerRef.current);
-    successTimerRef.current = setTimeout(() => setUpdateSuccess(false), 1500);
+  const handleUpdate = async () => {
+    if (!onUpdate) return;
+    try {
+      await onUpdate();
+      setUpdateSuccess(true);
+      if (successTimerRef.current) clearTimeout(successTimerRef.current);
+      successTimerRef.current = setTimeout(() => setUpdateSuccess(false), 1500);
+    } catch {
+      // Mutation errors are surfaced by the global mutation handler.
+    }
   };
 
   const handleRemoveClick = () => {

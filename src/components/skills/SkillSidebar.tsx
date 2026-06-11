@@ -68,7 +68,7 @@ export function SkillSidebar({
         }
 
         if (s.repoOwner && s.repoName) {
-          const key = `${s.repoOwner}/${s.repoName}`;
+          const key = `${s.repoOwner.toLowerCase()}/${s.repoName.toLowerCase()}`;
           const existing = repoMap.get(key);
           if (existing) {
             if (s.updatedAt && s.updatedAt > existing.maxUpdatedAt) {
