@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.3.2] — 2026-06-12
+
+### Changed
+- Discoverable skill install state is now authoritative — server-side classification (available, installed, conflict) replaces the client-side `installed` boolean.
+- Duplicate skill merge requires all entries to have verified matching content hashes.
+- `useRepoReadme` hook waits for the repository branch before fetching.
+- Repo category matching and sidebar keys are now case-insensitive.
+- CLI update path reports per-skill errors instead of silently skipping failed repos.
+- Sidebar filter no longer toggles off when clicking the same category.
+
+### Fixed
+- Update button no longer shows success indicator before the mutation resolves.
+- Clearing download cache no longer leaves the button stuck in loading state on error.
+- Cache cleanup only counts bytes for files actually removed.
+- App restart failure now surfaces a toast instead of silently failing.
+- Updater error message corrected from install to download phase.
+- Agent visibility switch disabled during pending mutation to prevent double-clicks.
+- Cache rebuild filesystem scan offloaded to blocking thread pool.
+
 ## [0.3.1] — 2026-06-05
 
 ### Added

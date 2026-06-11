@@ -21,10 +21,8 @@ pub fn clear_download_cache() -> Result<u64, String> {
     let entries = std::fs::read_dir(&cache_dir).map_err(|e| e.to_string())?;
     for entry in entries.flatten() {
         if let Ok(meta) = entry.metadata() {
-            if meta.is_file() {
-                if std::fs::remove_file(entry.path()).is_ok() {
-                    freed += meta.len();
-                }
+            if meta.is_file() && std::fs::remove_file(entry.path()).is_ok() {
+                freed += meta.len();
             }
         }
     }
