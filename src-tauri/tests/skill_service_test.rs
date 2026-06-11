@@ -211,6 +211,31 @@ fn test_classify_discoverable_skill_treats_missing_and_local_entries_conservativ
 }
 
 #[test]
+fn test_duplicate_merge_requires_complete_matching_hashes() {
+    let mut first = make_cache_entry("one", "duplicate", "one");
+    first.content_hash = Some("hash".to_string());
+    let mut second = make_cache_entry("two", "duplicate", "two");
+
+    assert!(
+        !SkillService::duplicates_have_verified_matching_content_for_test(&[
+            first.clone(),
+            second.clone(),
+        ])
+    );
+
+    second.content_hash = Some("hash".to_string());
+    assert!(
+        SkillService::duplicates_have_verified_matching_content_for_test(&[
+            first.clone(),
+            second.clone(),
+        ])
+    );
+
+    second.content_hash = Some("other".to_string());
+    assert!(!SkillService::duplicates_have_verified_matching_content_for_test(&[first, second,]));
+}
+
+#[test]
 fn test_build_file_tree_level_does_not_recurse() {
     let dir = tempfile::tempdir().expect("tempdir");
     let skill_dir = dir.path().join("my-skill");

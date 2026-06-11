@@ -226,7 +226,18 @@ impl CliService {
         for ((owner, repo, branch), skills) in &by_repo {
             let tree = match Self::fetch_repo_tree(owner, repo, branch).await {
                 Ok(Some(t)) => t,
-                _ => continue, // rate-limited or error — skip entire repo
+                Ok(None) => {
+                    errors.extend(skills.iter().map(|(name, _)| {
+                        format!(
+                            "{name}: repository or branch not found for {owner}/{repo}@{branch}"
+                        )
+                    }));
+                    continue;
+                }
+                Err(e) => {
+                    errors.extend(skills.iter().map(|(name, _)| format!("{name}: {e}")));
+                    continue;
+                }
             };
 
             for (name, entry) in skills {

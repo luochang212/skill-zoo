@@ -22,8 +22,9 @@ pub fn clear_download_cache() -> Result<u64, String> {
     for entry in entries.flatten() {
         if let Ok(meta) = entry.metadata() {
             if meta.is_file() {
-                freed += meta.len();
-                let _ = std::fs::remove_file(entry.path());
+                if std::fs::remove_file(entry.path()).is_ok() {
+                    freed += meta.len();
+                }
             }
         }
     }

@@ -165,6 +165,23 @@ fn symlink_target_matches(link_path: &std::path::Path, expected_target: &std::pa
 pub struct SkillService;
 
 impl SkillService {
+    fn duplicates_have_verified_matching_content(entries: &[SkillCacheEntry]) -> bool {
+        let Some(first_hash) = entries
+            .first()
+            .and_then(|entry| entry.content_hash.as_deref())
+        else {
+            return false;
+        };
+        entries
+            .iter()
+            .all(|entry| entry.content_hash.as_deref() == Some(first_hash))
+    }
+
+    #[cfg(feature = "test-helpers")]
+    pub fn duplicates_have_verified_matching_content_for_test(entries: &[SkillCacheEntry]) -> bool {
+        Self::duplicates_have_verified_matching_content(entries)
+    }
+
     /// Check which agents can access this skill:
     /// - If the skill's homePath is under an agent directory (origin=agent),
     ///   that agent is marked as available directly.
@@ -1378,13 +1395,9 @@ impl SkillService {
 
         // Refuse to merge if content differs (safety check — frontend should
         // already prevent this, but backend must enforce it too).
-        let hashes: Vec<&str> = entries
-            .iter()
-            .filter_map(|e| e.content_hash.as_deref())
-            .collect();
-        if !hashes.is_empty() && !hashes.iter().all(|h| *h == hashes[0]) {
+        if !Self::duplicates_have_verified_matching_content(&entries) {
             return Err(AppError::BadRequest(format!(
-                "Cannot merge: skills named '{skill_name}' have different content. Please resolve manually."
+                "Cannot merge: skills named '{skill_name}' do not all have verified matching content. Please resolve manually."
             )));
         }
 
