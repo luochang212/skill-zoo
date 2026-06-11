@@ -217,9 +217,9 @@ export function AppUpdateSection() {
     try {
       await relaunch();
     } catch {
-      // relaunch failed — nothing we can do
+      toast.error(t("settings.updater.restartFailed"));
     }
-  }, []);
+  }, [t]);
 
   if (isPortable === null) return null;
 

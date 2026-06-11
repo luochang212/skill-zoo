@@ -16,6 +16,8 @@ import {
 } from "@/hooks/useSettings";
 import type { AgentPathInfo, VisibleAgents } from "@/types/skills";
 
+const EMPTY_AGENT_ORDER: string[] = [];
+
 function sortAgentsByOrder(agents: AgentPathInfo[], agentOrder: string[]): AgentPathInfo[] {
   return mergeAgentOrder(
     agentOrder,
@@ -35,6 +37,7 @@ function PathRow({
   isVisible,
   onToggleVisibility,
   canToggle,
+  visibilityPending,
   isDragging,
   onStartDrag,
 }: {
@@ -42,6 +45,7 @@ function PathRow({
   isVisible: boolean;
   onToggleVisibility: () => void;
   canToggle: boolean;
+  visibilityPending: boolean;
   isDragging: boolean;
   onStartDrag?: (event: React.PointerEvent<HTMLButtonElement>) => void;
 }) {
@@ -79,7 +83,7 @@ function PathRow({
           <Switch
             checked={isVisible}
             onCheckedChange={onToggleVisibility}
-            disabled={!canToggle && isVisible}
+            disabled={visibilityPending || (!canToggle && isVisible)}
             aria-label={`Toggle visibility for ${info.label}`}
             className="shrink-0"
           />
@@ -127,12 +131,14 @@ function SortablePathRow({
   isVisible,
   onToggleVisibility,
   canToggle,
+  visibilityPending,
   onSaveOrder,
 }: {
   info: AgentPathInfo;
   isVisible: boolean;
   onToggleVisibility: () => void;
   canToggle: boolean;
+  visibilityPending: boolean;
   onSaveOrder: () => void;
 }) {
   const dragControls = useDragControls();
@@ -156,6 +162,7 @@ function SortablePathRow({
         isVisible={isVisible}
         onToggleVisibility={onToggleVisibility}
         canToggle={canToggle}
+        visibilityPending={visibilityPending}
         isDragging={isDragging}
         onStartDrag={(event) => dragControls.start(event)}
       />
@@ -172,7 +179,7 @@ export function AgentPathsSettings() {
     queryFn: () => skillsApi.getAgentPaths(),
   });
   const { data: visibleAgentsData } = useVisibleAgents();
-  const { data: agentOrder = [] } = useAgentOrder();
+  const { data: agentOrder = EMPTY_AGENT_ORDER } = useAgentOrder();
   const updateVisibleAgents = useUpdateVisibleAgents();
   const updateAgentOrder = useUpdateAgentOrder();
 
@@ -224,6 +231,7 @@ export function AgentPathsSettings() {
             isVisible
             onToggleVisibility={() => {}}
             canToggle={false}
+            visibilityPending={false}
             isDragging={false}
           />
         ))}
@@ -249,6 +257,7 @@ export function AgentPathsSettings() {
                 isVisible={isVisible}
                 onToggleVisibility={() => handleToggleVisibility(info.agent)}
                 canToggle={canToggle}
+                visibilityPending={updateVisibleAgents.isPending}
                 onSaveOrder={handleSaveOrder}
               />
             );

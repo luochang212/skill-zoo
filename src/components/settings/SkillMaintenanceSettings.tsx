@@ -218,14 +218,19 @@ export function SkillMaintenanceSettings() {
               className="h-8 text-xs gap-1.5"
               onClick={async () => {
                 setClearingCache(true);
-                const start = Date.now();
-                const freed = await skillsApi.clearDownloadCache();
-                const elapsed = Date.now() - start;
-                if (elapsed < 500) {
-                  await new Promise((r) => setTimeout(r, 500 - elapsed));
+                try {
+                  const start = Date.now();
+                  const freed = await skillsApi.clearDownloadCache();
+                  const elapsed = Date.now() - start;
+                  if (elapsed < 500) {
+                    await new Promise((r) => setTimeout(r, 500 - elapsed));
+                  }
+                  setCacheSize((prev) => Math.max(0, (prev ?? 0) - freed));
+                } catch {
+                  toast.error(t("settings.maintenance.clearCacheFailed"));
+                } finally {
+                  setClearingCache(false);
                 }
-                setCacheSize((prev) => Math.max(0, (prev ?? 0) - freed));
-                setClearingCache(false);
               }}
               disabled={clearingCache}
             >

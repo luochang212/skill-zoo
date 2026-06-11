@@ -278,6 +278,7 @@
       "clearCacheDesc": "删除已缓存的仓库归档文件以释放磁盘空间",
       "clearCacheBtn": "清除缓存",
       "clearing": "清除中…",
+      "clearCacheFailed": "清除下载缓存失败",
       "openCacheDir": "缓存目录"
     },
     "agentPaths": {
@@ -304,7 +305,8 @@
       "downloading": "下载中...",
       "restartNow": "立即重启",
       "checkFailed": "检查更新失败",
-      "downloadFailed": "下载失败"
+      "downloadFailed": "下载失败",
+      "restartFailed": "应用重启失败"
     },
     "feedback": {
       "title": "反馈",

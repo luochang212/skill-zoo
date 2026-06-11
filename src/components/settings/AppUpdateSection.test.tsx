@@ -79,6 +79,21 @@ describe("AppUpdateSection", () => {
     expect(relaunch).toHaveBeenCalledTimes(1);
   });
 
+  it("notifies when restarting the app fails", async () => {
+    const user = userEvent.setup();
+    const downloadAndInstall = vi.fn<Update["downloadAndInstall"]>().mockResolvedValue(undefined);
+    vi.mocked(check).mockResolvedValue(createUpdate(downloadAndInstall));
+    vi.mocked(relaunch).mockRejectedValue(new Error("restart failed"));
+
+    render(<AppUpdateSection />);
+
+    await user.click(await screen.findByRole("button", { name: /check for updates/i }));
+    await user.click(await screen.findByRole("button", { name: /restart now/i }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Could not restart the app"));
+    expect(screen.getByRole("button", { name: /restart now/i })).toBeInTheDocument();
+  });
+
   it("shows the target version and cumulative progress while downloading", async () => {
     const user = userEvent.setup();
     const deferred = createDeferred();

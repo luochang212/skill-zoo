@@ -278,6 +278,7 @@
       "clearCacheDesc": "Remove cached repository archives to free up disk space",
       "clearCacheBtn": "Clear Cache",
       "clearing": "Clearing…",
+      "clearCacheFailed": "Could not clear download cache",
       "openCacheDir": "Cache folder"
     },
     "agentPaths": {
@@ -304,7 +305,8 @@
       "downloading": "Downloading...",
       "restartNow": "Restart Now",
       "checkFailed": "Could not check for updates",
-      "downloadFailed": "Download failed"
+      "downloadFailed": "Download failed",
+      "restartFailed": "Could not restart the app"
     },
     "feedback": {
       "title": "Feedback",
