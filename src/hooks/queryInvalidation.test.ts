@@ -28,4 +28,16 @@ describe("invalidateFor", () => {
 
     expect(spy).not.toHaveBeenCalled();
   });
+
+  it("refreshes filesystem-derived queries after a rescan or watcher event", () => {
+    expect(INVALIDATION_MAP.rescanSkills).toEqual(
+      expect.arrayContaining([
+        ["skills", "content"],
+        ["skills", "files"],
+        ["skills", "fileChildren"],
+        ["skills", "file"],
+        ["skills", "image"],
+      ]),
+    );
+  });
 });

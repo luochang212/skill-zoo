@@ -63,6 +63,11 @@ export const INVALIDATION_MAP = {
     ["skills", "installed"],
     ["skills", "archived"],
     ["skills", "symlinks"],
+    ["skills", "content"],
+    ["skills", "files"],
+    ["skills", "fileChildren"],
+    ["skills", "file"],
+    ["skills", "image"],
   ],
   saveSkillContent: [
     ["skills", "content"],
