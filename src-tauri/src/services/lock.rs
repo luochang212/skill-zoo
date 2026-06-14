@@ -2,6 +2,9 @@ use crate::config;
 use crate::error::AppError;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::path::Path;
+
+pub const SUPPORTED_LOCK_VERSION: i32 = 3;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -36,7 +39,7 @@ pub struct SkillLock {
 }
 
 fn default_version() -> i32 {
-    3
+    SUPPORTED_LOCK_VERSION
 }
 
 impl SkillLock {
@@ -44,7 +47,7 @@ impl SkillLock {
         let path = config::get_agent_lock_file();
         if !path.exists() {
             return Ok(Self {
-                version: 3,
+                version: SUPPORTED_LOCK_VERSION,
                 skills: BTreeMap::new(),
                 dismissed: serde_json::Value::Object(Default::default()),
             });
@@ -59,13 +62,22 @@ impl SkillLock {
     }
 
     pub fn write(&self) -> Result<(), AppError> {
-        let path = config::get_agent_lock_file();
+        self.write_to(&config::get_agent_lock_file())
+    }
+
+    pub fn write_to(&self, path: &Path) -> Result<(), AppError> {
+        if self.version > SUPPORTED_LOCK_VERSION {
+            return Err(AppError::BadRequest(format!(
+                "Lock file version {} is newer than this desktop app supports. Upgrade Skill Zoo before writing.",
+                self.version
+            )));
+        }
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(AppError::Io)?;
         }
         let content =
             serde_json::to_string_pretty(self).map_err(|e| AppError::Parse(e.to_string()))?;
-        crate::persistence::atomic_write(&path, &content).map_err(AppError::Io)?;
+        crate::persistence::atomic_write(path, &content).map_err(AppError::Io)?;
         Ok(())
     }
 }

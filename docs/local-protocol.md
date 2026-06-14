@@ -20,7 +20,7 @@ Skill Zoo desktop owns the local protocol. The CLI is an adjunct control surface
 - Desktop is the source of truth for local protocol shape and semantics.
 - CLI changes must conform to the desktop-owned protocol and must not update fixtures to fit CLI implementation convenience.
 - Readers should tolerate missing optional fields.
-- CLI writers must refuse versioned files with schema versions newer than they support. Desktop future-version write protection is not enforced in this iteration.
+- Desktop and CLI writers must refuse versioned files with schema versions newer than they support.
 - Adding optional fields usually does not require a schema version bump.
 - Removing fields, renaming fields, changing required fields, or changing write/read semantics requires a schema version bump or an explicit migration plan.
 - Do not rely on byte-for-byte JSON formatting. Compatibility is semantic.

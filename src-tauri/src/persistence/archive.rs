@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 
+pub const SUPPORTED_ARCHIVE_VERSION: i32 = 1;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArchivedSkill {
@@ -81,7 +83,7 @@ pub struct ArchiveManifest {
 }
 
 fn default_version() -> i32 {
-    1
+    SUPPORTED_ARCHIVE_VERSION
 }
 
 impl Default for ArchiveManifest {
@@ -112,6 +114,12 @@ impl ArchiveManifest {
     }
 
     pub fn save_to(&self, path: &Path) -> Result<(), AppError> {
+        if self.version > SUPPORTED_ARCHIVE_VERSION {
+            return Err(AppError::BadRequest(format!(
+                "Archive manifest version {} is newer than this desktop app supports. Upgrade Skill Zoo before writing.",
+                self.version
+            )));
+        }
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| error::io(parent, e))?;
         }

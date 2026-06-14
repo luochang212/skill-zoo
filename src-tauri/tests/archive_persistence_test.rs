@@ -75,3 +75,22 @@ fn test_archive_manifest_round_trips_skill_metadata() {
     assert!(loaded_skill.is_mine);
     assert_eq!(loaded_skill.apps.get("codex"), Some(&true));
 }
+
+#[test]
+fn test_refuses_to_write_future_archive_version() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let manifest_path = tmp.path().join("manifest.json");
+    let manifest = ArchiveManifest {
+        version: 2,
+        skills: BTreeMap::new(),
+    };
+
+    let error = manifest
+        .save_to(&manifest_path)
+        .expect_err("future version must not be written");
+
+    assert!(error
+        .to_string()
+        .contains("Archive manifest version 2 is newer"));
+    assert!(!manifest_path.exists());
+}
