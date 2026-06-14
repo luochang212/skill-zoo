@@ -169,6 +169,10 @@ export function useSkillContent(directory: string | null) {
     queryKey: ["skills", "content", directory],
     queryFn: () => skillsApi.readSkillMd(directory!),
     enabled: !!directory,
+    // Cache content for 30s so reopening a recently-viewed skill doesn't
+    // re-read SKILL.md from disk on every open. In-app saves invalidate via
+    // the "saveSkillContent" key prefix, so edits stay fresh.
+    staleTime: 30 * 1000,
   });
 }
 
