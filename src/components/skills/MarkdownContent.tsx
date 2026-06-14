@@ -129,6 +129,68 @@ function FrontmatterCard({ data }: { data: Record<string, unknown> }) {
   );
 }
 
+// Minimal hast shape — avoids pulling in @types/hast just for this transform.
+interface HastNode {
+  type: string;
+  tagName?: string;
+  value?: string;
+  properties?: Record<string, unknown> | null;
+  children?: HastNode[];
+}
+
+// Count badge images in a subtree, or -1 if it holds text or non-badge elements.
+// A badge child is an <img> or an <a> wrapping only images; whitespace text between
+// them is allowed.
+function countBadgeImages(node: HastNode): number {
+  if (node.type === "text") {
+    return (node.value ?? "").trim() === "" ? 0 : -1;
+  }
+  if (node.type === "element") {
+    if (node.tagName === "img") return 1;
+    if (node.tagName === "a") {
+      let sum = 0;
+      for (const child of node.children ?? []) {
+        const n = countBadgeImages(child);
+        if (n < 0) return -1;
+        sum += n;
+      }
+      return sum > 0 ? sum : -1;
+    }
+    return -1;
+  }
+  return -1;
+}
+
+// rehype plugin: tag image-only paragraphs (≥2 badges) so CSS lays them out as a
+// tight flex row. Without this, badges inherit the paragraph's line-height and leave
+// large vertical gaps whenever they wrap.
+function rehypeBadgeRows() {
+  const walk = (node: HastNode) => {
+    for (const child of node.children ?? []) {
+      if (child.type === "element" && child.tagName === "p") {
+        let sum = 0;
+        let ok = true;
+        for (const c of child.children ?? []) {
+          const n = countBadgeImages(c);
+          if (n < 0) {
+            ok = false;
+            break;
+          }
+          sum += n;
+        }
+        if (ok && sum >= 2) {
+          child.properties = child.properties ?? {};
+          child.properties.className = "badge-row";
+        }
+      }
+      walk(child);
+    }
+  };
+  return (tree: HastNode) => {
+    walk(tree);
+  };
+}
+
 interface MarkdownContentProps {
   content: string;
   repoOwner?: string | null;
@@ -154,7 +216,7 @@ export function MarkdownContent({
       {frontmatter && <FrontmatterCard data={frontmatter} />}
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeHighlight]}
+        rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeBadgeRows, rehypeHighlight]}
         urlTransform={(url) => makeAbsoluteUrl(url, repoOwner, repoName, repoBranch)}
         components={{
           a: ({ href, children, ...props }) => (
