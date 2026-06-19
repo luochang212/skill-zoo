@@ -130,9 +130,7 @@ export function SkillAuditCard({ owner, repo, slug, compact, display }: SkillAud
   if (mode === "icon") {
     const statusConfig = statusSummary ? STATUS_CONFIG[statusSummary] : null;
     const Icon = statusConfig?.icon ?? ShieldCheck;
-    const iconColor = statusConfig
-      ? statusConfig.color
-      : "text-muted-foreground";
+    const iconColor = statusConfig ? statusConfig.color : "text-muted-foreground";
     return (
       <div ref={containerRef} className="relative shrink-0">
         <button

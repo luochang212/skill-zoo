@@ -11,7 +11,15 @@ import { formatRelativeDate } from "@/lib/date";
 
 import { cn } from "@/lib/utils";
 import type { InstalledSkill } from "@/types/skills";
-import { Archive, ArchiveRestore, Settings, Trash2, CircleArrowUp, FolderOpen, CircleEllipsis } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  Settings,
+  Trash2,
+  CircleArrowUp,
+  FolderOpen,
+  CircleEllipsis,
+} from "lucide-react";
 
 function getLinkedAgents(apps: Record<string, boolean>): string[] {
   return Object.entries(apps)
@@ -108,7 +116,9 @@ function SkillInfoPopover({ skill }: { skill: InstalledSkill }) {
             <span className="text-[10px] text-muted-foreground uppercase tracking-wide shrink-0">
               {t("skillInfo.installed")}
             </span>
-            <span className="text-foreground text-right">{formatRelativeDate(skill.installedAt)}</span>
+            <span className="text-foreground text-right">
+              {formatRelativeDate(skill.installedAt)}
+            </span>
           </div>
 
           {skill.updatedAt > 0 && (
@@ -116,7 +126,9 @@ function SkillInfoPopover({ skill }: { skill: InstalledSkill }) {
               <span className="text-[10px] text-muted-foreground uppercase tracking-wide shrink-0">
                 {t("skillInfo.updated")}
               </span>
-              <span className="text-foreground text-right">{formatRelativeDate(skill.updatedAt)}</span>
+              <span className="text-foreground text-right">
+                {formatRelativeDate(skill.updatedAt)}
+              </span>
             </div>
           )}
         </div>
