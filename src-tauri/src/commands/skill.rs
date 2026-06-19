@@ -1,8 +1,9 @@
 use crate::config;
 use crate::config::{AgentConfig, AgentPathInfo};
+use crate::persistence::archive::SUPPORTED_ARCHIVE_VERSION;
 use crate::persistence::{atomic_write, ArchiveManifest, ArchivedSkill};
 use crate::services::cli::CliService;
-use crate::services::lock::SkillLock;
+use crate::services::lock::{SkillLock, SUPPORTED_LOCK_VERSION};
 use crate::services::skill::{
     is_symlink_or_junction, DiscoverableSkill, InstalledSkill, RepoSkillsResult, SkillFileNode,
     SkillService, SymlinkStatus,
@@ -603,6 +604,7 @@ fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String>
     let old_cache = state.skill_cache.read().map_err(|e| e.to_string())?.clone();
     let old_metadata = state.metadata.read().map_err(|e| e.to_string())?.clone();
     let old_lock = SkillLock::read().map_err(|e| e.to_string())?;
+    assert_writable_schema(&old_lock, &old_manifest)?;
     let lock_key = if old_lock.skills.contains_key(&skill.directory) {
         Some(skill.directory.clone())
     } else if old_lock.skills.contains_key(&skill.name) {
@@ -817,6 +819,7 @@ fn restore_archived_skill_inner(state: &AppState, archive_id: String) -> Result<
     let old_cache = state.skill_cache.read().map_err(|e| e.to_string())?.clone();
     let old_metadata = state.metadata.read().map_err(|e| e.to_string())?.clone();
     let old_lock = SkillLock::read().map_err(|e| e.to_string())?;
+    assert_writable_schema(&old_lock, &old_manifest)?;
 
     if let Some(parent) = restore_path.parent() {
         std::fs::create_dir_all(parent)
@@ -2030,6 +2033,22 @@ pub async fn create_skill(
         .into_iter()
         .find(|s| s.id == entry_id)
         .ok_or_else(|| "Skill disappeared after creation".to_string())
+}
+
+fn assert_writable_schema(lock: &SkillLock, manifest: &ArchiveManifest) -> Result<(), String> {
+    if lock.version > SUPPORTED_LOCK_VERSION {
+        return Err(format!(
+            "Lock file version {0} is newer than this desktop app supports. Upgrade Skill Zoo before writing.",
+            lock.version
+        ));
+    }
+    if manifest.version > SUPPORTED_ARCHIVE_VERSION {
+        return Err(format!(
+            "Archive manifest version {0} is newer than this desktop app supports. Upgrade Skill Zoo before writing.",
+            manifest.version
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(test)]

@@ -1374,17 +1374,15 @@ impl SkillService {
             }
             Self::safe_remove(&symlink_path)?;
             Self::create_link_to_target(&target_path, &symlink_path)?;
-        } else {
-            if is_symlink_or_junction(&symlink_path) {
-                if symlink_target_state(&symlink_path, &target_path) == LinkTargetState::Matches {
-                    Self::safe_remove(&symlink_path)?;
-                }
-            } else if symlink_path.exists() {
-                return Err(AppError::BadRequest(format!(
-                    "Cannot remove: {} is a real directory, not a symlink.",
-                    symlink_path.display()
-                )));
+        } else if is_symlink_or_junction(&symlink_path) {
+            if symlink_target_state(&symlink_path, &target_path) == LinkTargetState::Matches {
+                Self::safe_remove(&symlink_path)?;
             }
+        } else if symlink_path.exists() {
+            return Err(AppError::BadRequest(format!(
+                "Cannot remove: {} is a real directory, not a symlink.",
+                symlink_path.display()
+            )));
         }
         Ok(())
     }
