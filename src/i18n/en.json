@@ -220,6 +220,13 @@
     "openInFileManager": "Open in Finder",
     "removeSkill": "Remove skill"
   },
+  "skillInfo": {
+    "repository": "Repository",
+    "origin": "Source",
+    "installed": "Installed",
+    "updated": "Updated",
+    "local": "Local"
+  },
   "audit": {
     "title": "Security Audit",
     "unavailable": "No security audit results available"

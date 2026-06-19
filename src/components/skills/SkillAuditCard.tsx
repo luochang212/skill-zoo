@@ -1,15 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ShieldCheck, ShieldAlert, ShieldX, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSkillAudit } from "@/hooks/useSkills";
 
+type AuditDisplay = "card" | "compact" | "icon";
+
 interface SkillAuditCardProps {
   owner: string;
   repo: string;
   slug: string;
+  /** @deprecated use `display="compact"` instead */
   compact?: boolean;
+  display?: AuditDisplay;
 }
 
 const STATUS_CONFIG = {
@@ -17,6 +21,19 @@ const STATUS_CONFIG = {
   warn: { icon: ShieldAlert, color: "text-yellow-600 dark:text-yellow-400" },
   fail: { icon: ShieldX, color: "text-red-600 dark:text-red-400" },
 } as const;
+
+const STATUS_RANK: Record<string, number> = { pass: 0, warn: 1, fail: 2 };
+
+function aggregateStatus(audits: Array<{ status: string }>): keyof typeof STATUS_CONFIG | null {
+  if (audits.length === 0) return null;
+  let worst: keyof typeof STATUS_CONFIG = "pass";
+  for (const a of audits) {
+    if ((STATUS_RANK[a.status] ?? 0) > (STATUS_RANK[worst] ?? 0)) {
+      worst = a.status as keyof typeof STATUS_CONFIG;
+    }
+  }
+  return worst;
+}
 
 function getRiskColor(riskLevel?: string) {
   const map: Record<string, string> = {
@@ -42,13 +59,14 @@ function AuditEmptyState({ label }: { label: string }) {
   );
 }
 
-export function SkillAuditCard({ owner, repo, slug, compact }: SkillAuditCardProps) {
+export function SkillAuditCard({ owner, repo, slug, compact, display }: SkillAuditCardProps) {
   const { t } = useTranslation();
+  const mode: AuditDisplay = display ?? (compact ? "compact" : "card");
   const [expanded, setExpanded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!expanded || !compact) return;
+    if (!expanded || mode === "card") return;
     function handleClickOutside(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setExpanded(false);
@@ -56,20 +74,23 @@ export function SkillAuditCard({ owner, repo, slug, compact }: SkillAuditCardPro
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [expanded, compact]);
+  }, [expanded, mode]);
 
+  const shouldFetch = mode === "icon" || expanded;
   const {
     data: audits = [],
     isLoading,
     isError,
   } = useSkillAudit(
-    expanded ? owner : undefined,
-    expanded ? repo : undefined,
-    expanded ? slug : undefined,
+    shouldFetch ? owner : undefined,
+    shouldFetch ? repo : undefined,
+    shouldFetch ? slug : undefined,
   );
 
+  const statusSummary = useMemo(() => aggregateStatus(audits), [audits]);
+
   const auditBody = (
-    <div className={cn("space-y-2 px-3 pb-3 pt-2", !compact && "border-t border-border")}>
+    <div className={cn("space-y-2 px-3 pb-3 pt-2", mode === "card" && "border-t border-border")}>
       {isLoading ? (
         <div className="space-y-2.5">
           {[1, 2, 3, 4, 5].map((i) => (
@@ -106,7 +127,40 @@ export function SkillAuditCard({ owner, repo, slug, compact }: SkillAuditCardPro
     </div>
   );
 
-  if (compact) {
+  if (mode === "icon") {
+    const statusConfig = statusSummary ? STATUS_CONFIG[statusSummary] : null;
+    const Icon = statusConfig?.icon ?? ShieldCheck;
+    const iconColor = statusConfig
+      ? statusConfig.color
+      : "text-muted-foreground";
+    return (
+      <div ref={containerRef} className="relative shrink-0">
+        <button
+          type="button"
+          className={cn(
+            "h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors",
+            "hover:bg-accent hover:text-accent-foreground",
+            iconColor,
+          )}
+          onClick={() => setExpanded(!expanded)}
+          aria-expanded={expanded}
+          title={t("audit.title")}
+        >
+          <Icon className="h-3.5 w-3.5" />
+        </button>
+        {expanded && (
+          <div
+            className="absolute right-0 top-8 z-50 rounded-lg border border-border bg-popover shadow-lg"
+            style={{ width: "min(20rem, calc(100vw - 2.5rem))" }}
+          >
+            {auditBody}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (mode === "compact") {
     return (
       <div className="flex justify-end w-full">
         <div ref={containerRef} className="relative">

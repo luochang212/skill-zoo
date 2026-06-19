@@ -220,6 +220,13 @@
     "openInFileManager": "在文件夹中打开",
     "removeSkill": "删除技能"
   },
+  "skillInfo": {
+    "repository": "仓库",
+    "origin": "安装源",
+    "installed": "安装时间",
+    "updated": "更新时间",
+    "local": "本地"
+  },
   "audit": {
     "title": "安全审计",
     "unavailable": "暂无可用的安全审计结果"

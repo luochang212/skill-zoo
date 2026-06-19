@@ -14,7 +14,6 @@ import { SkillHero } from "@/components/skills/SkillHero";
 import { BackButton } from "@/components/ui/BackButton";
 import { ConfigureDialog } from "@/components/skills/ConfigureDialog";
 import { SkillContentPane, type ContentTab } from "@/components/skills/SkillContentPane";
-import { SkillAuditCard } from "@/components/skills/SkillAuditCard";
 import { skillsApi } from "@/lib/api/skills";
 import { AlertTriangle } from "lucide-react";
 import type { InstalledSkill } from "@/types/skills";
@@ -153,16 +152,6 @@ export function SkillDetail({
           archiveDisabled={archiveDisabled}
           archiveDisabledReason={t("archiveDialog.dirtyHint")}
           updateSuccess={updateSuccess}
-          auditSlot={
-            !readOnly && skill.repoOwner && skill.repoName && skill.directory ? (
-              <SkillAuditCard
-                owner={skill.repoOwner}
-                repo={skill.repoName}
-                slug={skill.directory}
-                compact
-              />
-            ) : undefined
-          }
         />
       ) : (
         <div className="px-5 pt-4 pb-3">
