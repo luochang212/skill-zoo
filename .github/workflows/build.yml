@@ -272,7 +272,7 @@ jobs:
           esac
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: skill-zoo-${{ matrix.target }}
           path: |
@@ -292,13 +292,13 @@ jobs:
           token: ${{ secrets.PAGES_TOKEN }}
 
       - name: Download macOS artifact
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: skill-zoo-universal-apple-darwin
           path: artifacts/macos
 
       - name: Download Windows artifact
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: skill-zoo-x86_64-pc-windows-msvc
           path: artifacts/windows
@@ -394,7 +394,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: Download macOS artifact
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: skill-zoo-universal-apple-darwin
           path: artifacts/macos
