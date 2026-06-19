@@ -11,6 +11,10 @@ Skill Zoo desktop owns the local protocol. The CLI is an adjunct control surface
 
 `~/.skill-zoo/metadata.json` and `~/.skill-zoo/skills-cache.json` support desktop and CLI behavior, but they are not first-class versioned protocol files in this iteration. The cache is derived state and should not drive compatibility policy. `skills-cache.json` entries may include an optional `apps` map containing derived agent availability; readers must tolerate missing `apps` and writers should refresh it from filesystem state when rebuilding the cache.
 
+## Agent Link Semantics
+
+`directory` stores the skill's path relative to its owning skill root and may be nested, for example `.system/openai-docs`. Agent skill directories are flat compatibility surfaces: the link created under `~/<agent>/skills/` uses the final path segment of `directory`, for example `~/.opencode/skills/openai-docs`. Link creation must not overwrite an existing real directory or a symlink/junction that points to a different target. Link removal must only remove a symlink/junction that resolves to the skill's current `homePath`.
+
 ## Compatibility Rules
 
 - Desktop is the source of truth for local protocol shape and semantics.

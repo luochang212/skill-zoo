@@ -100,6 +100,36 @@ describe("archive and restore", () => {
       target: skillDir,
     });
   });
+
+  it("archives nested skills using flat agent link paths", async () => {
+    const home = await makeTempHome();
+    const paths = getPaths(home);
+    const skillDir = path.join(paths.agentsSkillsDir, ".system", "openai-docs");
+    const linkPath = path.join(home, ".opencode", "skills", "openai-docs");
+
+    await writeSkill(skillDir, "name: OpenAI Docs");
+    await createDirLink(skillDir, linkPath);
+
+    const archiveResult = await archiveSkillRefs(home, ["openai-docs"], { dryRun: true });
+
+    expect(archiveResult.failed).toEqual([]);
+    expect(archiveResult.changes).toContainEqual({ action: "remove-link", path: linkPath });
+    expect(archiveResult.changes).not.toContainEqual({
+      action: "remove-link",
+      path: path.join(home, ".opencode", "skills", ".system", "openai-docs"),
+    });
+
+    await archiveSkillRefs(home, ["openai-docs"]);
+    const archiveId = Object.keys((await readArchiveManifest(home)).skills)[0];
+    const restoreResult = await restoreArchiveIds(home, [archiveId!], { dryRun: true });
+
+    expect(restoreResult.failed).toEqual([]);
+    expect(restoreResult.changes).toContainEqual({
+      action: "create-link",
+      path: linkPath,
+      target: skillDir,
+    });
+  });
 });
 
 async function createInstalledSkillFixture() {

@@ -1,7 +1,7 @@
 import path from "node:path";
 import crypto from "node:crypto";
 import { AGENTS } from "./agents.js";
-import { getAgentSkillsDir, getPaths } from "./paths.js";
+import { agentLinkName, getAgentSkillsDir, getPaths } from "./paths.js";
 import {
   assertWritableSchema,
   readArchiveManifest,
@@ -160,8 +160,8 @@ async function planArchive(home: string | undefined, skill: InstalledSkill): Pro
     if (!agentDir) {
       continue;
     }
-    const linkPath = path.join(agentDir, skill.directory);
-    if (await isSymlinkOrJunction(linkPath)) {
+    const linkPath = path.join(agentDir, agentLinkName(skill.directory));
+    if ((await isSymlinkOrJunction(linkPath)) && homePath && (await pathsEqual(linkPath, homePath))) {
       changes.push({ action: "remove-link", path: linkPath });
     }
   }
@@ -200,7 +200,6 @@ async function archiveOne(home: string | undefined, skill: InstalledSkill): Prom
 
     manifest.skills[archiveId] = makeArchivedSkill(skill, archiveId, lockKey, lockEntry);
     await writeArchiveManifest(home, manifest);
-    await movePath(homePath, archiveDir);
 
     for (const [agent, enabled] of Object.entries(skill.apps)) {
       if (!enabled) {
@@ -210,11 +209,13 @@ async function archiveOne(home: string | undefined, skill: InstalledSkill): Prom
       if (!agentDir) {
         continue;
       }
-      const linkPath = path.join(agentDir, skill.directory);
-      if (await removeAgentLink(linkPath)) {
+      const linkPath = path.join(agentDir, agentLinkName(skill.directory));
+      if ((await pathsEqual(linkPath, homePath)) && (await removeAgentLink(linkPath))) {
         removedAgents.push(agent);
       }
     }
+
+    await movePath(homePath, archiveDir);
 
     if (lockKey) {
       delete lock.skills[lockKey];
@@ -258,18 +259,19 @@ async function planRestore(home: string | undefined, archiveId: string): Promise
       continue;
     }
 
-    const linkPath = path.join(agentDir, archived.directory);
+    const linkPath = path.join(agentDir, agentLinkName(archived.directory));
     if (path.resolve(linkPath) === path.resolve(restorePath)) {
       continue;
     }
 
-    if ((await pathExists(linkPath)) && !(await isSymlinkOrJunction(linkPath))) {
+    if (await pathExists(linkPath)) {
       if (await pathsEqual(linkPath, restorePath)) {
         continue;
       }
-      throw new CliError(
-        `Restore agent link failed: destination already exists at ${linkPath} and is a real directory, not a symlink.`,
-      );
+      if (await isSymlinkOrJunction(linkPath)) {
+        throw new CliError(`Restore agent link failed: ${linkPath} already points to a different target.`);
+      }
+      throw new CliError(`Restore agent link failed: destination already exists at ${linkPath} and is a real directory, not a symlink.`);
     }
 
     changes.push({ action: "create-link", path: linkPath, target: restorePath });
@@ -332,10 +334,13 @@ async function restoreOne(home: string | undefined, archiveId: string): Promise<
         continue;
       }
 
-      const linkPath = path.join(agentDir, archived.directory);
-      if ((await pathExists(linkPath)) && !(await isSymlinkOrJunction(linkPath))) {
+      const linkPath = path.join(agentDir, agentLinkName(archived.directory));
+      if (await pathExists(linkPath)) {
         if (await pathsEqual(linkPath, restorePath)) {
           continue;
+        }
+        if (await isSymlinkOrJunction(linkPath)) {
+          throw new CliError(`Restore agent link failed: ${linkPath} already points to a different target.`);
         }
         throw new CliError(
           `Restore agent link failed: destination already exists at ${linkPath} and is a real directory, not a symlink.`,
@@ -414,7 +419,7 @@ async function rollbackArchive(
   for (const agent of removedAgents) {
     const agentDir = getAgentSkillsDir(home, agent);
     if (agentDir) {
-      await createAgentLink(path.join(agentDir, skill.directory), homePath).catch(() => undefined);
+      await createAgentLink(path.join(agentDir, agentLinkName(skill.directory)), homePath).catch(() => undefined);
     }
   }
 
@@ -432,7 +437,7 @@ async function rollbackRestore(
   for (const agent of restoredAgents) {
     const agentDir = getAgentSkillsDir(home, agent);
     if (agentDir) {
-      await removePath(path.join(agentDir, archived.directory)).catch(() => undefined);
+      await removePath(path.join(agentDir, agentLinkName(archived.directory))).catch(() => undefined);
     }
   }
 

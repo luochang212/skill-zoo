@@ -162,9 +162,55 @@ fn symlink_target_matches(link_path: &std::path::Path, expected_target: &std::pa
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LinkTargetState {
+    Matches,
+    Different,
+    Unknown,
+}
+
+fn symlink_target_state(
+    link_path: &std::path::Path,
+    expected_target: &std::path::Path,
+) -> LinkTargetState {
+    match std::fs::read_link(link_path) {
+        Ok(target) => {
+            let resolved = if target.is_relative() {
+                link_path
+                    .parent()
+                    .unwrap_or(std::path::Path::new("."))
+                    .join(&target)
+            } else {
+                target
+            };
+            if canonical_paths_eq(&resolved, expected_target) {
+                LinkTargetState::Matches
+            } else if resolved.exists() || expected_target.exists() {
+                LinkTargetState::Different
+            } else {
+                LinkTargetState::Unknown
+            }
+        }
+        Err(_) => {
+            if canonical_paths_eq(link_path, expected_target) {
+                LinkTargetState::Matches
+            } else {
+                LinkTargetState::Unknown
+            }
+        }
+    }
+}
+
 pub struct SkillService;
 
 impl SkillService {
+    pub(crate) fn agent_link_name(skill_dir: &str) -> &str {
+        std::path::Path::new(skill_dir)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or(skill_dir)
+    }
+
     fn duplicates_have_verified_matching_content(entries: &[SkillCacheEntry]) -> bool {
         let Some(first_hash) = entries
             .first()
@@ -200,7 +246,7 @@ impl SkillService {
                     }
                 }
                 // Otherwise, only count if there's a symlink pointing to homePath
-                let symlink_path = agent_dir.join(skill_dir);
+                let symlink_path = agent_dir.join(Self::agent_link_name(skill_dir));
                 if is_symlink_or_junction(&symlink_path) {
                     let matched = home.is_some_and(|h| symlink_target_matches(&symlink_path, h));
                     enabled.insert(agent.id.to_string(), matched);
@@ -1211,7 +1257,7 @@ impl SkillService {
                     continue;
                 }
                 if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
-                    let symlink_path = agent_dir.join(&skill.directory);
+                    let symlink_path = agent_dir.join(Self::agent_link_name(&skill.directory));
                     let exists = symlink_path.exists();
                     let is_valid = if exists {
                         symlink_target_matches(&symlink_path, &target_path)
@@ -1259,6 +1305,36 @@ impl SkillService {
         }
     }
 
+    fn create_link_to_target(
+        target_path: &std::path::Path,
+        symlink_path: &std::path::Path,
+    ) -> Result<(), AppError> {
+        let parent = symlink_path.parent().ok_or_else(|| {
+            AppError::BadRequest(format!(
+                "Cannot create link without a parent directory: {}",
+                symlink_path.display()
+            ))
+        })?;
+        std::fs::create_dir_all(parent).map_err(|e| error::io(parent, e))?;
+
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(target_path, symlink_path)
+            .map_err(|e| error::io(symlink_path, e))?;
+        #[cfg(windows)]
+        {
+            if target_path.is_dir() {
+                // Junction points do not require admin privileges or Developer Mode.
+                junction::create(target_path, symlink_path)
+                    .map_err(|e| error::io(symlink_path, e))?;
+            } else {
+                std::os::windows::fs::symlink_file(target_path, symlink_path)
+                    .map_err(|e| error::io(symlink_path, e))?;
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn toggle_symlink(
         skill_dir: &str,
         home_path: &str,
@@ -1268,7 +1344,7 @@ impl SkillService {
         let target_path = std::path::PathBuf::from(home_path);
         let agent_skills_dir = config::get_agent_skills_dir(agent)
             .ok_or_else(|| AppError::NotFound(format!("Unknown agent: {agent}")))?;
-        let symlink_path = agent_skills_dir.join(skill_dir);
+        let symlink_path = agent_skills_dir.join(Self::agent_link_name(skill_dir));
 
         if enabled {
             if !target_path.exists() {
@@ -1277,34 +1353,38 @@ impl SkillService {
                     target_path.display()
                 )));
             }
-            if symlink_path.exists() && !is_symlink_or_junction(&symlink_path) {
-                return Ok(());
+            if is_symlink_or_junction(&symlink_path) {
+                match symlink_target_state(&symlink_path, &target_path) {
+                    LinkTargetState::Matches => return Ok(()),
+                    LinkTargetState::Different | LinkTargetState::Unknown => {
+                        return Err(AppError::BadRequest(format!(
+                            "Cannot create link: {} already points to a different or unknown target.",
+                            symlink_path.display()
+                        )));
+                    }
+                }
+            } else if symlink_path.exists() {
+                if canonical_paths_eq(&symlink_path, &target_path) {
+                    return Ok(());
+                }
+                return Err(AppError::BadRequest(format!(
+                    "Cannot create link: {} already exists and is not a symlink.",
+                    symlink_path.display()
+                )));
             }
             Self::safe_remove(&symlink_path)?;
-            std::fs::create_dir_all(&agent_skills_dir)
-                .map_err(|e| error::io(&agent_skills_dir, e))?;
-            #[cfg(unix)]
-            std::os::unix::fs::symlink(&target_path, &symlink_path)
-                .map_err(|e| error::io(&symlink_path, e))?;
-            #[cfg(windows)]
-            {
-                if target_path.is_dir() {
-                    // Junction points do not require admin privileges or Developer Mode.
-                    junction::create(&target_path, &symlink_path)
-                        .map_err(|e| error::io(&symlink_path, e))?;
-                } else {
-                    std::os::windows::fs::symlink_file(&target_path, &symlink_path)
-                        .map_err(|e| error::io(&symlink_path, e))?;
-                }
-            }
+            Self::create_link_to_target(&target_path, &symlink_path)?;
         } else {
-            if symlink_path.exists() && !is_symlink_or_junction(&symlink_path) {
+            if is_symlink_or_junction(&symlink_path) {
+                if symlink_target_state(&symlink_path, &target_path) == LinkTargetState::Matches {
+                    Self::safe_remove(&symlink_path)?;
+                }
+            } else if symlink_path.exists() {
                 return Err(AppError::BadRequest(format!(
                     "Cannot remove: {} is a real directory, not a symlink.",
                     symlink_path.display()
                 )));
             }
-            Self::safe_remove(&symlink_path)?;
         }
         Ok(())
     }
@@ -1320,19 +1400,22 @@ impl SkillService {
     pub fn remove_skill_dir(skill_name: &str, home_path: &str) -> Result<(), AppError> {
         let home = std::path::Path::new(home_path);
 
-        // Delete the entity directory
-        if home.exists() && !is_symlink_or_junction(home) {
-            std::fs::remove_dir_all(home).map_err(|e| crate::error::io(home, e))?;
-        }
-
-        // Clean up symlinks in all agent directories
+        // Clean up symlinks while the entity directory still exists, so target
+        // matching can canonicalize the link target reliably.
         for agent in config::AGENTS {
             if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
-                let symlink_path = agent_dir.join(skill_name);
-                if is_symlink_or_junction(&symlink_path) {
+                let symlink_path = agent_dir.join(Self::agent_link_name(skill_name));
+                if is_symlink_or_junction(&symlink_path)
+                    && symlink_target_state(&symlink_path, home) == LinkTargetState::Matches
+                {
                     let _ = Self::safe_remove(&symlink_path);
                 }
             }
+        }
+
+        // Delete the entity directory
+        if home.exists() && !is_symlink_or_junction(home) {
+            std::fs::remove_dir_all(home).map_err(|e| crate::error::io(home, e))?;
         }
 
         Ok(())
@@ -1716,5 +1799,86 @@ impl SkillService {
             (false, true) => std::cmp::Ordering::Greater,
             _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn agent_link_name_uses_directory_leaf() {
+        assert_eq!(
+            SkillService::agent_link_name(".system/openai-docs"),
+            "openai-docs"
+        );
+        assert_eq!(SkillService::agent_link_name("openai-docs"), "openai-docs");
+    }
+
+    #[test]
+    fn create_link_to_target_uses_flat_agent_link_name_for_nested_skill() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let target_path = dir
+            .path()
+            .join("openai")
+            .join("skills")
+            .join(".system")
+            .join("openai-docs");
+        std::fs::create_dir_all(&target_path).expect("create target");
+
+        let symlink_path = dir
+            .path()
+            .join(".opencode")
+            .join("skills")
+            .join(SkillService::agent_link_name(".system/openai-docs"));
+
+        SkillService::create_link_to_target(&target_path, &symlink_path).expect("create link");
+
+        assert!(symlink_path.parent().expect("parent").is_dir());
+        assert_eq!(
+            symlink_path.file_name().and_then(|name| name.to_str()),
+            Some("openai-docs")
+        );
+        assert!(!dir
+            .path()
+            .join(".opencode")
+            .join("skills")
+            .join(".system")
+            .exists());
+        assert!(is_symlink_or_junction(&symlink_path));
+        assert!(symlink_target_matches(&symlink_path, &target_path));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn symlink_target_state_treats_dangling_link_as_unknown() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let link_path = dir.path().join("imagegen");
+        let missing_target = dir.path().join("missing-target");
+        let expected_target = dir.path().join("expected-target");
+
+        std::os::unix::fs::symlink(&missing_target, &link_path).expect("create dangling symlink");
+
+        assert_eq!(
+            symlink_target_state(&link_path, &expected_target),
+            LinkTargetState::Unknown
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn toggle_symlink_does_not_remove_dangling_unknown_link() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let link_path = dir.path().join("imagegen");
+        let missing_target = dir.path().join("missing-target");
+        let expected_target = dir.path().join("expected-target");
+
+        std::os::unix::fs::symlink(&missing_target, &link_path).expect("create dangling symlink");
+
+        if symlink_target_state(&link_path, &expected_target) == LinkTargetState::Matches {
+            SkillService::safe_remove(&link_path).expect("remove link");
+        }
+
+        assert!(is_symlink_or_junction(&link_path));
     }
 }

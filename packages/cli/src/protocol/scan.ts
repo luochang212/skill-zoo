@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import YAML from "yaml";
 import { AGENTS, SKIP_DIRS } from "./agents.js";
-import { getAgentSkillsDir, getPaths } from "./paths.js";
+import { agentLinkName, getAgentSkillsDir, getPaths } from "./paths.js";
 import { readLock, readMetadata, writeCache } from "./store.js";
 import type {
   InstalledSkill,
@@ -374,7 +374,7 @@ async function detectAgents(
       continue;
     }
 
-    const linkPath = path.join(agentDir, directory);
+    const linkPath = path.join(agentDir, agentLinkName(directory));
     if (homePath && (await isSymlinkOrJunction(linkPath))) {
       apps[agent.id] = await pathsEqual(linkPath, homePath);
     } else {

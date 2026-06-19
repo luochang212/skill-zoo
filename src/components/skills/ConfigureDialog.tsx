@@ -77,9 +77,9 @@ export function ConfigureDialog({
           <div className="space-y-1 -mx-2">
             {visibleAgentOrder.map((agent) => {
               const link = symlinkMap.get(agent);
-              const isEnabled = link?.exists ?? false;
               const isPending = pendingAgent === agent;
               const isHomeAgent = homeAgent === agent;
+              const isEnabled = isHomeAgent || (link?.isValid ?? false);
 
               return (
                 <div

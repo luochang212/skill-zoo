@@ -64,4 +64,22 @@ describe("scanInstalledSkills", () => {
     expect(cache.skills[0].apps?.codex).toBe(true);
     expect(cache.skills[0].apps?.["claude-code"]).toBe(false);
   });
+
+  it("detects flat agent links for nested skill directories", async () => {
+    const home = await makeTempHome();
+    const paths = getPaths(home);
+    const skillDir = path.join(paths.agentsSkillsDir, ".system", "openai-docs");
+    await writeSkill(skillDir, "name: OpenAI Docs");
+    await createDirLink(skillDir, path.join(home, ".opencode", "skills", "openai-docs"));
+
+    const skills = await scanInstalledSkills(home);
+
+    expect(skills).toHaveLength(1);
+    expect(skills[0]).toMatchObject({
+      name: "openai-docs",
+      directory: path.join(".system", "openai-docs"),
+      origin: "ssot",
+    });
+    expect(skills[0].apps.opencode).toBe(true);
+  });
 });

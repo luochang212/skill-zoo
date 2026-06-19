@@ -637,15 +637,6 @@ fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String>
         }
     }
 
-    if let Err(e) = std::fs::rename(&home, &archive_dir) {
-        let _ = old_manifest.save();
-        return Err(format_archive_io_error(
-            "Move skill into archive",
-            &archive_dir,
-            &e,
-        ));
-    }
-
     let mut removed_agents: Vec<String> = Vec::new();
     let rollback = |message: String, removed_agents: &[String]| -> String {
         if archive_dir.exists() && !home.exists() {
@@ -683,6 +674,13 @@ fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String>
                 ))
             }
         }
+    }
+
+    if let Err(e) = std::fs::rename(&home, &archive_dir) {
+        return Err(rollback(
+            format_archive_io_error("Move skill into archive", &archive_dir, &e),
+            &removed_agents,
+        ));
     }
 
     {
@@ -906,7 +904,8 @@ fn restore_archived_skill_inner(state: &AppState, archive_id: String) -> Result<
         if !agent_dir.exists() {
             continue;
         }
-        let agent_skill_path = agent_dir.join(&archived_skill.directory);
+        let agent_skill_path =
+            agent_dir.join(SkillService::agent_link_name(&archived_skill.directory));
         if agent_skill_path.exists() && !is_symlink_or_junction(&agent_skill_path) {
             let is_native_home = agent_skill_path == restore_path
                 || agent_skill_path

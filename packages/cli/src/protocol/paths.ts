@@ -57,6 +57,10 @@ export function getAgentSkillsDir(homeInput: string | undefined, agentId: string
   return path.join(resolveHome(homeInput), agent.skillsSubdir, "skills");
 }
 
+export function agentLinkName(directory: string): string {
+  return directory.split(/[\\/]/).filter(Boolean).at(-1) ?? directory;
+}
+
 export function getAllAgentPaths(homeInput?: string): AgentPathInfo[] {
   const paths = getPaths(homeInput);
   return [
