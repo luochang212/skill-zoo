@@ -587,7 +587,7 @@ export const SkillContentPane = memo(function SkillContentPane({
             >
               <textarea
                 ref={editRef}
-                value={editableContent}
+                value={effectiveActiveTab === "overview" ? "" : editableContent}
                 onChange={(e) => handleChange(e.target.value)}
                 onScroll={onEditScroll}
                 readOnly={readOnly || isImageActive}

@@ -65,6 +65,27 @@ describe("SkillDetail", () => {
     expect(onBack).toHaveBeenCalledOnce();
   });
 
+  it("does not copy overview content into the hidden editor", async () => {
+    const content = "# Large skill content";
+
+    renderWithQueryClient(
+      <SkillDetail
+        skill={skill}
+        skillName="Skill 1"
+        contentLoading={false}
+        content={content}
+        onChange={() => {}}
+      />,
+    );
+
+    const editor = screen.getByRole("textbox", { name: "Edit" });
+    expect(editor).toHaveValue("");
+
+    await userEvent.click(screen.getByText("Edit", { selector: "span" }));
+
+    expect(editor).toHaveValue(content);
+  });
+
   it("shows update success only after the update resolves successfully", async () => {
     let resolveUpdate!: () => void;
     const onUpdate = vi.fn(
