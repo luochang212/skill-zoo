@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -89,10 +89,10 @@ export function SkillDetail({
     };
   }, []);
 
-  const handleTabChange = (tab: ContentTab) => {
+  const handleTabChange = useCallback((tab: ContentTab) => {
     setActiveTab(tab);
     onTabChange?.(tab);
-  };
+  }, [onTabChange]);
 
   const handleUpdate = async () => {
     if (!onUpdate) return;

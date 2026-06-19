@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, memo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { MarkdownContent } from "@/components/skills/MarkdownContent";
@@ -136,7 +136,7 @@ function applyScrollRatio(el: HTMLElement, ratio: number) {
   el.scrollTop = ratio * (el.scrollHeight - el.clientHeight);
 }
 
-export function SkillContentPane({
+export const SkillContentPane = memo(function SkillContentPane({
   content,
   onChange,
   activeTab,
@@ -675,4 +675,4 @@ export function SkillContentPane({
       </div>
     </div>
   );
-}
+});

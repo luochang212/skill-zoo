@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, memo } from "react";
 import yaml from "js-yaml";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -198,7 +198,7 @@ interface MarkdownContentProps {
   repoBranch?: string | null;
 }
 
-export function MarkdownContent({
+export const MarkdownContent = memo(function MarkdownContent({
   content,
   repoOwner,
   repoName,
@@ -247,4 +247,4 @@ export function MarkdownContent({
       </ReactMarkdown>
     </div>
   );
-}
+});
