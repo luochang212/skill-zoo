@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.4] — 2026-06-19
+
+### Changed
+- GitHub Actions artifact workflows upgraded to the Node.js 24-compatible v6 actions.
+
+### Fixed
+- Large skill detail pages no longer freeze the UI by copying full content into the hidden editor while in overview mode.
+- Markdown previews avoid redundant rendering while unrelated detail state changes.
+- Dark mode prose body text now matches the foreground color for better readability.
+
 ## [0.3.3] — 2026-06-19
 
 ### Added

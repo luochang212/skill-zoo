@@ -89,10 +89,13 @@ export function SkillDetail({
     };
   }, []);
 
-  const handleTabChange = useCallback((tab: ContentTab) => {
-    setActiveTab(tab);
-    onTabChange?.(tab);
-  }, [onTabChange]);
+  const handleTabChange = useCallback(
+    (tab: ContentTab) => {
+      setActiveTab(tab);
+      onTabChange?.(tab);
+    },
+    [onTabChange],
+  );
 
   const handleUpdate = async () => {
     if (!onUpdate) return;
