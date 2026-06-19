@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.3] — 2026-06-19
+
+### Added
+- Skill info popover — hover `…` button in detail header to see repository, source, install/update dates.
+
+### Changed
+- Detail page header collapsed from three rows to two — agent tags moved to title row, security audit icon moved into action button group.
+- Security audit supports icon-only display mode with color-coded aggregate status.
+- Repository link replaced with inline info popover for cleaner header layout.
+
+### Fixed
+- Archive and lock files refuse to write format versions above the supported ceiling.
+- Filesystem-derived queries refresh correctly after cache rescan.
+- Agent skill link semantics aligned between UI and backend.
+
 ## [0.3.2] — 2026-06-12
 
 ### Changed
