@@ -34,6 +34,8 @@ interface SkillContentPaneProps {
   savePending?: boolean;
   dirty?: boolean;
   readOnly?: boolean;
+  /** Hide the file-tree sidebar entirely (used by the create page, which only produces SKILL.md). */
+  hideFileTree?: boolean;
 }
 
 const SPLIT_MIN = 20;
@@ -151,6 +153,7 @@ export const SkillContentPane = memo(function SkillContentPane({
   savePending,
   dirty,
   readOnly = false,
+  hideFileTree = false,
 }: SkillContentPaneProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -164,7 +167,7 @@ export const SkillContentPane = memo(function SkillContentPane({
   const syncSourceRef = useRef<{ source: "edit" | "preview"; time: number } | null>(null);
 
   // ── Sidebar + file selection state ──
-  const [sidebarOpen, setSidebarOpen] = useState(!readOnly);
+  const [sidebarOpen, setSidebarOpen] = useState(!readOnly && !hideFileTree);
   const [sidebarWidth, setSidebarWidth] = useState(208); // px, matches w-52
   const [sidebarDragging, setSidebarDragging] = useState(false);
   const sidebarRowRef = useRef<HTMLDivElement>(null);
@@ -193,8 +196,8 @@ export const SkillContentPane = memo(function SkillContentPane({
     setSelectedFilePath(null);
     setLoadingDirPaths(new Set());
     setErrorDirPaths(new Set());
-    setSidebarOpen(!readOnly);
-  }, [directory, readOnly]);
+    setSidebarOpen(!readOnly && !hideFileTree);
+  }, [directory, readOnly, hideFileTree]);
 
   // ── Seed root nodes and auto-select SKILL.md ──
   useEffect(() => {
@@ -205,9 +208,9 @@ export const SkillContentPane = memo(function SkillContentPane({
         const skillMd = findSkillMd(rootNodes);
         return skillMd?.path ?? null;
       });
-      setSidebarOpen(hasExtraLoadedFile(rootNodes));
+      setSidebarOpen(!hideFileTree && hasExtraLoadedFile(rootNodes));
     }
-  }, [rootNodes]);
+  }, [rootNodes, hideFileTree]);
 
   // ── Auto-select SKILL.md if it arrives via a loaded child directory ──
   useEffect(() => {
@@ -409,7 +412,7 @@ export const SkillContentPane = memo(function SkillContentPane({
         role="tablist"
       >
         {/* Sidebar toggle */}
-        {!readOnly && (
+        {!readOnly && !hideFileTree && (
           <button
             onClick={() => setSidebarOpen((v) => !v)}
             title={sidebarOpen ? t("skillFiles.hideSidebar") : t("skillFiles.showSidebar")}

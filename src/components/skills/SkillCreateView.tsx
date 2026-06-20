@@ -108,6 +108,7 @@ export function SkillCreateView({ onClose, onCreated }: SkillCreateViewProps) {
         onTabChange={setActiveTab}
         emptyHint={t("createSkill.emptyHint")}
         previewContent={fullContent}
+        hideFileTree
       />
     </div>
   );
