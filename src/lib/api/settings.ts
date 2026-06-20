@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { VisibleAgents } from "@/types/skills";
+import type { AgentPreferences, VisibleAgents } from "@/types/skills";
 
 export const settingsApi = {
   getSettings: () => invoke<Record<string, string>>("get_settings"),
@@ -8,6 +8,9 @@ export const settingsApi = {
 
   getVisibleAgents: () => invoke<VisibleAgents>("get_visible_agents"),
 
-  updateVisibleAgents: (visibleAgents: VisibleAgents) =>
-    invoke<void>("update_visible_agents", { visibleAgents }),
+  updateAgentPreferences: (preferences: AgentPreferences) =>
+    invoke<AgentPreferences>("update_agent_preferences", {
+      visibleAgents: preferences.visibleAgents,
+      agentOrder: preferences.agentOrder,
+    }),
 };

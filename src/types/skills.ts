@@ -76,6 +76,11 @@ export interface VisibleAgents {
   [agentId: string]: boolean;
 }
 
+export interface AgentPreferences {
+  visibleAgents: VisibleAgents;
+  agentOrder: string[];
+}
+
 export interface DiscoverRepo {
   owner: string;
   name: string;

@@ -2,7 +2,12 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createQueryWrapper } from "@/test/utils";
-import { mergeAgentOrder, parseAgentOrder, useVisibleAgentOrder } from "./useSettings";
+import {
+  mergeAgentOrder,
+  normalizeAgentOrder,
+  parseAgentOrder,
+  useVisibleAgentOrder,
+} from "./useSettings";
 
 vi.mock("@tauri-apps/api/core");
 
@@ -32,6 +37,16 @@ describe("agent order settings", () => {
         ["claude-code", "codex", "cursor"],
       ),
     ).toEqual(["codex", "claude-code", "cursor"]);
+  });
+
+  it("normalizes visible agents before hidden agents", () => {
+    expect(
+      normalizeAgentOrder(
+        ["codex", "cursor", "claude-code"],
+        ["claude-code", "codex", "cursor", "gemini"],
+        { "claude-code": true, codex: false, cursor: true, gemini: false },
+      ),
+    ).toEqual(["cursor", "claude-code", "codex", "gemini"]);
   });
 
   it("uses saved order before applying visible-agent filtering", async () => {

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { settingsApi } from "@/lib/api/settings";
 import { useAgentConfigs } from "@/lib/agents";
-import type { VisibleAgents } from "@/types/skills";
+import type { AgentPreferences, VisibleAgents } from "@/types/skills";
 
 const VISIBLE_AGENTS_KEY = ["settings", "visibleAgents"] as const;
 const HIDE_NON_SSOT_KEY = ["settings", "hideNonSsot"] as const;
@@ -13,17 +13,6 @@ export function useVisibleAgents() {
     queryKey: VISIBLE_AGENTS_KEY,
     queryFn: () => settingsApi.getVisibleAgents(),
     staleTime: 0,
-  });
-}
-
-export function useUpdateVisibleAgents() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (visibleAgents: VisibleAgents) => settingsApi.updateVisibleAgents(visibleAgents),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: VISIBLE_AGENTS_KEY });
-      qc.invalidateQueries({ queryKey: ["skills", "symlinks"] });
-    },
   });
 }
 
@@ -81,13 +70,44 @@ export function useAgentOrder() {
   });
 }
 
-export function useUpdateAgentOrder() {
+export function normalizeAgentOrder(
+  agentOrder: string[],
+  knownAgents: string[],
+  visibleAgents: VisibleAgents,
+): string[] {
+  const merged = mergeAgentOrder(agentOrder, knownAgents);
+  const visible = merged.filter((agent) => visibleAgents[agent] !== false);
+  const hidden = merged.filter((agent) => visibleAgents[agent] === false);
+  return [...visible, ...hidden];
+}
+
+export function useUpdateAgentPreferences() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (agentOrder: string[]) =>
-      settingsApi.updateSetting(AGENT_ORDER_SETTING, JSON.stringify(agentOrder)),
-    onSuccess: () => {
+    mutationFn: (preferences: AgentPreferences) => settingsApi.updateAgentPreferences(preferences),
+    onMutate: async (preferences) => {
+      await Promise.all([
+        qc.cancelQueries({ queryKey: VISIBLE_AGENTS_KEY }),
+        qc.cancelQueries({ queryKey: AGENT_ORDER_KEY }),
+      ]);
+      const previousVisibleAgents = qc.getQueryData<VisibleAgents>(VISIBLE_AGENTS_KEY);
+      const previousAgentOrder = qc.getQueryData<string[]>(AGENT_ORDER_KEY);
+      qc.setQueryData(VISIBLE_AGENTS_KEY, preferences.visibleAgents);
+      qc.setQueryData(AGENT_ORDER_KEY, preferences.agentOrder);
+      return { previousVisibleAgents, previousAgentOrder };
+    },
+    onSuccess: (preferences) => {
+      qc.setQueryData(VISIBLE_AGENTS_KEY, preferences.visibleAgents);
+      qc.setQueryData(AGENT_ORDER_KEY, preferences.agentOrder);
+    },
+    onError: (_error, _preferences, context) => {
+      qc.setQueryData(VISIBLE_AGENTS_KEY, context?.previousVisibleAgents);
+      qc.setQueryData(AGENT_ORDER_KEY, context?.previousAgentOrder);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: VISIBLE_AGENTS_KEY });
       qc.invalidateQueries({ queryKey: AGENT_ORDER_KEY });
+      qc.invalidateQueries({ queryKey: ["skills", "symlinks"] });
     },
   });
 }
