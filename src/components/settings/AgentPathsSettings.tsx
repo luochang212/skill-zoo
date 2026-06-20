@@ -14,7 +14,6 @@ import { skillsApi } from "@/lib/api/skills";
 import type { AgentPathInfo } from "@/types/skills";
 
 const EMPTY_AGENT_ORDER: string[] = [];
-const SUMMARY_LIMIT = 5;
 
 function PathDetails({ info }: { info: AgentPathInfo }) {
   const { t } = useTranslation();
@@ -35,11 +34,7 @@ function PathRow({ info, storage = false }: { info: AgentPathInfo; storage?: boo
   const { t } = useTranslation();
   const Icon = storage ? FolderSymlink : FolderOpen;
   return (
-    <div
-      className={
-        storage ? "flex items-center gap-3 px-4 py-3" : "flex items-center gap-3 px-4 py-2.5"
-      }
-    >
+    <div className="flex items-center gap-3 p-4">
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-background ring-1 ring-border">
         <Icon className={storage ? "h-4 w-4 text-primary" : "h-4 w-4 text-muted-foreground"} />
       </div>
@@ -83,8 +78,6 @@ export function AgentPathsSettings() {
     .filter((agent) => visibleAgents[agent] !== false)
     .map((agent) => pathById.get(agent))
     .filter((info): info is AgentPathInfo => Boolean(info));
-  const summaryInfos = visibleInfos.slice(0, SUMMARY_LIMIT);
-  const remainingCount = Math.max(0, visibleInfos.length - SUMMARY_LIMIT);
 
   return (
     <section className="space-y-3">
@@ -94,23 +87,20 @@ export function AgentPathsSettings() {
       </div>
       <p className="text-xs text-muted-foreground">{t("settings.agentPaths.summaryDescription")}</p>
 
-      {ssotPath && (
-        <div className="overflow-hidden rounded-xl border border-border bg-primary/5">
-          <PathRow info={ssotPath} storage />
-        </div>
-      )}
-
       <div className="overflow-hidden rounded-xl border border-border bg-card/50">
-        {summaryInfos.map((info, index) => (
-          <div key={info.agent} className={index > 0 ? "border-t border-border/40" : undefined}>
+        {ssotPath && (
+          <div className="bg-primary/5">
+            <PathRow info={ssotPath} storage />
+          </div>
+        )}
+        {visibleInfos.map((info, index) => (
+          <div
+            key={info.agent}
+            className={index > 0 || ssotPath ? "border-t border-border/40" : undefined}
+          >
             <PathRow info={info} />
           </div>
         ))}
-        {remainingCount > 0 && (
-          <p className="border-t border-border/40 px-4 py-2 text-center text-[11px] text-muted-foreground">
-            {t("settings.agentPaths.remaining", { count: remainingCount })}
-          </p>
-        )}
         <div className="border-t border-border/40 p-2">
           <Button
             ref={managerTriggerRef}

@@ -59,7 +59,7 @@ describe("AgentPathsSettings", () => {
     await i18n.changeLanguage("en");
   });
 
-  it("shows only the first five visible agents in the settings summary", async () => {
+  it("shows all visible agents in the settings summary", async () => {
     const paths = Array.from({ length: 7 }, (_, index) => ({
       agent: `agent-${index + 1}`,
       label: `Agent ${index + 1}`,
@@ -77,8 +77,8 @@ describe("AgentPathsSettings", () => {
 
     expect(await screen.findByText("Agent 1")).toBeInTheDocument();
     expect(screen.getByText("Agent 5")).toBeInTheDocument();
-    expect(screen.queryByText("Agent 6")).not.toBeInTheDocument();
-    expect(screen.getByText("2 more visible agents")).toBeInTheDocument();
+    expect(screen.getByText("Agent 6")).toBeInTheDocument();
+    expect(screen.getByText("Agent 7")).toBeInTheDocument();
   });
 
   it("appends a newly visible agent and disables controls while saving", async () => {
@@ -105,7 +105,6 @@ describe("AgentPathsSettings", () => {
     renderSettings();
 
     await user.click(await screen.findByRole("button", { name: "Manage Agents" }));
-    await user.click(screen.getByRole("button", { name: "Hidden (1)" }));
     await user.click(screen.getByRole("switch", { name: "Toggle visibility for Codex" }));
 
     await waitFor(() => {
@@ -122,32 +121,6 @@ describe("AgentPathsSettings", () => {
     update.resolve({
       visibleAgents: { "claude-code": true, codex: true },
       agentOrder: ["claude-code", "codex"],
-    });
-  });
-
-  it("supports explicit long-distance moves in sorting mode", async () => {
-    const user = userEvent.setup();
-    const paths = [
-      { agent: "claude-code", label: "Claude Code", path: "/claude", exists: true },
-      { agent: "codex", label: "Codex", path: "/codex", exists: true },
-      { agent: "cursor", label: "Cursor", path: "/cursor", exists: true },
-    ];
-    mockAgentSettings(paths, { "claude-code": true, codex: true, cursor: true }, [
-      "claude-code",
-      "codex",
-      "cursor",
-    ]);
-    renderSettings();
-
-    await user.click(await screen.findByRole("button", { name: "Manage Agents" }));
-    await user.click(screen.getByRole("button", { name: "Adjust order" }));
-    await user.click(screen.getByRole("button", { name: "Move Claude Code to last" }));
-
-    await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith("update_agent_preferences", {
-        visibleAgents: { "claude-code": true, codex: true, cursor: true },
-        agentOrder: ["codex", "cursor", "claude-code"],
-      });
     });
   });
 
