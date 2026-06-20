@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.5] — 2026-06-21
+
+### Added
+- WorkBuddy and Qoder CN agent support (default hidden).
+
+### Changed
+- Agent manager dialog unified into single drag-to-reorder view with inline visibility toggles.
+- Visible agents capped at 7, enforced in both frontend and backend.
+- Skill create page: file-tree sidebar hidden, agent selection removed.
+
+### Fixed
+- Skill cache app metadata now refreshed after symlink mutations, keeping agent availability in sync.
+
 ## [0.3.4] — 2026-06-19
 
 ### Changed
