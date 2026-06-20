@@ -72,10 +72,20 @@ pub const AGENTS: &[AgentConfig] = &[
         label: "OpenClaw",
         skills_subdir: ".openclaw",
     },
+    AgentConfig {
+        id: "workbuddy",
+        label: "WorkBuddy",
+        skills_subdir: ".workbuddy",
+    },
+    AgentConfig {
+        id: "qoder-cn",
+        label: "Qoder CN",
+        skills_subdir: ".qoder-cn",
+    },
 ];
 
 pub fn default_visibility(agent_id: &str) -> bool {
-    !matches!(agent_id, "trae" | "trae-cn" | "gemini" | "opencode")
+    !matches!(agent_id, "trae" | "trae-cn" | "gemini" | "opencode" | "workbuddy" | "qoder-cn")
 }
 
 #[derive(Debug, Clone, Serialize)]
