@@ -1,35 +1,12 @@
 import { useState, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { BackButton } from "@/components/ui/BackButton";
 import { SkillContentPane, type ContentTab } from "@/components/skills/SkillContentPane";
 import { useCreateSkill } from "@/hooks/useSkills";
-import { useAgentConfigs } from "@/lib/agents";
 
-const STORAGE_KEY = "skill-create-last-agents";
 const SKILL_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/;
-
-function loadLastAgents(): Set<string> {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      return new Set(JSON.parse(stored) as string[]);
-    }
-  } catch {
-    /* ignore */
-  }
-  return new Set(["claude-code"]);
-}
-
-function saveLastAgents(agents: Set<string>) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(agents)));
-  } catch {
-    /* ignore */
-  }
-}
 
 interface SkillCreateViewProps {
   onClose: () => void;
@@ -41,25 +18,12 @@ export function SkillCreateView({ onClose, onCreated }: SkillCreateViewProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [content, setContent] = useState("");
-  const [agents, setAgents] = useState<Set<string>>(loadLastAgents);
   const [activeTab, setActiveTab] = useState<ContentTab>("split");
   const createMutation = useCreateSkill();
 
-  const { data: agentConfigs } = useAgentConfigs();
-
-  const toggleAgent = (agent: string) => {
-    setAgents((prev) => {
-      const next = new Set(prev);
-      if (next.has(agent)) next.delete(agent);
-      else next.add(agent);
-      return next;
-    });
-  };
-
   const trimmedName = name.trim();
   const nameValid = SKILL_NAME_RE.test(trimmedName);
-  const canCreate =
-    trimmedName.length > 0 && nameValid && agents.size > 0 && !createMutation.isPending;
+  const canCreate = trimmedName.length > 0 && nameValid && !createMutation.isPending;
 
   const fullContent = useMemo(() => {
     const hasMeta = name.trim() || description.trim();
@@ -77,17 +41,16 @@ export function SkillCreateView({ onClose, onCreated }: SkillCreateViewProps) {
   }, [name, description, content]);
 
   const handleCreate = useCallback(() => {
-    if (!name.trim() || agents.size === 0 || createMutation.isPending) return;
+    if (!name.trim() || createMutation.isPending) return;
     createMutation.mutate(
-      { name: name.trim(), content: fullContent, agents: Array.from(agents) },
+      { name: name.trim(), content: fullContent, agents: [] },
       {
         onSuccess: (skill) => {
-          saveLastAgents(agents);
           onCreated(skill.id, skill.directory, skill.name);
         },
       },
     );
-  }, [name, description, fullContent, agents, createMutation, onCreated]);
+  }, [name, fullContent, createMutation, onCreated]);
 
   return (
     <div className="flex flex-col h-full">
@@ -134,22 +97,6 @@ export function SkillCreateView({ onClose, onCreated }: SkillCreateViewProps) {
               placeholder={t("createSkill.descriptionPlaceholder")}
               className="h-8 text-xs"
             />
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-muted-foreground w-16 shrink-0">
-              {t("installDialog.agents")}
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {agentConfigs?.map((agent) => (
-                <label key={agent.id} className="flex items-center gap-1.5 text-xs cursor-pointer">
-                  <Checkbox
-                    checked={agents.has(agent.id)}
-                    onCheckedChange={() => toggleAgent(agent.id)}
-                  />
-                  {agent.label}
-                </label>
-              ))}
-            </div>
           </div>
         </div>
       </div>
