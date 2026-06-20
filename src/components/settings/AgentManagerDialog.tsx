@@ -17,6 +17,8 @@ import { skillsApi } from "@/lib/api/skills";
 import { normalizeAgentOrder, useUpdateAgentPreferences } from "@/hooks/useSettings";
 import type { AgentPathInfo, VisibleAgents } from "@/types/skills";
 
+const MAX_VISIBLE_AGENTS = 7;
+
 function AgentPathDetails({ info }: { info: AgentPathInfo }) {
   const { t } = useTranslation();
   return (
@@ -214,6 +216,10 @@ export function AgentManagerDialog({
       toast.warning(t("settings.agentPaths.minOneWarning"));
       return;
     }
+    if (!isVisible && visibleOrder.length >= MAX_VISIBLE_AGENTS) {
+      toast.warning(t("settings.agentPaths.maxVisibleWarning"));
+      return;
+    }
 
     const nextVisible = { ...visibleAgents, [agent]: !isVisible };
     const withoutAgent = draftOrder.filter((id) => id !== agent);
@@ -263,7 +269,7 @@ export function AgentManagerDialog({
           event.preventDefault();
           returnFocusRef.current?.focus();
         }}
-        className="flex h-[min(720px,calc(100vh-6rem))] w-[calc(100vw-2rem)] max-w-[760px] flex-col gap-0 overflow-hidden p-0 sm:rounded-xl"
+        className="flex h-[min(720px,calc(100vh-6rem))] w-[calc(100vw-2rem)] max-w-[600px] flex-col gap-0 overflow-hidden p-0 sm:rounded-xl"
         data-selectable
       >
         <DialogHeader className="shrink-0 border-b border-border/50 px-5 py-4 text-left">

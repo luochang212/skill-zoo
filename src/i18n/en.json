@@ -298,6 +298,7 @@
       "notFound": "Not found",
       "hiddenHint": "Hidden agents won't appear in skill configuration or receive symlinked skills.",
       "minOneWarning": "At least one agent must remain visible.",
+      "maxVisibleWarning": "At most 7 agents can be visible.",
       "visible": "Visible",
       "hidden": "Hidden",
       "reorder": "Reorder {{agent}}",

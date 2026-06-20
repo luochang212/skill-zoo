@@ -195,6 +195,8 @@ fn set_agent_preference_values(
     Ok(())
 }
 
+const MAX_VISIBLE_AGENTS: usize = 7;
+
 #[tauri::command]
 pub fn update_agent_preferences(
     state: State<'_, AppState>,
@@ -203,6 +205,15 @@ pub fn update_agent_preferences(
 ) -> Result<AgentPreferences, String> {
     if !has_visible_agent(&visible_agents) {
         return Err("At least one agent must remain visible".to_string());
+    }
+
+    let visible_count = visible_agents.values().filter(|v| **v).count();
+    if visible_count > MAX_VISIBLE_AGENTS {
+        return Err(format!(
+            "At most {} agents can be visible ({} visible now)",
+            MAX_VISIBLE_AGENTS,
+            visible_count,
+        ));
     }
 
     let normalized_order = normalize_agent_order(&visible_agents, &agent_order);

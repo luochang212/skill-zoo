@@ -298,6 +298,7 @@
       "notFound": "未创建",
       "hiddenHint": "隐藏的 Agent 不会在技能配置中显示，也不会创建符号链接。",
       "minOneWarning": "至少需要保留一个可见的 Agent。",
+      "maxVisibleWarning": "最多可开启 7 个 Agent。",
       "visible": "可见",
       "hidden": "隐藏",
       "reorder": "调整 {{agent}} 顺序",
