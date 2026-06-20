@@ -211,8 +211,7 @@ pub fn update_agent_preferences(
     if visible_count > MAX_VISIBLE_AGENTS {
         return Err(format!(
             "At most {} agents can be visible ({} visible now)",
-            MAX_VISIBLE_AGENTS,
-            visible_count,
+            MAX_VISIBLE_AGENTS, visible_count,
         ));
     }
 
