@@ -890,13 +890,6 @@ fn restore_archived_skill_inner(state: &AppState, archive_id: String) -> Result<
         }
     }
 
-    let entry = SkillService::scan_single_skill(&archived_skill.directory)
-        .map_err(|e| rollback(e.to_string(), &restored_agents))?;
-    let restored_id = entry.id.clone();
-    if let Err(e) = SkillService::upsert_cache_entry(&state.skill_cache, entry) {
-        return Err(rollback(e.to_string(), &restored_agents));
-    }
-
     for (agent, enabled) in &archived_skill.apps {
         if !enabled {
             continue;
@@ -941,6 +934,14 @@ fn restore_archived_skill_inner(state: &AppState, archive_id: String) -> Result<
                 ))
             }
         }
+    }
+
+    // Scan after symlinks are created so detect_agents finds the restored links.
+    let entry = SkillService::scan_single_skill(&archived_skill.directory)
+        .map_err(|e| rollback(e.to_string(), &restored_agents))?;
+    let restored_id = entry.id.clone();
+    if let Err(e) = SkillService::upsert_cache_entry(&state.skill_cache, entry) {
+        return Err(rollback(e.to_string(), &restored_agents));
     }
 
     let mut manifest = old_manifest.clone();
@@ -1052,7 +1053,20 @@ pub fn toggle_symlink(
     validate_skill_directory(&skill.directory)?;
 
     SkillService::toggle_symlink(&skill.directory, home_path, &agent, enabled)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    // Update the in-memory cache so the frontend sees the new agent status
+    // immediately without a full cache rebuild.
+    let new_apps = SkillService::detect_agents(&skill.directory, &skill.home_path);
+    if let Ok(mut cache) = state.skill_cache.write() {
+        if let Some(mut entry) = cache.find_by_id(&skill_id).cloned() {
+            entry.apps = new_apps;
+            cache.upsert(entry);
+            let _ = cache.save();
+        }
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
