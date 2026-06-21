@@ -1,4 +1,7 @@
+import { useCallback, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { settingsApi } from "@/lib/api/settings";
 import { useAgentConfigs } from "@/lib/agents";
 import type { AgentPreferences, VisibleAgents } from "@/types/skills";
@@ -133,4 +136,64 @@ export function useVisibleAgentOrder(): string[] {
   const { data: agentOrder } = useAgentOrder();
   const knownAgents = agentConfigs?.map((a) => a.id) ?? [];
   return filterVisibleAgents(mergeAgentOrder(agentOrder ?? [], knownAgents), visibleAgents);
+}
+
+/**
+ * Shared agent-preference actions for the settings page list and the manager
+ * dialog. Both surfaces drag to reorder visible agents; centralising "how to
+ * commit a new order" here (merge hidden → normalize → mutate) keeps that
+ * error-prone sequence in one place so the two UIs can't drift. `save` covers
+ * the dialog's visibility-toggle path, which changes `visibleAgents`, not order.
+ *
+ * Callers supply the data they already hold (props or own queries); the hook
+ * only owns the commit logic, so it never becomes a second source of truth.
+ */
+export function useAgentPreferences({
+  visibleAgents,
+  agentOrder,
+  knownAgents,
+}: {
+  visibleAgents: VisibleAgents;
+  agentOrder: string[];
+  knownAgents: string[];
+}) {
+  const { t } = useTranslation();
+  const updatePreferences = useUpdateAgentPreferences();
+  const mergedOrder = useMemo(
+    () => mergeAgentOrder(agentOrder, knownAgents),
+    [agentOrder, knownAgents],
+  );
+  const hiddenOrder = useMemo(
+    () => mergedOrder.filter((agent) => visibleAgents[agent] === false),
+    [mergedOrder, visibleAgents],
+  );
+
+  const save = useCallback(
+    (nextVisibleAgents: VisibleAgents, nextAgentOrder: string[]) => {
+      updatePreferences.mutate(
+        { visibleAgents: nextVisibleAgents, agentOrder: nextAgentOrder },
+        { onError: () => toast.error(t("settings.agentPaths.saveFailed")) },
+      );
+    },
+    [updatePreferences, t],
+  );
+
+  const commitOrder = useCallback(
+    (newVisibleOrder: string[]) => {
+      const fullOrder = normalizeAgentOrder(
+        [...newVisibleOrder, ...hiddenOrder],
+        knownAgents,
+        visibleAgents,
+      );
+      save(visibleAgents, fullOrder);
+    },
+    [save, hiddenOrder, knownAgents, visibleAgents],
+  );
+
+  return {
+    save,
+    commitOrder,
+    isPending: updatePreferences.isPending,
+    hiddenOrder,
+  };
 }

@@ -14,7 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { skillsApi } from "@/lib/api/skills";
-import { normalizeAgentOrder, useUpdateAgentPreferences } from "@/hooks/useSettings";
+import { normalizeAgentOrder, useAgentPreferences } from "@/hooks/useSettings";
 import type { AgentPathInfo, VisibleAgents } from "@/types/skills";
 
 const MAX_VISIBLE_AGENTS = 7;
@@ -135,13 +135,13 @@ export function AgentManagerDialog({
   const listRef = useRef<HTMLDivElement>(null);
   const scrollDirectionRef = useRef(0);
   const scrollFrameRef = useRef<number | null>(null);
-  const updatePreferences = useUpdateAgentPreferences();
   const agentPaths = useMemo(() => paths.filter((info) => info.agent !== "ssot"), [paths]);
   const pathById = useMemo(
     () => new Map(agentPaths.map((info) => [info.agent, info])),
     [agentPaths],
   );
   const knownAgents = useMemo(() => agentPaths.map((info) => info.agent), [agentPaths]);
+  const updatePreferences = useAgentPreferences({ visibleAgents, agentOrder, knownAgents });
   const normalizedOrder = useMemo(
     () => normalizeAgentOrder(agentOrder, knownAgents, visibleAgents),
     [agentOrder, knownAgents, visibleAgents],
@@ -200,10 +200,7 @@ export function AgentManagerDialog({
   };
 
   const savePreferences = (nextVisible: VisibleAgents, nextOrder: string[]) => {
-    updatePreferences.mutate(
-      { visibleAgents: nextVisible, agentOrder: nextOrder },
-      { onError: () => toast.error(t("settings.agentPaths.saveFailed")) },
-    );
+    updatePreferences.save(nextVisible, nextOrder);
   };
 
   const visibleOrder = draftOrder.filter((agent) => visibleAgents[agent] !== false);
@@ -231,11 +228,6 @@ export function AgentManagerDialog({
     }
     const nextOrder = normalizeAgentOrder(withoutAgent, knownAgents, nextVisible);
     savePreferences(nextVisible, nextOrder);
-  };
-
-  const commitOrder = (nextOrder: string[]) => {
-    if (updatePreferences.isPending) return;
-    savePreferences(visibleAgents, nextOrder);
   };
 
   const normalizedQuery = query.trim().toLocaleLowerCase();
@@ -378,7 +370,11 @@ export function AgentManagerDialog({
                                 draftOrderRef.current = dragStartOrderRef.current;
                                 return;
                               }
-                              commitOrder(draftOrderRef.current);
+                              if (updatePreferences.isPending) return;
+                              const visibleNow = draftOrderRef.current.filter(
+                                (id) => visibleAgents[id] !== false,
+                              );
+                              updatePreferences.commitOrder(visibleNow);
                             }}
                           />
                         );
