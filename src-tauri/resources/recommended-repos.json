@@ -12,10 +12,10 @@
     "description": "A collection of skills for AgentBay"
   },
   {
-    "owner": "NousResearch",
-    "name": "hermes-agent",
+    "owner": "addyosmani",
+    "name": "agent-skills",
     "branch": "main",
-    "description": "The agent that grows with you"
+    "description": "Production-grade engineering skills for AI coding agents"
   },
   {
     "owner": "Leonxlnx",
@@ -30,16 +30,16 @@
     "description": "Browser automation CLI for AI agents"
   },
   {
-    "owner": "alchaincyf",
-    "name": "nuwa-skill",
+    "owner": "alirezarezvani",
+    "name": "claude-skills",
     "branch": "main",
-    "description": "Distill anyone's thinking style — mental models, decision heuristics, and communication DNA"
+    "description": "337 Claude Code skills — engineering, marketing, product, compliance, research, and daily productivity"
   },
   {
-    "owner": "google-gemini",
-    "name": "gemini-cli",
+    "owner": "multica-ai",
+    "name": "andrej-karpathy-skills",
     "branch": "main",
-    "description": "An open-source AI agent that brings the power of Gemini directly into your terminal."
+    "description": "A CLAUDE.md file to improve Claude Code behavior, derived from Andrej Karpathy's observations on LLM coding pitfalls"
   },
   {
     "owner": "mattpocock",

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.7] — 2026-06-22
+
+### Changed
+- User-facing "Agent" renamed to "Coding Agent" (中文: "编程工具") across UI, README, and landing page.
+- AgentPaths settings section icon changed from amber to indigo.
+- Development guide moved from README to `docs/development.md`.
+- Removed unused `home-page.webp`.
+- CLI package released v0.3.0.
+- Discovery page: replaced large repos (hermes-agent, gemini-cli, nuwa-skill) with addyosmani/agent-skills, multica-ai/andrej-karpathy-skills, and alirezarezvani/claude-skills.
+
 ## [0.3.6] — 2026-06-21
 
 ### Added
