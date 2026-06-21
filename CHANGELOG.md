@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.6] — 2026-06-21
+
+### Added
+- Drag-to-reorder agents in settings page.
+
+### Changed
+- Manager dialog closes with standard X button for consistency.
+- Manage-agents button made more discoverable.
+- Agent row spacing unified in manager dialog.
+
 ## [0.3.5] — 2026-06-21
 
 ### Added
