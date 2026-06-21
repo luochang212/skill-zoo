@@ -104,7 +104,7 @@ describe("AgentPathsSettings", () => {
     });
     renderSettings();
 
-    await user.click(await screen.findByRole("button", { name: "Manage Agents" }));
+    await user.click(await screen.findByRole("button", { name: "Manage Coding Agents" }));
     await user.click(screen.getByRole("switch", { name: "Toggle visibility for Codex" }));
 
     await waitFor(() => {
@@ -133,7 +133,7 @@ describe("AgentPathsSettings", () => {
     mockAgentSettings(paths, { "claude-code": true, codex: false }, ["claude-code", "codex"]);
     renderSettings();
 
-    await user.click(await screen.findByRole("button", { name: "Manage Agents" }));
+    await user.click(await screen.findByRole("button", { name: "Manage Coding Agents" }));
 
     expect(
       screen.getByRole("switch", { name: "Toggle visibility for Claude Code" }),
@@ -146,7 +146,7 @@ describe("AgentPathsSettings", () => {
     mockAgentSettings(paths, { "claude-code": true }, ["claude-code"]);
     renderSettings();
 
-    const trigger = await screen.findByRole("button", { name: "Manage Agents" });
+    const trigger = await screen.findByRole("button", { name: "Manage Coding Agents" });
     await user.click(trigger);
     const dialog = screen.getByRole("dialog");
     const overlay = dialog.previousElementSibling;

@@ -94,7 +94,7 @@
     "timeDayAgo": "{{count}} 天前",
     "origin": {
       "userManaged": "用户管理的技能",
-      "cannotConfigure": "此技能的代理链接由用户自行管理"
+      "cannotConfigure": "此技能的编程工具链接由用户自行管理"
     }
   },
   "skillFiles": {
@@ -122,7 +122,7 @@
   "installDialog": {
     "title": "安装技能",
     "from": "来自",
-    "agents": "代理",
+    "agents": "编程工具",
     "skills": "技能",
     "selectAll": "全选",
     "installCount": "安装 ({{count}})"
@@ -141,9 +141,9 @@
     "generic": "操作无法完成，请重试。"
   },
   "configureDialog": {
-    "title": "代理配置",
-    "description": "管理哪些代理可以访问",
-    "loading": "正在加载代理状态...",
+    "title": "编程工具配置",
+    "description": "管理哪些编程工具可以访问",
+    "loading": "正在加载编程工具状态...",
     "linked": "已链接",
     "broken": "已损坏",
     "missing": "未链接"
@@ -151,14 +151,14 @@
   "removeDialog": {
     "title": "删除技能",
     "description": "确定要删除",
-    "warning": "Agent 关联和本地文件将同步移除。",
+    "warning": "编程工具关联和本地文件将同步移除。",
     "batchDescription": "确认删除以下 {{count}} 个技能？",
     "batchPartialFailed": "{{count}} 个技能删除失败。"
   },
   "archiveDialog": {
     "title": "归档技能",
     "description": "归档",
-    "warning": "它会从活跃技能和 Agent 关联中移除，但可从归档栏恢复。",
+    "warning": "它会从活跃技能和编程工具关联中移除，但可从归档栏恢复。",
     "dirtyHint": "请先保存或放弃更改，再归档此技能。",
     "restoreTitle": "恢复技能",
     "batchTitle": "归档技能",
@@ -168,7 +168,7 @@
   "restoreDialog": {
     "batchTitle": "恢复技能",
     "batchDescription": "确认恢复以下 {{count}} 个技能？",
-    "warning": "技能将恢复到原来的目录，并尽量恢复之前的 Agent 关联。",
+    "warning": "技能将恢复到原来的目录，并尽量恢复之前的编程工具关联。",
     "batchPartialFailed": "{{count}} 个技能恢复失败。"
   },
   "symlink": {
@@ -194,7 +194,7 @@
     "mergeStepsLabel": "操作步骤：",
     "mergeStep1": "将内容复制到 SSOT 目录",
     "mergeStep2": "删除原始目录",
-    "mergeStep3": "为受影响的代理创建符号链接",
+    "mergeStep3": "为受影响的编程工具创建符号链接",
     "deleteDirsLabel": "将被替换为符号链接的目录：",
     "mergeCannotUndo": "此操作不可撤销。",
     "mergeConfirmBtn": "确认合并",
@@ -216,7 +216,7 @@
     "updating": "更新中...",
     "updateFromGit": "从 Git 更新",
     "noRepo": "未关联 Git 仓库",
-    "configureAgents": "配置代理",
+    "configureAgents": "配置编程工具",
     "openInFileManager": "在文件夹中打开",
     "removeSkill": "删除技能"
   },
@@ -279,7 +279,7 @@
       "rescanning": "扫描中…",
       "rescanBtn": "重新扫描",
       "hideNonSsot": "隐藏非 SSOT 技能",
-      "hideNonSsotDesc": "仅显示 Skill Zoo 管理的技能，隐藏用户放在代理目录中的技能",
+      "hideNonSsotDesc": "仅显示 Skill Zoo 管理的技能，隐藏用户放在编程工具目录中的技能",
       "installedCount": "当前已安装 {{count}} 个技能",
       "clearCache": "清除下载缓存",
       "clearCacheDesc": "删除已缓存的仓库归档文件以释放磁盘空间",
@@ -289,38 +289,38 @@
       "openCacheDir": "缓存目录"
     },
     "agentPaths": {
-      "title": "Agent 设置",
-      "description": "管理 Agent 可见性和技能目录路径",
-      "summaryDescription": "查看已显示的 Agent，并管理它们的显示顺序",
+      "title": "编程工具设置",
+      "description": "管理编程工具可见性和技能目录路径",
+      "summaryDescription": "查看已显示的编程工具，并管理它们的显示顺序",
       "open": "打开",
       "openAgent": "打开 {{agent}} 技能目录",
       "created": "已创建",
       "notFound": "未创建",
-      "hiddenHint": "隐藏的 Agent 不会在技能配置中显示，也不会创建符号链接。",
-      "minOneWarning": "至少需要保留一个可见的 Agent。",
-      "maxVisibleWarning": "最多可开启 7 个 Agent。",
+      "hiddenHint": "隐藏的编程工具不会在技能配置中显示，也不会创建符号链接。",
+      "minOneWarning": "至少需要保留一个可见的编程工具。",
+      "maxVisibleWarning": "最多可开启 7 个编程工具。",
       "visible": "可见",
       "hidden": "隐藏",
       "reorder": "调整 {{agent}} 顺序",
-      "remaining": "还有 {{count}} 个已显示 Agent",
-      "manage": "管理 Agent",
-      "manageTitle": "管理 Agent",
-      "manageDescription": "选择要显示的 Agent，并调整它们的显示顺序。",
-      "searchPlaceholder": "搜索 Agent",
+      "remaining": "还有 {{count}} 个已显示编程工具",
+      "manage": "管理编程工具",
+      "manageTitle": "管理编程工具",
+      "manageDescription": "选择要显示的编程工具，并调整它们的显示顺序。",
+      "searchPlaceholder": "搜索编程工具",
       "visibleCount": "已显示 {{visible}} / {{total}}",
       "visibleGroup": "已显示（{{count}}）",
       "hiddenGroup": "已隐藏（{{count}}）",
       "toggleVisibility": "切换 {{agent}} 可见性",
       "sort": "调整顺序",
-      "sortTitle": "调整 Agent 顺序",
-      "sortDescription": "拖拽 Agent 或使用移动按钮，修改会自动保存。",
+      "sortTitle": "调整编程工具顺序",
+      "sortDescription": "拖拽编程工具或使用移动按钮，修改会自动保存。",
       "moveFirst": "将 {{agent}} 移到最前",
       "moveUp": "将 {{agent}} 上移",
       "moveDown": "将 {{agent}} 下移",
       "moveLast": "将 {{agent}} 移到最后",
       "finishSorting": "完成排序",
-      "noResults": "没有匹配的 Agent",
-      "saveFailed": "Agent 设置保存失败"
+      "noResults": "没有匹配的编程工具",
+      "saveFailed": "编程工具设置保存失败"
     },
     "about": {
       "title": "关于",

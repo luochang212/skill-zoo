@@ -19,7 +19,7 @@
 
 AI 编程工具越来越多 — Claude Code、Cursor、Codex、Gemini。每个工具把技能存在不同目录。没有 Skill Zoo 之前，管理技能意味着：
 
-- 在多个 Agent 目录之间手动复制文件
+- 在多个编程工具目录之间手动复制文件
 - 无法发现社区中有哪些技能
 - 看不到哪些技能安装到了哪里
 - 同一技能的多个副本各自修改，逐渐产生差异
@@ -86,7 +86,7 @@ brew install --cask skill-zoo
 
 ## 🙌 CLI
 
-当你希望从 Agent、终端或自动化脚本中管理 Skill Zoo 时，可以安装 npm CLI：
+当你希望从编程工具、终端或自动化脚本中管理 Skill Zoo 时，可以安装 npm CLI：
 
 ```bash
 npm i -g skill-zoo

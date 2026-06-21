@@ -2115,7 +2115,7 @@
           </div>
           <div>
             <div class="stat-num">9</div>
-            <div class="stat-label" data-i18n="stat-agents">Agent 类型支持</div>
+            <div class="stat-label" data-i18n="stat-agents">编程工具类型支持</div>
           </div>
           <div>
             <div class="stat-num">0</div>
@@ -2722,7 +2722,7 @@
             <h3 data-i18n="feat-create">Skill 创建</h3>
             <p data-i18n="feat-create-d">
               从零创建新 Skill，分屏实时预览编辑效果。自动写入 SSOT 目录并为选中
-              Agent 创建符号链接。
+              编程工具创建符号链接。
             </p>
           </div>
           <div class="card dark-card">
@@ -2747,7 +2747,7 @@
             </div>
             <h3 data-i18n="feat-settings">全局设置</h3>
             <p data-i18n="feat-settings-d">
-              主题切换、语言运行时切换、Agent 路径可见性管理，以及 Skill
+              主题切换、语言运行时切换、编程工具路径可见性管理，以及 Skill
               批量更新与重新扫描，所有配置集中管理。
             </p>
           </div>
@@ -2789,7 +2789,7 @@
             <div>
               <h3 data-i18n="d2-title">SSOT + 符号链接架构</h3>
               <p data-i18n="d2-desc">
-                <code>~/.agents/skills/</code> 为规范存储。Agent
+                <code>~/.agents/skills/</code> 为规范存储。编程工具
                 目录仅含符号链接，永不存放副本。远程安装复制至 SSOT
                 后链接；用户本地 Skill 保留原位不动，防止副本漂移。
               </p>
@@ -3152,7 +3152,7 @@
           zh: "平台语言 (TS + Rust)",
           en: "Languages (TS + Rust)",
         },
-        "stat-agents": { zh: "Agent 类型支持", en: "Agent Types" },
+        "stat-agents": { zh: "编程工具类型支持", en: "Coding Agent Types" },
         "stat-shell": { zh: "外部 shell 依赖", en: "External Shell Deps" },
         // Features
         "feat-eyebrow": { zh: "功能", en: "Features" },
@@ -3183,13 +3183,13 @@
         },
         "feat-create": { zh: "Skill 创建", en: "Skill Creation" },
         "feat-create-d": {
-          zh: "从零创建新 Skill，分屏实时预览编辑效果。自动写入 SSOT 目录并为选中 Agent 创建符号链接。",
-          en: "Create new skills from scratch with live split-pane preview. Auto-writes to SSOT directory and creates symlinks for selected agents.",
+          zh: "从零创建新 Skill，分屏实时预览编辑效果。自动写入 SSOT 目录并为选中编程工具创建符号链接。",
+          en: "Create new skills from scratch with live split-pane preview. Auto-writes to SSOT directory and creates symlinks for selected coding agents.",
         },
         "feat-settings": { zh: "全局设置", en: "Global Settings" },
         "feat-settings-d": {
-          zh: "主题切换、语言运行时切换、Agent 路径可见性管理，以及 Skill 批量更新与重新扫描，所有配置集中管理。",
-          en: "Theme, language runtime, agent path visibility, batch skill updates and rescan — all settings in one place.",
+          zh: "主题切换、语言运行时切换、编程工具路径可见性管理，以及 Skill 批量更新与重新扫描，所有配置集中管理。",
+          en: "Theme, language runtime, coding agent path visibility, batch skill updates and rescan — all settings in one place.",
         },
         // Design Philosophy
         "design-eyebrow": { zh: "设计哲学", en: "Design Philosophy" },
@@ -3211,8 +3211,8 @@
           en: "SSOT + Symlink Architecture",
         },
         "d2-desc": {
-          zh: "~/.agents/skills/ 为规范存储。Agent 目录仅含符号链接，永不存放副本。远程安装复制至 SSOT 后链接；用户本地 Skill 保留原位不动，防止副本漂移。",
-          en: "~/.agents/skills/ is the canonical store. Agent directories contain only symlinks, never copies. Remote installs copy to SSOT then link; local skills stay in place, preventing copy drift.",
+          zh: "~/.agents/skills/ 为规范存储。编程工具目录仅含符号链接，永不存放副本。远程安装复制至 SSOT 后链接；用户本地 Skill 保留原位不动，防止副本漂移。",
+          en: "~/.agents/skills/ is the canonical store. Coding agent directories contain only symlinks, never copies. Remote installs copy to SSOT then link; local skills stay in place, preventing copy drift.",
         },
         "d3-title": {
           zh: "Tauri IPC 是唯一桥梁",

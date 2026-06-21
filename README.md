@@ -19,7 +19,7 @@ Local Agent Skills Manager — Discover, install, and manage skills for AI codin
 
 AI coding tools are multiplying — Claude Code, Cursor, Codex, Gemini. Each stores skills in a different directory. Before Skill Zoo, managing skills meant:
 
-- Manually copying files between agent directories
+- Manually copying files between coding tool directories
 - No way to discover what skills exist in the community
 - No visibility into which skills are installed where
 - Divergent copies of the same skill silently drifting out of sync
@@ -86,7 +86,7 @@ Download the portable `.zip` from [Releases](https://github.com/luochang212/skil
 
 ## 🙌 CLI
 
-When you want to manage Skill Zoo from an agent, terminal, or automation, install the npm CLI:
+When you want to manage Skill Zoo from a coding agent, terminal, or automation, install the npm CLI:
 
 ```bash
 npm i -g skill-zoo

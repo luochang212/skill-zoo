@@ -94,7 +94,7 @@
     "timeDayAgo": "{{count}}d ago",
     "origin": {
       "userManaged": "User-managed skill",
-      "cannotConfigure": "Agent links are managed by the user for this skill"
+      "cannotConfigure": "Coding agent links are managed by the user for this skill"
     }
   },
   "skillFiles": {
@@ -122,7 +122,7 @@
   "installDialog": {
     "title": "Install Skills",
     "from": "From",
-    "agents": "Agents",
+    "agents": "Coding Agents",
     "skills": "Skills",
     "selectAll": "Select all",
     "installCount": "Install ({{count}})"
@@ -141,9 +141,9 @@
     "generic": "Could not complete the operation. Please try again."
   },
   "configureDialog": {
-    "title": "Agent Configuration",
-    "description": "Manage which agents have access to",
-    "loading": "Loading agent status...",
+    "title": "Coding Agent Configuration",
+    "description": "Manage which coding agents have access to",
+    "loading": "Loading coding agent status...",
     "linked": "linked",
     "broken": "broken",
     "missing": "missing"
@@ -151,14 +151,14 @@
   "removeDialog": {
     "title": "Remove Skill",
     "description": "Are you sure you want to remove",
-    "warning": "Agent links and local files will also be removed.",
+    "warning": "Coding agent links and local files will also be removed.",
     "batchDescription": "Confirm remove {{count}} skills?",
     "batchPartialFailed": "{{count}} skill(s) could not be removed."
   },
   "archiveDialog": {
     "title": "Archive Skill",
     "description": "Archive",
-    "warning": "It will be removed from active skills and agent links, but can be restored from Archive.",
+    "warning": "It will be removed from active skills and coding agent links, but can be restored from Archive.",
     "dirtyHint": "Save or discard changes before archiving this skill.",
     "restoreTitle": "Restore Skill",
     "batchTitle": "Archive Skills",
@@ -168,7 +168,7 @@
   "restoreDialog": {
     "batchTitle": "Restore Skills",
     "batchDescription": "Confirm restore {{count}} skills?",
-    "warning": "Skills will be restored to their original directories and previous agent links when possible.",
+    "warning": "Skills will be restored to their original directories and previous coding agent links when possible.",
     "batchPartialFailed": "{{count}} skill(s) could not be restored."
   },
   "symlink": {
@@ -194,7 +194,7 @@
     "mergeStepsLabel": "What will happen:",
     "mergeStep1": "Content will be copied to the SSOT directory",
     "mergeStep2": "Original directories will be deleted",
-    "mergeStep3": "Symlinks will be created for affected agents",
+    "mergeStep3": "Symlinks will be created for affected coding agents",
     "deleteDirsLabel": "Directories to be replaced with symlinks:",
     "mergeCannotUndo": "This action cannot be undone.",
     "mergeConfirmBtn": "Confirm Merge",
@@ -216,7 +216,7 @@
     "updating": "Updating...",
     "updateFromGit": "Update from git",
     "noRepo": "No git repo linked",
-    "configureAgents": "Configure agents",
+    "configureAgents": "Configure coding agents",
     "openInFileManager": "Open in Finder",
     "removeSkill": "Remove skill"
   },
@@ -279,7 +279,7 @@
       "rescanning": "Scanning…",
       "rescanBtn": "Rescan",
       "hideNonSsot": "Hide non-SSOT skills",
-      "hideNonSsotDesc": "Only show skills managed by Skill Zoo, hide user-placed skills in agent directories",
+      "hideNonSsotDesc": "Only show skills managed by Skill Zoo, hide user-placed skills in coding agent directories",
       "installedCount": "{{count}} skill(s) currently installed",
       "clearCache": "Clear Download Cache",
       "clearCacheDesc": "Remove cached repository archives to free up disk space",
@@ -289,38 +289,38 @@
       "openCacheDir": "Cache folder"
     },
     "agentPaths": {
-      "title": "Agent Settings",
-      "description": "Manage agent visibility and skill directory paths",
-      "summaryDescription": "Review visible agents and manage their display order",
+      "title": "Coding Agent Settings",
+      "description": "Manage coding agent visibility and skill directory paths",
+      "summaryDescription": "Review visible coding agents and manage their display order",
       "open": "Open",
       "openAgent": "Open {{agent}} skills folder",
       "created": "Created",
       "notFound": "Not found",
-      "hiddenHint": "Hidden agents won't appear in skill configuration or receive symlinked skills.",
-      "minOneWarning": "At least one agent must remain visible.",
-      "maxVisibleWarning": "At most 7 agents can be visible.",
+      "hiddenHint": "Hidden coding agents won't appear in skill configuration or receive symlinked skills.",
+      "minOneWarning": "At least one coding agent must remain visible.",
+      "maxVisibleWarning": "At most 7 coding agents can be visible.",
       "visible": "Visible",
       "hidden": "Hidden",
       "reorder": "Reorder {{agent}}",
-      "remaining": "{{count}} more visible agents",
-      "manage": "Manage Agents",
-      "manageTitle": "Manage Agents",
-      "manageDescription": "Choose which agents are visible and control their display order.",
-      "searchPlaceholder": "Search agents",
+      "remaining": "{{count}} more visible coding agents",
+      "manage": "Manage Coding Agents",
+      "manageTitle": "Manage Coding Agents",
+      "manageDescription": "Choose which coding agents are visible and control their display order.",
+      "searchPlaceholder": "Search coding agents",
       "visibleCount": "{{visible}} / {{total}} visible",
       "visibleGroup": "Visible ({{count}})",
       "hiddenGroup": "Hidden ({{count}})",
       "toggleVisibility": "Toggle visibility for {{agent}}",
       "sort": "Adjust order",
-      "sortTitle": "Adjust Agent order",
-      "sortDescription": "Drag agents or use the move buttons. Changes save automatically.",
+      "sortTitle": "Adjust Coding Agent order",
+      "sortDescription": "Drag coding agents or use the move buttons. Changes save automatically.",
       "moveFirst": "Move {{agent}} to first",
       "moveUp": "Move {{agent}} up",
       "moveDown": "Move {{agent}} down",
       "moveLast": "Move {{agent}} to last",
       "finishSorting": "Finish sorting",
-      "noResults": "No matching agents",
-      "saveFailed": "Could not save Agent settings"
+      "noResults": "No matching coding agents",
+      "saveFailed": "Could not save Coding Agent settings"
     },
     "about": {
       "title": "About",
