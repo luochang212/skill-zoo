@@ -99,78 +99,6 @@ skill-zoo wui            # 启动本地 Web 管理界面
 
 参考：[Skill Zoo CLI](https://www.npmjs.com/package/skill-zoo)
 
-## 📁 项目结构
-
-```
-skill-zoo/
-├── src/                    # React 前端
-│   ├── components/
-│   │   ├── skills/         # 技能浏览、详情、安装、创建
-│   │   ├── settings/       # 主题、语言、维护、关于
-│   │   ├── layout/         # 顶部导航
-│   │   └── ui/             # shadcn/ui 基础组件
-│   ├── hooks/              # React Query Hooks & 缓存失效
-│   ├── i18n/               # 多语言（英文、中文）
-│   ├── lib/                # Tauri API 客户端、Agent 配置、平台工具
-│   └── types/              # TypeScript 类型定义
-├── src-tauri/              # Tauri + Rust 后端
-│   ├── src/
-│   │   ├── commands/       # Tauri IPC 命令处理
-│   │   ├── services/       # 技能操作、CLI 管理、锁文件
-│   │   ├── persistence/    # 元数据和设置持久化
-│   │   ├── config.rs       # Agent 配置与路径检测
-│   │   ├── store.rs        # 应用状态
-│   │   └── error.rs        # 错误类型
-│   ├── resources/          # 轮播图、推荐仓库
-│   ├── Cargo.toml
-│   └── tauri.conf.json
-├── packages/
-│   └── cli/                # npm CLI 和轻量本地 Web UI
-│       ├── src/            # CLI 命令、本地协议、WUI 服务
-│       ├── tests/          # CLI 和协议测试
-│       └── wui/            # skill-zoo wui 提供的浏览器资源
-├── docs/                   # 截图和本地协议文档
-├── fixtures/               # 桌面应用拥有的本地协议 fixtures
-├── skills/                 # 项目自动化 Skills
-├── package.json
-└── vite.config.ts
-```
-
-## 🔧 开发
-
-前置条件：[Bun](https://bun.sh/)、[Rust](https://www.rust-lang.org/tools/install) 和 [Tauri 环境](https://v2.tauri.app/start/prerequisites/)。
-
-```bash
-# 安装依赖
-bun install
-
-# 开发模式运行
-bun run tauri dev
-
-# 类型检查
-bun run typecheck
-
-# 代码检查 & 格式化
-bun run lint
-bun run format
-
-# 运行测试
-bun run test
-bun run cli:test
-
-# Rust（后端）
-bun run lint:rs
-bun run format:rs:check
-bun run test:rs
-
-# CLI
-bun run cli:typecheck
-bun run cli:build
-
-# 生产构建
-bun run tauri build
-```
-
 ## 😇 信任与安全
 
 - **代码可见** — 全部源码开源，构建过程由 GitHub Actions 自动完成，任何人都可以审计
@@ -178,6 +106,8 @@ bun run tauri build
 - **操作经你确认** — 所有涉及真实文件的操作（删除、移动、覆盖）都会弹出确认，由你拍板
 
 ## 💡 贡献代码
+
+开发者参考 [docs/development.md](docs/development.md)。
 
 发现 bug 或有新功能想法？欢迎提交 [Issue](https://github.com/luochang212/skill-zoo/issues)，也欢迎直接发 Pull Request。
 
