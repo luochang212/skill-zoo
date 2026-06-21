@@ -22,7 +22,7 @@ const MAX_VISIBLE_AGENTS = 7;
 function AgentPathDetails({ info }: { info: AgentPathInfo }) {
   const { t } = useTranslation();
   return (
-    <div className="min-w-0 space-y-1" data-selectable>
+    <div className="min-w-0 space-y-1.5" data-selectable>
       <div className="flex items-center gap-2">
         <p className="truncate text-sm font-medium leading-none">{info.label}</p>
         <span className="shrink-0 text-[10px] leading-none text-muted-foreground/60">
@@ -82,7 +82,7 @@ function SortableAgentRow({
       onDragStart={onDragStart}
       onDrag={onDrag}
       onDragEnd={onDragEnd}
-      className="flex min-h-12 list-none items-center gap-2 border-b border-border/40 bg-background px-3 last:border-b-0"
+      className="flex min-h-14 list-none items-center gap-3 border-b border-border/40 bg-background px-4 py-2.5 last:border-b-0"
     >
       <button
         type="button"
@@ -272,7 +272,7 @@ export function AgentManagerDialog({
         className="flex h-[min(720px,calc(100vh-6rem))] w-[calc(100vw-2rem)] max-w-[600px] flex-col gap-0 overflow-hidden p-0 sm:rounded-xl"
         data-selectable
       >
-        <DialogHeader className="shrink-0 border-b border-border/50 px-5 py-4 text-left">
+        <DialogHeader className="shrink-0 border-b border-border/50 px-4 py-4 text-left">
           <div className="flex items-center justify-between gap-4">
             <DialogTitle>{t("settings.agentPaths.manageTitle")}</DialogTitle>
             <Button
@@ -321,7 +321,7 @@ export function AgentManagerDialog({
                     visibleInfos.map((info) => (
                       <div
                         key={info.agent}
-                        className="flex min-h-14 items-center gap-3 border-b border-border/40 px-4 py-2 last:border-b-0"
+                        className="flex min-h-14 items-center gap-3 border-b border-border/40 px-4 py-2.5 last:border-b-0"
                       >
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/60">
                           <FolderOpen className="h-4 w-4 text-muted-foreground" />
@@ -407,7 +407,7 @@ export function AgentManagerDialog({
                     hiddenInfos.map((info) => (
                       <div
                         key={info.agent}
-                        className="flex min-h-14 items-center gap-3 border-b border-border/40 px-4 py-2 last:border-b-0"
+                        className="flex min-h-14 items-center gap-3 border-b border-border/40 px-4 py-2.5 last:border-b-0"
                       >
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/60">
                           <FolderOpen className="h-4 w-4 text-muted-foreground" />
