@@ -191,12 +191,12 @@ export function AgentPathsSettings() {
         <div className="border-t border-border/40 p-2">
           <Button
             ref={managerTriggerRef}
-            variant="outline"
+            variant="ghost"
             size="sm"
             className="w-full gap-2"
             onClick={() => setManagerOpen(true)}
           >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <SlidersHorizontal className="h-3.5 w-3.5 text-indigo-500" />
             {t("settings.agentPaths.manage")}
           </Button>
         </div>
