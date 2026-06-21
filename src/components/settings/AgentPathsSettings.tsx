@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Reorder, useDragControls } from "framer-motion";
-import { FolderOpen, FolderSymlink, GripVertical } from "lucide-react";
+import { FolderOpen, FolderSymlink, GripVertical, SlidersHorizontal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { AgentManagerDialog } from "@/components/settings/AgentManagerDialog";
 import { Button } from "@/components/ui/button";
@@ -191,11 +191,12 @@ export function AgentPathsSettings() {
         <div className="border-t border-border/40 p-2">
           <Button
             ref={managerTriggerRef}
-            variant="ghost"
+            variant="outline"
             size="sm"
-            className="w-full text-xs"
+            className="w-full gap-2"
             onClick={() => setManagerOpen(true)}
           >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
             {t("settings.agentPaths.manage")}
           </Button>
         </div>
