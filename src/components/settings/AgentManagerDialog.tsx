@@ -254,7 +254,6 @@ export function AgentManagerDialog({
     >
       <DialogContent
         closeDisabled={updatePreferences.isPending}
-        hideCloseButton
         onPointerDownOutside={(event) => updatePreferences.isPending && event.preventDefault()}
         onEscapeKeyDown={(event) => updatePreferences.isPending && event.preventDefault()}
         onCloseAutoFocus={(event) => {
@@ -265,17 +264,7 @@ export function AgentManagerDialog({
         data-selectable
       >
         <DialogHeader className="shrink-0 border-b border-border/50 px-4 py-4 text-left">
-          <div className="flex items-center justify-between gap-4">
-            <DialogTitle>{t("settings.agentPaths.manageTitle")}</DialogTitle>
-            <Button
-              size="sm"
-              className="h-8 shrink-0 text-xs"
-              onClick={() => onOpenChange(false)}
-              disabled={updatePreferences.isPending}
-            >
-              {t("settings.agentPaths.done")}
-            </Button>
-          </div>
+          <DialogTitle>{t("settings.agentPaths.manageTitle")}</DialogTitle>
           <DialogDescription>{t("settings.agentPaths.manageDescription")}</DialogDescription>
         </DialogHeader>
 

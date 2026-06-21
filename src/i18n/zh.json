@@ -319,7 +319,6 @@
       "moveDown": "将 {{agent}} 下移",
       "moveLast": "将 {{agent}} 移到最后",
       "finishSorting": "完成排序",
-      "done": "完成",
       "noResults": "没有匹配的 Agent",
       "saveFailed": "Agent 设置保存失败"
     },

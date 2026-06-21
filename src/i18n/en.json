@@ -319,7 +319,6 @@
       "moveDown": "Move {{agent}} down",
       "moveLast": "Move {{agent}} to last",
       "finishSorting": "Finish sorting",
-      "done": "Done",
       "noResults": "No matching agents",
       "saveFailed": "Could not save Agent settings"
     },
