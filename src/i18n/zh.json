@@ -130,7 +130,11 @@
   "error": {
     "title": "出错了",
     "retry": "重试",
+    "repository": "该仓库",
     "network": "网络连接失败，请检查网络后重试。",
+    "downloadNetwork": "无法下载 {{repo}}。请检查网络连接后重试。",
+    "downloadTimeout": "连接 GitHub 超时，无法下载 {{repo}}。请检查网络后重试。",
+    "downloadFailed": "无法下载 {{repo}}，请稍后重试。",
     "cliMissing": "未找到所需工具，请确认已安装 Node.js 和 npx。",
     "permDenied": "权限不足，请检查技能目录是否可访问。",
     "diskFull": "磁盘空间不足，请清理后重试。",

@@ -130,7 +130,11 @@
   "error": {
     "title": "Something went wrong",
     "retry": "Retry",
+    "repository": "the repository",
     "network": "Network error. Check your internet connection and try again.",
+    "downloadNetwork": "Could not download {{repo}}. Check your internet connection and try again.",
+    "downloadTimeout": "GitHub connection timed out while downloading {{repo}}. Check your connection and try again.",
+    "downloadFailed": "Could not download {{repo}}. Please try again.",
     "cliMissing": "Required tools not found. Make sure Node.js and npx are installed.",
     "permDenied": "Permission denied. Check that the skills directory is accessible.",
     "diskFull": "Disk is full. Free up some space and try again.",

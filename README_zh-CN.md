@@ -28,17 +28,6 @@ Skill Zoo 让你在一个地方**浏览**、**安装**、**编辑**和**同步**
 
 ![Demo](docs/demo.gif) -->
 
-## 🚀 功能
-
-- **探索发现**：搜索 & 下载 GitHub 上的技能
-- **更新技能**：将技能更新到 GitHub 仓库上的最新版本
-- **技能创作**：内置 Markdown 编辑器，随时随地创造技能
-- **批量操作**：批量安装、删除、合并重复技能
-- **安全审计**：展示来自 skills.sh 社区的审计评分
-- **技能审查**：主动检测三种不一致情形，提醒用户修复问题
-- **技能归档**：将技能转到归档区暂存，降低上下文负担
-- **CLI + WUI**：为 Coding Agent 和人类提供 Skill Zoo 的控制入口
-
 ## ✨ 技术栈
 
 | 层级 | 技术 |
@@ -55,6 +44,32 @@ Skill Zoo 让你在一个地方**浏览**、**安装**、**编辑**和**同步**
 | 测试 | Vitest + Rust tests |
 | 包管理 | Bun |
 
+## 🚀 功能
+
+- **探索发现**：搜索 & 下载 GitHub 上的技能
+- **更新技能**：将技能更新到 GitHub 仓库上的最新版本
+- **技能创作**：内置 Markdown 编辑器，随时随地创造技能
+- **批量操作**：批量安装、删除、合并重复技能
+- **安全审计**：展示来自 skills.sh 社区的审计评分
+- **技能审查**：主动检测三种不一致情形，提醒用户修复问题
+- **技能归档**：将技能转到归档区暂存，降低上下文负担
+- **CLI + WUI**：为 Coding Agent 和人类提供 Skill Zoo 的控制入口
+
+## 🙌 CLI
+
+当你希望从编程工具、终端或自动化脚本中管理 Skill Zoo 时，可以安装 npm CLI：
+
+```bash
+npm i -g skill-zoo
+skill-zoo --help
+
+skill-zoo list           # 列出已安装技能
+skill-zoo doctor --fix   # 诊断并修复常见问题
+skill-zoo wui            # 启动本地 Web 管理界面
+```
+
+参考：[Skill Zoo CLI](https://www.npmjs.com/package/skill-zoo)
+
 ## 📦 安装
 
 ### macOS
@@ -62,7 +77,7 @@ Skill Zoo 让你在一个地方**浏览**、**安装**、**编辑**和**同步**
 从 [Releases](https://github.com/luochang212/skill-zoo/releases) 页面下载 `.dmg` 文件，打开后将 `skill-zoo.app` 拖入 `Applications` 文件夹。
 
 <details>
-<summary>🧑‍💻 通过 Homebrew 安装（macOS 开发者）</summary>
+<summary>🧑‍💻 通过 Homebrew 安装（备选）</summary>
 
 ```bash
 brew tap luochang212/tap
@@ -84,21 +99,6 @@ brew install --cask skill-zoo
 
 </details>
 
-## 🙌 CLI
-
-当你希望从编程工具、终端或自动化脚本中管理 Skill Zoo 时，可以安装 npm CLI：
-
-```bash
-npm i -g skill-zoo
-skill-zoo --help
-
-skill-zoo list           # 列出已安装技能
-skill-zoo doctor --fix   # 诊断并修复常见问题
-skill-zoo wui            # 启动本地 Web 管理界面
-```
-
-参考：[Skill Zoo CLI](https://www.npmjs.com/package/skill-zoo)
-
 ## 😇 信任与安全
 
 - **代码可见** — 全部源码开源，构建过程由 GitHub Actions 自动完成，任何人都可以审计
@@ -107,7 +107,7 @@ skill-zoo wui            # 启动本地 Web 管理界面
 
 ## 💡 贡献代码
 
-开发者参考 [docs/development.md](docs/development.md)。
+开发者请参考 [docs/development.md](docs/development.md)。
 
 发现 bug 或有新功能想法？欢迎提交 [Issue](https://github.com/luochang212/skill-zoo/issues)，也欢迎直接发 Pull Request。
 

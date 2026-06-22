@@ -3,7 +3,7 @@
 //! Based on <https://github.com/vercel-labs/skills> v1.5.3 (MIT).
 
 use crate::config;
-use crate::error::AppError;
+use crate::error::{classify_download_error, AppError};
 use crate::services::lock::{SkillLock, SkillLockEntry};
 use crate::services::skill::{is_symlink_or_junction, SkillService};
 use serde::{Deserialize, Serialize};
@@ -483,14 +483,20 @@ impl CliService {
         std::fs::create_dir_all(&cache_dir).map_err(AppError::Io)?;
 
         let url = format!("https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.zip");
+        let repo_id = format!("{owner}/{repo}");
         let client = config::http_client();
         let response = client
             .get(&url)
             .send()
             .await
-            .map_err(|e| AppError::Cli(format!("Failed to download {owner}/{repo}: {e}")))?;
+            .map_err(|e| classify_download_error(repo_id.clone(), e))?;
 
         if !response.status().is_success() {
+            match response.status().as_u16() {
+                403 | 429 => return Err(AppError::RateLimited(repo_id)),
+                404 => return Err(AppError::RepoNotFound(repo_id)),
+                _ => {}
+            }
             return Err(AppError::Cli(format!(
                 "Failed to download {owner}/{repo}: HTTP {}",
                 response.status()
@@ -510,16 +516,15 @@ impl CliService {
         let mut emit_threshold: u64 = 0;
 
         while let Some(chunk) = stream.next().await {
-            let chunk =
-                chunk.map_err(|e| AppError::Cli(format!("Failed to read download chunk: {e}")))?;
+            let chunk = chunk.map_err(|e| classify_download_error(repo_id.clone(), e))?;
             downloaded += chunk.len() as u64;
 
             if downloaded > config::MAX_DOWNLOAD_BYTES {
                 let _ = std::fs::remove_file(&tmp_path);
-                return Err(AppError::Cli(format!(
-                    "Repository archive exceeds {}MB",
-                    config::MAX_DOWNLOAD_BYTES / (1024 * 1024)
-                )));
+                return Err(AppError::RepoTooLarge {
+                    repo: repo_id,
+                    max_mb: config::MAX_DOWNLOAD_BYTES / (1024 * 1024),
+                });
             }
 
             use std::io::Write;

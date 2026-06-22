@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   installMutate: vi.fn(),
   removeMutate: vi.fn(),
   refreshMutate: vi.fn(),
+  repoSkillsError: null as unknown,
 }));
 
 class ResizeObserverMock {
@@ -19,39 +20,41 @@ class ResizeObserverMock {
 
 vi.mock("@/hooks/useSkills", () => ({
   useRepoSkills: () => ({
-    data: {
-      total: 3,
-      skills: [
-        {
-          key: "available",
-          name: "Available Skill",
-          directory: "available",
-          repoOwner: "owner",
-          repoName: "repo",
-          installStatus: "available",
+    data: mocks.repoSkillsError
+      ? undefined
+      : {
+          total: 3,
+          skills: [
+            {
+              key: "available",
+              name: "Available Skill",
+              directory: "available",
+              repoOwner: "owner",
+              repoName: "repo",
+              installStatus: "available",
+            },
+            {
+              key: "conflict",
+              name: "Conflict Skill",
+              directory: "conflict",
+              repoOwner: "owner",
+              repoName: "repo",
+              installStatus: "conflict",
+            },
+            {
+              key: "installed",
+              name: "Installed Skill",
+              directory: "installed",
+              repoOwner: "owner",
+              repoName: "repo",
+              installStatus: "installed",
+              installedSkillId: "repo:owner/repo:installed",
+            },
+          ],
         },
-        {
-          key: "conflict",
-          name: "Conflict Skill",
-          directory: "conflict",
-          repoOwner: "owner",
-          repoName: "repo",
-          installStatus: "conflict",
-        },
-        {
-          key: "installed",
-          name: "Installed Skill",
-          directory: "installed",
-          repoOwner: "owner",
-          repoName: "repo",
-          installStatus: "installed",
-          installedSkillId: "repo:owner/repo:installed",
-        },
-      ],
-    },
     isLoading: false,
-    isError: false,
-    error: null,
+    isError: !!mocks.repoSkillsError,
+    error: mocks.repoSkillsError,
   }),
   useRefreshRepoSkills: () => ({ mutate: mocks.refreshMutate, isPending: false }),
   useRepoMetadata: () => ({ data: undefined }),
@@ -88,6 +91,7 @@ describe("RepoDetail discover status", () => {
     mocks.installMutate.mockReset();
     mocks.removeMutate.mockReset();
     mocks.refreshMutate.mockReset();
+    mocks.repoSkillsError = null;
   });
 
   it("blocks conflicting skills and uninstalls only by the backend-provided skill id", async () => {
@@ -126,5 +130,21 @@ describe("RepoDetail discover status", () => {
       expect.objectContaining({ onSuccess: expect.any(Function) }),
     );
     expect(setQueryData).not.toHaveBeenCalled();
+  });
+
+  it("shows a localized download error when repository loading fails", () => {
+    mocks.repoSkillsError = {
+      code: "downloadNetwork",
+      message: "Download failed for owner/repo",
+      repo: "owner/repo",
+    };
+
+    renderDetail();
+
+    expect(
+      screen.getByText(
+        "Could not download owner/repo. Check your internet connection and try again.",
+      ),
+    ).toBeInTheDocument();
   });
 });

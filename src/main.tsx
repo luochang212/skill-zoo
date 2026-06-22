@@ -5,6 +5,7 @@ import { Toaster, toast } from "sonner";
 import "@/i18n";
 import App from "./App";
 import "./index.css";
+import { formatApiError } from "@/lib/api/errors";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -13,7 +14,7 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
     },
     mutations: {
-      onError: (err) => toast.error(String(err)),
+      onError: (err) => toast.error(formatApiError(err)),
     },
   },
 });

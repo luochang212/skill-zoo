@@ -25,6 +25,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SkillInstallDialog } from "@/components/skills/SkillInstallDialog";
 import { MarkdownContent } from "@/components/skills/MarkdownContent";
+import { formatApiError } from "@/lib/api/errors";
 import type { DiscoverRepo, DiscoverableSkill } from "@/types/skills";
 import { BackButton } from "@/components/ui/BackButton";
 import { AlertTriangle, Star, GitFork, ExternalLink, Check, RotateCw, Loader } from "lucide-react";
@@ -266,9 +267,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
           ) : isError ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
               <AlertTriangle className="h-8 w-8 text-destructive/60" />
-              <p className="text-sm text-destructive">
-                {error?.message?.includes("exceeds") ? t("error.repoTooLarge") : t("error.generic")}
-              </p>
+              <p className="text-sm text-destructive">{formatApiError(error)}</p>
               <Button
                 size="sm"
                 variant="outline"

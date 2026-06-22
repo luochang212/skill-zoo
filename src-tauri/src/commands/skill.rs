@@ -1,5 +1,6 @@
 use crate::config;
 use crate::config::{AgentConfig, AgentPathInfo};
+use crate::error::{AppError, CommandError};
 use crate::persistence::archive::SUPPORTED_ARCHIVE_VERSION;
 use crate::persistence::{atomic_write, ArchiveManifest, ArchivedSkill};
 use crate::services::cli::CliService;
@@ -209,14 +210,14 @@ pub async fn install_skills(
     repo_url: String,
     skill_names: Vec<String>,
     agents: Vec<String>,
-) -> Result<Vec<InstalledSkill>, String> {
+) -> Result<Vec<InstalledSkill>, CommandError> {
     CliService::add_skills(
         &repo_url,
         &skill_names,
         &agents.first().cloned().unwrap_or_default(),
     )
     .await
-    .map_err(|e| e.to_string())?;
+    .map_err(CommandError::from)?;
 
     // Discover which skill directories were just installed in SSOT
     let ssot_dir = config::get_agents_skills_dir();
@@ -261,7 +262,7 @@ pub async fn install_skills(
         let _ = SkillService::upsert_cache_entry(&state.skill_cache, entry);
     }
 
-    SkillService::read_all_skills(&state.skill_cache, &state.metadata).map_err(|e| e.to_string())
+    SkillService::read_all_skills(&state.skill_cache, &state.metadata).map_err(CommandError::from)
 }
 
 #[tauri::command]
@@ -1742,18 +1743,21 @@ pub async fn get_repo_skills(
     name: String,
     branch: Option<String>,
     force: Option<bool>,
-) -> Result<RepoSkillsResult, String> {
+) -> Result<RepoSkillsResult, CommandError> {
     let branch = branch.unwrap_or_else(|| "main".to_string());
-    validate_repo_segments(&owner, &name, &branch)?;
+    validate_repo_segments(&owner, &name, &branch).map_err(CommandError::bad_request)?;
     let force = force.unwrap_or(false);
 
     let (mut skills, total) =
         SkillService::discover_from_repo_capped(&owner, &name, &branch, 800, force, Some(&app))
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(CommandError::from)?;
 
-    let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-    let lock = SkillLock::read().map_err(|e| e.to_string())?;
+    let cache = state
+        .skill_cache
+        .read()
+        .map_err(|e| CommandError::generic(e.to_string()))?;
+    let lock = SkillLock::read().map_err(CommandError::from)?;
 
     for skill in &mut skills {
         (skill.install_status, skill.installed_skill_id) =
@@ -1776,29 +1780,35 @@ pub async fn preview_skill_md(
     name: String,
     branch: Option<String>,
     skill_dir: String,
-) -> Result<String, String> {
+) -> Result<String, CommandError> {
     let branch = branch.unwrap_or_else(|| "main".to_string());
-    validate_repo_segments(&owner, &name, &branch)?;
-    validate_skill_directory(&skill_dir)?;
+    validate_repo_segments(&owner, &name, &branch).map_err(CommandError::bad_request)?;
+    validate_skill_directory(&skill_dir).map_err(CommandError::bad_request)?;
 
     let zip_path = CliService::ensure_cached_zip(&owner, &name, &branch, false)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(CommandError::from)?;
 
-    let file = std::fs::File::open(&zip_path).map_err(|e| e.to_string())?;
-    let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+    let file = std::fs::File::open(&zip_path).map_err(|e| CommandError::from(AppError::Io(e)))?;
+    let mut archive =
+        zip::ZipArchive::new(file).map_err(|e| CommandError::from(AppError::from(e)))?;
 
     let needle = format!("/{}/SKILL.md", &skill_dir);
     for i in 0..archive.len() {
-        let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
+        let mut entry = archive
+            .by_index(i)
+            .map_err(|e| CommandError::from(AppError::from(e)))?;
         if entry.name().ends_with(&needle) {
             let mut content = String::new();
-            std::io::Read::read_to_string(&mut entry, &mut content).map_err(|e| e.to_string())?;
+            std::io::Read::read_to_string(&mut entry, &mut content)
+                .map_err(|e| CommandError::from(AppError::Io(e)))?;
             return Ok(content);
         }
     }
 
-    Err(format!("SKILL.md not found for skill: {skill_dir}"))
+    Err(CommandError::from(AppError::NotFound(format!(
+        "SKILL.md not found for skill: {skill_dir}"
+    ))))
 }
 
 // ────────────── Discover (skills.sh) ──────────────

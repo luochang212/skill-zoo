@@ -28,17 +28,6 @@ Skill Zoo gives you a single place to **browse**, **install**, **edit**, and **s
 
 ![Demo](docs/demo.gif) -->
 
-## 🚀 Features
-
-- **Explore & Install**: Search and download skills from GitHub repositories
-- **Update Skills**: Update installed skills to the latest version from GitHub
-- **Skill Authoring**: Built-in Markdown editor — create skills anywhere, anytime
-- **Batch Operations**: Install, delete, or merge duplicate skills in bulk
-- **Security Audit**: View community audit scores from skills.sh
-- **Consistency Check**: Proactively detect three types of inconsistencies and prompt fixes
-- **Skill Archive**: Move skills into the archive as temporary storage to reduce context load
-- **CLI + WUI**: Provide Skill Zoo control surfaces for Coding Agents and humans
-
 ## ✨ Tech Stack
 
 | Layer | Technology |
@@ -55,6 +44,32 @@ Skill Zoo gives you a single place to **browse**, **install**, **edit**, and **s
 | Testing | Vitest + Rust tests |
 | Package Manager | Bun |
 
+## 🚀 Features
+
+- **Explore & Install**: Search and download skills from GitHub repositories
+- **Update Skills**: Update installed skills to the latest version from GitHub
+- **Skill Authoring**: Built-in Markdown editor — create skills anywhere, anytime
+- **Batch Operations**: Install, delete, or merge duplicate skills in bulk
+- **Security Audit**: View community audit scores from skills.sh
+- **Consistency Check**: Proactively detect three types of inconsistencies and prompt fixes
+- **Skill Archive**: Move skills into the archive as temporary storage to reduce context load
+- **CLI + WUI**: Provide Skill Zoo control surfaces for Coding Agents and humans
+
+## 🙌 CLI
+
+When you want to manage Skill Zoo from a coding agent, terminal, or automation, install the npm CLI:
+
+```bash
+npm i -g skill-zoo
+skill-zoo --help
+
+skill-zoo list           # List installed skills
+skill-zoo doctor --fix   # Diagnose and fix common issues
+skill-zoo wui            # Start the local Web UI
+```
+
+See: [Skill Zoo CLI](https://www.npmjs.com/package/skill-zoo)
+
 ## 📦 Installation
 
 ### macOS
@@ -62,7 +77,7 @@ Skill Zoo gives you a single place to **browse**, **install**, **edit**, and **s
 Download the `.dmg` from the [Releases](https://github.com/luochang212/skill-zoo/releases) page, open it, and drag `skill-zoo.app` into `Applications`.
 
 <details>
-<summary>🧑‍💻 Install via Homebrew (macOS developers)</summary>
+<summary>🧑‍💻 Install via Homebrew (alternative)</summary>
 
 ```bash
 brew tap luochang212/tap
@@ -83,21 +98,6 @@ Download the `.exe` installer from [Releases](https://github.com/luochang212/ski
 Download the portable `.zip` from [Releases](https://github.com/luochang212/skill-zoo/releases), extract it to any folder, and run `skill-zoo.exe`. SmartScreen may also show a warning — same workaround applies.
 
 </details>
-
-## 🙌 CLI
-
-When you want to manage Skill Zoo from a coding agent, terminal, or automation, install the npm CLI:
-
-```bash
-npm i -g skill-zoo
-skill-zoo --help
-
-skill-zoo list           # List installed skills
-skill-zoo doctor --fix   # Diagnose and fix common issues
-skill-zoo wui            # Start the local Web UI
-```
-
-See: [Skill Zoo CLI](https://www.npmjs.com/package/skill-zoo)
 
 ## 😇 Trust & Security
 
