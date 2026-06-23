@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.8] — 2026-06-24
+
+### Added
+- Linux AppImage and `.deb` build targets in CI pipeline.
+
+### Changed
+- Structured error handling unified from backend to frontend.
+- CLI bumped to v0.3.1.
+- Installation instructions simplified; Linux download instructions added.
+
+### Fixed
+- CLI: warn on contested agent links instead of over-repairing them.
+
 ## [0.3.7] — 2026-06-22
 
 ### Changed
