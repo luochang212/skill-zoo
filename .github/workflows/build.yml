@@ -96,10 +96,24 @@ jobs:
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             rust_targets: "x86_64-pc-windows-msvc"
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            rust_targets: "x86_64-unknown-linux-gnu"
+            linux_arch: x86_64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+            rust_targets: "aarch64-unknown-linux-gnu"
+            linux_arch: aarch64
 
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
+
+      - name: Install Linux system dependencies
+        if: contains(matrix.target, 'linux')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -208,6 +222,14 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: bun run tauri build --target ${{ matrix.target }}
 
+      - name: Tauri build (Linux)
+        if: contains(matrix.target, 'linux')
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: bun run tauri build --target ${{ matrix.target }}
+
       - name: Create portable zip (Windows)
         if: matrix.target == 'x86_64-pc-windows-msvc'
         shell: pwsh
@@ -243,6 +265,16 @@ jobs:
                 mv "$EXE" "$BUNDLE/Skill-Zoo-${VERSION}-Windows.exe"
               fi
               ;;
+            *linux*)
+              APPIMAGE=$(find "$BUNDLE" -name "*.AppImage" | head -1)
+              if [ -n "$APPIMAGE" ] && [ -f "$APPIMAGE" ]; then
+                mv "$APPIMAGE" "$BUNDLE/Skill-Zoo-${VERSION}-Linux-${{ matrix.linux_arch }}.AppImage"
+              fi
+              DEB=$(find "$BUNDLE" -name "*.deb" | head -1)
+              if [ -n "$DEB" ] && [ -f "$DEB" ]; then
+                mv "$DEB" "$BUNDLE/Skill-Zoo-${VERSION}-Linux-${{ matrix.linux_arch }}.deb"
+              fi
+              ;;
           esac
 
       - name: Rename updater artifacts
@@ -267,6 +299,12 @@ jobs:
               EXE_SIG=$(find "$BUNDLE/nsis" -name "*.exe.sig" 2>/dev/null | head -1)
               if [ -n "$EXE_SIG" ] && [ -f "$EXE_SIG" ]; then
                 mv "$EXE_SIG" "$BUNDLE/Skill-Zoo-${VERSION}-Windows.exe.sig"
+              fi
+              ;;
+            *linux*)
+              APPIMAGE_SIG=$(find "$BUNDLE" -name "*.AppImage.sig" 2>/dev/null | head -1)
+              if [ -n "$APPIMAGE_SIG" ] && [ -f "$APPIMAGE_SIG" ]; then
+                mv "$APPIMAGE_SIG" "$BUNDLE/Skill-Zoo-${VERSION}-Linux-${{ matrix.linux_arch }}.AppImage.sig"
               fi
               ;;
           esac
@@ -303,6 +341,18 @@ jobs:
           name: skill-zoo-x86_64-pc-windows-msvc
           path: artifacts/windows
 
+      - name: Download Linux x86_64 artifact
+        uses: actions/download-artifact@v6
+        with:
+          name: skill-zoo-x86_64-unknown-linux-gnu
+          path: artifacts/linux-x86_64
+
+      - name: Download Linux aarch64 artifact
+        uses: actions/download-artifact@v6
+        with:
+          name: skill-zoo-aarch64-unknown-linux-gnu
+          path: artifacts/linux-aarch64
+
       - name: Generate release body
         id: release_body
         env:
@@ -333,11 +383,17 @@ jobs:
 
           MACOS_SIG=$(find artifacts/macos -name "*.app.tar.gz.sig" -type f 2>/dev/null | head -1)
           WINDOWS_SIG=$(find artifacts/windows -name "*.exe.sig" -type f 2>/dev/null | head -1)
+          LINUX_X64_SIG=$(find artifacts/linux-x86_64 -name "*.AppImage.sig" -type f 2>/dev/null | head -1)
+          LINUX_ARM64_SIG=$(find artifacts/linux-aarch64 -name "*.AppImage.sig" -type f 2>/dev/null | head -1)
 
           MACOS_SIG_CONTENT=""
           WINDOWS_SIG_CONTENT=""
+          LINUX_X64_SIG_CONTENT=""
+          LINUX_ARM64_SIG_CONTENT=""
           [ -n "$MACOS_SIG" ] && MACOS_SIG_CONTENT=$(cat "$MACOS_SIG")
           [ -n "$WINDOWS_SIG" ] && WINDOWS_SIG_CONTENT=$(cat "$WINDOWS_SIG")
+          [ -n "$LINUX_X64_SIG" ] && LINUX_X64_SIG_CONTENT=$(cat "$LINUX_X64_SIG")
+          [ -n "$LINUX_ARM64_SIG" ] && LINUX_ARM64_SIG_CONTENT=$(cat "$LINUX_ARM64_SIG")
 
           jq -n \
             --arg version "$VERSION" \
@@ -346,6 +402,10 @@ jobs:
             --arg macos_url "https://github.com/luochang212/skill-zoo/releases/download/${VERSION}/Skill-Zoo-${VERSION}-macOS.app.tar.gz" \
             --arg windows_sig "$WINDOWS_SIG_CONTENT" \
             --arg windows_url "https://github.com/luochang212/skill-zoo/releases/download/${VERSION}/Skill-Zoo-${VERSION}-Windows.exe" \
+            --arg linux_x64_sig "$LINUX_X64_SIG_CONTENT" \
+            --arg linux_x64_url "https://github.com/luochang212/skill-zoo/releases/download/${VERSION}/Skill-Zoo-${VERSION}-Linux-x86_64.AppImage" \
+            --arg linux_arm64_sig "$LINUX_ARM64_SIG_CONTENT" \
+            --arg linux_arm64_url "https://github.com/luochang212/skill-zoo/releases/download/${VERSION}/Skill-Zoo-${VERSION}-Linux-aarch64.AppImage" \
             '{
               version: $version,
               notes: "",
@@ -353,7 +413,9 @@ jobs:
               platforms: {
                 "darwin-x86_64": { signature: $macos_sig, url: $macos_url },
                 "darwin-aarch64": { signature: $macos_sig, url: $macos_url },
-                "windows-x86_64": { signature: $windows_sig, url: $windows_url }
+                "windows-x86_64": { signature: $windows_sig, url: $windows_url },
+                "linux-x86_64": { signature: $linux_x64_sig, url: $linux_x64_url },
+                "linux-aarch64": { signature: $linux_arm64_sig, url: $linux_arm64_url }
               }
             }' > latest.json
 
