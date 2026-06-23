@@ -11,6 +11,10 @@ __COMMITS__
 | `Skill-Zoo-__VERSION__-macOS.dmg` | macOS (Universal — Intel & Apple Silicon) |
 | `Skill-Zoo-__VERSION__-Windows.exe` | Windows Installer |
 | `Skill-Zoo-__VERSION__-Windows-Portable.zip` | Windows Portable |
+| `Skill-Zoo-__VERSION__-Linux-x86_64.AppImage` | Linux x86_64 AppImage |
+| `Skill-Zoo-__VERSION__-Linux-x86_64.deb` | Linux x86_64 Debian package |
+| `Skill-Zoo-__VERSION__-Linux-aarch64.AppImage` | Linux ARM64 AppImage |
+| `Skill-Zoo-__VERSION__-Linux-aarch64.deb` | Linux ARM64 Debian package |
 
 ### macOS
 
@@ -43,6 +47,17 @@ Download `Skill-Zoo-__VERSION__-Windows-Portable.zip`, extract it to any folder,
 
 </details>
 
+### Linux
+
+Download the AppImage for your CPU architecture, make it executable, and run it:
+
+```bash
+chmod +x Skill-Zoo-__VERSION__-Linux-*.AppImage
+./Skill-Zoo-__VERSION__-Linux-*.AppImage
+```
+
+Debian-based distributions can alternatively install the matching `.deb` package.
+
 ## 安装指南
 
 > 下载文件在下方 **Assets** 区域中。
@@ -52,6 +67,10 @@ Download `Skill-Zoo-__VERSION__-Windows-Portable.zip`, extract it to any folder,
 | `Skill-Zoo-__VERSION__-macOS.dmg` | macOS（通用 — Intel 和 Apple Silicon） |
 | `Skill-Zoo-__VERSION__-Windows.exe` | Windows 安装版 |
 | `Skill-Zoo-__VERSION__-Windows-Portable.zip` | Windows 便携版 |
+| `Skill-Zoo-__VERSION__-Linux-x86_64.AppImage` | Linux x86_64 AppImage |
+| `Skill-Zoo-__VERSION__-Linux-x86_64.deb` | Linux x86_64 Debian 包 |
+| `Skill-Zoo-__VERSION__-Linux-aarch64.AppImage` | Linux ARM64 AppImage |
+| `Skill-Zoo-__VERSION__-Linux-aarch64.deb` | Linux ARM64 Debian 包 |
 
 ### macOS
 
@@ -72,6 +91,17 @@ brew upgrade --cask skill-zoo
 ```
 
 </details>
+
+### Linux
+
+下载与你 CPU 架构匹配的 AppImage，添加可执行权限后运行：
+
+```bash
+chmod +x Skill-Zoo-__VERSION__-Linux-*.AppImage
+./Skill-Zoo-__VERSION__-Linux-*.AppImage
+```
+
+Debian 系发行版也可以选择安装对应的 `.deb` 包。
 
 ### Windows
 

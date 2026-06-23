@@ -43,6 +43,12 @@ skill-zoo/
 
 Prerequisites: [Bun](https://bun.sh/), [Rust](https://www.rust-lang.org/tools/install), and a [Tauri setup](https://v2.tauri.app/start/prerequisites/).
 
+On Linux, install the system packages Tauri needs for desktop builds:
+
+```bash
+sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+```
+
 ```bash
 # Install dependencies
 bun install

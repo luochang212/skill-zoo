@@ -7,7 +7,7 @@
 
 [![Release](https://img.shields.io/github/v/release/luochang212/skill-zoo?style=flat-square&color=0e7490)](https://github.com/luochang212/skill-zoo/releases)
 [![Downloads](https://img.shields.io/github/downloads/luochang212/skill-zoo/total?style=flat-square&color=0e7490)](https://github.com/luochang212/skill-zoo/releases)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-0e7490?style=flat-square)]()
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-0e7490?style=flat-square)]()
 [![License](https://img.shields.io/badge/license-MIT-0e7490?style=flat-square)](LICENSE)
 [![CI](https://github.com/luochang212/skill-zoo/actions/workflows/build.yml/badge.svg)](https://github.com/luochang212/skill-zoo/actions)
 
@@ -98,6 +98,17 @@ brew install --cask skill-zoo
 从 [Releases](https://github.com/luochang212/skill-zoo/releases) 下载便携版 `.zip`，解压到任意文件夹，运行 `skill-zoo.exe`。SmartScreen 同样可能弹出警告，按上述方式处理。
 
 </details>
+
+### Linux
+
+从 [Releases](https://github.com/luochang212/skill-zoo/releases) 下载与你 CPU 架构匹配的 AppImage，添加可执行权限后运行：
+
+```bash
+chmod +x Skill-Zoo-*-Linux-*.AppImage
+./Skill-Zoo-*-Linux-*.AppImage
+```
+
+目前提供 `x86_64` 和 `aarch64` 构建。Debian 系发行版也可以选择安装对应的 `.deb` 包。
 
 ## 😇 信任与安全
 

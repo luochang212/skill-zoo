@@ -7,7 +7,7 @@
 
 [![Release](https://img.shields.io/github/v/release/luochang212/skill-zoo?style=flat-square&color=0e7490)](https://github.com/luochang212/skill-zoo/releases)
 [![Downloads](https://img.shields.io/github/downloads/luochang212/skill-zoo/total?style=flat-square&color=0e7490)](https://github.com/luochang212/skill-zoo/releases)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-0e7490?style=flat-square)]()
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-0e7490?style=flat-square)]()
 [![License](https://img.shields.io/badge/license-MIT-0e7490?style=flat-square)](LICENSE)
 [![CI](https://github.com/luochang212/skill-zoo/actions/workflows/build.yml/badge.svg)](https://github.com/luochang212/skill-zoo/actions)
 
@@ -98,6 +98,17 @@ Download the `.exe` installer from [Releases](https://github.com/luochang212/ski
 Download the portable `.zip` from [Releases](https://github.com/luochang212/skill-zoo/releases), extract it to any folder, and run `skill-zoo.exe`. SmartScreen may also show a warning — same workaround applies.
 
 </details>
+
+### Linux
+
+Download the AppImage for your CPU architecture from [Releases](https://github.com/luochang212/skill-zoo/releases), make it executable, and run it:
+
+```bash
+chmod +x Skill-Zoo-*-Linux-*.AppImage
+./Skill-Zoo-*-Linux-*.AppImage
+```
+
+`x86_64` and `aarch64` builds are available. Debian-based distributions can alternatively install the matching `.deb` package.
 
 ## 😇 Trust & Security
 

@@ -3096,6 +3096,13 @@
           >
             Windows
           </button>
+          <button
+            class="modal-os-tab"
+            data-os="linux"
+            data-i18n="install-os-linux"
+          >
+            Linux
+          </button>
         </div>
         <div class="modal-dl-row">
           <span class="modal-dl-file" id="dl-filename"
@@ -3304,6 +3311,7 @@
         "install-title": { zh: "安装 Skill Zoo", en: "Installing Skill Zoo" },
         "install-os-macos": { zh: "macOS", en: "macOS" },
         "install-os-windows": { zh: "Windows", en: "Windows" },
+        "install-os-linux": { zh: "Linux", en: "Linux" },
         "install-retry": { zh: "下载未开始？", en: "Download didn't start?" },
         "install-manual-click": { zh: "点此手动下载", en: "Click here" },
         "install-all-releases": {
@@ -3347,6 +3355,27 @@
         "install-win-alt-desc": {
           zh: "下载便携版 .zip，解压到任意文件夹，双击 <code>skill-zoo.exe</code> 即可运行，无需安装。",
           en: "Download the portable .zip, extract anywhere, and run <code>skill-zoo.exe</code> — no installation needed.",
+        },
+        // Linux steps
+        "install-linux-step1": {
+          zh: "下载与你 CPU 架构匹配的 <code>AppImage</code> 文件",
+          en: "Download the <code>AppImage</code> file for your CPU architecture",
+        },
+        "install-linux-step2": {
+          zh: "运行 <code>chmod +x Skill-Zoo-*-Linux-*.AppImage</code> 添加可执行权限",
+          en: "Run <code>chmod +x Skill-Zoo-*-Linux-*.AppImage</code> to make it executable",
+        },
+        "install-linux-step3": {
+          zh: "双击 AppImage，或在终端中执行它",
+          en: "Double-click the AppImage, or run it from your terminal",
+        },
+        "install-linux-alt-title": {
+          zh: "Linux 下载选项",
+          en: "Linux download options",
+        },
+        "install-linux-alt-desc": {
+          zh: "提供 x86_64 和 ARM64 AppImage；Debian 系发行版也可安装对应的 .deb 包。",
+          en: "x86_64 and ARM64 AppImages are available. Debian-based distributions can alternatively install the matching .deb package.",
         },
       };
 
@@ -3650,7 +3679,13 @@
         const ua = navigator.userAgent || "";
         if (ua.includes("Mac") || ua.includes("macOS")) return "macos";
         if (ua.includes("Windows") || ua.includes("Win")) return "windows";
+        if (ua.includes("Linux") || ua.includes("X11")) return "linux";
         return "macos";
+      }
+
+      function detectLinuxArch() {
+        const ua = `${navigator.userAgent || ""} ${navigator.platform || ""}`;
+        return /aarch64|arm64/i.test(ua) ? "aarch64" : "x86_64";
       }
 
       async function fetchVersion() {
@@ -3668,6 +3703,7 @@
         const v = version || cachedVersion || "v0.0.0";
         const base = `https://github.com/${REPO}/releases/download/${v}`;
         if (os === "macos") return `${base}/Skill-Zoo-${v}-macOS.dmg`;
+        if (os === "linux") return `${base}/Skill-Zoo-${v}-Linux-${detectLinuxArch()}.AppImage`;
         return `${base}/Skill-Zoo-${v}-Windows.exe`;
       }
 
@@ -3678,9 +3714,14 @@
 
       function getFilename(os, version) {
         const v = version || cachedVersion || "v0.0.0";
-        return os === "macos"
-          ? `Skill-Zoo-${v}-macOS.dmg`
-          : `Skill-Zoo-${v}-Windows.exe`;
+        if (os === "macos") return `Skill-Zoo-${v}-macOS.dmg`;
+        if (os === "linux") return `Skill-Zoo-${v}-Linux-${detectLinuxArch()}.AppImage`;
+        return `Skill-Zoo-${v}-Windows.exe`;
+      }
+
+      function getLinuxPackageUrl(version, arch, ext) {
+        const v = version || cachedVersion || "v0.0.0";
+        return `https://github.com/${REPO}/releases/download/${v}/Skill-Zoo-${v}-Linux-${arch}.${ext}`;
       }
 
       function getLang() {
@@ -3694,6 +3735,18 @@
             { key: "install-mac-step1" },
             { key: "install-mac-step2" },
             { key: "install-mac-step3" },
+          ]
+            .map((s, i) => {
+              const text = (T[s.key] && T[s.key][lang]) || s.key;
+              return `<div class="modal-step"><div class="modal-step-num">${i + 1}</div><p>${text}</p></div>`;
+            })
+            .join("");
+        }
+        if (os === "linux") {
+          return [
+            { key: "install-linux-step1" },
+            { key: "install-linux-step2" },
+            { key: "install-linux-step3" },
           ]
             .map((s, i) => {
               const text = (T[s.key] && T[s.key][lang]) || s.key;
@@ -3721,6 +3774,14 @@
             (T["install-mac-alt-title"] && T["install-mac-alt-title"][lang]) ||
             "Or install via Homebrew";
           return `<h4>${title}</h4><pre class="no-copy"><code>brew tap luochang212/tap && brew install --cask skill-zoo</code></pre>`;
+        }
+        if (os === "linux") {
+          const title =
+            (T["install-linux-alt-title"] && T["install-linux-alt-title"][lang]) ||
+            "Linux download options";
+          const desc =
+            (T["install-linux-alt-desc"] && T["install-linux-alt-desc"][lang]) || "";
+          return `<h4>${title}</h4><p style="margin:0 0 8px;">${desc}</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;font-size:13px;"><a href="${getLinuxPackageUrl(cachedVersion, "x86_64", "AppImage")}" style="color:var(--copper);">x86_64 AppImage</a><a href="${getLinuxPackageUrl(cachedVersion, "x86_64", "deb")}" style="color:var(--copper);">x86_64 .deb</a><a href="${getLinuxPackageUrl(cachedVersion, "aarch64", "AppImage")}" style="color:var(--copper);">ARM64 AppImage</a><a href="${getLinuxPackageUrl(cachedVersion, "aarch64", "deb")}" style="color:var(--copper);">ARM64 .deb</a></div>`;
         }
         const title =
           (T["install-win-alt-title"] && T["install-win-alt-title"][lang]) ||
@@ -3782,7 +3843,8 @@
       (async () => {
         const os = detectOS();
         activeOS = os;
-        PLATFORM_SPAN.textContent = os === "macos" ? "macOS" : "Windows";
+        PLATFORM_SPAN.textContent =
+          os === "macos" ? "macOS" : os === "linux" ? "Linux" : "Windows";
 
         const v = await fetchVersion();
         if (v) cachedVersion = v;
