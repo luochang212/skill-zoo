@@ -217,10 +217,70 @@ async function checkInstalledSkills(home: string | undefined, checks: DoctorChec
     return;
   }
 
+  const contestedLinks = await findContestedAgentLinks(home, skills);
+  for (const link of contestedLinks.values()) {
+    checks.push({
+      id: "contested-agent-link",
+      status: "warn",
+      message: `Agent link is shared by multiple different skills and cannot be safely repaired: ${link.path}`,
+      path: link.path,
+      actual: link.skillIds.join(", "),
+    });
+  }
+
   for (const skill of skills) {
     await checkSkillHome(skill, checks);
-    await checkSkillAgentLinks(home, skill, checks);
+    await checkSkillAgentLinks(home, skill, checks, contestedLinks);
   }
+}
+
+interface ContestedAgentLink {
+  path: string;
+  skillIds: string[];
+}
+
+async function findContestedAgentLinks(
+  home: string | undefined,
+  skills: InstalledSkill[],
+): Promise<Map<string, ContestedAgentLink>> {
+  const candidates = new Map<string, Map<string, Set<string>>>();
+
+  for (const skill of skills) {
+    if (!skill.homePath) {
+      continue;
+    }
+
+    for (const agent of AGENTS) {
+      const agentDir = getAgentSkillsDir(home, agent.id);
+      if (!agentDir || (await pathStartsWith(skill.homePath, agentDir))) {
+        continue;
+      }
+
+      const linkPath = path.join(agentDir, agentLinkName(skill.directory));
+      if (!(await pathExists(linkPath)) || !(await isSymlinkOrJunction(linkPath))) {
+        continue;
+      }
+
+      const byTarget = candidates.get(linkPath) ?? new Map<string, Set<string>>();
+      const skillIds = byTarget.get(skill.homePath) ?? new Set<string>();
+      skillIds.add(skill.id);
+      byTarget.set(skill.homePath, skillIds);
+      candidates.set(linkPath, byTarget);
+    }
+  }
+
+  const contested = new Map<string, ContestedAgentLink>();
+  for (const [linkPath, byTarget] of candidates) {
+    if (byTarget.size <= 1) {
+      continue;
+    }
+    contested.set(linkPath, {
+      path: linkPath,
+      skillIds: [...byTarget.values()].flatMap((ids) => [...ids]),
+    });
+  }
+
+  return contested;
 }
 
 async function checkSkillHome(skill: InstalledSkill, checks: DoctorCheck[]): Promise<void> {
@@ -257,6 +317,7 @@ async function checkSkillAgentLinks(
   home: string | undefined,
   skill: InstalledSkill,
   checks: DoctorCheck[],
+  contestedLinks: Map<string, ContestedAgentLink>,
 ): Promise<void> {
   if (!skill.homePath) {
     return;
@@ -270,6 +331,9 @@ async function checkSkillAgentLinks(
 
     const linkPath = path.join(agentDir, agentLinkName(skill.directory));
     if (await pathStartsWith(skill.homePath, agentDir)) {
+      continue;
+    }
+    if (contestedLinks.has(linkPath)) {
       continue;
     }
 

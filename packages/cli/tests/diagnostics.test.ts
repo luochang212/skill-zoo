@@ -123,6 +123,36 @@ describe("runDoctor", () => {
       }),
     );
   });
+
+  it("warns instead of repairing when multiple skills contest one agent link path", async () => {
+    const home = await makeTempHome();
+    const paths = getPaths(home);
+    const ssotSkill = path.join(paths.agentsSkillsDir, "demo");
+    const codexSystemSkill = path.join(home, ".codex", "skills", ".system", "demo");
+    const claudeLink = path.join(home, ".claude", "skills", "demo");
+    await writeSkill(ssotSkill, "name: Demo");
+    await writeSkill(codexSystemSkill, "name: Demo\nsystem: codex");
+    await createDirLink(codexSystemSkill, claudeLink);
+    await rebuildCache(home);
+
+    const report = await runDoctor(home);
+
+    expect(report.status).toBe("warn");
+    expect(report.checks).toContainEqual(
+      expect.objectContaining({
+        id: "contested-agent-link",
+        status: "warn",
+        path: claudeLink,
+      }),
+    );
+    expect(report.checks).not.toContainEqual(
+      expect.objectContaining({
+        id: "agent-link",
+        status: "error",
+        path: claudeLink,
+      }),
+    );
+  });
 });
 
 describe("fixDoctor", () => {
@@ -168,5 +198,24 @@ describe("fixDoctor", () => {
     expect(await isSymlinkOrJunction(codexLink)).toBe(true);
     expect(await pathsEqual(codexLink, skillDir)).toBe(true);
     expect(result.after.status).toBe("ok");
+  });
+
+  it("does not replace contested agent links", async () => {
+    const home = await makeTempHome();
+    const paths = getPaths(home);
+    const ssotSkill = path.join(paths.agentsSkillsDir, "demo");
+    const codexSystemSkill = path.join(home, ".codex", "skills", ".system", "demo");
+    const claudeLink = path.join(home, ".claude", "skills", "demo");
+    await writeSkill(ssotSkill, "name: Demo");
+    await writeSkill(codexSystemSkill, "name: Demo\nsystem: codex");
+    await createDirLink(codexSystemSkill, claudeLink);
+    await rebuildCache(home);
+
+    const result = await fixDoctor(home);
+
+    expect(result.before.status).toBe("warn");
+    expect(result.actions).not.toContainEqual(expect.objectContaining({ kind: "replace-link" }));
+    expect(await pathsEqual(claudeLink, codexSystemSkill)).toBe(true);
+    expect(result.after.status).toBe("warn");
   });
 });
