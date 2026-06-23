@@ -72,43 +72,28 @@ skill-zoo wui            # 启动本地 Web 管理界面
 
 ## 📦 安装
 
+从 [Releases](https://github.com/luochang212/skill-zoo/releases) 下载最新版安装包。
+
 ### macOS
 
-从 [Releases](https://github.com/luochang212/skill-zoo/releases) 页面下载 `.dmg` 文件，打开后将 `skill-zoo.app` 拖入 `Applications` 文件夹。
-
-<details>
-<summary>🧑‍💻 通过 Homebrew 安装（备选）</summary>
-
-```bash
-brew tap luochang212/tap
-brew install --cask skill-zoo
-```
-
-</details>
+1. 下载 `.dmg` 文件。
+2. 打开后将 `skill-zoo.app` 拖入 `Applications` 文件夹。
 
 ### Windows
 
-从 [Releases](https://github.com/luochang212/skill-zoo/releases) 下载 `.exe` 安装包运行即可。安装程序会自动创建快捷方式并支持自动更新。
+1. 下载 `.exe` 安装包。
+2. 运行安装包。安装程序会自动创建快捷方式并支持自动更新。
 
-> 如果 SmartScreen 弹出警告，点击 **”更多信息”** → **”仍要运行”**。
-
-<details>
-<summary>📦 便携版（备选）</summary>
-
-从 [Releases](https://github.com/luochang212/skill-zoo/releases) 下载便携版 `.zip`，解压到任意文件夹，运行 `skill-zoo.exe`。SmartScreen 同样可能弹出警告，按上述方式处理。
-
-</details>
+**注意：** 如果 SmartScreen 弹出警告，点击 **“更多信息”**，然后点击 **“仍要运行”**。
 
 ### Linux
 
-从 [Releases](https://github.com/luochang212/skill-zoo/releases) 下载与你 CPU 架构匹配的 AppImage，添加可执行权限后运行：
+下载与你 CPU 架构匹配的 AppImage，然后运行：
 
 ```bash
 chmod +x Skill-Zoo-*-Linux-*.AppImage
 ./Skill-Zoo-*-Linux-*.AppImage
 ```
-
-目前提供 `x86_64` 和 `aarch64` 构建。Debian 系发行版也可以选择安装对应的 `.deb` 包。
 
 ## 😇 信任与安全
 

@@ -72,43 +72,28 @@ See: [Skill Zoo CLI](https://www.npmjs.com/package/skill-zoo)
 
 ## 📦 Installation
 
+Download the latest build from [Releases](https://github.com/luochang212/skill-zoo/releases).
+
 ### macOS
 
-Download the `.dmg` from the [Releases](https://github.com/luochang212/skill-zoo/releases) page, open it, and drag `skill-zoo.app` into `Applications`.
-
-<details>
-<summary>🧑‍💻 Install via Homebrew (alternative)</summary>
-
-```bash
-brew tap luochang212/tap
-brew install --cask skill-zoo
-```
-
-</details>
+1. Download the `.dmg`.
+2. Open it and drag `skill-zoo.app` into `Applications`.
 
 ### Windows
 
-Download the `.exe` installer from [Releases](https://github.com/luochang212/skill-zoo/releases) and run it. The installer sets up shortcuts automatically and supports automatic updates.
+1. Download the `.exe` installer.
+2. Run it. The installer creates shortcuts and supports automatic updates.
 
-> If SmartScreen shows a warning, click **"More info"** → **"Run anyway"**.
-
-<details>
-<summary>📦 Portable version (alternative)</summary>
-
-Download the portable `.zip` from [Releases](https://github.com/luochang212/skill-zoo/releases), extract it to any folder, and run `skill-zoo.exe`. SmartScreen may also show a warning — same workaround applies.
-
-</details>
+**Note:** If SmartScreen shows a warning, click **"More info"** and then **"Run anyway"**.
 
 ### Linux
 
-Download the AppImage for your CPU architecture from [Releases](https://github.com/luochang212/skill-zoo/releases), make it executable, and run it:
+Download the AppImage for your CPU architecture, then run:
 
 ```bash
 chmod +x Skill-Zoo-*-Linux-*.AppImage
 ./Skill-Zoo-*-Linux-*.AppImage
 ```
-
-`x86_64` and `aarch64` builds are available. Debian-based distributions can alternatively install the matching `.deb` package.
 
 ## 😇 Trust & Security
 
