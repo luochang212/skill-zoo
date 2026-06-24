@@ -35,6 +35,7 @@ describe("SkillMaintenanceSettings", () => {
   beforeEach(async () => {
     vi.mocked(invoke).mockReset();
     vi.mocked(toast.error).mockReset();
+    vi.mocked(toast.warning).mockReset();
     await i18n.changeLanguage("en");
     vi.mocked(invoke).mockImplementation((command) => {
       switch (command) {
@@ -61,5 +62,54 @@ describe("SkillMaintenanceSettings", () => {
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Could not clear download cache"));
     expect(button).toBeEnabled();
+  });
+
+  it("shows the concrete update failure reason", async () => {
+    const user = userEvent.setup();
+    vi.mocked(invoke).mockImplementation((command) => {
+      switch (command) {
+        case "get_installed_skills":
+          return Promise.resolve([{ id: "skill:agent-browser", directory: "agent-browser" }]);
+        case "get_settings":
+          return Promise.resolve({});
+        case "get_cache_size":
+          return Promise.resolve(1024);
+        case "check_skill_updates":
+          return Promise.resolve({
+            skills: [
+              {
+                skillName: "agent-browser",
+                hasUpdate: true,
+                currentSha: "old",
+                latestSha: "new",
+                repo: "vercel-labs/agent-browser",
+              },
+            ],
+            totalRepos: 1,
+            checkedRepos: 1,
+            rateLimited: false,
+          });
+        case "update_all_skills":
+          return Promise.resolve({
+            skills: [],
+            successCount: 0,
+            failCount: 1,
+            errors: ["agent-browser: Rate limited: vercel-labs/agent-browser"],
+          });
+        default:
+          return Promise.reject(new Error(`Unexpected command: ${command}`));
+      }
+    });
+
+    renderSettings();
+
+    await user.click(await screen.findByRole("button", { name: /check updates/i }));
+    await user.click(await screen.findByRole("button", { name: /update all/i }));
+
+    await waitFor(() =>
+      expect(toast.warning).toHaveBeenCalledWith(
+        "GitHub API rate limit reached. Please wait and try again later.",
+      ),
+    );
   });
 });

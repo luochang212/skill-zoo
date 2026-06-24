@@ -51,6 +51,12 @@ describe("formatApiError", () => {
     ).toBe("Repository not found. It may be private or the link is incorrect.");
   });
 
+  it("formats legacy rate-limit strings", () => {
+    expect(formatApiError("agent-browser: Rate limited: vercel-labs/agent-browser")).toBe(
+      "GitHub API rate limit reached. Please wait and try again later.",
+    );
+  });
+
   it("falls back to a generic localized error", () => {
     expect(formatApiError("unexpected")).toBe(
       "Could not complete the operation. Please try again.",

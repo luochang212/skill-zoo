@@ -205,6 +205,13 @@ impl CliService {
             Vec<(String, SkillLockEntry)>,
         > = std::collections::HashMap::new();
         for (name, entry) in &to_update {
+            // Entries without a stored folder SHA cannot be safely compared.
+            // The update loop already skips them after a successful tree fetch;
+            // skipping them here also prevents stale legacy lock entries from
+            // turning unrelated repo errors into "update all" failures.
+            if entry.commit_sha.is_none() {
+                continue;
+            }
             let source_url = entry.source_url.as_deref().unwrap_or("");
             if source_url.is_empty() {
                 continue;

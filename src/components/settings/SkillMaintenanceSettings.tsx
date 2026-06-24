@@ -8,6 +8,7 @@ import { useUpdateAllSkills, useInstalledSkills, useRescanSkills } from "@/hooks
 import { useHideNonSsot, useUpdateHideNonSsot } from "@/hooks/useSettings";
 import { useCheckUpdates } from "@/hooks/useCheckUpdates";
 import { useIsMutationPending } from "@/hooks/usePendingMutation";
+import { formatApiError } from "@/lib/api/errors";
 import { skillsApi } from "@/lib/api/skills";
 
 function formatSize(bytes: number) {
@@ -99,11 +100,16 @@ export function SkillMaintenanceSettings() {
                           }),
                         );
                       } else if (result.failCount > 0) {
+                        const failure = result.errors[0]
+                          ? formatApiError(result.errors[0])
+                          : t("settings.maintenance.updateAllFailed");
                         toast.warning(
-                          t("settings.maintenance.updateAllPartial", {
-                            success: result.successCount,
-                            fail: result.failCount,
-                          }),
+                          result.successCount > 0
+                            ? `${t("settings.maintenance.updateAllPartial", {
+                                success: result.successCount,
+                                fail: result.failCount,
+                              })}: ${failure}`
+                            : failure,
                         );
                       } else {
                         toast.error(t("settings.maintenance.updateAllFailed"));

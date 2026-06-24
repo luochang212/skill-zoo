@@ -40,6 +40,9 @@ export function formatApiError(error: unknown): string {
   ) {
     return translateError("error.downloadNetwork", repo);
   }
+  if (lower.includes("rate limit")) {
+    return translateError("error.rateLimit", repo);
+  }
   if (lower.includes("exceeds") || lower.includes("too large")) {
     return translateError("error.repoTooLarge", repo);
   }
