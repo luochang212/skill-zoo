@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.9] — 2026-06-26
+
+### Fixed
+- Bad request error display now surfaces the correct error message.
+- Skill update workflow improved with precise path resolution and more robust error handling.
+
 ## [0.3.8] — 2026-06-24
 
 ### Added
