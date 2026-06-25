@@ -5,9 +5,9 @@
 use crate::config;
 use crate::error::{classify_download_error, AppError};
 use crate::services::lock::{SkillLock, SkillLockEntry};
-use crate::services::skill::{is_symlink_or_junction, SkillService};
+use crate::services::skill::is_symlink_or_junction;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::Emitter;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,6 +30,27 @@ pub struct UpdateResult {
     pub errors: Vec<String>,
 }
 
+#[derive(Clone)]
+pub struct KnownSkillUpdate {
+    pub name: String,
+    pub entry: SkillLockEntry,
+    pub latest_sha: String,
+}
+
+struct RepoZipRequest {
+    owner: String,
+    repo: String,
+    branch: String,
+    force: bool,
+}
+
+struct KnownUpdateRepoGroup {
+    owner: String,
+    repo: String,
+    branch: String,
+    skills: Vec<KnownSkillUpdate>,
+}
+
 pub struct CliService;
 
 impl CliService {
@@ -45,12 +66,13 @@ impl CliService {
         repo_url: &str,
         skills: &[String],
         _agent: &str,
-    ) -> Result<(), AppError> {
+    ) -> Result<Vec<String>, AppError> {
         let install_all = skills.is_empty() || skills.iter().any(|s| s == "*");
 
         let (owner, repo, branch) = Self::parse_github_url(repo_url)?;
 
-        let (_temp_dir, clone_path) = Self::download_repo_zip(&owner, &repo, &branch).await?;
+        let (_temp_dir, clone_path) =
+            Self::download_repo_zip(&owner, &repo, &branch, false).await?;
 
         // Discover skills in the cloned tree
         let discovered = Self::discover_skills_in_tree(&clone_path);
@@ -98,50 +120,50 @@ impl CliService {
         )?;
         std::fs::create_dir_all(&ssot_dir).map_err(AppError::Io)?;
 
-        let mut installed_names: Vec<String> = Vec::new();
+        let mut installed_skills: Vec<(String, String)> = Vec::new();
         let mut errors: Vec<String> = Vec::new();
 
         for (skill_name, _description, skill_path) in &to_install {
             let dest_dir = ssot_dir.join(skill_name);
-            let tmp_dir = ssot_dir.join(format!(".{skill_name}.tmp"));
-
-            // Clean up leftover temp directory from a previous failed install
-            if tmp_dir.exists() {
-                let _ = std::fs::remove_dir_all(&tmp_dir);
-            }
+            let tmp = Self::create_install_temp_dir(&ssot_dir, skill_name)?;
+            let tmp_dir = tmp.path().to_path_buf();
 
             match Self::copy_dir_contents(skill_path, &tmp_dir) {
                 Ok(_) => {
                     if std::fs::symlink_metadata(&dest_dir).is_ok() {
-                        let _ = std::fs::remove_dir_all(&tmp_dir);
                         errors.push(format!(
                             "{skill_name}: destination appeared during installation"
                         ));
                         continue;
                     }
                     std::fs::rename(&tmp_dir, &dest_dir).map_err(AppError::Io)?;
-                    installed_names.push(skill_name.clone());
+                    let _ = tmp.keep();
+                    let lock_skill_path = Self::lock_skill_path(&clone_path, skill_path)
+                        .unwrap_or_else(|| format!("skills/{skill_name}"));
+                    installed_skills.push((skill_name.clone(), lock_skill_path));
                 }
                 Err(e) => {
-                    let _ = std::fs::remove_dir_all(&tmp_dir);
                     errors.push(format!("{skill_name}: {e}"));
                 }
             }
         }
 
         // Persist metadata to lock file (best-effort)
-        let _ = Self::update_lock_after_install(&installed_names, &owner, &repo, &branch);
+        let _ = Self::update_lock_after_install(&installed_skills, &owner, &repo, &branch);
 
         if !errors.is_empty() {
             return Err(AppError::Cli(format!(
                 "Installed {} skill(s), {} failed: {}",
-                installed_names.len(),
+                installed_skills.len(),
                 errors.len(),
                 errors.join(", ")
             )));
         }
 
-        Ok(())
+        Ok(installed_skills
+            .iter()
+            .map(|(name, _)| name.clone())
+            .collect())
     }
 
     fn ensure_install_destinations_available(
@@ -149,6 +171,21 @@ impl CliService {
         ssot_dir: &std::path::Path,
         agent_dirs: &[PathBuf],
     ) -> Result<(), AppError> {
+        let mut seen = std::collections::BTreeSet::new();
+        let mut duplicates = std::collections::BTreeSet::new();
+        for name in skill_names.iter().copied() {
+            if !seen.insert(name) {
+                duplicates.insert(name);
+            }
+        }
+
+        if !duplicates.is_empty() {
+            return Err(AppError::BadRequest(format!(
+                "Cannot install because multiple selected skills target the same destination: {}",
+                duplicates.into_iter().collect::<Vec<_>>().join(", ")
+            )));
+        }
+
         let conflicts: Vec<&str> = skill_names
             .iter()
             .copied()
@@ -170,6 +207,20 @@ impl CliService {
         }
     }
 
+    fn create_install_temp_dir(
+        ssot_dir: &std::path::Path,
+        skill_name: &str,
+    ) -> Result<tempfile::TempDir, AppError> {
+        let leaf = Path::new(skill_name)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("skill");
+        tempfile::Builder::new()
+            .prefix(&format!(".{leaf}.install."))
+            .tempdir_in(ssot_dir)
+            .map_err(AppError::Io)
+    }
+
     // ─── Update ─────────────────────────────────────────────────────
 
     /// Update one or all installed skills by re-downloading and overwriting.
@@ -188,6 +239,31 @@ impl CliService {
                 .collect()
         };
 
+        Self::update_skill_entries(to_update).await
+    }
+
+    /// Update a pre-filtered set of installed skills.
+    ///
+    /// Used by the command layer when it needs filesystem/cache context, for
+    /// example excluding agent-origin skills from "update all".
+    pub async fn update_skill_names(skill_names: &[String]) -> Result<UpdateResult, AppError> {
+        let lock = SkillLock::read()?;
+        let to_update: Vec<(String, SkillLockEntry)> = skill_names
+            .iter()
+            .filter_map(|name| {
+                lock.skills
+                    .get(name)
+                    .cloned()
+                    .map(|entry| (name.clone(), entry))
+            })
+            .collect();
+
+        Self::update_skill_entries(to_update).await
+    }
+
+    async fn update_skill_entries(
+        to_update: Vec<(String, SkillLockEntry)>,
+    ) -> Result<UpdateResult, AppError> {
         if to_update.is_empty() {
             return Ok(UpdateResult {
                 success_count: 0,
@@ -196,7 +272,6 @@ impl CliService {
             });
         }
 
-        let mut updated: Vec<String> = Vec::new();
         let mut errors: Vec<String> = Vec::new();
 
         // Group skills by (owner, repo, branch) so each repo is fetched only once
@@ -212,23 +287,23 @@ impl CliService {
             if entry.commit_sha.is_none() {
                 continue;
             }
-            let source_url = entry.source_url.as_deref().unwrap_or("");
-            if source_url.is_empty() {
+            if entry.effective_url().is_none() {
                 continue;
             }
-            let (owner, repo) = match Self::parse_github_url(source_url) {
-                Ok((o, r, _)) => (o, r),
+            let (owner, repo, branch) = match Self::update_repo_info(entry) {
+                Ok(info) => info,
                 Err(e) => {
                     errors.push(format!("{name}: {e}"));
                     continue;
                 }
             };
-            let branch = entry.branch.clone().unwrap_or_else(|| "main".to_string());
             by_repo
                 .entry((owner, repo, branch))
                 .or_default()
                 .push((name.clone(), entry.clone()));
         }
+
+        let mut known_updates = Vec::new();
 
         for ((owner, repo, branch), skills) in &by_repo {
             let tree = match Self::fetch_repo_tree(owner, repo, branch).await {
@@ -250,28 +325,93 @@ impl CliService {
             for (name, entry) in skills {
                 let old_sha = entry.commit_sha.as_deref();
                 let skill_path = entry.skill_path.as_deref().unwrap_or("");
-                let new_sha = Self::get_folder_sha_from_tree(&tree, skill_path);
+                let Some(new_sha) = Self::get_folder_sha_from_tree(&tree, skill_path) else {
+                    continue;
+                };
 
                 // Only reinstall when we can confirm the SHA actually changed
-                match (old_sha, new_sha.as_deref()) {
-                    (Some(old), Some(new)) if old != new => {}
+                match old_sha {
+                    Some(old) if old != new_sha => {}
                     _ => continue,
                 }
 
-                match Self::reinstall_single_skill(name, owner, repo, branch).await {
-                    Ok(_) => updated.push(name.clone()),
-                    Err(e) => errors.push(format!("{name}: {e}")),
+                known_updates.push(KnownSkillUpdate {
+                    name: name.clone(),
+                    entry: entry.clone(),
+                    latest_sha: new_sha,
+                });
+            }
+        }
+
+        let mut result = Self::update_known_skill_entries(known_updates).await?;
+        result.errors.extend(errors);
+        result.fail_count = result.errors.len();
+        Ok(result)
+    }
+
+    pub async fn update_known_skill_entries(
+        to_update: Vec<KnownSkillUpdate>,
+    ) -> Result<UpdateResult, AppError> {
+        if to_update.is_empty() {
+            return Ok(UpdateResult {
+                success_count: 0,
+                fail_count: 0,
+                errors: vec![],
+            });
+        }
+
+        let (groups, mut errors) = Self::group_known_updates_by_repo(to_update);
+        let mut updated: Vec<String> = Vec::new();
+        let mut updated_shas: Vec<(String, String)> = Vec::new();
+
+        for group in &groups {
+            let request = Self::update_download_request(&group.owner, &group.repo, &group.branch);
+            let (_temp_dir, clone_path) = match Self::download_repo_zip(
+                &request.owner,
+                &request.repo,
+                &request.branch,
+                request.force,
+            )
+            .await
+            {
+                Ok(download) => download,
+                Err(e) => {
+                    errors.extend(
+                        group
+                            .skills
+                            .iter()
+                            .map(|skill| format!("{}: {e}", skill.name)),
+                    );
+                    continue;
+                }
+            };
+
+            let discovered = Self::discover_skills_in_tree(&clone_path);
+            for skill in &group.skills {
+                match Self::reinstall_skill_from_discovered(
+                    &skill.name,
+                    &group.owner,
+                    &group.repo,
+                    &clone_path,
+                    skill.entry.skill_path.as_deref(),
+                    &discovered,
+                ) {
+                    Ok(()) => {
+                        updated.push(skill.name.clone());
+                        updated_shas.push((skill.name.clone(), skill.latest_sha.clone()));
+                    }
+                    Err(e) => errors.push(format!("{}: {e}", skill.name)),
                 }
             }
         }
 
-        // Bump updatedAt timestamps
-        if !updated.is_empty() {
+        if !updated_shas.is_empty() {
             let mut lock = SkillLock::read()?;
             let now = chrono::Utc::now().to_rfc3339();
-            for name in &updated {
+            for (name, sha) in &updated_shas {
                 if let Some(entry) = lock.skills.get_mut(name) {
                     entry.updated_at = Some(now.clone());
+                    entry.commit_sha = Some(sha.clone());
                 }
             }
             lock.write()?;
@@ -284,44 +424,37 @@ impl CliService {
         })
     }
 
-    // ─── Remove ─────────────────────────────────────────────────────
+    fn group_known_updates_by_repo(
+        to_update: Vec<KnownSkillUpdate>,
+    ) -> (Vec<KnownUpdateRepoGroup>, Vec<String>) {
+        let mut groups: Vec<KnownUpdateRepoGroup> = Vec::new();
+        let mut errors = Vec::new();
 
-    /// Remove a globally installed skill: delete canonical directory,
-    /// clean up agent symlinks, and remove from lock file.
-    pub async fn remove_skill(name: &str) -> Result<(), AppError> {
-        let ssot_dir = config::get_agents_skills_dir();
-        let skill_dir = ssot_dir.join(name);
-
-        if skill_dir.exists() && !is_symlink_or_junction(&skill_dir) {
-            // Skill exists in SSOT — delete entity + clean all symlinks
-            SkillService::remove_skill_dir(name, &skill_dir.to_string_lossy())?;
-        } else {
-            // Not in SSOT — look for entity in agent directories
-            let mut found = false;
-            let agent_link_name = SkillService::agent_link_name(name);
-            for agent in config::AGENTS {
-                if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
-                    for agent_skill in [agent_dir.join(name), agent_dir.join(agent_link_name)] {
-                        if agent_skill.exists() && !is_symlink_or_junction(&agent_skill) {
-                            SkillService::remove_skill_dir(name, &agent_skill.to_string_lossy())?;
-                            found = true;
-                            break;
-                        }
-                    }
-                    if found {
-                        break;
-                    }
+        for update in to_update {
+            let (owner, repo, branch) = match Self::update_repo_info(&update.entry) {
+                Ok(info) => info,
+                Err(e) => {
+                    errors.push(format!("{}: {e}", update.name));
+                    continue;
                 }
-            }
-            if !found {
-                return Err(AppError::NotFound(format!("Skill not found: {name}")));
+            };
+
+            if let Some(group) = groups
+                .iter_mut()
+                .find(|group| group.owner == owner && group.repo == repo && group.branch == branch)
+            {
+                group.skills.push(update);
+            } else {
+                groups.push(KnownUpdateRepoGroup {
+                    owner,
+                    repo,
+                    branch,
+                    skills: vec![update],
+                });
             }
         }
 
-        // Remove from lock file
-        let _ = Self::remove_from_lock(name);
-
-        Ok(())
+        (groups, errors)
     }
 
     // ─── ANSI stripping (kept for API compatibility) ────────────────
@@ -369,11 +502,7 @@ impl CliService {
 
     /// Get the folder SHA for a specific path from a repo tree.
     pub fn get_folder_sha_from_tree(tree: &RepoTreeResponse, path: &str) -> Option<String> {
-        // Normalize path (remove SKILL.md suffix)
-        let normalized_path = path
-            .trim_end_matches("/SKILL.md")
-            .trim_end_matches("SKILL.md")
-            .trim_end_matches('/');
+        let normalized_path = Self::normalize_skill_path(path);
 
         // Root-level skill
         if normalized_path.is_empty() {
@@ -449,6 +578,39 @@ impl CliService {
         branch.replace(['/', '\\'], "--")
     }
 
+    fn update_repo_info(entry: &SkillLockEntry) -> Result<(String, String, String), AppError> {
+        let source_url = entry.effective_url().ok_or_else(|| {
+            AppError::BadRequest("Skill lock entry has no GitHub source URL".into())
+        })?;
+        let (owner, repo, parsed_branch) = Self::parse_github_url(&source_url)?;
+        let branch = entry.branch.clone().unwrap_or(parsed_branch);
+        Ok((owner, repo, branch))
+    }
+
+    fn update_download_request(owner: &str, repo: &str, branch: &str) -> RepoZipRequest {
+        RepoZipRequest {
+            owner: owner.to_string(),
+            repo: repo.to_string(),
+            branch: branch.to_string(),
+            force: true,
+        }
+    }
+
+    fn normalize_skill_path(path: &str) -> String {
+        path.trim_end_matches("/SKILL.md")
+            .trim_end_matches("SKILL.md")
+            .trim_end_matches('/')
+            .to_string()
+    }
+
+    fn lock_skill_path(repo_root: &Path, skill_path: &Path) -> Option<String> {
+        let relative = skill_path.strip_prefix(repo_root).ok()?;
+        let path = relative
+            .to_string_lossy()
+            .replace(std::path::MAIN_SEPARATOR, "/");
+        Some(Self::normalize_skill_path(&path))
+    }
+
     pub fn cache_zip_path(owner: &str, repo: &str, branch: &str) -> PathBuf {
         config::get_repo_zip_cache_dir().join(format!(
             "{owner}--{repo}--{}.zip",
@@ -500,7 +662,7 @@ impl CliService {
 
         if !response.status().is_success() {
             match response.status().as_u16() {
-                403 | 429 => return Err(AppError::RateLimited(repo_id)),
+                403 | 429 => return Err(AppError::DownloadUnavailable(repo_id)),
                 404 => return Err(AppError::RepoNotFound(repo_id)),
                 _ => {}
             }
@@ -566,8 +728,9 @@ impl CliService {
         owner: &str,
         repo: &str,
         branch: &str,
+        force: bool,
     ) -> Result<(tempfile::TempDir, PathBuf), AppError> {
-        let zip_path = Self::ensure_cached_zip(owner, repo, branch, false).await?;
+        let zip_path = Self::ensure_cached_zip(owner, repo, branch, force).await?;
 
         let file = std::fs::File::open(&zip_path).map_err(AppError::Io)?;
         let mut archive = zip::ZipArchive::new(file)
@@ -670,7 +833,7 @@ impl CliService {
     // ─── Lock file helpers ──────────────────────────────────────────
 
     fn update_lock_after_install(
-        skill_names: &[String],
+        skills: &[(String, String)],
         owner: &str,
         repo: &str,
         branch: &str,
@@ -680,7 +843,7 @@ impl CliService {
         let source = format!("{owner}/{repo}");
         let source_url = format!("https://github.com/{owner}/{repo}");
 
-        for name in skill_names {
+        for (name, skill_path) in skills {
             let existing_installed_at = lock.skills.get(name).and_then(|e| e.installed_at.clone());
 
             lock.skills.insert(
@@ -690,7 +853,7 @@ impl CliService {
                     source_type: Some("github".into()),
                     source_url: Some(source_url.clone()),
                     branch: Some(branch.into()),
-                    skill_path: Some(format!("skills/{name}/SKILL.md")),
+                    skill_path: Some(skill_path.clone()),
                     skill_folder_hash: Some(String::new()),
                     installed_at: Some(existing_installed_at.unwrap_or_else(|| now.clone())),
                     updated_at: Some(now.clone()),
@@ -702,42 +865,132 @@ impl CliService {
         lock.write()
     }
 
-    fn remove_from_lock(name: &str) -> Result<(), AppError> {
-        let mut lock = SkillLock::read()?;
-        lock.skills.remove(name);
-        lock.write()
-    }
-
-    async fn reinstall_single_skill(
+    fn reinstall_skill_from_discovered(
         name: &str,
         owner: &str,
         repo: &str,
-        branch: &str,
+        repo_root: &Path,
+        lock_skill_path: Option<&str>,
+        discovered: &[(String, String, PathBuf)],
     ) -> Result<(), AppError> {
-        let (_temp_dir, clone_path) = Self::download_repo_zip(owner, repo, branch).await?;
-
-        let discovered = Self::discover_skills_in_tree(&clone_path);
-        let (_display_name, _desc, skill_path) = discovered
-            .iter()
-            .find(|(n, _, _)| n == name)
-            .ok_or_else(|| {
-                AppError::NotFound(format!("Skill {name} not found in {owner}/{repo}"))
-            })?;
+        let skill_path =
+            Self::find_discovered_skill_for_update(repo_root, name, lock_skill_path, discovered)
+                .ok_or_else(|| {
+                    let normalized_path = lock_skill_path
+                        .map(Self::normalize_skill_path)
+                        .unwrap_or_default();
+                    if normalized_path.is_empty() {
+                        AppError::NotFound(format!("Skill {name} not found in {owner}/{repo}"))
+                    } else {
+                        AppError::NotFound(format!(
+                            "Skill {name} at {normalized_path} not found in {owner}/{repo}"
+                        ))
+                    }
+                })?;
 
         let ssot_dir = config::get_agents_skills_dir();
         let dest = ssot_dir.join(name);
-        let tmp = ssot_dir.join(format!(".{name}.tmp"));
+        let tmp = Self::create_update_temp_dir(&dest, name)?;
+        let tmp_path = tmp.path().to_path_buf();
 
-        if tmp.exists() {
-            let _ = std::fs::remove_dir_all(&tmp);
+        Self::copy_dir_contents(skill_path, &tmp_path)?;
+        Self::replace_skill_dir_with_rollback(&dest, &tmp_path)
+    }
+
+    fn find_discovered_skill_for_update<'a>(
+        repo_root: &Path,
+        name: &str,
+        lock_skill_path: Option<&str>,
+        discovered: &'a [(String, String, PathBuf)],
+    ) -> Option<&'a PathBuf> {
+        let expected_path = lock_skill_path
+            .map(Self::normalize_skill_path)
+            .unwrap_or_default();
+        if !expected_path.is_empty() {
+            return discovered
+                .iter()
+                .find(|(_, _, path)| {
+                    Self::lock_skill_path(repo_root, path).as_deref()
+                        == Some(expected_path.as_str())
+                })
+                .map(|(_, _, path)| path);
         }
 
-        Self::copy_dir_contents(skill_path, &tmp)?;
+        discovered
+            .iter()
+            .find(|(discovered_name, _, _)| discovered_name == name)
+            .map(|(_, _, path)| path)
+    }
 
-        if dest.exists() {
-            std::fs::remove_dir_all(&dest).map_err(AppError::Io)?;
+    fn create_update_temp_dir(dest: &Path, name: &str) -> Result<tempfile::TempDir, AppError> {
+        let parent = dest.parent().ok_or_else(|| {
+            AppError::BadRequest(format!("Invalid skill path: {}", dest.display()))
+        })?;
+        let leaf = Path::new(name)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("skill");
+        tempfile::Builder::new()
+            .prefix(&format!(".{leaf}.update."))
+            .tempdir_in(parent)
+            .map_err(AppError::Io)
+    }
+
+    fn replace_skill_dir_with_rollback(dest: &Path, tmp: &Path) -> Result<(), AppError> {
+        if std::fs::symlink_metadata(dest).is_err() {
+            return std::fs::rename(tmp, dest).map_err(AppError::Io);
         }
-        std::fs::rename(&tmp, &dest).map_err(AppError::Io)
+
+        let backup = Self::create_backup_path(dest)?;
+        std::fs::rename(dest, &backup).map_err(AppError::Io)?;
+
+        match std::fs::rename(tmp, dest) {
+            Ok(()) => {
+                let _ = std::fs::remove_dir_all(&backup);
+                Ok(())
+            }
+            Err(rename_error) => match std::fs::rename(&backup, dest) {
+                Ok(()) => Err(AppError::Io(rename_error)),
+                Err(restore_error) => Err(AppError::Cli(format!(
+                    "Failed to install updated skill at {}: {rename_error}. Original skill remains at {} and could not be restored automatically: {restore_error}",
+                    dest.display(),
+                    backup.display()
+                ))),
+            },
+        }
+    }
+
+    fn create_backup_path(dest: &Path) -> Result<PathBuf, AppError> {
+        Self::unique_backup_path(dest)
+    }
+
+    fn unique_backup_path(dest: &Path) -> Result<PathBuf, AppError> {
+        let parent = dest.parent().ok_or_else(|| {
+            AppError::BadRequest(format!("Invalid skill path: {}", dest.display()))
+        })?;
+        let leaf = dest
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("skill");
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+        let pid = std::process::id();
+
+        for attempt in 0..1000 {
+            let candidate = parent.join(format!(".{leaf}.backup.{pid}.{nanos}.{attempt}"));
+            match std::fs::symlink_metadata(&candidate) {
+                Ok(_) => continue,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(candidate),
+                Err(e) => return Err(AppError::Io(e)),
+            }
+        }
+
+        Err(AppError::Io(std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            format!("Could not allocate backup path for {}", dest.display()),
+        )))
     }
 }
 
@@ -820,5 +1073,253 @@ mod tests {
             CliService::ensure_install_destinations_available(&["one", "two"], &ssot, &[agent]);
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn install_preflight_rejects_duplicate_destinations_in_selection() {
+        let root = tempfile::tempdir().unwrap();
+        let ssot = root.path().join("ssot");
+        let agent = root.path().join("agent");
+
+        let result =
+            CliService::ensure_install_destinations_available(&["demo", "demo"], &ssot, &[agent]);
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("multiple selected skills target the same destination"));
+    }
+
+    #[test]
+    fn create_install_temp_dir_uses_unique_paths_for_same_skill() {
+        let root = tempfile::tempdir().unwrap();
+        let ssot = root.path().join("ssot");
+        std::fs::create_dir_all(&ssot).unwrap();
+
+        let first = CliService::create_install_temp_dir(&ssot, "demo").unwrap();
+        let second = CliService::create_install_temp_dir(&ssot, "demo").unwrap();
+
+        assert_ne!(first.path(), second.path());
+        assert!(first.path().exists());
+        assert!(second.path().exists());
+    }
+
+    #[test]
+    fn install_temp_dir_keep_preserves_renamed_destination() {
+        let root = tempfile::tempdir().unwrap();
+        let ssot = root.path().join("ssot");
+        std::fs::create_dir_all(&ssot).unwrap();
+        let dest = ssot.join("demo");
+
+        let tmp = CliService::create_install_temp_dir(&ssot, "demo").unwrap();
+        std::fs::write(tmp.path().join("SKILL.md"), "# Demo").unwrap();
+        std::fs::rename(tmp.path(), &dest).unwrap();
+        let _ = tmp.keep();
+
+        assert_eq!(
+            std::fs::read_to_string(dest.join("SKILL.md")).unwrap(),
+            "# Demo"
+        );
+    }
+
+    #[test]
+    fn update_repo_info_uses_effective_source_url_fallback() {
+        let entry = SkillLockEntry {
+            source: Some("owner/repo".to_string()),
+            source_type: Some("github".to_string()),
+            source_url: None,
+            branch: Some("main".to_string()),
+            skill_path: Some("skills/demo".to_string()),
+            skill_folder_hash: None,
+            installed_at: None,
+            updated_at: None,
+            commit_sha: Some("old".to_string()),
+        };
+
+        let (owner, repo, branch) = CliService::update_repo_info(&entry).unwrap();
+
+        assert_eq!(
+            (owner, repo, branch),
+            ("owner".to_string(), "repo".to_string(), "main".to_string())
+        );
+    }
+
+    #[test]
+    fn lock_skill_path_preserves_discovered_relative_directory() {
+        let repo = tempfile::tempdir().unwrap();
+        let skill_dir = repo.path().join("nested").join("demo");
+        std::fs::create_dir_all(&skill_dir).unwrap();
+
+        let path = CliService::lock_skill_path(repo.path(), &skill_dir).unwrap();
+
+        assert_eq!(path, "nested/demo");
+    }
+
+    #[test]
+    fn update_download_request_forces_fresh_zip() {
+        let request = CliService::update_download_request("owner", "repo", "main");
+
+        assert_eq!(request.owner, "owner");
+        assert_eq!(request.repo, "repo");
+        assert_eq!(request.branch, "main");
+        assert!(request.force);
+    }
+
+    #[test]
+    fn groups_known_updates_by_repo_for_single_zip_download() {
+        let (groups, errors) = CliService::group_known_updates_by_repo(vec![
+            test_known_update("one", "owner/repo", "new-one"),
+            test_known_update("two", "owner/repo", "new-two"),
+        ]);
+
+        assert!(errors.is_empty());
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].owner, "owner");
+        assert_eq!(groups[0].repo, "repo");
+        assert_eq!(groups[0].branch, "main");
+        assert_eq!(groups[0].skills.len(), 2);
+    }
+
+    #[test]
+    fn find_discovered_skill_for_update_prefers_lock_skill_path_over_duplicate_leaf_name() {
+        let repo = tempfile::tempdir().unwrap();
+        let wrong = repo.path().join("other").join("demo");
+        let expected = repo.path().join("skills").join("demo");
+        std::fs::create_dir_all(&wrong).unwrap();
+        std::fs::create_dir_all(&expected).unwrap();
+
+        let discovered = vec![
+            ("demo".to_string(), String::new(), wrong.clone()),
+            ("demo".to_string(), String::new(), expected.clone()),
+        ];
+
+        let selected = CliService::find_discovered_skill_for_update(
+            repo.path(),
+            "demo",
+            Some("skills/demo"),
+            &discovered,
+        )
+        .expect("selected skill");
+
+        assert_eq!(selected, &expected);
+    }
+
+    #[test]
+    fn find_discovered_skill_for_update_accepts_legacy_skill_md_suffix() {
+        let repo = tempfile::tempdir().unwrap();
+        let expected = repo.path().join("skills").join("demo");
+        std::fs::create_dir_all(&expected).unwrap();
+
+        let discovered = vec![("demo".to_string(), String::new(), expected.clone())];
+
+        let selected = CliService::find_discovered_skill_for_update(
+            repo.path(),
+            "demo",
+            Some("skills/demo/SKILL.md"),
+            &discovered,
+        )
+        .expect("selected skill");
+
+        assert_eq!(selected, &expected);
+    }
+
+    #[test]
+    fn find_discovered_skill_for_update_falls_back_to_name_without_lock_path() {
+        let repo = tempfile::tempdir().unwrap();
+        let expected = repo.path().join("skills").join("demo");
+        std::fs::create_dir_all(&expected).unwrap();
+
+        let discovered = vec![("demo".to_string(), String::new(), expected.clone())];
+
+        let selected =
+            CliService::find_discovered_skill_for_update(repo.path(), "demo", None, &discovered)
+                .expect("selected skill");
+
+        assert_eq!(selected, &expected);
+    }
+
+    #[test]
+    fn create_update_temp_dir_uses_unique_paths_for_same_skill() {
+        let root = tempfile::tempdir().unwrap();
+        let dest = root.path().join("demo");
+
+        let first = CliService::create_update_temp_dir(&dest, "demo").unwrap();
+        let second = CliService::create_update_temp_dir(&dest, "demo").unwrap();
+
+        assert_ne!(first.path(), second.path());
+        assert!(first.path().exists());
+        assert!(second.path().exists());
+    }
+
+    #[test]
+    fn replace_skill_dir_with_rollback_replaces_existing_dest() {
+        let root = tempfile::tempdir().unwrap();
+        let dest = root.path().join("demo");
+        let tmp = root.path().join("demo.tmp");
+        std::fs::create_dir_all(&dest).unwrap();
+        std::fs::create_dir_all(&tmp).unwrap();
+        std::fs::write(dest.join("SKILL.md"), "# Old").unwrap();
+        std::fs::write(tmp.join("SKILL.md"), "# New").unwrap();
+
+        CliService::replace_skill_dir_with_rollback(&dest, &tmp).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(dest.join("SKILL.md")).unwrap(),
+            "# New"
+        );
+        assert!(!tmp.exists());
+    }
+
+    #[test]
+    fn replace_skill_dir_with_rollback_restores_dest_when_tmp_rename_fails() {
+        let root = tempfile::tempdir().unwrap();
+        let dest = root.path().join("demo");
+        let missing_tmp = root.path().join("missing.tmp");
+        std::fs::create_dir_all(&dest).unwrap();
+        std::fs::write(dest.join("SKILL.md"), "# Old").unwrap();
+
+        let result = CliService::replace_skill_dir_with_rollback(&dest, &missing_tmp);
+
+        assert!(result.is_err());
+        assert_eq!(
+            std::fs::read_to_string(dest.join("SKILL.md")).unwrap(),
+            "# Old"
+        );
+    }
+
+    #[test]
+    fn backup_path_candidate_is_unique_and_not_created() {
+        let root = tempfile::tempdir().unwrap();
+        let dest = root.path().join("demo");
+        std::fs::create_dir_all(&dest).unwrap();
+
+        let backup = CliService::unique_backup_path(&dest).unwrap();
+
+        assert!(!backup.exists());
+        assert_eq!(backup.parent(), dest.parent());
+        assert!(backup
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap()
+            .starts_with(".demo.backup."));
+    }
+
+    fn test_known_update(name: &str, source: &str, latest_sha: &str) -> KnownSkillUpdate {
+        KnownSkillUpdate {
+            name: name.to_string(),
+            entry: SkillLockEntry {
+                source: Some(source.to_string()),
+                source_type: Some("github".to_string()),
+                source_url: Some(format!("https://github.com/{source}")),
+                branch: Some("main".to_string()),
+                skill_path: Some(format!("skills/{name}")),
+                skill_folder_hash: None,
+                installed_at: None,
+                updated_at: None,
+                commit_sha: Some("old".to_string()),
+            },
+            latest_sha: latest_sha.to_string(),
+        }
     }
 }

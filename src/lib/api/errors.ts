@@ -9,6 +9,7 @@ interface ApiError {
 const ERROR_KEYS: Record<string, string> = {
   downloadNetwork: "error.downloadNetwork",
   downloadTimeout: "error.downloadTimeout",
+  downloadUnavailable: "error.downloadUnavailable",
   repoNotFound: "error.repoNotFound",
   rateLimited: "error.rateLimit",
   repoTooLarge: "error.repoTooLarge",
@@ -39,6 +40,9 @@ export function formatApiError(error: unknown): string {
     lower.includes("network error")
   ) {
     return translateError("error.downloadNetwork", repo);
+  }
+  if (lower.includes("download temporarily unavailable")) {
+    return translateError("error.downloadUnavailable", repo);
   }
   if (lower.includes("rate limit")) {
     return translateError("error.rateLimit", repo);

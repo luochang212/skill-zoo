@@ -29,6 +29,7 @@ interface SkillContentPaneProps {
   updatedAt?: string;
   updatedLabel?: string;
   directory?: string;
+  skillId?: string;
   // SKILL.md save controls (passed through from parent)
   onSave?: () => void;
   savePending?: boolean;
@@ -149,6 +150,7 @@ export const SkillContentPane = memo(function SkillContentPane({
   updatedAt,
   updatedLabel,
   directory,
+  skillId,
   onSave,
   savePending,
   dirty,
@@ -183,7 +185,7 @@ export const SkillContentPane = memo(function SkillContentPane({
     isLoading: rootLoading,
     isError: rootError,
     refetch: refetchRootNodes,
-  } = useSkillFileChildren(readOnly ? null : (directory ?? null), null);
+  } = useSkillFileChildren(readOnly ? null : (directory ?? null), null, skillId);
 
   // ── Resolve selected node from already loaded nodes ──
   const selectedNode = findNodeByPath(nodes, selectedFilePath);
@@ -295,8 +297,8 @@ export const SkillContentPane = memo(function SkillContentPane({
 
       try {
         const children = await queryClient.fetchQuery({
-          queryKey: ["skills", "fileChildren", directory, node.path],
-          queryFn: () => skillsApi.listSkillFileChildren(directory, node.path),
+          queryKey: ["skills", "fileChildren", skillId, directory, node.path],
+          queryFn: () => skillsApi.listSkillFileChildren(directory, node.path, skillId),
           staleTime: 30 * 1000,
         });
         setNodes((current) => setNodeChildren(current, node.path, children));
@@ -315,7 +317,7 @@ export const SkillContentPane = memo(function SkillContentPane({
         });
       }
     },
-    [directory, queryClient, readOnly],
+    [directory, skillId, queryClient, readOnly],
   );
 
   // ── Tab change: only forward to parent for SKILL.md ──

@@ -2,15 +2,17 @@ use crate::config;
 use crate::config::{AgentConfig, AgentPathInfo};
 use crate::error::{AppError, CommandError};
 use crate::persistence::archive::SUPPORTED_ARCHIVE_VERSION;
-use crate::persistence::{atomic_write, ArchiveManifest, ArchivedSkill};
-use crate::services::cli::CliService;
+use crate::persistence::{
+    atomic_write, ArchiveManifest, ArchivedSkill, SkillCache, SkillCacheEntry,
+};
+use crate::services::cli::{CliService, KnownSkillUpdate};
 use crate::services::lock::{SkillLock, SUPPORTED_LOCK_VERSION};
 use crate::services::skill::{
     is_symlink_or_junction, DiscoverableSkill, InstalledSkill, RepoSkillsResult, SkillFileNode,
     SkillService, SymlinkStatus,
 };
 use crate::store::AppState;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
@@ -26,6 +28,14 @@ pub struct UpdateAllResult {
     pub success_count: usize,
     pub fail_count: usize,
     pub errors: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckedSkillUpdate {
+    pub skill_name: String,
+    pub current_sha: String,
+    pub latest_sha: String,
 }
 
 const MAX_IMAGE_PREVIEW_BYTES: u64 = 25 * 1024 * 1024;
@@ -211,41 +221,13 @@ pub async fn install_skills(
     skill_names: Vec<String>,
     agents: Vec<String>,
 ) -> Result<Vec<InstalledSkill>, CommandError> {
-    CliService::add_skills(
+    let installed_dirs = CliService::add_skills(
         &repo_url,
         &skill_names,
         &agents.first().cloned().unwrap_or_default(),
     )
     .await
     .map_err(CommandError::from)?;
-
-    // Discover which skill directories were just installed in SSOT
-    let ssot_dir = config::get_agents_skills_dir();
-    let installed_dirs: Vec<String> = if let Ok(entries) = std::fs::read_dir(&ssot_dir) {
-        entries
-            .flatten()
-            .filter(|e| e.path().is_dir() || is_symlink_or_junction(&e.path()))
-            .filter_map(|e| {
-                let name = e.file_name().to_str()?.to_string();
-                let skill_md = e.path().join("SKILL.md");
-                if skill_md.exists() {
-                    let matches = skill_names.is_empty()
-                        || skill_names
-                            .iter()
-                            .any(|s| s.to_lowercase() == name.to_lowercase());
-                    if matches {
-                        Some(name)
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            })
-            .collect()
-    } else {
-        Vec::new()
-    };
 
     // Create symlinks first
     for skill_dir in &installed_dirs {
@@ -287,59 +269,6 @@ pub async fn get_installed_skills(
         .map_err(|e| e.to_string())
 }
 
-/// Best-effort refresh of commit SHA after update. Fails silently on error or rate-limit.
-async fn refresh_commit_sha_for_skill_dir(skill_dir: &str) {
-    let lock = match SkillLock::read() {
-        Ok(l) => l,
-        Err(_) => return,
-    };
-    let entry = match lock.skills.get(skill_dir).cloned() {
-        Some(e) => e,
-        None => return,
-    };
-    let (Some(owner), Some(name)) = entry.parse_source_owner_name() else {
-        return;
-    };
-    let branch = entry.branch.unwrap_or_else(|| "main".to_string());
-    if let Ok(Some(tree)) = CliService::fetch_repo_tree(&owner, &name, &branch).await {
-        let skill_path = entry.skill_path.as_deref().unwrap_or("");
-        if let Some(sha) = CliService::get_folder_sha_from_tree(&tree, skill_path) {
-            let _ = SkillLock::update_commit_sha(skill_dir, &sha);
-        }
-    }
-}
-
-async fn refresh_commit_shas_after_update_all() {
-    let lock = match SkillLock::read() {
-        Ok(l) => l,
-        Err(_) => return,
-    };
-    let mut seen: HashSet<(String, String, String)> = HashSet::new();
-    for entry in lock.skills.values() {
-        let (Some(owner), Some(name)) = entry.parse_source_owner_name() else {
-            continue;
-        };
-        let branch = entry.branch.clone().unwrap_or_else(|| "main".to_string());
-        let key = (owner.clone(), name.clone(), branch.clone());
-        if !seen.insert(key) {
-            continue;
-        }
-        if let Ok(Some(tree)) = CliService::fetch_repo_tree(&owner, &name, &branch).await {
-            for (sn, e) in &lock.skills {
-                let (Some(o), Some(n)) = e.parse_source_owner_name() else {
-                    continue;
-                };
-                if o == owner && n == name {
-                    let skill_path = e.skill_path.as_deref().unwrap_or("");
-                    if let Some(sha) = CliService::get_folder_sha_from_tree(&tree, skill_path) {
-                        let _ = SkillLock::update_commit_sha(sn, &sha);
-                    }
-                }
-            }
-        }
-    }
-}
-
 #[tauri::command]
 pub async fn update_skill(
     state: State<'_, AppState>,
@@ -349,6 +278,12 @@ pub async fn update_skill(
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
 
+    if skill.origin != "ssot" {
+        return Err(
+            "Only Skill Zoo-managed skills in the SSOT store can be updated from Git.".to_string(),
+        );
+    }
+
     let result = CliService::update_skills(Some(&skill.directory))
         .await
         .map_err(|e| e.to_string())?;
@@ -356,9 +291,6 @@ pub async fn update_skill(
     if result.fail_count > 0 {
         return Err(result.errors.join("; "));
     }
-
-    // Best-effort: refresh commit SHA so next check doesn't show false positive
-    refresh_commit_sha_for_skill_dir(&skill.directory).await;
 
     let entry = SkillService::scan_single_skill(&skill.directory).map_err(|e| e.to_string())?;
     SkillService::upsert_cache_entry(&state.skill_cache, entry).map_err(|e| e.to_string())?;
@@ -372,18 +304,54 @@ pub async fn update_skill(
 }
 
 #[tauri::command]
-pub async fn update_all_skills(state: State<'_, AppState>) -> Result<UpdateAllResult, String> {
-    let update_result = CliService::update_skills(None).await.unwrap_or_else(|e| {
-        eprintln!("Update all skills error: {e}");
-        crate::services::cli::UpdateResult {
-            success_count: 0,
-            fail_count: 0,
-            errors: vec![e.to_string()],
-        }
-    });
+pub async fn update_all_skills(
+    state: State<'_, AppState>,
+    checked_updates: Option<Vec<CheckedSkillUpdate>>,
+) -> Result<UpdateAllResult, String> {
+    let update_result = if let Some(checked_updates) = checked_updates {
+        let (known_updates, validation_errors) = {
+            let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
+            let lock = SkillLock::read().map_err(|e| e.to_string())?;
+            checked_update_entries_from_lock(&cache, &lock, &checked_updates)
+        };
+        let mut result = if known_updates.is_empty() {
+            crate::services::cli::UpdateResult {
+                success_count: 0,
+                fail_count: 0,
+                errors: vec![],
+            }
+        } else {
+            CliService::update_known_skill_entries(known_updates)
+                .await
+                .unwrap_or_else(|e| {
+                    eprintln!("Update checked skills error: {e}");
+                    crate::services::cli::UpdateResult {
+                        success_count: 0,
+                        fail_count: 0,
+                        errors: vec![e.to_string()],
+                    }
+                })
+        };
+        result.errors.extend(validation_errors);
+        result
+    } else {
+        let update_dirs = {
+            let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
+            update_all_candidate_dirs(&cache)
+        };
 
-    // Best-effort: refresh commit SHAs
-    refresh_commit_shas_after_update_all().await;
+        CliService::update_skill_names(&update_dirs)
+            .await
+            .unwrap_or_else(|e| {
+                eprintln!("Update all skills error: {e}");
+                crate::services::cli::UpdateResult {
+                    success_count: 0,
+                    fail_count: 0,
+                    errors: vec![e.to_string()],
+                }
+            })
+    };
+    let update_result = update_result_with_error_count(update_result);
 
     let dirs: Vec<String> = {
         let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
@@ -405,15 +373,212 @@ pub async fn update_all_skills(state: State<'_, AppState>) -> Result<UpdateAllRe
     })
 }
 
+fn update_all_candidate_dirs(cache: &crate::persistence::SkillCache) -> Vec<String> {
+    cache
+        .iter()
+        .filter(|skill| skill.origin == "ssot")
+        .map(|skill| skill.directory.clone())
+        .collect()
+}
+
+fn checked_update_entries_from_lock(
+    cache: &crate::persistence::SkillCache,
+    lock: &SkillLock,
+    checked_updates: &[CheckedSkillUpdate],
+) -> (Vec<KnownSkillUpdate>, Vec<String>) {
+    let allowed: HashSet<String> = update_all_candidate_dirs(cache).into_iter().collect();
+    let mut updates = Vec::new();
+    let mut errors = Vec::new();
+
+    for checked in checked_updates {
+        if !allowed.contains(&checked.skill_name) {
+            errors.push(format!(
+                "{}: Only Skill Zoo-managed skills in the SSOT store can be updated from Git.",
+                checked.skill_name
+            ));
+            continue;
+        }
+        let Some(entry) = lock.skills.get(&checked.skill_name).cloned() else {
+            errors.push(format!(
+                "{}: Skill no longer exists in the lock file. Check updates again.",
+                checked.skill_name
+            ));
+            continue;
+        };
+        if entry.commit_sha.as_deref() != Some(checked.current_sha.as_str()) {
+            errors.push(format!(
+                "{}: Update state changed. Check updates again.",
+                checked.skill_name
+            ));
+            continue;
+        }
+        if checked.latest_sha.is_empty() {
+            errors.push(format!(
+                "{}: Latest update SHA is missing. Check updates again.",
+                checked.skill_name
+            ));
+            continue;
+        }
+        updates.push(KnownSkillUpdate {
+            name: checked.skill_name.clone(),
+            entry,
+            latest_sha: checked.latest_sha.clone(),
+        });
+    }
+
+    (updates, errors)
+}
+
+fn update_result_with_error_count(
+    mut result: crate::services::cli::UpdateResult,
+) -> crate::services::cli::UpdateResult {
+    result.fail_count = result.errors.len();
+    result
+}
+
+fn resolve_skill_home_dir_from_cache(
+    cache: &SkillCache,
+    skill_id: Option<&str>,
+    directory: &str,
+) -> Result<PathBuf, String> {
+    validate_skill_directory(directory)?;
+
+    if let Some(skill_id) = skill_id {
+        let skill = cache
+            .find_by_id(skill_id)
+            .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
+        if skill.directory != directory {
+            return Err(format!(
+                "Skill id does not match requested directory: {skill_id}"
+            ));
+        }
+        let home_path = skill
+            .home_path
+            .as_ref()
+            .ok_or_else(|| "Skill has no physical home path".to_string())?;
+        let home = PathBuf::from(home_path);
+        if !home.is_dir() {
+            return Err(format!(
+                "Skill home path does not exist: {}",
+                home.display()
+            ));
+        }
+        return Ok(home);
+    }
+
+    resolve_skill_home_dir_by_directory(directory)
+}
+
+fn resolve_skill_home_dir_by_directory(directory: &str) -> Result<PathBuf, String> {
+    validate_skill_directory(directory)?;
+
+    known_skill_roots()
+        .into_iter()
+        .map(|root| root.join(directory))
+        .find(|skill_dir| skill_dir.is_dir())
+        .ok_or_else(|| format!("Skill directory not found for: {directory}"))
+}
+
+fn remove_lock_entry_for_skill(skill: &SkillCacheEntry) {
+    if skill.origin != "ssot" {
+        return;
+    }
+    let Ok(mut lock) = SkillLock::read() else {
+        return;
+    };
+    if lock.skills.remove(&skill.directory).is_some() {
+        if let Err(e) = lock.write() {
+            eprintln!(
+                "Failed to write lock after removing {}: {e}",
+                skill.directory
+            );
+        }
+    }
+}
+
+fn remove_cached_skill_from_disk(skill: &SkillCacheEntry) -> Result<(), String> {
+    let home_path = skill
+        .home_path
+        .as_ref()
+        .ok_or_else(|| "Skill has no physical home path, cannot remove".to_string())?;
+    SkillService::remove_skill_dir(&skill.directory, home_path).map_err(|e| e.to_string())?;
+    remove_lock_entry_for_skill(skill);
+    Ok(())
+}
+
+fn scan_cached_skill_home(
+    skill: &SkillCacheEntry,
+    skill_dir: &Path,
+) -> Result<SkillCacheEntry, String> {
+    let (scan_root, agent_id) = if skill.origin == "ssot" {
+        (config::get_agents_skills_dir(), None)
+    } else {
+        let agent_id = skill
+            .home_agent
+            .as_deref()
+            .ok_or_else(|| "Agent skill has no home agent".to_string())?;
+        let scan_root = config::get_agent_skills_dir(agent_id)
+            .ok_or_else(|| format!("Unknown agent: {agent_id}"))?;
+        (scan_root, Some(agent_id))
+    };
+
+    SkillService::scan_skill_root(skill_dir, &scan_root, agent_id).map_err(|e| e.to_string())
+}
+
+fn find_cached_skill_for_path(cache: &SkillCache, path: &Path) -> Option<SkillCacheEntry> {
+    let real_path = path.canonicalize().ok()?;
+    cache
+        .iter()
+        .filter_map(|skill| {
+            let home_path = PathBuf::from(skill.home_path.as_ref()?);
+            let real_home = home_path.canonicalize().ok()?;
+            if real_path == real_home || real_path.starts_with(&real_home) {
+                Some((real_home.components().count(), skill.clone()))
+            } else {
+                None
+            }
+        })
+        .max_by_key(|(depth, _)| *depth)
+        .map(|(_, skill)| skill)
+}
+
+fn scan_skill_home_for_cache(
+    state: &AppState,
+    skill_dir: &Path,
+    directory: &str,
+) -> Result<SkillCacheEntry, String> {
+    let cached = {
+        let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
+        find_cached_skill_for_path(&cache, skill_dir)
+    };
+    if let Some(skill) = cached {
+        return scan_cached_skill_home(&skill, skill_dir);
+    }
+
+    if skill_dir.starts_with(config::get_agents_skills_dir()) {
+        return SkillService::scan_skill_root(skill_dir, &config::get_agents_skills_dir(), None)
+            .map_err(|e| e.to_string());
+    }
+
+    for agent in config::AGENTS {
+        if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
+            if skill_dir.starts_with(&agent_dir) {
+                return SkillService::scan_skill_root(skill_dir, &agent_dir, Some(agent.id))
+                    .map_err(|e| e.to_string());
+            }
+        }
+    }
+
+    SkillService::scan_single_skill(directory).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn remove_skill(state: State<'_, AppState>, skill_id: String) -> Result<(), String> {
     let skill = SkillService::find_in_cache(&state.skill_cache, &skill_id)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
 
-    CliService::remove_skill(&skill.directory)
-        .await
-        .map_err(|e| e.to_string())?;
+    remove_cached_skill_from_disk(&skill)?;
 
     SkillService::remove_cache_entry(&state.skill_cache, &skill_id).map_err(|e| e.to_string())?;
 
@@ -496,10 +661,10 @@ pub async fn remove_skills(
             }
         };
 
-        if let Err(e) = CliService::remove_skill(&skill.directory).await {
+        if let Err(e) = remove_cached_skill_from_disk(&skill) {
             failed.push(RemoveSkillFailure {
                 skill_id: skill_id.clone(),
-                error: e.to_string(),
+                error: e,
             });
             continue;
         }
@@ -955,40 +1120,34 @@ fn restore_archived_skill_inner(state: &AppState, archive_id: String) -> Result<
 }
 
 #[tauri::command]
-pub fn read_skill_md(directory: String) -> Result<String, String> {
-    validate_skill_directory(&directory)?;
-
-    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
-    candidates.push(
-        config::get_agents_skills_dir()
-            .join(&directory)
-            .join("SKILL.md"),
-    );
-    for agent in config::AGENTS {
-        if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
-            candidates.push(agent_dir.join(&directory).join("SKILL.md"));
-        }
+pub fn read_skill_md(
+    state: State<'_, AppState>,
+    directory: String,
+    skill_id: Option<String>,
+) -> Result<String, String> {
+    let skill_dir = {
+        let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
+        resolve_skill_home_dir_from_cache(&cache, skill_id.as_deref(), &directory)?
+    };
+    let skill_md = skill_dir.join("SKILL.md");
+    if !skill_md.exists() {
+        return Err(format!("SKILL.md not found for: {directory}"));
     }
-
-    for skill_md in &candidates {
-        if skill_md.exists() {
-            return std::fs::read_to_string(skill_md).map_err(|e| e.to_string());
-        }
-    }
-
-    Err(format!("SKILL.md not found for: {directory}"))
+    std::fs::read_to_string(&skill_md).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn write_skill_md(
     state: State<'_, AppState>,
     directory: String,
+    skill_id: Option<String>,
     content: String,
 ) -> Result<(), String> {
-    validate_skill_directory(&directory)?;
-
-    let agents_dir = config::get_agents_skills_dir();
-    let skill_md = agents_dir.join(&directory).join("SKILL.md");
+    let skill_dir = {
+        let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
+        resolve_skill_home_dir_from_cache(&cache, skill_id.as_deref(), &directory)?
+    };
+    let skill_md = skill_dir.join("SKILL.md");
 
     let parent = skill_md
         .parent()
@@ -1006,25 +1165,37 @@ pub fn write_skill_md(
     }
 
     // Refresh cache to pick up changed name/description/contentHash/updatedAt
-    let entry = SkillService::scan_single_skill(&directory).map_err(|e| e.to_string())?;
+    let entry = scan_skill_home_for_cache(&state, &skill_dir, &directory)?;
     SkillService::upsert_cache_entry(&state.skill_cache, entry).map_err(|e| e.to_string())?;
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn list_skill_files(directory: String) -> Result<Vec<SkillFileNode>, String> {
-    validate_skill_directory(&directory)?;
-    SkillService::list_skill_files(&directory).map_err(|e| e.to_string())
+pub fn list_skill_files(
+    state: State<'_, AppState>,
+    directory: String,
+    skill_id: Option<String>,
+) -> Result<Vec<SkillFileNode>, String> {
+    let skill_dir = {
+        let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
+        resolve_skill_home_dir_from_cache(&cache, skill_id.as_deref(), &directory)?
+    };
+    SkillService::list_skill_files_at(&skill_dir).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn list_skill_file_children(
+    state: State<'_, AppState>,
     directory: String,
+    skill_id: Option<String>,
     parent_path: Option<String>,
 ) -> Result<Vec<SkillFileNode>, String> {
-    validate_skill_directory(&directory)?;
-    SkillService::list_skill_file_children(&directory, parent_path.as_deref())
+    let skill_dir = {
+        let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
+        resolve_skill_home_dir_from_cache(&cache, skill_id.as_deref(), &directory)?
+    };
+    SkillService::list_skill_file_children_at(&skill_dir, parent_path.as_deref())
         .map_err(|e| e.to_string())
 }
 
@@ -1174,56 +1345,32 @@ pub fn write_skill_file_path(
     if !p.is_absolute() {
         return Err("Path must be absolute".into());
     }
-    let agents_dir = config::get_agents_skills_dir();
     if !is_writable_path_under_skill_dir(p) {
         return Err("Path is not under a known skill directory".into());
     }
     atomic_write(p, content).map_err(|e| e.to_string())?;
 
-    // Derive skill directory name from the path so we can update the lock + cache.
-    // The skill dir is the first component after the known skill root.
-    let skill_dir: Option<String> = {
-        let mut candidate = None;
-        if let Ok(rel) = p.strip_prefix(&agents_dir) {
-            candidate = rel.components().next().and_then(|c| {
-                if let std::path::Component::Normal(s) = c {
-                    s.to_str().map(|s| s.to_string())
-                } else {
-                    None
-                }
-            });
-        }
-        if candidate.is_none() {
-            for agent in config::AGENTS {
-                if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
-                    if let Ok(rel) = p.strip_prefix(&agent_dir) {
-                        candidate = rel.components().next().and_then(|c| {
-                            if let std::path::Component::Normal(s) = c {
-                                s.to_str().map(|s| s.to_string())
-                            } else {
-                                None
-                            }
-                        });
-                        if candidate.is_some() {
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        candidate
+    let cached_skill = {
+        let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
+        find_cached_skill_for_path(&cache, p)
     };
 
-    if let Some(dir) = skill_dir {
+    if let Some(skill) = cached_skill {
         // Update lock file timestamp
         if let Ok(mut lock) = crate::services::lock::SkillLock::read() {
-            if let Some(entry) = lock.skills.get_mut(&dir) {
+            if let Some(entry) = lock.skills.get_mut(&skill.directory) {
                 entry.updated_at = Some(chrono::Utc::now().to_rfc3339());
                 let _ = lock.write();
             }
         }
         // Refresh cache so updatedAt is reflected in the frontend
-        if let Ok(entry) = SkillService::scan_single_skill(&dir) {
+        let home = PathBuf::from(
+            skill
+                .home_path
+                .as_ref()
+                .ok_or_else(|| "Skill has no physical home path".to_string())?,
+        );
+        if let Ok(entry) = scan_cached_skill_home(&skill, &home) {
             let _ = SkillService::upsert_cache_entry(&state.skill_cache, entry);
         }
     }
@@ -2078,6 +2225,7 @@ fn assert_writable_schema(lock: &SkillLock, manifest: &ArchiveManifest) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::lock::SkillLockEntry;
     use std::io::Write;
     use zip::write::SimpleFileOptions;
 
@@ -2153,5 +2301,197 @@ mod tests {
                 Some("master".to_string()),
             )
         );
+    }
+
+    #[test]
+    fn update_all_candidates_only_include_ssot_skills() {
+        let cache = crate::persistence::SkillCache::from_entries(vec![
+            test_cache_entry("repo:owner/repo:ssot-skill", "ssot-skill", "ssot"),
+            test_cache_entry("agent:codex:local-skill", "local-skill", "agent"),
+        ]);
+
+        let candidates = update_all_candidate_dirs(&cache);
+
+        assert_eq!(candidates, vec!["ssot-skill".to_string()]);
+    }
+
+    #[test]
+    fn checked_update_candidates_reject_stale_sha_and_non_ssot() {
+        let cache = crate::persistence::SkillCache::from_entries(vec![
+            test_cache_entry("repo:owner/repo:ssot-skill", "ssot-skill", "ssot"),
+            test_cache_entry("agent:codex:local-skill", "local-skill", "agent"),
+        ]);
+        let mut lock = SkillLock {
+            version: SUPPORTED_LOCK_VERSION,
+            skills: Default::default(),
+            dismissed: serde_json::json!({}),
+        };
+        lock.skills.insert(
+            "ssot-skill".to_string(),
+            test_lock_entry("owner/repo", "old-ssot"),
+        );
+        lock.skills.insert(
+            "local-skill".to_string(),
+            test_lock_entry("owner/repo", "old-local"),
+        );
+
+        let checked = vec![
+            CheckedSkillUpdate {
+                skill_name: "ssot-skill".to_string(),
+                current_sha: "stale".to_string(),
+                latest_sha: "new-ssot".to_string(),
+            },
+            CheckedSkillUpdate {
+                skill_name: "local-skill".to_string(),
+                current_sha: "old-local".to_string(),
+                latest_sha: "new-local".to_string(),
+            },
+        ];
+
+        let (entries, errors) = checked_update_entries_from_lock(&cache, &lock, &checked);
+
+        assert!(entries.is_empty());
+        assert_eq!(errors.len(), 2);
+        assert!(errors[0].contains("Update state changed"));
+        assert!(errors[1].contains("Only Skill Zoo-managed skills"));
+    }
+
+    #[test]
+    fn checked_update_candidates_keep_latest_sha_for_reuse() {
+        let cache = crate::persistence::SkillCache::from_entries(vec![test_cache_entry(
+            "repo:owner/repo:ssot-skill",
+            "ssot-skill",
+            "ssot",
+        )]);
+        let mut lock = SkillLock {
+            version: SUPPORTED_LOCK_VERSION,
+            skills: Default::default(),
+            dismissed: serde_json::json!({}),
+        };
+        lock.skills.insert(
+            "ssot-skill".to_string(),
+            test_lock_entry("owner/repo", "old-ssot"),
+        );
+        let checked = vec![CheckedSkillUpdate {
+            skill_name: "ssot-skill".to_string(),
+            current_sha: "old-ssot".to_string(),
+            latest_sha: "new-ssot".to_string(),
+        }];
+
+        let (entries, errors) = checked_update_entries_from_lock(&cache, &lock, &checked);
+
+        assert!(errors.is_empty());
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].name, "ssot-skill");
+        assert_eq!(entries[0].latest_sha, "new-ssot");
+    }
+
+    #[test]
+    fn update_result_error_count_matches_errors() {
+        let result = update_result_with_error_count(crate::services::cli::UpdateResult {
+            success_count: 0,
+            fail_count: 0,
+            errors: vec!["network failed".to_string()],
+        });
+
+        assert_eq!(result.fail_count, 1);
+        assert_eq!(result.errors, vec!["network failed".to_string()]);
+    }
+
+    #[test]
+    fn resolves_skill_home_dir_by_skill_id_not_directory_priority() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let ssot_home = root.path().join(".agents").join("skills").join("demo");
+        let agent_home = root.path().join(".codex").join("skills").join("demo");
+        std::fs::create_dir_all(&ssot_home).expect("create ssot skill");
+        std::fs::create_dir_all(&agent_home).expect("create agent skill");
+
+        let cache = crate::persistence::SkillCache::from_entries(vec![
+            test_cache_entry_with_home(
+                "repo:owner/repo:demo",
+                "demo",
+                "ssot",
+                Some(ssot_home.to_string_lossy().to_string()),
+            ),
+            test_cache_entry_with_home(
+                "agent:codex:demo",
+                "demo",
+                "agent",
+                Some(agent_home.to_string_lossy().to_string()),
+            ),
+        ]);
+
+        let resolved = resolve_skill_home_dir_from_cache(&cache, Some("agent:codex:demo"), "demo")
+            .expect("resolve skill home");
+
+        assert_eq!(resolved, agent_home);
+    }
+
+    #[test]
+    fn remove_cached_skill_from_disk_removes_selected_home_not_same_named_duplicate() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let ssot_home = root.path().join(".agents").join("skills").join("demo");
+        let agent_home = root.path().join(".codex").join("skills").join("demo");
+        std::fs::create_dir_all(&ssot_home).expect("create ssot skill");
+        std::fs::create_dir_all(&agent_home).expect("create agent skill");
+
+        let skill = test_cache_entry_with_home(
+            "agent:codex:demo",
+            "demo",
+            "agent",
+            Some(agent_home.to_string_lossy().to_string()),
+        );
+
+        remove_cached_skill_from_disk(&skill).expect("remove selected skill");
+
+        assert!(ssot_home.exists());
+        assert!(!agent_home.exists());
+    }
+
+    fn test_cache_entry(
+        id: &str,
+        directory: &str,
+        origin: &str,
+    ) -> crate::persistence::SkillCacheEntry {
+        test_cache_entry_with_home(id, directory, origin, None)
+    }
+
+    fn test_cache_entry_with_home(
+        id: &str,
+        directory: &str,
+        origin: &str,
+        home_path: Option<String>,
+    ) -> crate::persistence::SkillCacheEntry {
+        crate::persistence::SkillCacheEntry {
+            id: id.to_string(),
+            name: directory.to_string(),
+            yaml_name: None,
+            description: None,
+            directory: directory.to_string(),
+            repo_owner: Some("owner".to_string()),
+            repo_name: Some("repo".to_string()),
+            source_url: Some("https://github.com/owner/repo".to_string()),
+            origin: origin.to_string(),
+            home_path,
+            content_hash: None,
+            home_agent: None,
+            apps: std::collections::HashMap::new(),
+            installed_at: 0,
+            updated_at: 0,
+        }
+    }
+
+    fn test_lock_entry(source: &str, commit_sha: &str) -> SkillLockEntry {
+        SkillLockEntry {
+            source: Some(source.to_string()),
+            source_type: Some("github".to_string()),
+            source_url: Some(format!("https://github.com/{source}")),
+            branch: Some("main".to_string()),
+            skill_path: Some("skills/demo".to_string()),
+            skill_folder_hash: None,
+            installed_at: None,
+            updated_at: None,
+            commit_sha: Some(commit_sha.to_string()),
+        }
     }
 }

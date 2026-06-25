@@ -69,7 +69,9 @@ describe("SkillMaintenanceSettings", () => {
     vi.mocked(invoke).mockImplementation((command) => {
       switch (command) {
         case "get_installed_skills":
-          return Promise.resolve([{ id: "skill:agent-browser", directory: "agent-browser" }]);
+          return Promise.resolve([
+            { id: "skill:agent-browser", directory: "agent-browser", origin: "ssot" },
+          ]);
         case "get_settings":
           return Promise.resolve({});
         case "get_cache_size":
@@ -108,8 +110,164 @@ describe("SkillMaintenanceSettings", () => {
 
     await waitFor(() =>
       expect(toast.warning).toHaveBeenCalledWith(
-        "GitHub API rate limit reached. Please wait and try again later.",
+        "GitHub requests are temporarily rate limited. Please try again later.",
       ),
     );
+  });
+
+  it("describes update-all download failures as download failures", async () => {
+    const user = userEvent.setup();
+    vi.mocked(invoke).mockImplementation((command) => {
+      switch (command) {
+        case "get_installed_skills":
+          return Promise.resolve([
+            { id: "skill:agent-browser", directory: "agent-browser", origin: "ssot" },
+          ]);
+        case "get_settings":
+          return Promise.resolve({});
+        case "get_cache_size":
+          return Promise.resolve(1024);
+        case "check_skill_updates":
+          return Promise.resolve({
+            skills: [
+              {
+                skillName: "agent-browser",
+                hasUpdate: true,
+                currentSha: "old",
+                latestSha: "new",
+                repo: "vercel-labs/agent-browser",
+              },
+            ],
+            totalRepos: 1,
+            checkedRepos: 1,
+            rateLimited: false,
+          });
+        case "update_all_skills":
+          return Promise.resolve({
+            skills: [],
+            successCount: 0,
+            failCount: 1,
+            errors: ["agent-browser: Download temporarily unavailable: vercel-labs/agent-browser"],
+          });
+        default:
+          return Promise.reject(new Error(`Unexpected command: ${command}`));
+      }
+    });
+
+    renderSettings();
+
+    await user.click(await screen.findByRole("button", { name: /check updates/i }));
+    await user.click(await screen.findByRole("button", { name: /update all/i }));
+
+    await waitFor(() =>
+      expect(toast.warning).toHaveBeenCalledWith(
+        "GitHub could not download the update package for vercel-labs/agent-browser. Please try again later.",
+      ),
+    );
+  });
+
+  it("passes checked SSOT update candidates to update all", async () => {
+    const user = userEvent.setup();
+    vi.mocked(invoke).mockImplementation((command) => {
+      switch (command) {
+        case "get_installed_skills":
+          return Promise.resolve([
+            { id: "repo:owner/repo:ssot-skill", directory: "ssot-skill", origin: "ssot" },
+            { id: "agent:codex:local-skill", directory: "local-skill", origin: "agent" },
+          ]);
+        case "get_settings":
+          return Promise.resolve({});
+        case "get_cache_size":
+          return Promise.resolve(1024);
+        case "check_skill_updates":
+          return Promise.resolve({
+            skills: [
+              {
+                skillName: "ssot-skill",
+                hasUpdate: true,
+                currentSha: "old-ssot",
+                latestSha: "new-ssot",
+                repo: "owner/repo",
+              },
+              {
+                skillName: "local-skill",
+                hasUpdate: true,
+                currentSha: "old-local",
+                latestSha: "new-local",
+                repo: "owner/repo",
+              },
+            ],
+            totalRepos: 1,
+            checkedRepos: 1,
+            rateLimited: false,
+          });
+        case "update_all_skills":
+          return Promise.resolve({
+            skills: [],
+            successCount: 1,
+            failCount: 0,
+            errors: [],
+          });
+        default:
+          return Promise.reject(new Error(`Unexpected command: ${command}`));
+      }
+    });
+
+    renderSettings();
+
+    await user.click(await screen.findByRole("button", { name: /check updates/i }));
+    const updateButton = await screen.findByRole("button", { name: /update all \(1\)/i });
+    await user.click(updateButton);
+
+    expect(invoke).toHaveBeenCalledWith("update_all_skills", {
+      checkedUpdates: [
+        {
+          skillName: "ssot-skill",
+          currentSha: "old-ssot",
+          latestSha: "new-ssot",
+        },
+      ],
+    });
+  });
+
+  it("does not describe rate limiting as partial results when no repository was checked", async () => {
+    const user = userEvent.setup();
+    vi.mocked(invoke).mockImplementation((command) => {
+      switch (command) {
+        case "get_installed_skills":
+          return Promise.resolve([
+            { id: "skill:agent-browser", directory: "agent-browser", origin: "ssot" },
+          ]);
+        case "get_settings":
+          return Promise.resolve({});
+        case "get_cache_size":
+          return Promise.resolve(1024);
+        case "check_skill_updates":
+          return Promise.resolve({
+            skills: [
+              {
+                skillName: "agent-browser",
+                hasUpdate: false,
+                currentSha: "old",
+                latestSha: null,
+                repo: "vercel-labs/agent-browser",
+              },
+            ],
+            totalRepos: 1,
+            checkedRepos: 0,
+            rateLimited: true,
+          });
+        default:
+          return Promise.reject(new Error(`Unexpected command: ${command}`));
+      }
+    });
+
+    renderSettings();
+
+    await user.click(await screen.findByRole("button", { name: /check updates/i }));
+
+    await screen.findByText("Updates could not be checked because GitHub is rate limited.");
+    expect(screen.queryByText(/Only some repositories were checked/i)).not.toBeInTheDocument();
+    expect(toast.warning).not.toHaveBeenCalled();
   });
 });

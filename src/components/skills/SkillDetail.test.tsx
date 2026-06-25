@@ -170,6 +170,7 @@ describe("SkillDetail", () => {
 
     expect(invoke).toHaveBeenCalledWith("list_skill_file_children", {
       directory: "skill-1",
+      skillId: "skill-1",
       parentPath: null,
     });
     expect(invoke).not.toHaveBeenCalledWith("list_skill_files", expect.anything());
@@ -285,7 +286,7 @@ describe("SkillDetail", () => {
     await screen.findByText("nested.md");
 
     await queryClient.refetchQueries({
-      queryKey: ["skills", "fileChildren", "skill-1", null],
+      queryKey: ["skills", "fileChildren", "skill-1", "skill-1", null],
     });
 
     expect(screen.getByText("nested.md")).toBeInTheDocument();

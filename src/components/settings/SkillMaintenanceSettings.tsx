@@ -41,15 +41,35 @@ export function SkillMaintenanceSettings() {
 
   const installedCount = skills?.length ?? 0;
 
-  const updatableCount = useMemo(() => {
-    if (!checkMutation.data) return 0;
-    return checkMutation.data.skills.filter((s) => s.hasUpdate).length;
-  }, [checkMutation.data]);
+  const checkedUpdateCandidates = useMemo(() => {
+    if (!checkMutation.data) return [];
+    const ssotSkillDirs = new Set(
+      (skills ?? []).filter((skill) => skill.origin === "ssot").map((skill) => skill.directory),
+    );
+    return checkMutation.data.skills
+      .filter(
+        (skill) =>
+          skill.hasUpdate &&
+          skill.currentSha != null &&
+          skill.latestSha != null &&
+          ssotSkillDirs.has(skill.skillName),
+      )
+      .map((skill) => ({
+        skillName: skill.skillName,
+        currentSha: skill.currentSha!,
+        latestSha: skill.latestSha!,
+      }));
+  }, [checkMutation.data, skills]);
+
+  const updatableCount = checkedUpdateCandidates.length;
 
   const hasChecked = checkMutation.data != null;
   const isChecking = useIsMutationPending("checkSkillUpdates") || checkMutation.isPending;
   const isUpdating = useIsMutationPending("updateAllSkills") || updateAllMutation.isPending;
   const rateLimited = checkMutation.data?.rateLimited ?? false;
+  const checkedRepos = checkMutation.data?.checkedRepos ?? 0;
+  const rateLimitedWithoutResults = rateLimited && checkedRepos === 0;
+  const rateLimitedWithPartialCheck = rateLimited && checkedRepos > 0;
 
   return (
     <section className="space-y-3">
@@ -76,11 +96,13 @@ export function SkillMaintenanceSettings() {
                   ? t("settings.maintenance.checkingDesc")
                   : hasChecked && updatableCount > 0
                     ? t("settings.maintenance.updatesAvailableDesc", { count: updatableCount })
-                    : hasChecked && rateLimited
-                      ? t("settings.maintenance.checkPartial")
-                      : hasChecked
-                        ? t("settings.maintenance.allUpToDate")
-                        : t("settings.maintenance.checkUpdateDesc")}
+                    : hasChecked && rateLimitedWithoutResults
+                      ? t("settings.maintenance.checkRateLimited")
+                      : hasChecked && rateLimitedWithPartialCheck
+                        ? t("settings.maintenance.checkPartial")
+                        : hasChecked
+                          ? t("settings.maintenance.allUpToDate")
+                          : t("settings.maintenance.checkUpdateDesc")}
               </p>
             </div>
           </div>
@@ -90,7 +112,7 @@ export function SkillMaintenanceSettings() {
                 size="sm"
                 className="h-8 text-xs gap-1.5"
                 onClick={() =>
-                  updateAllMutation.mutate(undefined, {
+                  updateAllMutation.mutate(checkedUpdateCandidates, {
                     onSuccess: (result) => {
                       checkMutation.reset();
                       if (result.successCount > 0 && result.failCount === 0) {

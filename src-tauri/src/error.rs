@@ -35,6 +35,9 @@ pub enum AppError {
         source: reqwest::Error,
     },
 
+    #[error("Download temporarily unavailable: {0}")]
+    DownloadUnavailable(String),
+
     #[error("Repository not found: {0}")]
     RepoNotFound(String),
 
@@ -89,6 +92,7 @@ impl AppError {
         match self {
             AppError::DownloadNetwork { .. } | AppError::Network(_) => "downloadNetwork",
             AppError::DownloadTimeout { .. } => "downloadTimeout",
+            AppError::DownloadUnavailable(_) => "downloadUnavailable",
             AppError::RepoNotFound(_) => "repoNotFound",
             AppError::RateLimited(_) => "rateLimited",
             AppError::RepoTooLarge { .. } => "repoTooLarge",
@@ -106,6 +110,7 @@ impl AppError {
         match self {
             AppError::DownloadNetwork { repo, .. }
             | AppError::DownloadTimeout { repo, .. }
+            | AppError::DownloadUnavailable(repo)
             | AppError::RepoNotFound(repo)
             | AppError::RateLimited(repo) => Some(repo.clone()),
             AppError::RepoTooLarge { repo, .. } => Some(repo.clone()),
@@ -163,6 +168,15 @@ mod tests {
         let command_error = CommandError::from(error);
 
         assert_eq!(command_error.code, "repoTooLarge");
+        assert_eq!(command_error.repo.as_deref(), Some("owner/repo"));
+    }
+
+    #[test]
+    fn command_error_classifies_download_unavailable_separately_from_rate_limit() {
+        let error = AppError::DownloadUnavailable("owner/repo".to_string());
+        let command_error = CommandError::from(error);
+
+        assert_eq!(command_error.code, "downloadUnavailable");
         assert_eq!(command_error.repo.as_deref(), Some("owner/repo"));
     }
 }

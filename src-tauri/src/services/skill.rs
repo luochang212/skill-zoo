@@ -1077,6 +1077,18 @@ impl SkillService {
         Ok(entries)
     }
 
+    pub fn scan_skill_root(
+        skill_root: &Path,
+        scan_root: &Path,
+        agent_id: Option<&str>,
+    ) -> Result<SkillCacheEntry, AppError> {
+        let mut hash_cache = Self::load_hash_cache();
+        let result =
+            Self::scan_skill_root_with_cache(skill_root, scan_root, agent_id, &mut hash_cache);
+        Self::save_hash_cache(&hash_cache);
+        result
+    }
+
     fn scan_skill_root_with_cache(
         skill_root: &Path,
         scan_root: &Path,
@@ -1593,47 +1605,28 @@ impl SkillService {
 
     // ────────────── File tree listing ──────────────
 
-    /// Build a file tree for a skill directory, returning the root nodes.
-    /// Searches SSOT first, then agent directories (same fallback as read_skill_md).
-    pub fn list_skill_files(directory: &str) -> Result<Vec<SkillFileNode>, AppError> {
-        crate::commands::skill::validate_skill_directory(directory)
-            .map_err(AppError::BadRequest)?;
-
-        // Build candidate directories — SSOT first, then agent dirs
-        let mut candidates: Vec<std::path::PathBuf> = Vec::new();
-        let agents_dir = config::get_agents_skills_dir();
-        candidates.push(agents_dir.join(directory));
-        for agent in config::AGENTS {
-            if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
-                candidates.push(agent_dir.join(directory));
-            }
-        }
-
-        for skill_dir in &candidates {
-            if skill_dir.is_dir() {
-                let mut nodes = Vec::new();
-                Self::build_file_tree(skill_dir, &mut nodes);
-                Self::sort_nodes(&mut nodes);
-                return Ok(nodes);
-            }
+    /// Build a file tree for a concrete skill directory, returning the root nodes.
+    pub fn list_skill_files_at(
+        skill_dir: &std::path::Path,
+    ) -> Result<Vec<SkillFileNode>, AppError> {
+        if skill_dir.is_dir() {
+            let mut nodes = Vec::new();
+            Self::build_file_tree(skill_dir, &mut nodes);
+            Self::sort_nodes(&mut nodes);
+            return Ok(nodes);
         }
 
         Err(AppError::NotFound(format!(
-            "Skill directory not found for: {}",
-            directory
+            "Skill directory not found: {}",
+            skill_dir.display()
         )))
     }
 
-    /// List one directory level for a skill directory.
-    /// Searches SSOT first, then agent directories (same fallback as read_skill_md).
-    pub fn list_skill_file_children(
-        directory: &str,
+    /// List one directory level for a concrete skill directory.
+    pub fn list_skill_file_children_at(
+        skill_dir: &std::path::Path,
         parent_path: Option<&str>,
     ) -> Result<Vec<SkillFileNode>, AppError> {
-        crate::commands::skill::validate_skill_directory(directory)
-            .map_err(AppError::BadRequest)?;
-
-        let skill_dir = Self::resolve_skill_dir(directory)?;
         let target_dir = if let Some(parent_path) = parent_path {
             if parent_path.is_empty() || parent_path.contains('\0') {
                 return Err(AppError::BadRequest("Invalid path".into()));
@@ -1645,7 +1638,7 @@ impl SkillService {
 
             let skill_root = skill_dir
                 .canonicalize()
-                .map_err(|e| crate::error::io(&skill_dir, e))?;
+                .map_err(|e| crate::error::io(skill_dir, e))?;
             let target_real = target
                 .canonicalize()
                 .map_err(|e| crate::error::io(&target, e))?;
@@ -1659,31 +1652,13 @@ impl SkillService {
             }
             target_real
         } else {
-            skill_dir
+            skill_dir.to_path_buf()
         };
 
         let mut nodes = Vec::new();
         Self::build_file_tree_level(&target_dir, &mut nodes)?;
         Self::sort_nodes(&mut nodes);
         Ok(nodes)
-    }
-
-    fn resolve_skill_dir(directory: &str) -> Result<std::path::PathBuf, AppError> {
-        let mut candidates: Vec<std::path::PathBuf> = Vec::new();
-        let agents_dir = config::get_agents_skills_dir();
-        candidates.push(agents_dir.join(directory));
-        for agent in config::AGENTS {
-            if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
-                candidates.push(agent_dir.join(directory));
-            }
-        }
-
-        candidates
-            .into_iter()
-            .find(|skill_dir| skill_dir.is_dir())
-            .ok_or_else(|| {
-                AppError::NotFound(format!("Skill directory not found for: {directory}"))
-            })
     }
 
     fn build_file_tree_level(

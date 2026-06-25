@@ -22,7 +22,8 @@ export const skillsApi = {
 
   updateSkill: (skillId: string) => invoke<InstalledSkill>("update_skill", { skillId }),
 
-  updateAllSkills: () => invoke<UpdateAllResult>("update_all_skills"),
+  updateAllSkills: (checkedUpdates?: CheckedSkillUpdate[]) =>
+    invoke<UpdateAllResult>("update_all_skills", { checkedUpdates: checkedUpdates ?? null }),
 
   removeSkill: (skillId: string) => invoke<void>("remove_skill", { skillId }),
 
@@ -44,15 +45,17 @@ export const skillsApi = {
   readArchivedSkillMd: (archiveId: string) =>
     invoke<string>("read_archived_skill_md", { archiveId }),
 
-  readSkillMd: (directory: string) => invoke<string>("read_skill_md", { directory }),
+  readSkillMd: (directory: string, skillId?: string | null) =>
+    invoke<string>("read_skill_md", { directory, skillId }),
 
-  writeSkillMd: (directory: string, content: string) =>
-    invoke<void>("write_skill_md", { directory, content }),
+  writeSkillMd: (directory: string, content: string, skillId?: string | null) =>
+    invoke<void>("write_skill_md", { directory, skillId, content }),
 
-  listSkillFiles: (directory: string) => invoke<SkillFileNode[]>("list_skill_files", { directory }),
+  listSkillFiles: (directory: string, skillId?: string | null) =>
+    invoke<SkillFileNode[]>("list_skill_files", { directory, skillId }),
 
-  listSkillFileChildren: (directory: string, parentPath?: string | null) =>
-    invoke<SkillFileNode[]>("list_skill_file_children", { directory, parentPath }),
+  listSkillFileChildren: (directory: string, parentPath?: string | null, skillId?: string | null) =>
+    invoke<SkillFileNode[]>("list_skill_file_children", { directory, skillId, parentPath }),
 
   readSkillFilePath: (path: string) => invoke<string>("read_skill_file_path", { path }),
 
@@ -139,6 +142,12 @@ export interface UpdateAllResult {
   successCount: number;
   failCount: number;
   errors: string[];
+}
+
+export interface CheckedSkillUpdate {
+  skillName: string;
+  currentSha: string;
+  latestSha: string;
 }
 
 export interface SkillUpdateStatus {

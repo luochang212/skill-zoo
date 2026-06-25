@@ -6,6 +6,7 @@ import {
   type RemoveSkillsResult,
   type RestoreArchivedSkillsResult,
   type UpdateAllResult,
+  type CheckedSkillUpdate,
 } from "@/lib/api/skills";
 import { invalidateFor } from "@/hooks/queryInvalidation";
 import type { InstalledSkill } from "@/types/skills";
@@ -86,9 +87,9 @@ export function useUpdateSkill() {
 
 export function useUpdateAllSkills() {
   const qc = useQueryClient();
-  return useMutation<UpdateAllResult>({
+  return useMutation<UpdateAllResult, Error, CheckedSkillUpdate[] | undefined>({
     mutationKey: ["updateAllSkills"],
-    mutationFn: () => skillsApi.updateAllSkills(),
+    mutationFn: (checkedUpdates) => skillsApi.updateAllSkills(checkedUpdates),
     onSuccess: () => invalidateFor(qc, "updateAllSkills"),
   });
 }
@@ -164,10 +165,10 @@ export function useToggleSymlink() {
   });
 }
 
-export function useSkillContent(directory: string | null) {
+export function useSkillContent(directory: string | null, skillId?: string | null) {
   return useQuery({
-    queryKey: ["skills", "content", directory],
-    queryFn: () => skillsApi.readSkillMd(directory!),
+    queryKey: ["skills", "content", skillId, directory],
+    queryFn: () => skillsApi.readSkillMd(directory!, skillId),
     enabled: !!directory,
     // Cache content for 30s so reopening a recently-viewed skill doesn't
     // re-read SKILL.md from disk on every open. In-app saves invalidate via
@@ -184,10 +185,10 @@ export function useArchivedSkillContent(archiveId: string | null) {
   });
 }
 
-export function useSkillFiles(directory: string | null) {
+export function useSkillFiles(directory: string | null, skillId?: string | null) {
   return useQuery({
-    queryKey: ["skills", "files", directory],
-    queryFn: () => skillsApi.listSkillFiles(directory!),
+    queryKey: ["skills", "files", skillId, directory],
+    queryFn: () => skillsApi.listSkillFiles(directory!, skillId),
     enabled: !!directory,
     staleTime: 30 * 1000,
   });
@@ -196,11 +197,12 @@ export function useSkillFiles(directory: string | null) {
 export function useSkillFileChildren(
   directory: string | null,
   parentPath: string | null,
+  skillId?: string | null,
   enabled = true,
 ) {
   return useQuery({
-    queryKey: ["skills", "fileChildren", directory, parentPath],
-    queryFn: () => skillsApi.listSkillFileChildren(directory!, parentPath),
+    queryKey: ["skills", "fileChildren", skillId, directory, parentPath],
+    queryFn: () => skillsApi.listSkillFileChildren(directory!, parentPath, skillId),
     enabled: enabled && !!directory,
     staleTime: 30 * 1000,
   });
@@ -209,8 +211,15 @@ export function useSkillFileChildren(
 export function useSaveSkillContent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ directory, content }: { directory: string; content: string }) =>
-      skillsApi.writeSkillMd(directory, content),
+    mutationFn: ({
+      directory,
+      content,
+      skillId,
+    }: {
+      directory: string;
+      content: string;
+      skillId?: string | null;
+    }) => skillsApi.writeSkillMd(directory, content, skillId),
     onSuccess: () => invalidateFor(qc, "saveSkillContent"),
   });
 }

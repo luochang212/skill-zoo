@@ -24,7 +24,7 @@ export function useEditorState() {
     data: content,
     isLoading: contentLoading,
     isError: contentError,
-  } = useSkillContent(open ? directory : "");
+  } = useSkillContent(open ? directory : "", open ? skillId : null);
   const saveMutation = useSaveSkillContent();
   const { data: installedSkills, isLoading: skillsLoading } = useInstalledSkills();
 
@@ -82,10 +82,10 @@ export function useEditorState() {
   const save = useCallback(() => {
     if (!dirty || saveMutation.isPending) return;
     saveMutation.mutate(
-      { directory, content: localContent },
+      { directory, skillId, content: localContent },
       { onSuccess: () => markDirty(false) },
     );
-  }, [directory, localContent, dirty, saveMutation, markDirty]);
+  }, [directory, skillId, localContent, dirty, saveMutation, markDirty]);
 
   const updateContent = useCallback(
     (newContent: string) => {

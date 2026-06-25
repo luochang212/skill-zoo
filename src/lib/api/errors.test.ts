@@ -53,7 +53,25 @@ describe("formatApiError", () => {
 
   it("formats legacy rate-limit strings", () => {
     expect(formatApiError("agent-browser: Rate limited: vercel-labs/agent-browser")).toBe(
-      "GitHub API rate limit reached. Please wait and try again later.",
+      "GitHub requests are temporarily rate limited. Please try again later.",
+    );
+  });
+
+  it("formats download-unavailable errors without calling them API rate limits", () => {
+    expect(
+      formatApiError(
+        JSON.stringify({
+          code: "downloadUnavailable",
+          message: "Download temporarily unavailable: owner/repo",
+          repo: "owner/repo",
+        }),
+      ),
+    ).toBe("GitHub could not download the update package for owner/repo. Please try again later.");
+  });
+
+  it("formats legacy download-unavailable strings without calling them API rate limits", () => {
+    expect(formatApiError("demo: Download temporarily unavailable: owner/repo")).toBe(
+      "GitHub could not download the update package for owner/repo. Please try again later.",
     );
   });
 
