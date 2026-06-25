@@ -140,6 +140,8 @@
     "permDenied": "Permission denied. Check that the skills directory is accessible.",
     "diskFull": "Disk is full. Free up some space and try again.",
     "skillNotFound": "This skill no longer exists on disk.",
+    "badRequest": "Invalid request: {{message}}",
+    "badRequestGeneric": "Invalid request. Check your input and try again.",
     "repoNotFound": "Repository not found. It may be private or the link is incorrect.",
     "rateLimit": "GitHub requests are temporarily rate limited. Please try again later.",
     "repoTooLarge": "Repository exceeds the size limit and cannot be loaded.",

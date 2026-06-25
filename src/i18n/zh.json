@@ -140,6 +140,8 @@
     "permDenied": "权限不足，请检查技能目录是否可访问。",
     "diskFull": "磁盘空间不足，请清理后重试。",
     "skillNotFound": "该技能已不存在于磁盘中。",
+    "badRequest": "请求无效：{{message}}",
+    "badRequestGeneric": "请求无效，请检查输入后重试。",
     "repoNotFound": "仓库未找到，可能是私有仓库或链接不正确。",
     "rateLimit": "GitHub 请求已被暂时限流，请稍后再试。",
     "repoTooLarge": "仓库体积超过限制，无法加载。",

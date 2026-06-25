@@ -69,6 +69,26 @@ describe("formatApiError", () => {
     ).toBe("GitHub could not download the update package for owner/repo. Please try again later.");
   });
 
+  it("formats bad-request errors with the backend detail", () => {
+    expect(
+      formatApiError({
+        code: "badRequest",
+        message: "Invalid GitHub URL: no host",
+      }),
+    ).toBe("Invalid request: Invalid GitHub URL: no host");
+  });
+
+  it("strips the AppError bad-request prefix from structured errors", () => {
+    expect(
+      formatApiError(
+        JSON.stringify({
+          code: "badRequest",
+          message: "Bad request: Path must be absolute",
+        }),
+      ),
+    ).toBe("Invalid request: Path must be absolute");
+  });
+
   it("formats legacy download-unavailable strings without calling them API rate limits", () => {
     expect(formatApiError("demo: Download temporarily unavailable: owner/repo")).toBe(
       "GitHub could not download the update package for owner/repo. Please try again later.",

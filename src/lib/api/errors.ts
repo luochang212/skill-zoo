@@ -16,11 +16,16 @@ const ERROR_KEYS: Record<string, string> = {
   permissionDenied: "error.permDenied",
   diskFull: "error.diskFull",
   notFound: "error.skillNotFound",
+  badRequest: "error.badRequest",
 };
 
 export function formatApiError(error: unknown): string {
   const apiError = asApiError(error);
   if (apiError?.code && ERROR_KEYS[apiError.code]) {
+    if (apiError.code === "badRequest") {
+      return translateBadRequest(apiError.message);
+    }
+
     return translateError(
       ERROR_KEYS[apiError.code],
       apiError.repo ?? extractRepo(apiError.message),
@@ -56,6 +61,16 @@ export function formatApiError(error: unknown): string {
 
 function translateError(key: string, repo?: string): string {
   return i18n.t(key, { repo: repo ?? i18n.t("error.repository") });
+}
+
+function translateBadRequest(message?: string): string {
+  const detail = cleanBadRequestMessage(message);
+  if (!detail) return i18n.t("error.badRequestGeneric");
+  return i18n.t("error.badRequest", { message: detail });
+}
+
+function cleanBadRequestMessage(message?: string): string {
+  return message?.trim().replace(/^Bad request:\s*/i, "") ?? "";
 }
 
 function asApiError(error: unknown): ApiError | null {
