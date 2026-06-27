@@ -1059,7 +1059,6 @@
       @media (max-width: 768px) {
         /* ── Hero zoo ── */
         .hero-zoo .glowing-txt {
-          font-size: 2.2em;
           letter-spacing: 0.06em;
         }
         .hero-zoo .hero-subtitle {
@@ -1227,7 +1226,6 @@
       /* Phone: 480px — compact */
       @media (max-width: 480px) {
         .hero-zoo .glowing-txt {
-          font-size: 1.75em;
           letter-spacing: 0.04em;
         }
         .hero-zoo .hero-subtitle {
@@ -1313,7 +1311,7 @@
       /* Small phone: 400px */
       @media (max-width: 400px) {
         .hero-zoo .glowing-txt {
-          font-size: 1.45em;
+          letter-spacing: 0.03em;
         }
         .sec {
           padding: 24px 14px;
@@ -1519,7 +1517,7 @@
         backdrop-filter: saturate(1.4) blur(12px);
         -webkit-backdrop-filter: saturate(1.4) blur(12px);
         border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-        padding: 0 28px;
+        padding: 0 24px;
         transition:
           background 0.4s ease,
           border-color 0.4s ease;
@@ -2051,8 +2049,8 @@
             <div class="eyebrow" data-i18n="overview-eyebrow">
               产品概览 · 2026
             </div>
-            <h1><em>Skill Zoo</em></h1>
-            <p class="lead" data-i18n="overview-lead">
+            <h1 data-reveal style="--r-delay:0ms"><em>Skill Zoo</em></h1>
+            <p class="lead" data-i18n="overview-lead" data-reveal style="--r-delay:120ms">
               为 AI 编程助手打造的 Skill
               桌面管理工具，覆盖发现、安装、编辑到维护的完整工作流。基于 Tauri
               v2 构建，轻量、离线、安全。
@@ -2105,7 +2103,7 @@
             </div>
           </div>
           <div class="hero-report-fig">
-            <div class="carousel-wrapper" id="carousel-wrapper">
+            <div class="carousel-wrapper" id="carousel-wrapper" data-reveal style="--r-delay:240ms">
               <div class="carousel" id="carousel"></div>
             </div>
             <div class="carousel-dots" id="carousel-dots"></div>
