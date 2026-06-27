@@ -1929,6 +1929,31 @@
         font-family: inherit;
       }
 
+      /* ── Scroll Reveal ── */
+      [data-reveal].reveal-init {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      [data-reveal].reveal-init.reveal-visible {
+        opacity: 1;
+        transform: translateY(0);
+        transition: opacity 0.6s ease, transform 0.6s ease;
+        transition-delay: var(--r-delay, 0ms);
+      }
+      /*
+       * card-grid / num-list 作为容器整体浮入，不做子元素阶梯。
+       * .card 已有 hover transition，叠加会导致 transition 属性冲突。
+       */
+      @media (prefers-reduced-motion: reduce) {
+        [data-reveal].reveal-init {
+          opacity: 1;
+          transform: none;
+        }
+        [data-reveal].reveal-init.reveal-visible {
+          transition: none;
+        }
+      }
+
       @media print {
         .sec.dark {
           background: #fff;
@@ -2093,8 +2118,8 @@
     <section class="sec" id="arch">
       <div class="sec-inner">
         <div class="eyebrow" data-i18n="arch-eyebrow">架构</div>
-        <h2 data-i18n="arch-title">技术架构</h2>
-        <p class="lead" data-i18n="arch-lead">
+        <h2 data-i18n="arch-title" data-reveal style="--r-delay:0ms">技术架构</h2>
+        <p class="lead" data-i18n="arch-lead" data-reveal style="--r-delay:120ms">
           三层结构：React 前端通过 Tauri IPC 与 Rust
           后端通信。前端零文件系统、零网络访问，所有交互走类型化 Rust
           命令；后端管理文件系统与外部服务。
@@ -2596,13 +2621,13 @@
     <section class="sec dark" id="features">
       <div class="sec-inner">
         <div class="eyebrow" data-i18n="feat-eyebrow">功能</div>
-        <h2 data-i18n="feat-title">功能体系</h2>
-        <p class="lead" style="max-width: 760px" data-i18n="feat-lead">
+        <h2 data-i18n="feat-title" data-reveal style="--r-delay:0ms">功能体系</h2>
+        <p class="lead" style="max-width: 760px;--r-delay:120ms" data-i18n="feat-lead" data-reveal>
           覆盖 Skill 的完整生命周期，从发现、安装到编辑、维护。6
           大功能模块提供完整管理体验。
         </p>
 
-        <div class="card-grid">
+        <div class="card-grid" data-reveal style="--r-delay:240ms">
           <div class="card dark-card">
             <div
               class="icon"
@@ -2759,12 +2784,12 @@
     <section class="sec">
       <div class="sec-inner">
         <div class="eyebrow" data-i18n="design-eyebrow">设计哲学</div>
-        <h2 data-i18n="design-title">核心产品设计决策</h2>
-        <p class="lead" data-i18n="design-lead">
+        <h2 data-i18n="design-title" data-reveal style="--r-delay:0ms">核心产品设计决策</h2>
+        <p class="lead" data-i18n="design-lead" data-reveal style="--r-delay:120ms">
           三项核心原则定义了 Skill Zoo 的架构方向与实现边界。
         </p>
 
-        <div class="num-list">
+        <div class="num-list" data-reveal style="--r-delay:240ms">
           <div class="num-item">
             <div class="num-circle">1</div>
             <div>
@@ -2824,12 +2849,12 @@
     <section class="sec dark">
       <div class="sec-inner">
         <div class="eyebrow" data-i18n="ux-eyebrow">用户体验</div>
-        <h2 data-i18n="ux-title">用户体验优化</h2>
-        <p class="lead" data-i18n="ux-lead">
+        <h2 data-i18n="ux-title" data-reveal style="--r-delay:0ms">用户体验优化</h2>
+        <p class="lead" data-i18n="ux-lead" data-reveal style="--r-delay:120ms">
           从乐观更新到骨架屏，从 3D 动画到错误恢复，每个细节都经过精心设计。
         </p>
 
-        <div class="card-grid">
+        <div class="card-grid" data-reveal style="--r-delay:240ms">
           <div class="card dark-card" style="grid-column: span 2">
             <div
               class="icon icon-sm"
@@ -2972,14 +2997,15 @@
     <section class="sec">
       <div class="sec-inner">
         <div class="eyebrow" data-i18n="robust-eyebrow">稳定性</div>
-        <h2 data-i18n="robust-title">国际化、错误处理与安全</h2>
-        <p class="lead" data-i18n="robust-lead">
+        <h2 data-i18n="robust-title" data-reveal style="--r-delay:0ms">国际化、错误处理与安全</h2>
+        <p class="lead" data-i18n="robust-lead" data-reveal style="--r-delay:120ms">
           从多语言支持到异常恢复，从数据校验到路径防护，每一层都经过仔细考量。
         </p>
 
         <div
           class="card-grid"
-          style="grid-template-columns: repeat(3, 1fr); margin-top: 48px"
+          style="grid-template-columns: repeat(3, 1fr); margin-top: 48px;--r-delay:240ms"
+          data-reveal
         >
           <div class="card">
             <div
@@ -3912,6 +3938,40 @@
       }
       window.addEventListener("scroll", updateNavTheme, { passive: true });
       updateNavTheme();
+
+      // ── Scroll Reveal ──
+      (function initReveal() {
+        const els = document.querySelectorAll("[data-reveal]");
+        if (!els.length) return;
+
+        const reduceMotion = matchMedia(
+          "(prefers-reduced-motion: reduce)",
+        ).matches;
+        const hasIO = typeof IntersectionObserver !== "undefined";
+
+        // Degradation: show everything immediately
+        if (reduceMotion || !hasIO) {
+          els.forEach((el) => el.classList.add("reveal-visible"));
+          return;
+        }
+
+        // Hide elements first (JS is running, safe to hide)
+        els.forEach((el) => el.classList.add("reveal-init"));
+
+        const io = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                entry.target.classList.add("reveal-visible");
+                io.unobserve(entry.target);
+              }
+            });
+          },
+          { threshold: 0.05, rootMargin: "0px 0px -10% 0px" },
+        );
+
+        els.forEach((el) => io.observe(el));
+      })();
     </script>
   </body>
 </html>
