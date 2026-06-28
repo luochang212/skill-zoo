@@ -5,6 +5,7 @@ use crate::error::AppError;
 use crate::persistence::atomic_write;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::Path;
 
 /// User metadata for a single skill — never rebuilt, only mutated by user actions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,12 +25,23 @@ pub struct MetadataStore {
 impl MetadataStore {
     pub fn load() -> Result<Self, AppError> {
         let path = config::get_app_config_dir().join("metadata.json");
+        Self::load_from(&path)
+    }
+
+    fn empty() -> Self {
+        Self {
+            entries: HashMap::new(),
+        }
+    }
+
+    fn load_from(path: &Path) -> Result<Self, AppError> {
         if !path.exists() {
-            return Ok(Self {
-                entries: HashMap::new(),
-            });
+            return Ok(Self::empty());
         }
         let content = std::fs::read_to_string(&path).map_err(|e| crate::error::io(&path, e))?;
+        if content.trim().is_empty() {
+            return Ok(Self::empty());
+        }
         serde_json::from_str(&content).map_err(|e| AppError::Parse(format!("metadata.json: {e}")))
     }
 
@@ -78,5 +90,21 @@ impl MetadataStore {
     /// Remove metadata for a skill that no longer exists.
     pub fn remove(&mut self, skill_id: &str) {
         self.entries.remove(skill_id);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::MetadataStore;
+
+    #[test]
+    fn empty_metadata_file_loads_as_empty_store() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("metadata.json");
+        std::fs::write(&path, " \n\t").expect("write empty metadata");
+
+        let store = MetadataStore::load_from(&path).expect("load metadata");
+
+        assert!(store.entries.is_empty());
     }
 }

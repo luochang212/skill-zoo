@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { listen } from "@tauri-apps/api/event";
+import { listen, type EventCallback } from "@tauri-apps/api/event";
 
 export type RepoLoadStage = "downloading" | "extracting" | "scanning";
 
@@ -41,12 +41,20 @@ export function useRepoLoadProgress(owner: string | null, name: string | null) {
       return;
     }
 
-    let unlistenStage: (() => void) | undefined;
-    let unlistenProgress: (() => void) | undefined;
-    let unlistenDone: (() => void) | undefined;
+    let disposed = false;
+    const unlistens: Array<() => void> = [];
 
-    (async () => {
-      unlistenStage = await listen<RepoLoadStagePayload>("repo-load-stage", (event) => {
+    const register = async <T,>(eventName: string, handler: EventCallback<T>) => {
+      const unlisten = await listen<T>(eventName, handler);
+      if (disposed) {
+        unlisten();
+      } else {
+        unlistens.push(unlisten);
+      }
+    };
+
+    void Promise.all([
+      register<RepoLoadStagePayload>("repo-load-stage", (event) => {
         if (event.payload.owner === owner && event.payload.repo === name) {
           setState((prev) => ({
             stage: event.payload.stage,
@@ -54,11 +62,9 @@ export function useRepoLoadProgress(owner: string | null, name: string | null) {
             total: prev?.total ?? null,
           }));
         }
-      });
+      }),
 
-      unlistenProgress = await listen<RepoDownloadProgressPayload>(
-        "repo-download-progress",
-        (event) => {
+      register<RepoDownloadProgressPayload>("repo-download-progress", (event) => {
           if (event.payload.owner === owner && event.payload.repo === name) {
             setState((prev) => ({
               stage: prev?.stage ?? "downloading",
@@ -66,20 +72,20 @@ export function useRepoLoadProgress(owner: string | null, name: string | null) {
               total: event.payload.total,
             }));
           }
-        },
-      );
+        }),
 
-      unlistenDone = await listen<RepoLoadDonePayload>("repo-load-done", (event) => {
+      register<RepoLoadDonePayload>("repo-load-done", (event) => {
         if (event.payload.owner === owner && event.payload.repo === name) {
           setState(null);
         }
-      });
-    })();
+      }),
+    ]);
 
     return () => {
-      unlistenStage?.();
-      unlistenProgress?.();
-      unlistenDone?.();
+      disposed = true;
+      for (const unlisten of unlistens) {
+        unlisten();
+      }
       setState(null);
     };
   }, [owner, name]);
