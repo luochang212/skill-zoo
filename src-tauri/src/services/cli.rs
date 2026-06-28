@@ -152,10 +152,8 @@ impl CliService {
         // Persist metadata to lock file, including folder SHAs so future
         // update checks can detect changes even after a fresh install.
         //
-        // Primary: fetch the repo tree to get the per-folder SHA (most precise).
-        // Fallback: extract the commit SHA from the zip download redirect URL
-        //           (less precise — changes when *any* file in the repo changes).
-        // If both fail, commit_sha stays None and check_skill_updates will
+        // Fetch the repo tree to get the per-folder SHA. If that fails,
+        // commit_sha stays None and check_skill_updates will
         // auto-baseline on the next successful check (one-cycle degradation).
         let folder_shas: std::collections::HashMap<String, Option<String>> =
             match Self::fetch_repo_tree(&owner, &repo, &branch).await {

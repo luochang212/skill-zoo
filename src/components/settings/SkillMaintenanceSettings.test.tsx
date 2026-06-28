@@ -228,6 +228,7 @@ describe("SkillMaintenanceSettings", () => {
     await user.click(await screen.findByRole("button", { name: /check updates/i }));
     expect(screen.queryByRole("button", { name: /update all \(1\)/i })).not.toBeInTheDocument();
     await user.click(await screen.findByRole("button", { name: /update manager \(1\)/i }));
+    expect(screen.queryByRole("button", { name: /^update all$/i })).not.toBeInTheDocument();
     const updateButton = await screen.findByRole("button", { name: /^update selected$/i });
     await user.click(updateButton);
 

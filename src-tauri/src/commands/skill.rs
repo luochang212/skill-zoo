@@ -302,21 +302,53 @@ pub async fn update_skill(
             return Err(message);
         }
     };
-    record_update_history_with_started_at(started_at, "single", requested_skills, &result);
 
     if result.fail_count > 0 {
+        record_update_history_with_started_at(started_at, "single", requested_skills, &result);
         return Err(result.errors.join("; "));
     }
 
-    let entry = SkillService::scan_single_skill(&skill.directory).map_err(|e| e.to_string())?;
-    SkillService::upsert_cache_entry(&state.skill_cache, entry).map_err(|e| e.to_string())?;
+    let entry = match SkillService::scan_single_skill(&skill.directory) {
+        Ok(entry) => entry,
+        Err(e) => {
+            let message = e.to_string();
+            let result =
+                update_result_with_added_error(result, format!("{}: {message}", skill.directory));
+            record_update_history_with_started_at(started_at, "single", requested_skills, &result);
+            return Err(message);
+        }
+    };
+    if let Err(e) = SkillService::upsert_cache_entry(&state.skill_cache, entry) {
+        let message = e.to_string();
+        let result =
+            update_result_with_added_error(result, format!("{}: {message}", skill.directory));
+        record_update_history_with_started_at(started_at, "single", requested_skills, &result);
+        return Err(message);
+    }
 
-    let skills = SkillService::read_all_skills(&state.skill_cache, &state.metadata)
-        .map_err(|e| e.to_string())?;
-    skills
-        .into_iter()
-        .find(|s| s.id == skill_id)
-        .ok_or_else(|| "Skill disappeared after update".to_string())
+    let skills = match SkillService::read_all_skills(&state.skill_cache, &state.metadata) {
+        Ok(skills) => skills,
+        Err(e) => {
+            let message = e.to_string();
+            let result =
+                update_result_with_added_error(result, format!("{}: {message}", skill.directory));
+            record_update_history_with_started_at(started_at, "single", requested_skills, &result);
+            return Err(message);
+        }
+    };
+    match skills.into_iter().find(|s| s.id == skill_id) {
+        Some(skill) => {
+            record_update_history_with_started_at(started_at, "single", requested_skills, &result);
+            Ok(skill)
+        }
+        None => {
+            let message = "Skill disappeared after update".to_string();
+            let result =
+                update_result_with_added_error(result, format!("{}: {message}", skill.directory));
+            record_update_history_with_started_at(started_at, "single", requested_skills, &result);
+            Err(message)
+        }
+    }
 }
 
 #[tauri::command]
@@ -378,7 +410,6 @@ pub async fn update_all_skills(
         ("all", requested_skills, result)
     };
     let update_result = update_result_with_error_count(update_result);
-    record_update_history_with_started_at(started_at, mode, requested_skills, &update_result);
 
     let dirs: Vec<String> = {
         let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
@@ -389,8 +420,22 @@ pub async fn update_all_skills(
         let _ = SkillService::upsert_cache_entry(&state.skill_cache, entry);
     }
 
-    let skills = SkillService::read_all_skills(&state.skill_cache, &state.metadata)
-        .map_err(|e| e.to_string())?;
+    let skills = match SkillService::read_all_skills(&state.skill_cache, &state.metadata) {
+        Ok(skills) => skills,
+        Err(e) => {
+            let message = e.to_string();
+            let update_result = update_result_with_added_error(update_result, message.clone());
+            record_update_history_with_started_at(
+                started_at,
+                mode,
+                requested_skills,
+                &update_result,
+            );
+            return Err(message);
+        }
+    };
+
+    record_update_history_with_started_at(started_at, mode, requested_skills, &update_result);
 
     Ok(UpdateAllResult {
         skills,
@@ -548,6 +593,14 @@ fn update_result_with_error_count(
 ) -> crate::services::cli::UpdateResult {
     result.fail_count = result.errors.len();
     result
+}
+
+fn update_result_with_added_error(
+    mut result: crate::services::cli::UpdateResult,
+    error: String,
+) -> crate::services::cli::UpdateResult {
+    result.errors.push(error);
+    update_result_with_error_count(result)
 }
 
 fn resolve_skill_home_dir_from_cache(
@@ -2511,6 +2564,29 @@ mod tests {
 
         assert_eq!(result.fail_count, 1);
         assert_eq!(result.errors, vec!["network failed".to_string()]);
+    }
+
+    #[test]
+    fn added_update_error_changes_history_status_from_success_to_partial() {
+        let result = update_result_with_added_error(
+            crate::services::cli::UpdateResult {
+                success_count: 1,
+                fail_count: 0,
+                errors: vec![],
+                updated: vec!["demo".to_string()],
+            },
+            "cache refresh failed".to_string(),
+        );
+
+        assert_eq!(result.fail_count, 1);
+        assert_eq!(
+            update_history_status(result.success_count, result.fail_count),
+            "partial"
+        );
+        assert_eq!(
+            failed_skill_names(&result.errors),
+            vec!["cache refresh failed"]
+        );
     }
 
     #[test]

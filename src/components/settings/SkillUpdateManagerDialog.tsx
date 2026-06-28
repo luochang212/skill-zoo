@@ -213,22 +213,12 @@ export function SkillUpdateManagerDialog({
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
-                  variant="outline"
                   className="h-8 gap-1.5 text-xs"
                   onClick={() => onUpdate(selectedUpdates)}
                   disabled={selectedUpdates.length === 0 || isUpdating}
                 >
                   <RefreshCw className={cn("h-3.5 w-3.5", isUpdating && "animate-spin")} />
                   {t("settings.maintenance.updateSelected")}
-                </Button>
-                <Button
-                  size="sm"
-                  className="h-8 gap-1.5 text-xs"
-                  onClick={() => onUpdate(updates)}
-                  disabled={updates.length === 0 || isUpdating}
-                >
-                  <RefreshCw className={cn("h-3.5 w-3.5", isUpdating && "animate-spin")} />
-                  {t("settings.maintenance.updateAllBtn")}
                 </Button>
               </div>
             </div>

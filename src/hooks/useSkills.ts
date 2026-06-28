@@ -91,6 +91,7 @@ export function useUpdateSkill() {
   return useMutation({
     mutationFn: (skillId: string) => skillsApi.updateSkill(skillId),
     onSuccess: () => invalidateFor(qc, "updateSkill"),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["skills", "updateHistory"] }),
   });
 }
 

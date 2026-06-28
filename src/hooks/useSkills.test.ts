@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
-import { useRepoReadme, useRestoreArchivedSkill, useStarSkill, useUnstarSkill } from "./useSkills";
+import {
+  useRepoReadme,
+  useRestoreArchivedSkill,
+  useStarSkill,
+  useUnstarSkill,
+  useUpdateSkill,
+} from "./useSkills";
 import { createQueryWrapper } from "@/test/utils";
 import type { InstalledSkill } from "@/types/skills";
 
@@ -166,6 +172,25 @@ describe("useRestoreArchivedSkill", () => {
 
     const cached = queryClient.getQueryData<InstalledSkill[]>(["skills", "installed"]);
     expect(cached?.find((s) => s.id === "skill-3")).toEqual(restoredSkill);
+  });
+});
+
+describe("useUpdateSkill", () => {
+  beforeEach(() => {
+    vi.mocked(invoke).mockReset();
+  });
+
+  it("invalidates update history even when the update fails", async () => {
+    vi.mocked(invoke).mockRejectedValue(new Error("update failed"));
+    const { wrapper, queryClient } = createQueryWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHook(() => useUpdateSkill(), { wrapper });
+    await act(async () => {
+      await expect(result.current.mutateAsync("skill-1")).rejects.toThrow("update failed");
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["skills", "updateHistory"] });
   });
 });
 
