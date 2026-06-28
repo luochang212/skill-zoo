@@ -227,6 +227,96 @@ describe("SkillDetail", () => {
     expect(screen.queryByText("Split")).not.toBeInTheDocument();
   });
 
+  it("shows binary file notice from structured file errors", async () => {
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === "list_skill_file_children") {
+        return Promise.resolve([
+          {
+            name: "SKILL.md",
+            path: "/tmp/skill-1/SKILL.md",
+            isDir: false,
+            isSkillMd: true,
+          },
+          {
+            name: "artifact.bin",
+            path: "/tmp/skill-1/artifact.bin",
+            isDir: false,
+            isSkillMd: false,
+          },
+        ]);
+      }
+      if (command === "read_skill_file_path") {
+        return Promise.reject({
+          code: "binaryFile",
+          message: "File is not UTF-8 text",
+          repo: null,
+        });
+      }
+      return Promise.resolve(undefined);
+    });
+
+    renderWithQueryClient(
+      <SkillDetail
+        skill={skill}
+        skillName="Skill 1"
+        contentLoading={false}
+        content="# Skill content"
+        onChange={() => {}}
+      />,
+    );
+
+    await userEvent.click(await screen.findByText("artifact.bin"));
+
+    await screen.findByText("Binary file — cannot preview in app");
+    expect(screen.queryByText("Edit")).not.toBeInTheDocument();
+    expect(screen.queryByText("Split")).not.toBeInTheDocument();
+  });
+
+  it("shows image-too-large notice from structured image errors", async () => {
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === "list_skill_file_children") {
+        return Promise.resolve([
+          {
+            name: "SKILL.md",
+            path: "/tmp/skill-1/SKILL.md",
+            isDir: false,
+            isSkillMd: true,
+          },
+          {
+            name: "large.png",
+            path: "/tmp/skill-1/large.png",
+            isDir: false,
+            isSkillMd: false,
+          },
+        ]);
+      }
+      if (command === "read_skill_image_path") {
+        return Promise.reject({
+          code: "imageTooLarge",
+          message: "Image file is too large",
+          repo: null,
+        });
+      }
+      return Promise.resolve(undefined);
+    });
+
+    renderWithQueryClient(
+      <SkillDetail
+        skill={skill}
+        skillName="Skill 1"
+        contentLoading={false}
+        content="# Skill content"
+        onChange={() => {}}
+      />,
+    );
+
+    await userEvent.click(await screen.findByText("large.png"));
+
+    await screen.findByText("Image is too large to preview in app");
+    expect(screen.queryByText("Edit")).not.toBeInTheDocument();
+    expect(screen.queryByText("Split")).not.toBeInTheDocument();
+  });
+
   it("keeps loaded child directories when the root file tree refetches", async () => {
     vi.mocked(invoke).mockImplementation((command, args) => {
       switch (command) {

@@ -59,6 +59,10 @@ export function formatApiError(error: unknown): string {
   return i18n.t("error.generic");
 }
 
+export function apiErrorCode(error: unknown): string | null {
+  return asApiError(error)?.code ?? null;
+}
+
 function translateError(key: string, repo?: string): string {
   return i18n.t(key, { repo: repo ?? i18n.t("error.repository") });
 }

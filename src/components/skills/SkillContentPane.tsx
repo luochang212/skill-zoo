@@ -12,6 +12,7 @@ import {
   useSkillImageContent,
   useSaveSkillFileContent,
 } from "@/hooks/useSkills";
+import { apiErrorCode } from "@/lib/api/errors";
 import { skillsApi } from "@/lib/api/skills";
 import { formatRelativeDate } from "@/lib/date";
 import type { SkillFileNode } from "@/types/skills";
@@ -238,12 +239,9 @@ export const SkillContentPane = memo(function SkillContentPane({
     isLoading: imageLoading,
     error: imageError,
   } = useSkillImageContent(isImageActive ? selectedFilePath : null);
-  const isBinary =
-    typeof fileError === "string"
-      ? fileError === "BINARY_FILE"
-      : (fileError as Error | null)?.message === "BINARY_FILE";
-  const imageErrorMessage =
-    typeof imageError === "string" ? imageError : (imageError as Error | null)?.message;
+  const fileErrorCode = apiErrorCode(fileError);
+  const imageErrorCode = apiErrorCode(imageError);
+  const isBinary = fileErrorCode === "binaryFile";
   const isViewOnlyFile = isImageActive || isBinary || !!imageError;
   const effectiveActiveTab = isViewOnlyFile ? "overview" : activeTab;
 
@@ -557,7 +555,7 @@ export const SkillContentPane = memo(function SkillContentPane({
           <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground">
             <FileX className="h-8 w-8 opacity-40" />
             <p className="text-sm">
-              {imageErrorMessage === "IMAGE_TOO_LARGE"
+              {imageErrorCode === "imageTooLarge"
                 ? t("skillFiles.imageTooLarge")
                 : t("skillFiles.binaryFile")}
             </p>

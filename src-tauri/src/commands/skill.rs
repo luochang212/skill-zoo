@@ -7,6 +7,7 @@ use crate::persistence::{
     SkillUpdateHistoryRecord,
 };
 use crate::services::cli::{CliService, KnownSkillUpdate};
+use crate::services::github;
 use crate::services::lock::{SkillLock, SUPPORTED_LOCK_VERSION};
 use crate::services::skill::{
     is_symlink_or_junction, DiscoverableSkill, InstalledSkill, RepoSkillsResult, SkillFileNode,
@@ -140,6 +141,10 @@ fn format_archive_app_error(action: &str, error: impl std::fmt::Display) -> Stri
     format!("{action} failed: {detail} ({message})")
 }
 
+fn log_archive_rollback_error(action: &str, error: impl std::fmt::Display) {
+    eprintln!("Archive rollback failed during {action}: {error}");
+}
+
 fn known_skill_roots() -> Vec<PathBuf> {
     std::iter::once(config::get_agents_skills_dir())
         .chain(
@@ -190,20 +195,6 @@ pub fn is_path_under_skill_roots_for_test(
     must_exist: bool,
 ) -> bool {
     is_path_under_roots(path, roots, must_exist)
-}
-
-static REPO_SEGMENT_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9_.-]+$").unwrap());
-
-fn validate_repo_segments(owner: &str, name: &str, branch: &str) -> Result<(), String> {
-    let id_re = &REPO_SEGMENT_RE;
-    if !id_re.is_match(owner) || !id_re.is_match(name) {
-        return Err("Invalid owner or repository name format".into());
-    }
-    if branch.contains('\0') || branch.contains("..") || branch.len() > 255 {
-        return Err("Invalid branch name format".into());
-    }
-    Ok(())
 }
 
 #[tauri::command]
@@ -963,7 +954,12 @@ fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String>
 
     if let Some(parent) = archive_dir.parent() {
         if let Err(e) = std::fs::create_dir_all(parent) {
-            let _ = old_manifest.save();
+            if let Err(restore_error) = old_manifest.save() {
+                log_archive_rollback_error(
+                    "restore manifest after archive dir create failure",
+                    restore_error,
+                );
+            }
             return Err(format_archive_io_error(
                 "Create archive directory",
                 parent,
@@ -976,23 +972,38 @@ fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String>
     let rollback = |message: String, removed_agents: &[String]| -> String {
         if archive_dir.exists() && !home.exists() {
             if let Some(parent) = home.parent() {
-                let _ = std::fs::create_dir_all(parent);
+                if let Err(e) = std::fs::create_dir_all(parent) {
+                    log_archive_rollback_error("recreate skill parent", e);
+                }
             }
-            let _ = std::fs::rename(&archive_dir, &home);
+            if let Err(e) = std::fs::rename(&archive_dir, &home) {
+                log_archive_rollback_error("move archived skill back home", e);
+            }
         }
         for agent in removed_agents {
-            let _ = SkillService::toggle_symlink(&skill.directory, &home_path, agent, true);
+            if let Err(e) = SkillService::toggle_symlink(&skill.directory, &home_path, agent, true)
+            {
+                log_archive_rollback_error("restore agent symlink after archive failure", e);
+            }
         }
         if let Ok(mut cache) = state.skill_cache.write() {
             *cache = old_cache.clone();
-            let _ = cache.save();
+            if let Err(e) = cache.save() {
+                log_archive_rollback_error("restore cache after archive failure", e);
+            }
         }
         if let Ok(mut metadata) = state.metadata.write() {
             *metadata = old_metadata.clone();
-            let _ = metadata.save();
+            if let Err(e) = metadata.save() {
+                log_archive_rollback_error("restore metadata after archive failure", e);
+            }
         }
-        let _ = old_lock.write();
-        let _ = old_manifest.save();
+        if let Err(e) = old_lock.write() {
+            log_archive_rollback_error("restore lock after archive failure", e);
+        }
+        if let Err(e) = old_manifest.save() {
+            log_archive_rollback_error("restore manifest after archive failure", e);
+        }
         message
     };
 
@@ -1164,29 +1175,46 @@ fn restore_archived_skill_inner(state: &AppState, archive_id: String) -> Result<
     let mut restored_agents: Vec<String> = Vec::new();
     let rollback = |message: String, restored_agents: &[String]| -> String {
         for agent in restored_agents {
-            let _ = SkillService::toggle_symlink(
+            if let Err(e) = SkillService::toggle_symlink(
                 &archived_skill.directory,
                 &restore_path.to_string_lossy(),
                 agent,
                 false,
-            );
+            ) {
+                log_archive_rollback_error(
+                    "remove restored agent symlink after restore failure",
+                    e,
+                );
+            }
         }
         if restore_path.exists() && !archive_dir.exists() {
             if let Some(parent) = archive_dir.parent() {
-                let _ = std::fs::create_dir_all(parent);
+                if let Err(e) = std::fs::create_dir_all(parent) {
+                    log_archive_rollback_error("recreate archive parent", e);
+                }
             }
-            let _ = std::fs::rename(&restore_path, &archive_dir);
+            if let Err(e) = std::fs::rename(&restore_path, &archive_dir) {
+                log_archive_rollback_error("move restored skill back to archive", e);
+            }
         }
         if let Ok(mut cache) = state.skill_cache.write() {
             *cache = old_cache.clone();
-            let _ = cache.save();
+            if let Err(e) = cache.save() {
+                log_archive_rollback_error("restore cache after restore failure", e);
+            }
         }
         if let Ok(mut metadata) = state.metadata.write() {
             *metadata = old_metadata.clone();
-            let _ = metadata.save();
+            if let Err(e) = metadata.save() {
+                log_archive_rollback_error("restore metadata after restore failure", e);
+            }
         }
-        let _ = old_lock.write();
-        let _ = old_manifest.save();
+        if let Err(e) = old_lock.write() {
+            log_archive_rollback_error("restore lock after restore failure", e);
+        }
+        if let Err(e) = old_manifest.save() {
+            log_archive_rollback_error("restore manifest after restore failure", e);
+        }
         message
     };
 
@@ -1430,25 +1458,37 @@ pub fn open_skill_dir(app_handle: tauri::AppHandle, directory: String) -> Result
         .map_err(|e| e.to_string())
 }
 
+fn skill_file_error(code: &'static str, message: impl Into<String>) -> CommandError {
+    CommandError {
+        code,
+        message: message.into(),
+        repo: None,
+    }
+}
+
 /// Read a text file at an absolute skill path (UTF-8 only).
-/// Returns Err("BINARY_FILE") for non-UTF-8 files.
 #[tauri::command]
-pub fn read_skill_file_path(path: String) -> Result<String, String> {
+pub fn read_skill_file_path(path: String) -> Result<String, CommandError> {
     if path.is_empty() || path.contains('\0') {
-        return Err("Invalid path".into());
+        return Err(CommandError::bad_request("Invalid path"));
     }
     let p = std::path::Path::new(&path);
     if !p.is_absolute() {
-        return Err("Path must be absolute".into());
+        return Err(CommandError::bad_request("Path must be absolute"));
     }
     if !is_existing_path_under_skill_dir(p) {
-        return Err("Path is not under a known skill directory".into());
+        return Err(CommandError::bad_request(
+            "Path is not under a known skill directory",
+        ));
     }
     if !p.is_file() {
-        return Err(format!("Not a file: {}", p.display()));
+        return Err(CommandError::bad_request(format!(
+            "Not a file: {}",
+            p.display()
+        )));
     }
-    let bytes = std::fs::read(p).map_err(|e| e.to_string())?;
-    String::from_utf8(bytes).map_err(|_| "BINARY_FILE".to_string())
+    let bytes = std::fs::read(p).map_err(|e| CommandError::generic(e.to_string()))?;
+    String::from_utf8(bytes).map_err(|_| skill_file_error("binaryFile", "File is not UTF-8 text"))
 }
 
 fn image_mime_from_path(path: &Path) -> Option<&'static str> {
@@ -1472,26 +1512,32 @@ fn image_mime_from_path(path: &Path) -> Option<&'static str> {
 
 /// Read an image at an absolute skill path and return a browser-displayable data URL.
 #[tauri::command]
-pub fn read_skill_image_path(path: String) -> Result<String, String> {
+pub fn read_skill_image_path(path: String) -> Result<String, CommandError> {
     if path.is_empty() || path.contains('\0') {
-        return Err("Invalid path".into());
+        return Err(CommandError::bad_request("Invalid path"));
     }
     let p = std::path::Path::new(&path);
     if !p.is_absolute() {
-        return Err("Path must be absolute".into());
+        return Err(CommandError::bad_request("Path must be absolute"));
     }
     if !is_existing_path_under_skill_dir(p) {
-        return Err("Path is not under a known skill directory".into());
+        return Err(CommandError::bad_request(
+            "Path is not under a known skill directory",
+        ));
     }
     if !p.is_file() {
-        return Err(format!("Not a file: {}", p.display()));
+        return Err(CommandError::bad_request(format!(
+            "Not a file: {}",
+            p.display()
+        )));
     }
-    let mime = image_mime_from_path(p).ok_or_else(|| "UNSUPPORTED_IMAGE_FILE".to_string())?;
-    let metadata = std::fs::metadata(p).map_err(|e| e.to_string())?;
+    let mime = image_mime_from_path(p)
+        .ok_or_else(|| skill_file_error("unsupportedImageFile", "Unsupported image file"))?;
+    let metadata = std::fs::metadata(p).map_err(|e| CommandError::generic(e.to_string()))?;
     if metadata.len() > MAX_IMAGE_PREVIEW_BYTES {
-        return Err("IMAGE_TOO_LARGE".into());
+        return Err(skill_file_error("imageTooLarge", "Image file is too large"));
     }
-    let bytes = std::fs::read(p).map_err(|e| e.to_string())?;
+    let bytes = std::fs::read(p).map_err(|e| CommandError::generic(e.to_string()))?;
     use base64::Engine;
     let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
     Ok(format!("data:{mime};base64,{encoded}"))
@@ -1741,54 +1787,13 @@ async fn fetch_github_repo_metadata(owner: &str, name: &str) -> Option<DiscoverR
     }
 }
 
-fn parse_repo_query(query: &str) -> Result<(String, String, Option<String>), String> {
-    let query = query.trim();
-
-    if query.starts_with("http://") || query.starts_with("https://") {
-        let url = url::Url::parse(query).map_err(|e| format!("Invalid URL: {e}"))?;
-        match url.host_str() {
-            Some("github.com") => {}
-            Some(host) => return Err(format!("Expected github.com URL, got host: {host}")),
-            None => return Err("Invalid GitHub URL: no host".into()),
-        }
-        let segments: Vec<&str> = url
-            .path_segments()
-            .ok_or("Invalid GitHub URL: no path segments")?
-            .collect();
-
-        if segments.len() < 2 {
-            return Err("GitHub URL must include owner/name".into());
-        }
-
-        let owner = segments[0].to_string();
-        let name = segments[1].trim_end_matches(".git").to_string();
-        let branch = if segments.len() >= 4 && segments[2] == "tree" {
-            Some(segments[3].to_string())
-        } else {
-            None
-        };
-
-        validate_repo_segments(&owner, &name, branch.as_deref().unwrap_or("main"))?;
-        Ok((owner, name, branch))
-    } else {
-        let parts: Vec<&str> = query.splitn(2, '/').collect();
-        if parts.len() != 2 {
-            return Err("Query must be in 'owner/name' format or a GitHub URL".into());
-        }
-        let owner = parts[0].to_string();
-        let name = parts[1].trim_end_matches(".git").to_string();
-        validate_repo_segments(&owner, &name, "main")?;
-        Ok((owner, name, None))
-    }
-}
-
 #[tauri::command]
 pub async fn search_repo(query: String) -> Result<DiscoverRepo, String> {
-    let (owner, name, branch) = parse_repo_query(&query)?;
-    if let Some(branch) = branch {
+    let repo_query = github::parse_repo_query(&query)?;
+    if let Some(branch) = repo_query.branch {
         return Ok(DiscoverRepo {
-            owner,
-            name,
+            owner: repo_query.owner,
+            name: repo_query.name,
             branch,
             description: None,
             stars: None,
@@ -1801,7 +1806,7 @@ pub async fn search_repo(query: String) -> Result<DiscoverRepo, String> {
             html_url: None,
         });
     }
-    get_repo_metadata(owner, name, None).await
+    get_repo_metadata(repo_query.owner, repo_query.name, None).await
 }
 
 /// Cache entry keyed by "owner/name", stored in ~/.skill-zoo/repo-metadata-cache.json
@@ -1838,7 +1843,7 @@ pub async fn get_repo_metadata(
     name: String,
     force: Option<bool>,
 ) -> Result<DiscoverRepo, String> {
-    validate_repo_segments(&owner, &name, "main")?;
+    github::validate_repo_segments(&owner, &name, "main")?;
     let force = force.unwrap_or(false);
     let key = format!("{owner}/{name}");
     let mut cache = load_repo_metadata_cache();
@@ -1989,7 +1994,7 @@ pub async fn get_repo_readme(
 ) -> Result<String, String> {
     let branch = branch.unwrap_or_else(|| "main".to_string());
     let force = force.unwrap_or(false);
-    validate_repo_segments(&owner, &name, &branch)?;
+    github::validate_repo_segments(&owner, &name, &branch)?;
     let key = format!("{owner}/{name}/{branch}");
 
     let mut cache = load_readme_cache();
@@ -2059,7 +2064,7 @@ pub async fn get_repo_skills(
     force: Option<bool>,
 ) -> Result<RepoSkillsResult, CommandError> {
     let branch = branch.unwrap_or_else(|| "main".to_string());
-    validate_repo_segments(&owner, &name, &branch).map_err(CommandError::bad_request)?;
+    github::validate_repo_segments(&owner, &name, &branch).map_err(CommandError::bad_request)?;
     let force = force.unwrap_or(false);
 
     let (mut skills, total) =
@@ -2096,7 +2101,7 @@ pub async fn preview_skill_md(
     skill_dir: String,
 ) -> Result<String, CommandError> {
     let branch = branch.unwrap_or_else(|| "main".to_string());
-    validate_repo_segments(&owner, &name, &branch).map_err(CommandError::bad_request)?;
+    github::validate_repo_segments(&owner, &name, &branch).map_err(CommandError::bad_request)?;
     validate_skill_directory(&skill_dir).map_err(CommandError::bad_request)?;
 
     let zip_path = CliService::ensure_cached_zip(&owner, &name, &branch, false)
@@ -2451,23 +2456,12 @@ mod tests {
     }
 
     #[test]
-    fn repo_query_only_returns_a_branch_when_explicitly_provided() {
-        assert_eq!(
-            parse_repo_query("owner/repo").unwrap(),
-            ("owner".to_string(), "repo".to_string(), None)
-        );
-        assert_eq!(
-            parse_repo_query("https://github.com/owner/repo").unwrap(),
-            ("owner".to_string(), "repo".to_string(), None)
-        );
-        assert_eq!(
-            parse_repo_query("https://github.com/owner/repo/tree/master").unwrap(),
-            (
-                "owner".to_string(),
-                "repo".to_string(),
-                Some("master".to_string()),
-            )
-        );
+    fn skill_file_error_uses_stable_command_error_code() {
+        let error = skill_file_error("binaryFile", "File is not UTF-8 text");
+
+        assert_eq!(error.code, "binaryFile");
+        assert_eq!(error.message, "File is not UTF-8 text");
+        assert_eq!(error.repo, None);
     }
 
     #[test]

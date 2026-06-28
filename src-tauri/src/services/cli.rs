@@ -4,6 +4,7 @@
 
 use crate::config;
 use crate::error::{classify_download_error, AppError};
+use crate::services::github;
 use crate::services::lock::{SkillLock, SkillLockEntry};
 use crate::services::skill::is_symlink_or_junction;
 use serde::{Deserialize, Serialize};
@@ -70,7 +71,8 @@ impl CliService {
     ) -> Result<Vec<String>, AppError> {
         let install_all = skills.is_empty() || skills.iter().any(|s| s == "*");
 
-        let (owner, repo, branch) = Self::parse_github_url(repo_url)?;
+        let repo_ref = github::parse_repo_ref(repo_url)?;
+        let (owner, repo, branch) = (repo_ref.owner, repo_ref.name, repo_ref.branch);
 
         let (_temp_dir, clone_path) =
             Self::download_repo_zip(&owner, &repo, &branch, false).await?;
@@ -581,62 +583,6 @@ impl CliService {
 
     // ─── Internal helpers ───────────────────────────────────────────
 
-    fn parse_github_url(url: &str) -> Result<(String, String, String), AppError> {
-        let url = url.trim();
-
-        if url.starts_with("http://") || url.starts_with("https://") {
-            let parsed = url::Url::parse(url)
-                .map_err(|e| AppError::BadRequest(format!("Invalid URL: {e}")))?;
-
-            match parsed.host_str() {
-                Some("github.com") => {}
-                Some(host) => {
-                    return Err(AppError::BadRequest(format!(
-                        "Expected github.com URL, got host: {host}"
-                    )));
-                }
-                None => {
-                    return Err(AppError::BadRequest("Invalid GitHub URL: no host".into()));
-                }
-            }
-
-            let segments: Vec<&str> = parsed
-                .path_segments()
-                .ok_or(AppError::BadRequest(
-                    "Invalid GitHub URL: no path segments".into(),
-                ))?
-                .collect();
-
-            if segments.len() < 2 {
-                return Err(AppError::BadRequest(
-                    "GitHub URL must include owner/name".into(),
-                ));
-            }
-
-            let owner = segments[0].to_string();
-            let name = segments[1].trim_end_matches(".git").to_string();
-            let branch = if segments.len() >= 4 && segments[2] == "tree" {
-                segments[3].to_string()
-            } else {
-                "main".to_string()
-            };
-
-            Ok((owner, name, branch))
-        } else {
-            let parts: Vec<&str> = url.splitn(2, '/').collect();
-            if parts.len() != 2 {
-                return Err(AppError::BadRequest(
-                    "Expected 'owner/name' format or GitHub URL".into(),
-                ));
-            }
-            Ok((
-                parts[0].to_string(),
-                parts[1].trim_end_matches(".git").to_string(),
-                "main".to_string(),
-            ))
-        }
-    }
-
     fn sanitize_branch(branch: &str) -> String {
         branch.replace(['/', '\\'], "--")
     }
@@ -645,8 +591,9 @@ impl CliService {
         let source_url = entry.effective_url().ok_or_else(|| {
             AppError::BadRequest("Skill lock entry has no GitHub source URL".into())
         })?;
-        let (owner, repo, parsed_branch) = Self::parse_github_url(&source_url)?;
-        let branch = entry.branch.clone().unwrap_or(parsed_branch);
+        let repo_ref = github::parse_repo_ref(&source_url)?;
+        let branch = entry.branch.clone().unwrap_or(repo_ref.branch);
+        let (owner, repo) = (repo_ref.owner, repo_ref.name);
         Ok((owner, repo, branch))
     }
 
@@ -1066,54 +1013,6 @@ impl CliService {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_parse_github_url_short() {
-        let (owner, repo, branch) = CliService::parse_github_url("vercel-labs/skills").unwrap();
-        assert_eq!(owner, "vercel-labs");
-        assert_eq!(repo, "skills");
-        assert_eq!(branch, "main");
-    }
-
-    #[test]
-    fn test_parse_github_url_full() {
-        let (owner, repo, branch) =
-            CliService::parse_github_url("https://github.com/anthropics/skills").unwrap();
-        assert_eq!(owner, "anthropics");
-        assert_eq!(repo, "skills");
-        assert_eq!(branch, "main");
-    }
-
-    #[test]
-    fn test_parse_github_url_tree() {
-        let (owner, repo, branch) =
-            CliService::parse_github_url("https://github.com/anthropics/skills/tree/main").unwrap();
-        assert_eq!(owner, "anthropics");
-        assert_eq!(repo, "skills");
-        assert_eq!(branch, "main");
-    }
-
-    #[test]
-    fn test_parse_github_url_strips_dot_git_full() {
-        let (owner, repo, branch) =
-            CliService::parse_github_url("https://github.com/anthropics/skills.git").unwrap();
-        assert_eq!(owner, "anthropics");
-        assert_eq!(repo, "skills");
-        assert_eq!(branch, "main");
-    }
-
-    #[test]
-    fn test_parse_github_url_strips_dot_git_short() {
-        let (owner, repo, branch) = CliService::parse_github_url("anthropics/skills.git").unwrap();
-        assert_eq!(owner, "anthropics");
-        assert_eq!(repo, "skills");
-        assert_eq!(branch, "main");
-    }
-
-    #[test]
-    fn test_parse_github_url_rejects_non_github() {
-        assert!(CliService::parse_github_url("https://gitlab.com/foo/bar").is_err());
-    }
 
     #[test]
     fn install_preflight_rejects_existing_destination_before_writes() {
