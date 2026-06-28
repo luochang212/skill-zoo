@@ -28,6 +28,7 @@ pub struct UpdateResult {
     pub success_count: usize,
     pub fail_count: usize,
     pub errors: Vec<String>,
+    pub updated: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -148,8 +149,47 @@ impl CliService {
             }
         }
 
-        // Persist metadata to lock file (best-effort)
-        let _ = Self::update_lock_after_install(&installed_skills, &owner, &repo, &branch);
+        // Persist metadata to lock file, including folder SHAs so future
+        // update checks can detect changes even after a fresh install.
+        //
+        // Primary: fetch the repo tree to get the per-folder SHA (most precise).
+        // Fallback: extract the commit SHA from the zip download redirect URL
+        //           (less precise — changes when *any* file in the repo changes).
+        // If both fail, commit_sha stays None and check_skill_updates will
+        // auto-baseline on the next successful check (one-cycle degradation).
+        let folder_shas: std::collections::HashMap<String, Option<String>> =
+            match Self::fetch_repo_tree(&owner, &repo, &branch).await {
+                Ok(Some(tree)) => installed_skills
+                    .iter()
+                    .map(|(name, skill_path)| {
+                        (
+                            name.clone(),
+                            Self::get_folder_sha_from_tree(&tree, skill_path),
+                        )
+                    })
+                    .collect(),
+                Ok(None) => {
+                    eprintln!(
+                        "install: tree not found for {owner}/{repo}@{branch}, \
+                         update detection will auto-baseline on next check"
+                    );
+                    std::collections::HashMap::new()
+                }
+                Err(e) => {
+                    eprintln!(
+                        "install: tree fetch failed for {owner}/{repo}@{branch}: {e}, \
+                         update detection will auto-baseline on next check"
+                    );
+                    std::collections::HashMap::new()
+                }
+            };
+        let _ = Self::update_lock_after_install(
+            &installed_skills,
+            &owner,
+            &repo,
+            &branch,
+            &folder_shas,
+        );
 
         if !errors.is_empty() {
             return Err(AppError::Cli(format!(
@@ -269,6 +309,7 @@ impl CliService {
                 success_count: 0,
                 fail_count: 0,
                 errors: vec![],
+                updated: vec![],
             });
         }
 
@@ -357,6 +398,7 @@ impl CliService {
                 success_count: 0,
                 fail_count: 0,
                 errors: vec![],
+                updated: vec![],
             });
         }
 
@@ -421,6 +463,7 @@ impl CliService {
             success_count: updated.len(),
             fail_count: errors.len(),
             errors,
+            updated,
         })
     }
 
@@ -837,6 +880,7 @@ impl CliService {
         owner: &str,
         repo: &str,
         branch: &str,
+        folder_shas: &std::collections::HashMap<String, Option<String>>,
     ) -> Result<(), AppError> {
         let mut lock = SkillLock::read()?;
         let now = chrono::Utc::now().to_rfc3339();
@@ -845,6 +889,11 @@ impl CliService {
 
         for (name, skill_path) in skills {
             let existing_installed_at = lock.skills.get(name).and_then(|e| e.installed_at.clone());
+            // Prefer freshly fetched folder SHA; fall back to existing lock entry
+            let commit_sha = folder_shas
+                .get(name)
+                .and_then(|s| s.clone())
+                .or_else(|| lock.skills.get(name).and_then(|e| e.commit_sha.clone()));
 
             lock.skills.insert(
                 name.clone(),
@@ -857,7 +906,7 @@ impl CliService {
                     skill_folder_hash: Some(String::new()),
                     installed_at: Some(existing_installed_at.unwrap_or_else(|| now.clone())),
                     updated_at: Some(now.clone()),
-                    commit_sha: lock.skills.get(name).and_then(|e| e.commit_sha.clone()),
+                    commit_sha,
                 },
             );
         }
