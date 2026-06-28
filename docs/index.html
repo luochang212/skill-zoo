@@ -526,8 +526,8 @@
         gap: min(4vw, 64px);
       }
       .hero-report-grid > div:first-child {
-        flex: 0 0 clamp(260px, 26vw, 360px);
-        margin-left: clamp(48px, 7vw, 120px);
+        flex: 0 0 clamp(275px, 26vw, 375px);
+        margin-left: clamp(20px, 7vw, 92px);
       }
       .hero-report-grid > div:last-child {
         flex: 1 1 auto;
@@ -535,7 +535,7 @@
         max-width: clamp(400px, 54vw, 800px);
       }
       .hero-report h1 {
-        font-size: clamp(32px, 4.5vw, 48px);
+        font-size: clamp(34px, 5vw, 54px);
         margin-bottom: 10px;
         color: #ffffff;
       }
@@ -720,14 +720,14 @@
         display: inline-flex;
         align-items: center;
         gap: 10px;
-        padding: 10px 18px;
+        padding: 12px 22px;
         border-radius: 8px;
         border: 1px solid var(--d-border);
         background: rgba(255, 255, 255, 0.04);
         color: #d4d1c8;
         text-decoration: none;
         font-family: var(--sans);
-        font-size: 14px;
+        font-size: 15px;
         transition: all 200ms ease;
       }
       .hero-dl-btn:hover {
@@ -4200,8 +4200,8 @@
         const n = cards.length;
         const mobile = isMobile();
         const cardW = Math.min(
-          wrapper.clientWidth * (mobile ? 0.72 : 0.69),
-          mobile ? 600 : 660,
+          wrapper.clientWidth * (mobile ? 0.76 : 0.75),
+          mobile ? 620 : 720,
         );
         const cardH = cardW / ASPECT;
         wrapper.style.height = `${Math.max(cardH + 60, 280)}px`;
