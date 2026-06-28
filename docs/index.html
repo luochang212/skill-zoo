@@ -707,6 +707,57 @@
           color: var(--copper);
           background: rgba(224, 120, 72, 0.08);
         }
+        /* mockup */
+        .m-card {
+          transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+        .m-card:hover {
+          transform: translateY(-2px);
+          box-shadow:
+            0 6px 24px rgba(0, 0, 0, 0.5),
+            0 0 0 1px rgba(208, 113, 74, 0.12);
+          border-color: rgba(208, 113, 74, 0.25);
+        }
+        .m-sidebar-item:not(.active):hover {
+          background: rgba(232, 232, 232, 0.04);
+          color: rgba(255, 255, 255, 0.8);
+        }
+        .m-si-repo-child:hover {
+          color: rgba(255, 255, 255, 0.65);
+        }
+        .m-filter:not(.active):hover {
+          background: rgba(232, 232, 232, 0.06);
+          color: rgba(255, 255, 255, 0.8);
+        }
+        .m-view-btn:not(.active):hover {
+          background: rgba(232, 232, 232, 0.06);
+          color: rgba(255, 255, 255, 0.7);
+        }
+        .m-tab:not(.active):hover {
+          color: rgba(255, 255, 255, 0.8);
+        }
+        .top-nav-gh:hover {
+          color: rgba(255, 255, 255, 0.9);
+        }
+        .top-nav-dl:hover {
+          background: rgba(255, 255, 255, 0.88);
+          border-color: rgba(255, 255, 255, 0.88);
+        }
+        .tab-btn:hover {
+          color: var(--ink);
+        }
+        .dark .tab-btn:hover {
+          color: #e8e5de;
+        }
+        .dep-pill:hover {
+          border-color: var(--copper);
+          color: var(--copper);
+          transform: translateY(-1px);
+        }
+        .dark .dep-pill:hover {
+          border-color: var(--copper);
+          color: var(--copper);
+        }
       }
       /* ── Hero download buttons ── */
       .hero-dl {
@@ -1443,12 +1494,6 @@
         border-bottom: 2px solid transparent;
         margin-bottom: -1px;
       }
-      .tab-btn:hover {
-        color: var(--ink);
-      }
-      .dark .tab-btn:hover {
-        color: #e8e5de;
-      }
       .tab-btn.active {
         color: var(--copper);
         border-bottom-color: var(--copper);
@@ -1493,11 +1538,6 @@
         transition: all 120ms;
         text-decoration: none;
       }
-      .dep-pill:hover {
-        border-color: var(--copper);
-        color: var(--copper);
-        transform: translateY(-1px);
-      }
       .dep-pill .ver {
         font-size: 9px;
         color: var(--g500);
@@ -1507,10 +1547,6 @@
         background: var(--dark-sur);
         border-color: var(--d-border);
         color: #d4d1c8;
-      }
-      .dark .dep-pill:hover {
-        border-color: var(--copper);
-        color: var(--copper);
       }
 
       /* ── Command accordion ── */
@@ -1633,9 +1669,6 @@
         height: 15px;
         flex-shrink: 0;
       }
-      .top-nav-gh:hover {
-        color: rgba(255, 255, 255, 0.9);
-      }
       .top-nav-dl {
         margin-left: 16px;
         flex-shrink: 0;
@@ -1655,10 +1688,6 @@
           background 0.15s,
           border-color 0.15s,
           color 0.15s;
-      }
-      .top-nav-dl:hover {
-        background: rgba(255, 255, 255, 0.88);
-        border-color: rgba(255, 255, 255, 0.88);
       }
       .top-nav-dl:active {
         transform: translateY(1px);
@@ -2238,6 +2267,7 @@
         color: rgba(255, 255, 255, 0.5);
         outline: none;
         flex-shrink: 0;
+        user-select: none;
       }
       .m-filter {
         font-size: 10px;
@@ -2299,6 +2329,9 @@
       .m-card-star {
         font-size: 10px;
         color: rgba(255, 255, 255, 0.25);
+      }
+      .m-card-star.filled {
+        color: #f59e0b;
       }
       .m-card-desc {
         font-size: 10px;
@@ -3653,7 +3686,13 @@
                       luochang212/skill-zoo
                     </div>
                     <div class="m-sidebar-item m-si-repo-child">
-                      vercel-labs/skills
+                      vercel-labs/ai-sdk
+                    </div>
+                    <div class="m-sidebar-item m-si-repo-child">
+                      coder/prompt-kit
+                    </div>
+                    <div class="m-sidebar-item m-si-repo-child">
+                      qoder/agent-hub
                     </div>
                     <div class="m-sidebar-item m-si-repo-child">Unassigned</div>
                   </div>
@@ -3736,6 +3775,72 @@
                       </div>
                       <div class="m-card-desc">
                         Quickly spin up throwaway prototypes and experiments.
+                      </div>
+                      <div class="m-card-repo">luochang212/skill-zoo</div>
+                    </div>
+                    <div class="m-card">
+                      <div class="m-card-top">
+                        <span class="m-card-name">app-release</span>
+                        <span class="m-card-star">★</span>
+                      </div>
+                      <div class="m-card-desc">
+                        Ship new versions via CI-triggered release tags and
+                        Homebrew cask updates.
+                      </div>
+                      <div class="m-card-repo">luochang212/skill-zoo</div>
+                    </div>
+                    <div class="m-card">
+                      <div class="m-card-top">
+                        <span class="m-card-name">github-research</span>
+                        <span class="m-card-star">★</span>
+                      </div>
+                      <div class="m-card-desc">
+                        Analyze GitHub repositories across 5 dimensions with
+                        structured reports.
+                      </div>
+                      <div class="m-card-repo">luochang212/skill-zoo</div>
+                    </div>
+                    <div class="m-card">
+                      <div class="m-card-top">
+                        <span class="m-card-name">agents-md</span>
+                        <span class="m-card-star">★</span>
+                      </div>
+                      <div class="m-card-desc">
+                        Scaffold AGENTS.md for multi-agent code review with
+                        guardrails.
+                      </div>
+                      <div class="m-card-repo">luochang212/skill-zoo</div>
+                    </div>
+                    <div class="m-card">
+                      <div class="m-card-top">
+                        <span class="m-card-name">stock-watcher</span>
+                        <span class="m-card-star">★</span>
+                      </div>
+                      <div class="m-card-desc">
+                        Monitor A-share stocks with real-time quotes and
+                        technical indicators.
+                      </div>
+                      <div class="m-card-repo">luochang212/skill-zoo</div>
+                    </div>
+                    <div class="m-card">
+                      <div class="m-card-top">
+                        <span class="m-card-name">china-stock</span>
+                        <span class="m-card-star">★</span>
+                      </div>
+                      <div class="m-card-desc">
+                        Analyze China A-share market with fundamentals,
+                        technicals, and sector rotation.
+                      </div>
+                      <div class="m-card-repo">luochang212/skill-zoo</div>
+                    </div>
+                    <div class="m-card">
+                      <div class="m-card-top">
+                        <span class="m-card-name">design-guidelines</span>
+                        <span class="m-card-star">★</span>
+                      </div>
+                      <div class="m-card-desc">
+                        Apply web design principles: typography, spacing, color
+                        systems, and responsive layout.
                       </div>
                       <div class="m-card-repo">luochang212/skill-zoo</div>
                     </div>
@@ -4646,6 +4751,26 @@
         );
 
         els.forEach((el) => io.observe(el));
+      })();
+
+      // ── Mock card star randomization: 5 filled, 7 hollow ──
+      (() => {
+        const stars = document.querySelectorAll(".m-card-grid .m-card-star");
+        if (!stars.length) return;
+        const indices = Array.from({ length: stars.length }, (_, i) => i);
+        // Fisher-Yates shuffle, take first 5
+        for (let i = indices.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [indices[i], indices[j]] = [indices[j], indices[i]];
+        }
+        const filled = new Set(indices.slice(0, 5));
+        stars.forEach((el, i) => {
+          if (filled.has(i)) {
+            el.classList.add("filled");
+          } else {
+            el.textContent = "☆"; // ☆ hollow
+          }
+        });
       })();
     </script>
   </body>
