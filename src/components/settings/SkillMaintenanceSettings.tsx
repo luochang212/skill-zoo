@@ -1,7 +1,11 @@
-import { FolderOpen, FolderSearch, RefreshCw, Trash2, Wrench } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { FolderOpen, FolderSearch, History, RefreshCw, Trash2, Wrench } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import {
+  SkillUpdateManagerDialog,
+  type SkillUpdateCandidate,
+} from "@/components/settings/SkillUpdateManagerDialog";
 import { Button } from "@/components/ui/button";
 import { ToggleRow } from "@/components/ui/toggle-row";
 import { useUpdateAllSkills, useInstalledSkills, useRescanSkills } from "@/hooks/useSkills";
@@ -10,6 +14,7 @@ import { useCheckUpdates } from "@/hooks/useCheckUpdates";
 import { useIsMutationPending } from "@/hooks/usePendingMutation";
 import { formatApiError } from "@/lib/api/errors";
 import { skillsApi } from "@/lib/api/skills";
+import { cn } from "@/lib/utils";
 
 function formatSize(bytes: number) {
   if (bytes === 0) return "0 B";
@@ -27,6 +32,8 @@ export function SkillMaintenanceSettings() {
   const { t } = useTranslation();
   const [clearingCache, setClearingCache] = useState(false);
   const [cacheSize, setCacheSize] = useState<number | null>(null);
+  const [updateManagerOpen, setUpdateManagerOpen] = useState(false);
+  const updateManagerButtonRef = useRef<HTMLButtonElement>(null);
 
   const checkMutation = useCheckUpdates();
 
@@ -41,7 +48,7 @@ export function SkillMaintenanceSettings() {
 
   const installedCount = skills?.length ?? 0;
 
-  const checkedUpdateCandidates = useMemo(() => {
+  const checkedUpdateCandidates = useMemo<SkillUpdateCandidate[]>(() => {
     if (!checkMutation.data) return [];
     const ssotSkillDirs = new Set(
       (skills ?? []).filter((skill) => skill.origin === "ssot").map((skill) => skill.directory),
@@ -58,6 +65,7 @@ export function SkillMaintenanceSettings() {
         skillName: skill.skillName,
         currentSha: skill.currentSha!,
         latestSha: skill.latestSha!,
+        repo: skill.repo,
       }));
   }, [checkMutation.data, skills]);
 
@@ -70,6 +78,46 @@ export function SkillMaintenanceSettings() {
   const checkedRepos = checkMutation.data?.checkedRepos ?? 0;
   const rateLimitedWithoutResults = rateLimited && checkedRepos === 0;
   const rateLimitedWithPartialCheck = rateLimited && checkedRepos > 0;
+  const showUpdateManagerButton = updatableCount > 0 || isUpdating || updateManagerOpen;
+
+  const updateCheckedCandidates = useCallback(
+    (updates: SkillUpdateCandidate[]) => {
+      updateAllMutation.mutate(
+        updates.map((update) => ({
+          skillName: update.skillName,
+          currentSha: update.currentSha,
+          latestSha: update.latestSha,
+        })),
+        {
+          onSuccess: (result) => {
+            checkMutation.reset();
+            if (result.successCount > 0 && result.failCount === 0) {
+              toast.success(
+                t("settings.maintenance.updateAllSuccess", {
+                  count: result.successCount,
+                }),
+              );
+            } else if (result.failCount > 0) {
+              const failure = result.errors[0]
+                ? formatApiError(result.errors[0])
+                : t("settings.maintenance.updateAllFailed");
+              toast.warning(
+                result.successCount > 0
+                  ? `${t("settings.maintenance.updateAllPartial", {
+                      success: result.successCount,
+                      fail: result.failCount,
+                    })}: ${failure}`
+                  : failure,
+              );
+            } else {
+              toast.error(t("settings.maintenance.updateAllFailed"));
+            }
+          },
+        },
+      );
+    },
+    [checkMutation, t, updateAllMutation],
+  );
 
   return (
     <section className="space-y-3">
@@ -79,8 +127,8 @@ export function SkillMaintenanceSettings() {
       </div>
 
       <div className="space-y-4">
-        {/* Check / Update all */}
-        <div className="flex items-center justify-between rounded-xl border border-border bg-card/50 p-4 transition-colors hover:bg-muted/50">
+        {/* Check / Update manager */}
+        <div className="group flex items-center justify-between rounded-xl border border-border bg-card/50 p-4 transition-colors hover:bg-muted/50">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-background ring-1 ring-border">
               <RefreshCw className="h-4 w-4 text-blue-500" />
@@ -107,53 +155,20 @@ export function SkillMaintenanceSettings() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {hasChecked && updatableCount > 0 && (
-              <Button
-                size="sm"
-                className="h-8 text-xs gap-1.5"
-                onClick={() =>
-                  updateAllMutation.mutate(checkedUpdateCandidates, {
-                    onSuccess: (result) => {
-                      checkMutation.reset();
-                      if (result.successCount > 0 && result.failCount === 0) {
-                        toast.success(
-                          t("settings.maintenance.updateAllSuccess", {
-                            count: result.successCount,
-                          }),
-                        );
-                      } else if (result.failCount > 0) {
-                        const failure = result.errors[0]
-                          ? formatApiError(result.errors[0])
-                          : t("settings.maintenance.updateAllFailed");
-                        toast.warning(
-                          result.successCount > 0
-                            ? `${t("settings.maintenance.updateAllPartial", {
-                                success: result.successCount,
-                                fail: result.failCount,
-                              })}: ${failure}`
-                            : failure,
-                        );
-                      } else {
-                        toast.error(t("settings.maintenance.updateAllFailed"));
-                      }
-                    },
-                  })
-                }
-                disabled={isUpdating}
-              >
-                {isUpdating ? (
-                  <>
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                    {t("settings.maintenance.updating")}
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    {t("settings.maintenance.updateAllBtn")} ({updatableCount})
-                  </>
-                )}
-              </Button>
-            )}
+            <Button
+              ref={updateManagerButtonRef}
+              size="sm"
+              variant="outline"
+              className={cn(
+                "h-8 text-xs gap-1.5 transition-opacity",
+                showUpdateManagerButton ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+              )}
+              onClick={() => setUpdateManagerOpen(true)}
+            >
+              <History className="h-3.5 w-3.5" />
+              {t("settings.maintenance.updateManagerBtn")}
+              {updatableCount > 0 && ` (${updatableCount})`}
+            </Button>
             <Button
               size="sm"
               variant="outline"
@@ -289,6 +304,16 @@ export function SkillMaintenanceSettings() {
           {t("settings.maintenance.installedCount", { count: installedCount })}
         </p>
       </div>
+      <SkillUpdateManagerDialog
+        open={updateManagerOpen}
+        onOpenChange={setUpdateManagerOpen}
+        returnFocusRef={updateManagerButtonRef}
+        updates={checkedUpdateCandidates}
+        isChecking={isChecking}
+        isUpdating={isUpdating}
+        onCheckUpdates={() => checkMutation.mutate()}
+        onUpdate={updateCheckedCandidates}
+      />
     </section>
   );
 }

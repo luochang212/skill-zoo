@@ -45,6 +45,8 @@ describe("SkillMaintenanceSettings", () => {
           return Promise.resolve({});
         case "get_cache_size":
           return Promise.resolve(1024);
+        case "get_skill_update_history":
+          return Promise.resolve([]);
         case "clear_download_cache":
           return Promise.reject(new Error("clear failed"));
         default:
@@ -76,6 +78,8 @@ describe("SkillMaintenanceSettings", () => {
           return Promise.resolve({});
         case "get_cache_size":
           return Promise.resolve(1024);
+        case "get_skill_update_history":
+          return Promise.resolve([]);
         case "check_skill_updates":
           return Promise.resolve({
             skills: [
@@ -106,7 +110,8 @@ describe("SkillMaintenanceSettings", () => {
     renderSettings();
 
     await user.click(await screen.findByRole("button", { name: /check updates/i }));
-    await user.click(await screen.findByRole("button", { name: /update all/i }));
+    await user.click(await screen.findByRole("button", { name: /update manager/i }));
+    await user.click(await screen.findByRole("button", { name: /^update selected$/i }));
 
     await waitFor(() =>
       expect(toast.warning).toHaveBeenCalledWith(
@@ -127,6 +132,8 @@ describe("SkillMaintenanceSettings", () => {
           return Promise.resolve({});
         case "get_cache_size":
           return Promise.resolve(1024);
+        case "get_skill_update_history":
+          return Promise.resolve([]);
         case "check_skill_updates":
           return Promise.resolve({
             skills: [
@@ -157,7 +164,8 @@ describe("SkillMaintenanceSettings", () => {
     renderSettings();
 
     await user.click(await screen.findByRole("button", { name: /check updates/i }));
-    await user.click(await screen.findByRole("button", { name: /update all/i }));
+    await user.click(await screen.findByRole("button", { name: /update manager/i }));
+    await user.click(await screen.findByRole("button", { name: /^update selected$/i }));
 
     await waitFor(() =>
       expect(toast.warning).toHaveBeenCalledWith(
@@ -179,6 +187,8 @@ describe("SkillMaintenanceSettings", () => {
           return Promise.resolve({});
         case "get_cache_size":
           return Promise.resolve(1024);
+        case "get_skill_update_history":
+          return Promise.resolve([]);
         case "check_skill_updates":
           return Promise.resolve({
             skills: [
@@ -216,7 +226,9 @@ describe("SkillMaintenanceSettings", () => {
     renderSettings();
 
     await user.click(await screen.findByRole("button", { name: /check updates/i }));
-    const updateButton = await screen.findByRole("button", { name: /update all \(1\)/i });
+    expect(screen.queryByRole("button", { name: /update all \(1\)/i })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: /update manager \(1\)/i }));
+    const updateButton = await screen.findByRole("button", { name: /^update selected$/i });
     await user.click(updateButton);
 
     expect(invoke).toHaveBeenCalledWith("update_all_skills", {
@@ -228,6 +240,57 @@ describe("SkillMaintenanceSettings", () => {
         },
       ],
     });
+  });
+
+  it("manages update history from the update manager dialog", async () => {
+    const user = userEvent.setup();
+    vi.mocked(invoke).mockImplementation((command, args) => {
+      switch (command) {
+        case "get_installed_skills":
+          return Promise.resolve([]);
+        case "get_settings":
+          return Promise.resolve({});
+        case "get_cache_size":
+          return Promise.resolve(1024);
+        case "get_skill_update_history":
+          return Promise.resolve([
+            {
+              id: "history-1",
+              startedAt: "2026-01-01T00:00:00Z",
+              finishedAt: "2026-01-01T00:01:00Z",
+              mode: "selected",
+              requestedSkills: ["demo"],
+              updatedSkills: ["demo"],
+              failedSkills: [],
+              errors: [],
+              status: "success",
+            },
+          ]);
+        case "delete_skill_update_history_record":
+          expect(args).toEqual({ id: "history-1" });
+          return Promise.resolve();
+        case "clear_skill_update_history":
+          return Promise.resolve();
+        default:
+          return Promise.reject(new Error(`Unexpected command: ${command}`));
+      }
+    });
+
+    renderSettings();
+
+    await user.click(await screen.findByRole("button", { name: /update manager/i }));
+    await user.click(await screen.findByRole("button", { name: /history/i }));
+    await screen.findByText("1 updated, 0 failed");
+
+    await user.click(await screen.findByRole("button", { name: /delete history record/i }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("delete_skill_update_history_record", {
+        id: "history-1",
+      }),
+    );
+
+    await user.click(await screen.findByRole("button", { name: /clear history/i }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("clear_skill_update_history"));
   });
 
   it("does not describe rate limiting as partial results when no repository was checked", async () => {
@@ -242,6 +305,8 @@ describe("SkillMaintenanceSettings", () => {
           return Promise.resolve({});
         case "get_cache_size":
           return Promise.resolve(1024);
+        case "get_skill_update_history":
+          return Promise.resolve([]);
         case "check_skill_updates":
           return Promise.resolve({
             skills: [
