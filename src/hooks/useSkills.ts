@@ -101,6 +101,7 @@ export function useUpdateAllSkills() {
     mutationKey: ["updateAllSkills"],
     mutationFn: (checkedUpdates) => skillsApi.updateAllSkills(checkedUpdates),
     onSuccess: () => invalidateFor(qc, "updateAllSkills"),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["skills", "updateHistory"] }),
   });
 }
 

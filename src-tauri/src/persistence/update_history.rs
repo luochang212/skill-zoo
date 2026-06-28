@@ -52,6 +52,9 @@ impl SkillUpdateHistory {
             return Ok(Self::default());
         }
         let content = std::fs::read_to_string(path).map_err(|e| error::io(path, e))?;
+        if content.trim().is_empty() {
+            return Ok(Self::default());
+        }
         serde_json::from_str(&content)
             .map_err(|e| AppError::Parse(format!("skill update history: {e}")))
     }
@@ -90,6 +93,7 @@ impl SkillUpdateHistory {
     }
 
     pub fn clear(&mut self) {
+        self.version = default_version();
         self.records.clear();
     }
 }
@@ -135,6 +139,35 @@ mod tests {
         loaded.clear();
         loaded.save_to(&path).expect("save cleared history");
         let loaded = SkillUpdateHistory::load_from(&path).expect("reload cleared history");
+        assert!(loaded.sorted_records().is_empty());
+    }
+
+    #[test]
+    fn empty_history_file_loads_as_default_history() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("history.json");
+        std::fs::write(&path, "").expect("write empty history");
+
+        let loaded = SkillUpdateHistory::load_from(&path).expect("load empty history");
+
+        assert_eq!(loaded.version, super::SUPPORTED_UPDATE_HISTORY_VERSION);
+        assert!(loaded.sorted_records().is_empty());
+    }
+
+    #[test]
+    fn clear_resets_future_version_so_history_can_be_saved() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("history.json");
+        let mut history = SkillUpdateHistory {
+            version: super::SUPPORTED_UPDATE_HISTORY_VERSION + 1,
+            records: Default::default(),
+        };
+
+        history.clear();
+        history.save_to(&path).expect("save cleared future history");
+
+        let loaded = SkillUpdateHistory::load_from(&path).expect("reload cleared history");
+        assert_eq!(loaded.version, super::SUPPORTED_UPDATE_HISTORY_VERSION);
         assert!(loaded.sorted_records().is_empty());
     }
 }

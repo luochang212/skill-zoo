@@ -440,6 +440,8 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
             }
             Ok(None) => {
                 // Repo not found or branch doesn't exist — skip, continue
+                checked_repos += 1;
+
                 for (skill_name, _) in skills_in_repo {
                     checked_skills.insert(
                         skill_name.clone(),

@@ -518,12 +518,14 @@ fn update_history_status(success_count: usize, fail_count: usize) -> String {
 fn failed_skill_names(errors: &[String]) -> Vec<String> {
     let mut failed = Vec::new();
     for error in errors {
-        let name = error
+        let Some(name) = error
             .split_once(':')
             .map(|(name, _)| name.trim())
             .filter(|name| !name.is_empty())
-            .unwrap_or(error.as_str())
-            .to_string();
+        else {
+            continue;
+        };
+        let name = name.to_string();
         if !failed.contains(&name) {
             failed.push(name);
         }
@@ -2577,10 +2579,19 @@ mod tests {
             update_history_status(result.success_count, result.fail_count),
             "partial"
         );
-        assert_eq!(
-            failed_skill_names(&result.errors),
-            vec!["cache refresh failed"]
-        );
+        assert!(failed_skill_names(&result.errors).is_empty());
+    }
+
+    #[test]
+    fn failed_skill_names_only_extracts_skill_prefixed_errors() {
+        let errors = vec![
+            "demo: download failed".to_string(),
+            "cache refresh failed".to_string(),
+            "other: missing path".to_string(),
+            "demo: another error".to_string(),
+        ];
+
+        assert_eq!(failed_skill_names(&errors), vec!["demo", "other"]);
     }
 
     #[test]

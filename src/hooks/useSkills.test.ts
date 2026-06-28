@@ -6,6 +6,7 @@ import {
   useRestoreArchivedSkill,
   useStarSkill,
   useUnstarSkill,
+  useUpdateAllSkills,
   useUpdateSkill,
 } from "./useSkills";
 import { createQueryWrapper } from "@/test/utils";
@@ -188,6 +189,25 @@ describe("useUpdateSkill", () => {
     const { result } = renderHook(() => useUpdateSkill(), { wrapper });
     await act(async () => {
       await expect(result.current.mutateAsync("skill-1")).rejects.toThrow("update failed");
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["skills", "updateHistory"] });
+  });
+});
+
+describe("useUpdateAllSkills", () => {
+  beforeEach(() => {
+    vi.mocked(invoke).mockReset();
+  });
+
+  it("invalidates update history even when the batch update fails", async () => {
+    vi.mocked(invoke).mockRejectedValue(new Error("batch update failed"));
+    const { wrapper, queryClient } = createQueryWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHook(() => useUpdateAllSkills(), { wrapper });
+    await act(async () => {
+      await expect(result.current.mutateAsync(undefined)).rejects.toThrow("batch update failed");
     });
 
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["skills", "updateHistory"] });
