@@ -164,6 +164,8 @@ export interface SkillUpdateStatus {
   currentSha: string | null;
   latestSha: string | null;
   repo: string;
+  checkErrorCode?: string | null;
+  checkError?: string | null;
 }
 
 export interface RemoveSkillsResult {

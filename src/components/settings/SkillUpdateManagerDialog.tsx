@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { CheckCircle2, Clock3, History, RefreshCw, Trash2, XCircle } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock3,
+  History,
+  RefreshCw,
+  Trash2,
+  XCircle,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -25,11 +33,19 @@ export interface SkillUpdateCandidate extends CheckedSkillUpdate {
   repo: string;
 }
 
+export interface SkillUpdateIssue {
+  skillName: string;
+  repo: string;
+  code: string;
+  message: string;
+}
+
 interface SkillUpdateManagerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   returnFocusRef: RefObject<HTMLButtonElement | null>;
   updates: SkillUpdateCandidate[];
+  issues: SkillUpdateIssue[];
   isChecking: boolean;
   isUpdating: boolean;
   onCheckUpdates: () => void;
@@ -70,6 +86,7 @@ export function SkillUpdateManagerDialog({
   onOpenChange,
   returnFocusRef,
   updates,
+  issues,
   isChecking,
   isUpdating,
   onCheckUpdates,
@@ -223,41 +240,79 @@ export function SkillUpdateManagerDialog({
               </div>
             </div>
             <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-              {updates.length === 0 ? (
+              {updates.length === 0 && issues.length === 0 ? (
                 <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
                   {t("settings.maintenance.noAvailableUpdates")}
                 </div>
               ) : (
-                updates.map((update) => (
-                  <div
-                    key={update.skillName}
-                    className="flex min-h-16 items-center gap-3 border-b border-border/40 px-4 py-3 last:border-b-0"
-                  >
-                    <Checkbox
-                      checked={selected.has(update.skillName)}
-                      onCheckedChange={(checked) =>
-                        toggleSelected(update.skillName, Boolean(checked))
-                      }
-                      disabled={isUpdating}
-                      aria-label={t("settings.maintenance.selectUpdate", {
-                        skill: update.skillName,
-                      })}
-                    />
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <p className="truncate text-sm font-medium leading-none">
-                          {update.skillName}
+                <>
+                  {updates.map((update) => (
+                    <div
+                      key={update.skillName}
+                      className="flex min-h-16 items-center gap-3 border-b border-border/40 px-4 py-3"
+                    >
+                      <Checkbox
+                        checked={selected.has(update.skillName)}
+                        onCheckedChange={(checked) =>
+                          toggleSelected(update.skillName, Boolean(checked))
+                        }
+                        disabled={isUpdating}
+                        aria-label={t("settings.maintenance.selectUpdate", {
+                          skill: update.skillName,
+                        })}
+                      />
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-sm font-medium leading-none">
+                            {update.skillName}
+                          </p>
+                          <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-[10px]">
+                            {update.repo}
+                          </Badge>
+                        </div>
+                        <p className="truncate font-mono text-xs text-muted-foreground">
+                          {shortSha(update.currentSha)} -&gt; {shortSha(update.latestSha)}
                         </p>
-                        <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-[10px]">
-                          {update.repo}
-                        </Badge>
                       </div>
-                      <p className="truncate font-mono text-xs text-muted-foreground">
-                        {shortSha(update.currentSha)} -&gt; {shortSha(update.latestSha)}
-                      </p>
                     </div>
-                  </div>
-                ))
+                  ))}
+                  {issues.length > 0 && (
+                    <>
+                      <div className="border-b border-border/40 bg-muted/35 px-4 py-2 text-xs font-medium text-muted-foreground">
+                        {t("settings.maintenance.updateIssuesGroup", { count: issues.length })}
+                      </div>
+                      {issues.map((issue) => (
+                        <div
+                          key={issue.skillName}
+                          className="flex min-h-16 items-start gap-3 border-b border-border/40 px-4 py-3 last:border-b-0"
+                        >
+                          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/10">
+                            <AlertTriangle className="h-4 w-4 text-amber-600" />
+                          </div>
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <div className="flex items-center gap-2">
+                              <p className="truncate text-sm font-medium leading-none">
+                                {issue.skillName}
+                              </p>
+                              <Badge variant="outline" className="h-5 shrink-0 px-1.5 text-[10px]">
+                                {issue.repo}
+                              </Badge>
+                              <Badge
+                                variant="secondary"
+                                className="h-5 shrink-0 px-1.5 text-[10px]"
+                              >
+                                {t("settings.maintenance.updateIssueBadge", {
+                                  code: issue.code,
+                                })}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground">{issue.message}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </>
               )}
             </div>
           </>

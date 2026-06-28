@@ -336,4 +336,53 @@ describe("SkillMaintenanceSettings", () => {
     expect(screen.queryByText(/Only some repositories were checked/i)).not.toBeInTheDocument();
     expect(toast.warning).not.toHaveBeenCalled();
   });
+
+  it("shows update check diagnostics in the update manager", async () => {
+    const user = userEvent.setup();
+    vi.mocked(invoke).mockImplementation((command) => {
+      switch (command) {
+        case "get_installed_skills":
+          return Promise.resolve([
+            { id: "repo:owner/repo:missing-skill", directory: "missing-skill", origin: "ssot" },
+          ]);
+        case "get_settings":
+          return Promise.resolve({});
+        case "get_cache_size":
+          return Promise.resolve(1024);
+        case "get_skill_update_history":
+          return Promise.resolve([]);
+        case "check_skill_updates":
+          return Promise.resolve({
+            skills: [
+              {
+                skillName: "missing-skill",
+                hasUpdate: false,
+                currentSha: "old",
+                latestSha: null,
+                repo: "owner/repo",
+                checkErrorCode: "missingRemotePath",
+                checkError: "Skill path no longer exists in owner/repo@main: skills/missing-skill",
+              },
+            ],
+            totalRepos: 1,
+            checkedRepos: 1,
+            rateLimited: false,
+          });
+        default:
+          return Promise.reject(new Error(`Unexpected command: ${command}`));
+      }
+    });
+
+    renderSettings();
+
+    await user.click(await screen.findByRole("button", { name: /check updates/i }));
+
+    await screen.findByText("1 skill(s) could not be checked. Open Update Manager for details.");
+    await user.click(await screen.findByRole("button", { name: /update manager/i }));
+
+    await screen.findByText("Needs attention (1)");
+    await screen.findByText("missing-skill");
+    await screen.findByText("Skill path no longer exists in owner/repo@main: skills/missing-skill");
+    expect(await screen.findByRole("button", { name: /^update selected$/i })).toBeDisabled();
+  });
 });

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import {
   SkillUpdateManagerDialog,
   type SkillUpdateCandidate,
+  type SkillUpdateIssue,
 } from "@/components/settings/SkillUpdateManagerDialog";
 import { Button } from "@/components/ui/button";
 import { ToggleRow } from "@/components/ui/toggle-row";
@@ -48,11 +49,16 @@ export function SkillMaintenanceSettings() {
 
   const installedCount = skills?.length ?? 0;
 
+  const ssotSkillDirs = useMemo(
+    () =>
+      new Set(
+        (skills ?? []).filter((skill) => skill.origin === "ssot").map((skill) => skill.directory),
+      ),
+    [skills],
+  );
+
   const checkedUpdateCandidates = useMemo<SkillUpdateCandidate[]>(() => {
     if (!checkMutation.data) return [];
-    const ssotSkillDirs = new Set(
-      (skills ?? []).filter((skill) => skill.origin === "ssot").map((skill) => skill.directory),
-    );
     return checkMutation.data.skills
       .filter(
         (skill) =>
@@ -67,9 +73,27 @@ export function SkillMaintenanceSettings() {
         latestSha: skill.latestSha!,
         repo: skill.repo,
       }));
-  }, [checkMutation.data, skills]);
+  }, [checkMutation.data, ssotSkillDirs]);
+
+  const checkedUpdateIssues = useMemo<SkillUpdateIssue[]>(() => {
+    if (!checkMutation.data) return [];
+    return checkMutation.data.skills
+      .filter(
+        (skill) =>
+          skill.checkError != null &&
+          skill.checkError.length > 0 &&
+          ssotSkillDirs.has(skill.skillName),
+      )
+      .map((skill) => ({
+        skillName: skill.skillName,
+        repo: skill.repo,
+        code: skill.checkErrorCode ?? "checkFailed",
+        message: skill.checkError!,
+      }));
+  }, [checkMutation.data, ssotSkillDirs]);
 
   const updatableCount = checkedUpdateCandidates.length;
+  const updateIssueCount = checkedUpdateIssues.length;
 
   const hasChecked = checkMutation.data != null;
   const isChecking = useIsMutationPending("checkSkillUpdates") || checkMutation.isPending;
@@ -78,7 +102,32 @@ export function SkillMaintenanceSettings() {
   const checkedRepos = checkMutation.data?.checkedRepos ?? 0;
   const rateLimitedWithoutResults = rateLimited && checkedRepos === 0;
   const rateLimitedWithPartialCheck = rateLimited && checkedRepos > 0;
-  const showUpdateManagerButton = updatableCount > 0 || isUpdating || updateManagerOpen;
+  const showUpdateManagerButton =
+    updatableCount > 0 || updateIssueCount > 0 || isUpdating || updateManagerOpen;
+
+  const updateSummary = (() => {
+    if (hasChecked && updatableCount > 0) {
+      return t("settings.maintenance.updatesAvailable", { count: updatableCount });
+    }
+    if (hasChecked && updateIssueCount > 0) {
+      return t("settings.maintenance.updateCheckIssues", { count: updateIssueCount });
+    }
+    return t("settings.maintenance.checkUpdate");
+  })();
+
+  const updateDescription = (() => {
+    if (isChecking) return t("settings.maintenance.checkingDesc");
+    if (hasChecked && updatableCount > 0) {
+      return t("settings.maintenance.updatesAvailableDesc", { count: updatableCount });
+    }
+    if (hasChecked && rateLimitedWithoutResults) return t("settings.maintenance.checkRateLimited");
+    if (hasChecked && rateLimitedWithPartialCheck) return t("settings.maintenance.checkPartial");
+    if (hasChecked && updateIssueCount > 0) {
+      return t("settings.maintenance.updateCheckIssuesDesc", { count: updateIssueCount });
+    }
+    if (hasChecked) return t("settings.maintenance.allUpToDate");
+    return t("settings.maintenance.checkUpdateDesc");
+  })();
 
   const updateCheckedCandidates = useCallback(
     (updates: SkillUpdateCandidate[]) => {
@@ -134,24 +183,8 @@ export function SkillMaintenanceSettings() {
               <RefreshCw className="h-4 w-4 text-blue-500" />
             </div>
             <div className="space-y-1">
-              <p className="text-sm font-medium leading-none">
-                {hasChecked && updatableCount > 0
-                  ? t("settings.maintenance.updatesAvailable", { count: updatableCount })
-                  : t("settings.maintenance.checkUpdate")}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {isChecking
-                  ? t("settings.maintenance.checkingDesc")
-                  : hasChecked && updatableCount > 0
-                    ? t("settings.maintenance.updatesAvailableDesc", { count: updatableCount })
-                    : hasChecked && rateLimitedWithoutResults
-                      ? t("settings.maintenance.checkRateLimited")
-                      : hasChecked && rateLimitedWithPartialCheck
-                        ? t("settings.maintenance.checkPartial")
-                        : hasChecked
-                          ? t("settings.maintenance.allUpToDate")
-                          : t("settings.maintenance.checkUpdateDesc")}
-              </p>
+              <p className="text-sm font-medium leading-none">{updateSummary}</p>
+              <p className="text-xs text-muted-foreground">{updateDescription}</p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -309,6 +342,7 @@ export function SkillMaintenanceSettings() {
         onOpenChange={setUpdateManagerOpen}
         returnFocusRef={updateManagerButtonRef}
         updates={checkedUpdateCandidates}
+        issues={checkedUpdateIssues}
         isChecking={isChecking}
         isUpdating={isUpdating}
         onCheckUpdates={() => checkMutation.mutate()}

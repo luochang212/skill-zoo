@@ -322,6 +322,8 @@ pub struct SkillUpdateStatus {
     pub current_sha: Option<String>,
     pub latest_sha: Option<String>,
     pub repo: String,
+    pub check_error_code: Option<String>,
+    pub check_error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -331,6 +333,47 @@ pub struct CheckUpdatesResult {
     pub total_repos: usize,
     pub checked_repos: usize,
     pub rate_limited: bool,
+}
+
+#[derive(Debug, Clone)]
+struct CheckedRemoteSkill {
+    latest_sha: Option<String>,
+    repo: String,
+    check_error_code: Option<String>,
+    check_error: Option<String>,
+}
+
+impl CheckedRemoteSkill {
+    fn ok(latest_sha: Option<String>, repo: String) -> Self {
+        Self {
+            latest_sha,
+            repo,
+            check_error_code: None,
+            check_error: None,
+        }
+    }
+
+    fn error(repo: String, code: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            latest_sha: None,
+            repo,
+            check_error_code: Some(code.into()),
+            check_error: Some(message.into()),
+        }
+    }
+}
+
+fn repo_branch_ref(owner: &str, repo: &str, branch: &str) -> String {
+    format!("{owner}/{repo}@{branch}")
+}
+
+fn missing_remote_path_error(owner: &str, repo: &str, branch: &str, skill_path: &str) -> String {
+    let remote_ref = repo_branch_ref(owner, repo, branch);
+    if skill_path.is_empty() {
+        format!("Skill root no longer exists in {remote_ref}")
+    } else {
+        format!("Skill path no longer exists in {remote_ref}: {skill_path}")
+    }
 }
 
 #[tauri::command]
@@ -360,8 +403,7 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
     let mut checked_repos: usize = 0;
     let mut rate_limited = false;
 
-    // Map: skill_name -> (latest_folder_sha, repo_name)
-    let mut skill_shas: HashMap<String, (Option<String>, String)> = HashMap::new();
+    let mut checked_skills: HashMap<String, CheckedRemoteSkill> = HashMap::new();
 
     // Randomize repo order for fairness when rate-limited
     let mut repos: Vec<(String, String, String)> = skills_by_repo.keys().cloned().collect();
@@ -385,26 +427,65 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
                 for (skill_name, entry) in skills_in_repo {
                     let skill_path = entry.skill_path.as_deref().unwrap_or("");
                     let folder_sha = CliService::get_folder_sha_from_tree(&tree, skill_path);
-                    skill_shas.insert(skill_name.clone(), (folder_sha, repo.clone()));
+                    let checked = match folder_sha {
+                        Some(sha) => CheckedRemoteSkill::ok(Some(sha), repo.clone()),
+                        None => CheckedRemoteSkill::error(
+                            repo.clone(),
+                            "missingRemotePath",
+                            missing_remote_path_error(&owner, &repo, &branch, skill_path),
+                        ),
+                    };
+                    checked_skills.insert(skill_name.clone(), checked);
                 }
             }
             Ok(None) => {
                 // Repo not found or branch doesn't exist — skip, continue
                 for (skill_name, _) in skills_in_repo {
-                    skill_shas.insert(skill_name.clone(), (None, repo.clone()));
+                    checked_skills.insert(
+                        skill_name.clone(),
+                        CheckedRemoteSkill::error(
+                            repo.clone(),
+                            "repoUnavailable",
+                            format!(
+                                "Repository or branch could not be found: {}",
+                                repo_branch_ref(&owner, &repo, &branch)
+                            ),
+                        ),
+                    );
                 }
             }
             Err(crate::error::AppError::RateLimited(_)) => {
                 // Actually rate limited — stop further requests
                 rate_limited = true;
                 for (skill_name, _) in skills_in_repo {
-                    skill_shas.insert(skill_name.clone(), (None, repo.clone()));
+                    checked_skills.insert(
+                        skill_name.clone(),
+                        CheckedRemoteSkill::error(
+                            repo.clone(),
+                            "rateLimited",
+                            format!(
+                                "GitHub rate limit stopped update checks for {}",
+                                repo_branch_ref(&owner, &repo, &branch)
+                            ),
+                        ),
+                    );
                 }
             }
-            Err(_) => {
+            Err(error) => {
                 // Network error — skip this repo, don't stop
                 for (skill_name, _) in skills_in_repo {
-                    skill_shas.insert(skill_name.clone(), (None, repo.clone()));
+                    checked_skills.insert(
+                        skill_name.clone(),
+                        CheckedRemoteSkill::error(
+                            repo.clone(),
+                            "checkFailed",
+                            format!(
+                                "Could not check updates for {}: {}",
+                                repo_branch_ref(&owner, &repo, &branch),
+                                error
+                            ),
+                        ),
+                    );
                 }
             }
         }
@@ -417,11 +498,20 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
             continue;
         };
 
-        let fallback = (None, format!("{owner}/{name}"));
-        let (latest_sha_opt, repo_name) = skill_shas.get(skill_name).unwrap_or(&fallback);
+        let checked = checked_skills.get(skill_name).cloned().unwrap_or_else(|| {
+            if rate_limited {
+                CheckedRemoteSkill::error(
+                    format!("{owner}/{name}"),
+                    "rateLimited",
+                    "Skipped because GitHub rate limit stopped update checks.",
+                )
+            } else {
+                CheckedRemoteSkill::ok(None, format!("{owner}/{name}"))
+            }
+        });
         let current_sha = entry.commit_sha.clone();
 
-        let has_update = match (latest_sha_opt, &current_sha) {
+        let has_update = match (&checked.latest_sha, &current_sha) {
             (Some(latest), Some(current)) => latest != current,
             _ => false,
         };
@@ -430,16 +520,23 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
             skill_name: skill_name.clone(),
             has_update,
             current_sha,
-            latest_sha: latest_sha_opt.clone(),
-            repo: repo_name.clone(),
+            latest_sha: checked.latest_sha,
+            repo: checked.repo,
+            check_error_code: checked.check_error_code,
+            check_error: checked.check_error,
         });
     }
 
     // For skills whose latest SHA we fetched but had no stored SHA,
     // save the latest SHA now (they were up-to-date at install time).
     for (skill_name, entry) in &lock.skills {
-        if let (Some((Some(latest), _)), None) =
-            (skill_shas.get(skill_name), entry.commit_sha.as_ref())
+        if let (
+            Some(CheckedRemoteSkill {
+                latest_sha: Some(latest),
+                ..
+            }),
+            None,
+        ) = (checked_skills.get(skill_name), entry.commit_sha.as_ref())
         {
             let _ = SkillLock::update_commit_sha(skill_name, latest);
         }
@@ -451,4 +548,17 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
         checked_repos,
         rate_limited,
     })
+}
+
+#[cfg(test)]
+mod skill_update_check_tests {
+    use super::missing_remote_path_error;
+
+    #[test]
+    fn missing_remote_path_error_names_repo_branch_and_path() {
+        assert_eq!(
+            missing_remote_path_error("owner", "repo", "main", "skills/demo"),
+            "Skill path no longer exists in owner/repo@main: skills/demo"
+        );
+    }
 }
