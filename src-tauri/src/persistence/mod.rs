@@ -1,8 +1,10 @@
 pub mod archive;
 pub mod metadata;
+pub mod update_history;
 
 pub use archive::{ArchiveManifest, ArchivedSkill};
 pub use metadata::MetadataStore;
+pub use update_history::{SkillUpdateHistory, SkillUpdateHistoryRecord};
 
 use crate::config;
 use crate::error::{self, AppError};

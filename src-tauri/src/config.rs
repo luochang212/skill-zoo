@@ -149,6 +149,10 @@ pub fn get_archive_manifest_file() -> PathBuf {
     get_archive_dir().join("manifest.json")
 }
 
+pub fn get_update_history_file() -> PathBuf {
+    get_app_config_dir().join("skill-update-history.json")
+}
+
 pub fn get_agents_skills_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
