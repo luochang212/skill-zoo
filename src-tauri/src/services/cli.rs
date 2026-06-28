@@ -312,6 +312,7 @@ impl CliService {
         }
 
         let mut errors: Vec<String> = Vec::new();
+        let report_missing_baseline = to_update.len() == 1;
 
         // Group skills by (owner, repo, branch) so each repo is fetched only once
         let mut by_repo: std::collections::HashMap<
@@ -324,6 +325,11 @@ impl CliService {
             // skipping them here also prevents stale legacy lock entries from
             // turning unrelated repo errors into "update all" failures.
             if entry.commit_sha.is_none() {
+                if report_missing_baseline {
+                    errors.push(format!(
+                        "{name}: Missing update baseline. Check updates before updating this skill."
+                    ));
+                }
                 continue;
             }
             if entry.effective_url().is_none() {
@@ -362,23 +368,11 @@ impl CliService {
             };
 
             for (name, entry) in skills {
-                let old_sha = entry.commit_sha.as_deref();
-                let skill_path = entry.skill_path.as_deref().unwrap_or("");
-                let Some(new_sha) = Self::get_folder_sha_from_tree(&tree, skill_path) else {
-                    continue;
-                };
-
-                // Only reinstall when we can confirm the SHA actually changed
-                match old_sha {
-                    Some(old) if old != new_sha => {}
-                    _ => continue,
+                match Self::known_update_from_tree(name, entry, &tree, owner, repo, branch) {
+                    Ok(Some(update)) => known_updates.push(update),
+                    Ok(None) => {}
+                    Err(error) => errors.push(error),
                 }
-
-                known_updates.push(KnownSkillUpdate {
-                    name: name.clone(),
-                    entry: entry.clone(),
-                    latest_sha: new_sha,
-                });
             }
         }
 
@@ -386,6 +380,34 @@ impl CliService {
         result.errors.extend(errors);
         result.fail_count = result.errors.len();
         Ok(result)
+    }
+
+    fn known_update_from_tree(
+        name: &str,
+        entry: &SkillLockEntry,
+        tree: &RepoTreeResponse,
+        owner: &str,
+        repo: &str,
+        branch: &str,
+    ) -> Result<Option<KnownSkillUpdate>, String> {
+        let old_sha = entry.commit_sha.as_deref();
+        let skill_path = entry.skill_path.as_deref().unwrap_or("");
+        let Some(new_sha) = Self::get_folder_sha_from_tree(tree, skill_path) else {
+            return Err(format!(
+                "{name}: Skill path no longer exists in {owner}/{repo}@{branch}: {}",
+                Self::normalize_skill_path(skill_path)
+            ));
+        };
+
+        // Only reinstall when we can confirm the SHA actually changed
+        match old_sha {
+            Some(old) if old != new_sha => Ok(Some(KnownSkillUpdate {
+                name: name.to_string(),
+                entry: entry.clone(),
+                latest_sha: new_sha,
+            })),
+            _ => Ok(None),
+        }
     }
 
     pub async fn update_known_skill_entries(
@@ -1192,6 +1214,47 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn single_update_without_commit_sha_returns_baseline_error() {
+        let entry = test_lock_entry("owner/repo", Some("skills/demo"), None);
+
+        let result = CliService::update_skill_entries(vec![("demo".to_string(), entry)])
+            .await
+            .expect("update result");
+
+        assert_eq!(result.success_count, 0);
+        assert_eq!(result.fail_count, 1);
+        assert_eq!(
+            result.errors,
+            vec!["demo: Missing update baseline. Check updates before updating this skill."]
+        );
+    }
+
+    #[test]
+    fn known_update_from_tree_reports_missing_skill_path() {
+        let entry = test_lock_entry("owner/repo", Some("skills/demo"), Some("old"));
+        let tree = RepoTreeResponse {
+            sha: "root".to_string(),
+            tree: vec![TreeEntry {
+                path: "skills/other".to_string(),
+                entry_type: "tree".to_string(),
+                sha: "new".to_string(),
+            }],
+        };
+
+        let error = match CliService::known_update_from_tree(
+            "demo", &entry, &tree, "owner", "repo", "main",
+        ) {
+            Ok(_) => panic!("expected missing skill path error"),
+            Err(error) => error,
+        };
+
+        assert_eq!(
+            error,
+            "demo: Skill path no longer exists in owner/repo@main: skills/demo"
+        );
+    }
+
     #[test]
     fn lock_skill_path_preserves_discovered_relative_directory() {
         let repo = tempfile::tempdir().unwrap();
@@ -1355,18 +1418,26 @@ mod tests {
     fn test_known_update(name: &str, source: &str, latest_sha: &str) -> KnownSkillUpdate {
         KnownSkillUpdate {
             name: name.to_string(),
-            entry: SkillLockEntry {
-                source: Some(source.to_string()),
-                source_type: Some("github".to_string()),
-                source_url: Some(format!("https://github.com/{source}")),
-                branch: Some("main".to_string()),
-                skill_path: Some(format!("skills/{name}")),
-                skill_folder_hash: None,
-                installed_at: None,
-                updated_at: None,
-                commit_sha: Some("old".to_string()),
-            },
+            entry: test_lock_entry(source, Some(&format!("skills/{name}")), Some("old")),
             latest_sha: latest_sha.to_string(),
+        }
+    }
+
+    fn test_lock_entry(
+        source: &str,
+        skill_path: Option<&str>,
+        commit_sha: Option<&str>,
+    ) -> SkillLockEntry {
+        SkillLockEntry {
+            source: Some(source.to_string()),
+            source_type: Some("github".to_string()),
+            source_url: Some(format!("https://github.com/{source}")),
+            branch: Some("main".to_string()),
+            skill_path: skill_path.map(str::to_string),
+            skill_folder_hash: None,
+            installed_at: None,
+            updated_at: None,
+            commit_sha: commit_sha.map(str::to_string),
         }
     }
 }
