@@ -3,7 +3,8 @@ use crate::config::{AgentConfig, AgentPathInfo};
 use crate::error::{AppError, CommandError};
 use crate::persistence::archive::SUPPORTED_ARCHIVE_VERSION;
 use crate::persistence::{
-    atomic_write, ArchiveManifest, ArchivedSkill, SkillCache, SkillCacheEntry,
+    atomic_write, ArchiveManifest, ArchivedSkill, SkillCache, SkillCacheEntry, SkillUpdateHistory,
+    SkillUpdateHistoryRecord,
 };
 use crate::services::cli::{CliService, KnownSkillUpdate};
 use crate::services::lock::{SkillLock, SUPPORTED_LOCK_VERSION};
@@ -28,6 +29,7 @@ pub struct UpdateAllResult {
     pub success_count: usize,
     pub fail_count: usize,
     pub errors: Vec<String>,
+    pub updated: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -284,9 +286,23 @@ pub async fn update_skill(
         );
     }
 
-    let result = CliService::update_skills(Some(&skill.directory))
-        .await
-        .map_err(|e| e.to_string())?;
+    let started_at = chrono::Utc::now().to_rfc3339();
+    let requested_skills = vec![skill.directory.clone()];
+    let result = match CliService::update_skills(Some(&skill.directory)).await {
+        Ok(result) => result,
+        Err(e) => {
+            let message = e.to_string();
+            let result = crate::services::cli::UpdateResult {
+                success_count: 0,
+                fail_count: 1,
+                errors: vec![format!("{}: {message}", skill.directory)],
+                updated: vec![],
+            };
+            record_update_history_with_started_at(started_at, "single", requested_skills, &result);
+            return Err(message);
+        }
+    };
+    record_update_history_with_started_at(started_at, "single", requested_skills, &result);
 
     if result.fail_count > 0 {
         return Err(result.errors.join("; "));
@@ -308,7 +324,12 @@ pub async fn update_all_skills(
     state: State<'_, AppState>,
     checked_updates: Option<Vec<CheckedSkillUpdate>>,
 ) -> Result<UpdateAllResult, String> {
-    let update_result = if let Some(checked_updates) = checked_updates {
+    let started_at = chrono::Utc::now().to_rfc3339();
+    let (mode, requested_skills, update_result) = if let Some(checked_updates) = checked_updates {
+        let requested_skills: Vec<String> = checked_updates
+            .iter()
+            .map(|checked| checked.skill_name.clone())
+            .collect();
         let (known_updates, validation_errors) = {
             let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
             let lock = SkillLock::read().map_err(|e| e.to_string())?;
@@ -319,6 +340,7 @@ pub async fn update_all_skills(
                 success_count: 0,
                 fail_count: 0,
                 errors: vec![],
+                updated: vec![],
             }
         } else {
             CliService::update_known_skill_entries(known_updates)
@@ -329,18 +351,20 @@ pub async fn update_all_skills(
                         success_count: 0,
                         fail_count: 0,
                         errors: vec![e.to_string()],
+                        updated: vec![],
                     }
                 })
         };
         result.errors.extend(validation_errors);
-        result
+        ("selected", requested_skills, result)
     } else {
         let update_dirs = {
             let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
             update_all_candidate_dirs(&cache)
         };
+        let requested_skills = update_dirs.clone();
 
-        CliService::update_skill_names(&update_dirs)
+        let result = CliService::update_skill_names(&update_dirs)
             .await
             .unwrap_or_else(|e| {
                 eprintln!("Update all skills error: {e}");
@@ -348,10 +372,13 @@ pub async fn update_all_skills(
                     success_count: 0,
                     fail_count: 0,
                     errors: vec![e.to_string()],
+                    updated: vec![],
                 }
-            })
+            });
+        ("all", requested_skills, result)
     };
     let update_result = update_result_with_error_count(update_result);
+    record_update_history_with_started_at(started_at, mode, requested_skills, &update_result);
 
     let dirs: Vec<String> = {
         let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
@@ -370,7 +397,29 @@ pub async fn update_all_skills(
         success_count: update_result.success_count,
         fail_count: update_result.fail_count,
         errors: update_result.errors,
+        updated: update_result.updated,
     })
+}
+
+#[tauri::command]
+pub fn get_skill_update_history() -> Result<Vec<SkillUpdateHistoryRecord>, String> {
+    SkillUpdateHistory::load()
+        .map(|history| history.sorted_records())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn delete_skill_update_history_record(id: String) -> Result<(), String> {
+    let mut history = SkillUpdateHistory::load().map_err(|e| e.to_string())?;
+    history.remove(&id);
+    history.save().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn clear_skill_update_history() -> Result<(), String> {
+    let mut history = SkillUpdateHistory::load().map_err(|e| e.to_string())?;
+    history.clear();
+    history.save().map_err(|e| e.to_string())
 }
 
 fn update_all_candidate_dirs(cache: &crate::persistence::SkillCache) -> Vec<String> {
@@ -379,6 +428,71 @@ fn update_all_candidate_dirs(cache: &crate::persistence::SkillCache) -> Vec<Stri
         .filter(|skill| skill.origin == "ssot")
         .map(|skill| skill.directory.clone())
         .collect()
+}
+
+fn record_update_history_with_started_at(
+    started_at: String,
+    mode: &str,
+    requested_skills: Vec<String>,
+    result: &crate::services::cli::UpdateResult,
+) {
+    if let Err(e) = append_update_history_record(started_at, mode, requested_skills, result) {
+        eprintln!("Failed to record skill update history: {e}");
+    }
+}
+
+fn append_update_history_record(
+    started_at: String,
+    mode: &str,
+    requested_skills: Vec<String>,
+    result: &crate::services::cli::UpdateResult,
+) -> Result<(), AppError> {
+    let finished_at = chrono::Utc::now().to_rfc3339();
+    let id = format!(
+        "update-{}",
+        chrono::Utc::now()
+            .timestamp_nanos_opt()
+            .unwrap_or_else(|| chrono::Utc::now().timestamp_micros())
+    );
+    let mut history = SkillUpdateHistory::load()?;
+    history.insert(SkillUpdateHistoryRecord {
+        id,
+        started_at,
+        finished_at,
+        mode: mode.to_string(),
+        requested_skills,
+        updated_skills: result.updated.clone(),
+        failed_skills: failed_skill_names(&result.errors),
+        errors: result.errors.clone(),
+        status: update_history_status(result.success_count, result.fail_count),
+    });
+    history.save()
+}
+
+fn update_history_status(success_count: usize, fail_count: usize) -> String {
+    match (success_count, fail_count) {
+        (0, 0) => "noop",
+        (_, 0) => "success",
+        (0, _) => "failed",
+        _ => "partial",
+    }
+    .to_string()
+}
+
+fn failed_skill_names(errors: &[String]) -> Vec<String> {
+    let mut failed = Vec::new();
+    for error in errors {
+        let name = error
+            .split_once(':')
+            .map(|(name, _)| name.trim())
+            .filter(|name| !name.is_empty())
+            .unwrap_or(error.as_str())
+            .to_string();
+        if !failed.contains(&name) {
+            failed.push(name);
+        }
+    }
+    failed
 }
 
 fn checked_update_entries_from_lock(
@@ -2392,6 +2506,7 @@ mod tests {
             success_count: 0,
             fail_count: 0,
             errors: vec!["network failed".to_string()],
+            updated: vec![],
         });
 
         assert_eq!(result.fail_count, 1);
