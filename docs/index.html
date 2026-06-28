@@ -1063,15 +1063,6 @@
         background: rgba(197, 102, 59, 0.06);
       }
 
-      /* ── Footer ── */
-      footer {
-        background: var(--bg);
-        color: var(--d-muted);
-        padding: 22px 24px;
-        text-align: center;
-        font-size: 13px;
-        border-top: 1px solid rgba(255, 255, 255, 0.07);
-      }
       footer a {
         color: var(--d-muted);
         text-decoration: none;
@@ -2377,7 +2368,11 @@
 
       /* ── Footer rework ── */
       footer {
-        background: var(--dark);
+        background: radial-gradient(
+          ellipse 80% 60% at 50% 100%,
+          #1a1a25 0%,
+          #0f0f12 100%
+        );
         color: var(--d-muted);
         padding: 32px 24px;
         text-align: center;
