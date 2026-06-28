@@ -25,6 +25,13 @@ export const skillsApi = {
   updateAllSkills: (checkedUpdates?: CheckedSkillUpdate[]) =>
     invoke<UpdateAllResult>("update_all_skills", { checkedUpdates: checkedUpdates ?? null }),
 
+  getSkillUpdateHistory: () => invoke<SkillUpdateHistoryRecord[]>("get_skill_update_history"),
+
+  deleteSkillUpdateHistoryRecord: (id: string) =>
+    invoke<void>("delete_skill_update_history_record", { id }),
+
+  clearSkillUpdateHistory: () => invoke<void>("clear_skill_update_history"),
+
   removeSkill: (skillId: string) => invoke<void>("remove_skill", { skillId }),
 
   removeSkills: (skillIds: string[]) => invoke<RemoveSkillsResult>("remove_skills", { skillIds }),
@@ -142,6 +149,7 @@ export interface UpdateAllResult {
   successCount: number;
   failCount: number;
   errors: string[];
+  updated: string[];
 }
 
 export interface CheckedSkillUpdate {
@@ -193,4 +201,18 @@ export interface CheckUpdatesResult {
   totalRepos: number;
   checkedRepos: number;
   rateLimited: boolean;
+}
+
+export type SkillUpdateHistoryStatus = "success" | "partial" | "failed" | "noop";
+
+export interface SkillUpdateHistoryRecord {
+  id: string;
+  startedAt: string;
+  finishedAt: string;
+  mode: string;
+  requestedSkills: string[];
+  updatedSkills: string[];
+  failedSkills: string[];
+  errors: string[];
+  status: SkillUpdateHistoryStatus;
 }

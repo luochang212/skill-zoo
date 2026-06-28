@@ -28,6 +28,15 @@ export function useArchivedSkills() {
   });
 }
 
+export function useSkillUpdateHistory(enabled = true) {
+  return useQuery({
+    queryKey: ["skills", "updateHistory"],
+    queryFn: () => skillsApi.getSkillUpdateHistory(),
+    enabled,
+    staleTime: 30 * 1000,
+  });
+}
+
 export function useSkillsWatcher() {
   const qc = useQueryClient();
   useEffect(() => {
@@ -91,6 +100,22 @@ export function useUpdateAllSkills() {
     mutationKey: ["updateAllSkills"],
     mutationFn: (checkedUpdates) => skillsApi.updateAllSkills(checkedUpdates),
     onSuccess: () => invalidateFor(qc, "updateAllSkills"),
+  });
+}
+
+export function useDeleteSkillUpdateHistoryRecord() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => skillsApi.deleteSkillUpdateHistoryRecord(id),
+    onSuccess: () => invalidateFor(qc, "deleteSkillUpdateHistory"),
+  });
+}
+
+export function useClearSkillUpdateHistory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => skillsApi.clearSkillUpdateHistory(),
+    onSuccess: () => invalidateFor(qc, "clearSkillUpdateHistory"),
   });
 }
 
