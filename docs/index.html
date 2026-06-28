@@ -548,6 +548,25 @@
         color: #b8b6af;
         margin-bottom: 24px;
       }
+
+      /* Closing CTA: headline gets a wider column + larger type than the hero
+         header (which reuses the narrow grid column for product name/tagline). */
+      #cta h2 {
+        font-size: clamp(30px, 4vw, 46px);
+        line-height: 1.15;
+        letter-spacing: -0.01em;
+        margin-bottom: 16px;
+      }
+      @media (min-width: 861px) {
+        #cta .hero-report-grid {
+          justify-content: flex-end;
+          gap: clamp(72px, 7vw, 108px);
+        }
+        #cta .hero-report-grid > div:first-child {
+          flex: 0 0 clamp(240px, 29vw, 378px);
+          margin-left: 0;
+        }
+      }
       .hero-report-fig svg {
         width: 100%;
         height: auto;
@@ -649,6 +668,46 @@
         opacity: 1;
       }
 
+      /* ── Closing CTA buttons (primary GitHub + ghost Blog) ── */
+      .gh-cta-btn {
+        display: inline-flex;
+        align-items: center;
+        padding: 13px 26px;
+        border-radius: 8px;
+        font-family: "Geist Mono", var(--mono);
+        font-size: 16px;
+        letter-spacing: 0.04em;
+        text-decoration: none;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        color: #f4f4f4;
+        background: rgba(255, 255, 255, 0.03);
+        transition: all 200ms ease;
+      }
+      /* primary — GitHub, copper solid (mirrors hero primary) */
+      .gh-cta-btn:first-child {
+        background: var(--copper);
+        border-color: var(--copper);
+        color: #fff;
+        font-weight: 700;
+        box-shadow: 0 2px 12px rgba(197, 102, 59, 0.2);
+      }
+      /* hover — only on devices with true hover (skip touch to avoid
+         double-tap: first tap triggers :hover, second tap actually clicks) */
+      @media (hover: hover) {
+        .gh-cta-btn:hover {
+          transform: translateY(-2px);
+        }
+        .gh-cta-btn:first-child:hover {
+          background: var(--copper-d);
+          border-color: var(--copper-d);
+          box-shadow: 0 8px 24px rgba(197, 102, 59, 0.38);
+        }
+        .gh-cta-btn:last-child:hover {
+          border-color: var(--copper);
+          color: var(--copper);
+          background: rgba(224, 120, 72, 0.08);
+        }
+      }
       /* ── Hero download buttons ── */
       .hero-dl {
         display: flex;
@@ -1053,6 +1112,11 @@
           max-width: 100%;
           width: 100%;
         }
+        /* CTA section: full height on desktop, auto on mobile */
+        #cta.hero-report {
+          min-height: auto;
+          padding: clamp(48px, 8vh, 80px) clamp(16px, 5vw, 48px);
+        }
       }
 
       /* Tablet: 768px — all sections adapt */
@@ -1082,6 +1146,23 @@
         h2 {
           font-size: clamp(22px, 4.5vw, 28px);
           margin-bottom: clamp(8px, 2vh, 16px);
+        }
+
+        /* ── Closing CTA (mobile) ── */
+        #cta .hero-report-fig {
+          display: none;
+        }
+        #cta .hero-report-grid > div:first-child {
+          width: 100%;
+          max-width: clamp(300px, 80vw, 400px);
+          margin-left: 0;
+        }
+        #cta h2 {
+          font-size: clamp(24px, 6vw, 32px);
+        }
+        #cta .gh-cta-btn {
+          font-size: 14px;
+          padding: 10px 20px;
         }
         .lead {
           font-size: 15px;
@@ -1935,7 +2016,9 @@
       [data-reveal].reveal-init.reveal-visible {
         opacity: 1;
         transform: translateY(0);
-        transition: opacity 0.6s ease, transform 0.6s ease;
+        transition:
+          opacity 0.6s ease,
+          transform 0.6s ease;
         transition-delay: var(--r-delay, 0ms);
       }
       /*
@@ -1969,6 +2052,358 @@
           transform: none;
           box-shadow: none;
         }
+      }
+
+      /* ── Closing CTA ── */
+
+      /* ── App Mockup (locked, static, first-screen only) ── */
+      .mockup-window {
+        background: #1e1e1e;
+        border: 1px solid var(--d-border);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow:
+          0 4px 32px rgba(0, 0, 0, 0.5),
+          0 0 0 1px rgba(255, 255, 255, 0.04);
+        width: 100%;
+        max-width: 900px;
+        margin: 0 auto;
+        cursor: default;
+        user-select: none;
+      }
+      .mockup-dots {
+        position: absolute;
+        top: 0;
+        left: 0;
+        display: flex;
+        gap: 5px;
+        padding: 5px 8px;
+        z-index: 1;
+      }
+      .mockup-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+      }
+      .mockup-dot.red {
+        background: #ed6a5e;
+      }
+      .mockup-dot.yellow {
+        background: #f5bd4f;
+      }
+      .mockup-dot.green {
+        background: #61c454;
+      }
+      /* App header */
+      .m-app-header {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        height: 58px;
+        padding: 0 16px;
+        background: rgba(30, 30, 30, 0.8);
+        backdrop-filter: blur(4px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .m-logo {
+        font-family: "New York", "Iowan Old Style", Georgia, serif;
+        font-size: 18px;
+        font-weight: 700;
+        font-style: italic;
+        letter-spacing: -0.02em;
+        line-height: 1;
+        padding-left: 48px;
+        background: linear-gradient(
+          90deg,
+          #c882b4,
+          #eb5f57,
+          #f58b57,
+          #fac35f,
+          #91c882,
+          #82aadc,
+          #9b82c8,
+          #c882b4
+        );
+        background-size: 200% 100%;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        flex-shrink: 0;
+      }
+      .m-tab-bar {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        background: #2d2d2d;
+        border-radius: 8px;
+        padding: 3px;
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+      .m-tab {
+        padding: 8px 16px;
+        height: 30px;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1;
+        border-radius: 6px;
+        color: rgba(255, 255, 255, 0.5);
+        display: flex;
+        align-items: center;
+      }
+      .m-tab.active {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        font-weight: 600;
+        box-shadow:
+          0 1px 3px rgba(0, 0, 0, 0.1),
+          0 1px 2px rgba(0, 0, 0, 0.06);
+      }
+      /* Body */
+      .m-body {
+        display: flex;
+        height: 440px;
+      }
+      /* Sidebar */
+      .m-sidebar {
+        width: 160px;
+        flex-shrink: 0;
+        background: #181818;
+        border-right: 1px solid rgba(255, 255, 255, 0.06);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .m-sidebar-header {
+        padding: 12px 14px 8px;
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.5);
+      }
+      .m-sidebar-items {
+        flex: 1;
+        overflow: hidden;
+      }
+      .m-sidebar-item {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 6px 14px;
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.55);
+        border-left: 2px solid transparent;
+      }
+      .m-sidebar-item.active {
+        background: rgba(232, 232, 232, 0.05);
+        color: #d4d4d4;
+        border-left-color: #e8e8e8;
+      }
+      .m-si-icon {
+        font-size: 10px;
+        width: 14px;
+        text-align: center;
+        flex-shrink: 0;
+      }
+      .m-si-badge {
+        margin-left: auto;
+        font-size: 9px;
+        color: rgba(255, 255, 255, 0.5);
+        background: rgba(45, 45, 45, 0.7);
+        padding: 1px 6px;
+        border-radius: 999px;
+        min-width: 22px;
+        text-align: center;
+      }
+      .m-si-repo-child {
+        padding-left: 36px;
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.4);
+      }
+      /* Content */
+      .m-content {
+        flex: 1;
+        padding: 16px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      .m-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        margin-bottom: 12px;
+      }
+      .m-search {
+        height: 26px;
+        width: 140px;
+        padding: 0 10px;
+        font-size: 10px;
+        font-family: var(--sans);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 6px;
+        background: #1e1e1e;
+        color: rgba(255, 255, 255, 0.5);
+        outline: none;
+        flex-shrink: 0;
+      }
+      .m-filter {
+        font-size: 10px;
+        padding: 4px 8px;
+        border-radius: 6px;
+        color: rgba(255, 255, 255, 0.5);
+        white-space: nowrap;
+      }
+      .m-filter.active {
+        background: rgba(232, 232, 232, 0.1);
+        color: #e8e8e8;
+        font-weight: 500;
+      }
+      .m-spacer {
+        flex: 1;
+      }
+      .m-view-btn {
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.5);
+      }
+      .m-view-btn.active {
+        background: #1e1e1e;
+        color: #d4d4d4;
+      }
+      /* Cards */
+      .m-card-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        flex: 1;
+        align-content: start;
+      }
+      .m-card {
+        background: #252526;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 9px;
+        padding: 12px 12px 8px;
+        box-shadow:
+          0 2px 6px rgba(0, 0, 0, 0.35),
+          0 0 0 1px rgba(255, 255, 255, 0.03);
+      }
+      .m-card-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 4px;
+      }
+      .m-card-name {
+        font-size: 11px;
+        font-weight: 600;
+        color: #d4d4d4;
+      }
+      .m-card-star {
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.25);
+      }
+      .m-card-desc {
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.45);
+        line-height: 1.45;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        margin-bottom: 6px;
+      }
+      .m-card-repo {
+        font-size: 9px;
+        color: rgba(255, 255, 255, 0.35);
+      }
+      /* Mockup responsive */
+      @media (max-width: 768px) {
+        .m-body {
+          height: auto;
+          flex-direction: column;
+        }
+        .m-sidebar {
+          width: 100%;
+          flex-direction: row;
+          padding: 6px 8px;
+          overflow-x: auto;
+          border-right: none;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .m-sidebar-header {
+          display: none;
+        }
+        .m-sidebar-items {
+          display: flex;
+          gap: 2px;
+        }
+        .m-sidebar-item {
+          white-space: nowrap;
+          font-size: 10px;
+          padding: 4px 8px;
+          border-left: none;
+        }
+        .m-sidebar-item.active {
+          border-left: none;
+          border-radius: 4px;
+        }
+        .m-si-badge {
+          display: none;
+        }
+        .m-si-repo-child {
+          display: none;
+        }
+        .m-card-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .m-toolbar {
+          flex-wrap: wrap;
+        }
+        .m-app-header {
+          padding: 0 8px;
+        }
+        .m-tab {
+          padding: 4px 10px;
+          font-size: 10px;
+        }
+      }
+
+      /* ── Footer rework ── */
+      footer {
+        background: var(--dark);
+        color: var(--d-muted);
+        padding: 32px 24px;
+        text-align: center;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+        font-family: var(--mono);
+        font-size: 10.5px;
+        letter-spacing: 0.03em;
+        line-height: 1.9;
+      }
+      footer .footer-status {
+        color: var(--sage);
+      }
+      footer .footer-link {
+        color: var(--d-muted);
+        text-decoration: none;
+        transition: color 0.2s;
+      }
+      footer .footer-link:hover {
+        color: var(--copper);
+      }
+      footer .footer-divider {
+        display: block;
+        width: 40px;
+        height: 1px;
+        background: var(--d-border);
+        margin: 12px auto;
       }
     </style>
   </head>
@@ -2049,8 +2484,13 @@
             <div class="eyebrow" data-i18n="overview-eyebrow">
               产品概览 · 2026
             </div>
-            <h1 data-reveal style="--r-delay:0ms"><em>Skill Zoo</em></h1>
-            <p class="lead" data-i18n="overview-lead" data-reveal style="--r-delay:120ms">
+            <h1 data-reveal style="--r-delay: 0ms"><em>Skill Zoo</em></h1>
+            <p
+              class="lead"
+              data-i18n="overview-lead"
+              data-reveal
+              style="--r-delay: 120ms"
+            >
               为 AI 编程助手打造的 Skill
               桌面管理工具，覆盖发现、安装、编辑到维护的完整工作流。基于 Tauri
               v2 构建，轻量、离线、安全。
@@ -2103,7 +2543,12 @@
             </div>
           </div>
           <div class="hero-report-fig">
-            <div class="carousel-wrapper" id="carousel-wrapper" data-reveal style="--r-delay:240ms">
+            <div
+              class="carousel-wrapper"
+              id="carousel-wrapper"
+              data-reveal
+              style="--r-delay: 240ms"
+            >
               <div class="carousel" id="carousel"></div>
             </div>
             <div class="carousel-dots" id="carousel-dots"></div>
@@ -2116,8 +2561,15 @@
     <section class="sec" id="arch">
       <div class="sec-inner">
         <div class="eyebrow" data-i18n="arch-eyebrow">架构</div>
-        <h2 data-i18n="arch-title" data-reveal style="--r-delay:0ms">技术架构</h2>
-        <p class="lead" data-i18n="arch-lead" data-reveal style="--r-delay:120ms">
+        <h2 data-i18n="arch-title" data-reveal style="--r-delay: 0ms">
+          技术架构
+        </h2>
+        <p
+          class="lead"
+          data-i18n="arch-lead"
+          data-reveal
+          style="--r-delay: 120ms"
+        >
           三层结构：React 前端通过 Tauri IPC 与 Rust
           后端通信。前端零文件系统、零网络访问，所有交互走类型化 Rust
           命令；后端管理文件系统与外部服务。
@@ -2138,7 +2590,9 @@
           </div>
           <div>
             <div class="stat-num">9</div>
-            <div class="stat-label" data-i18n="stat-agents">编程工具类型支持</div>
+            <div class="stat-label" data-i18n="stat-agents">
+              编程工具类型支持
+            </div>
           </div>
           <div>
             <div class="stat-num">0</div>
@@ -2619,13 +3073,20 @@
     <section class="sec dark" id="features">
       <div class="sec-inner">
         <div class="eyebrow" data-i18n="feat-eyebrow">功能</div>
-        <h2 data-i18n="feat-title" data-reveal style="--r-delay:0ms">功能体系</h2>
-        <p class="lead" style="max-width: 760px;--r-delay:120ms" data-i18n="feat-lead" data-reveal>
+        <h2 data-i18n="feat-title" data-reveal style="--r-delay: 0ms">
+          功能体系
+        </h2>
+        <p
+          class="lead"
+          style="max-width: 760px; --r-delay: 120ms"
+          data-i18n="feat-lead"
+          data-reveal
+        >
           覆盖 Skill 的完整生命周期，从发现、安装到编辑、维护。6
           大功能模块提供完整管理体验。
         </p>
 
-        <div class="card-grid" data-reveal style="--r-delay:240ms">
+        <div class="card-grid" data-reveal style="--r-delay: 240ms">
           <div class="card dark-card">
             <div
               class="icon"
@@ -2782,12 +3243,19 @@
     <section class="sec">
       <div class="sec-inner">
         <div class="eyebrow" data-i18n="design-eyebrow">设计哲学</div>
-        <h2 data-i18n="design-title" data-reveal style="--r-delay:0ms">核心产品设计决策</h2>
-        <p class="lead" data-i18n="design-lead" data-reveal style="--r-delay:120ms">
+        <h2 data-i18n="design-title" data-reveal style="--r-delay: 0ms">
+          核心产品设计决策
+        </h2>
+        <p
+          class="lead"
+          data-i18n="design-lead"
+          data-reveal
+          style="--r-delay: 120ms"
+        >
           三项核心原则定义了 Skill Zoo 的架构方向与实现边界。
         </p>
 
-        <div class="num-list" data-reveal style="--r-delay:240ms">
+        <div class="num-list" data-reveal style="--r-delay: 240ms">
           <div class="num-item">
             <div class="num-circle">1</div>
             <div>
@@ -2847,12 +3315,19 @@
     <section class="sec dark">
       <div class="sec-inner">
         <div class="eyebrow" data-i18n="ux-eyebrow">用户体验</div>
-        <h2 data-i18n="ux-title" data-reveal style="--r-delay:0ms">用户体验优化</h2>
-        <p class="lead" data-i18n="ux-lead" data-reveal style="--r-delay:120ms">
+        <h2 data-i18n="ux-title" data-reveal style="--r-delay: 0ms">
+          用户体验优化
+        </h2>
+        <p
+          class="lead"
+          data-i18n="ux-lead"
+          data-reveal
+          style="--r-delay: 120ms"
+        >
           从乐观更新到骨架屏，从 3D 动画到错误恢复，每个细节都经过精心设计。
         </p>
 
-        <div class="card-grid" data-reveal style="--r-delay:240ms">
+        <div class="card-grid" data-reveal style="--r-delay: 240ms">
           <div class="card dark-card" style="grid-column: span 2">
             <div
               class="icon icon-sm"
@@ -2995,14 +3470,25 @@
     <section class="sec">
       <div class="sec-inner">
         <div class="eyebrow" data-i18n="robust-eyebrow">稳定性</div>
-        <h2 data-i18n="robust-title" data-reveal style="--r-delay:0ms">国际化、错误处理与安全</h2>
-        <p class="lead" data-i18n="robust-lead" data-reveal style="--r-delay:120ms">
+        <h2 data-i18n="robust-title" data-reveal style="--r-delay: 0ms">
+          国际化、错误处理与安全
+        </h2>
+        <p
+          class="lead"
+          data-i18n="robust-lead"
+          data-reveal
+          style="--r-delay: 120ms"
+        >
           从多语言支持到异常恢复，从数据校验到路径防护，每一层都经过仔细考量。
         </p>
 
         <div
           class="card-grid"
-          style="grid-template-columns: repeat(3, 1fr); margin-top: 48px;--r-delay:240ms"
+          style="
+            grid-template-columns: repeat(3, 1fr);
+            margin-top: 48px;
+            --r-delay: 240ms;
+          "
           data-reveal
         >
           <div class="card">
@@ -3080,6 +3566,188 @@
               限制脚本来源，路径遍历严格验证，破坏性操作必经确认。ZIP 下载强制
               500MB 上限，内置 skills.sh 安全审计面板。
             </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ CLOSING CTA ═══════════ -->
+    <section class="hero-report" id="cta">
+      <div class="hero-report-inner">
+        <div class="hero-report-grid">
+          <div data-reveal style="--r-delay: 0ms">
+            <h2 data-i18n="cta-title">准备好整理你的技能库了吗？</h2>
+            <p class="lead" data-i18n="cta-desc" style="max-width: 100%">
+              为 Claude Code、Codex、OpenCode 等 Coding Agent
+              打造的本地技能管理器。覆盖技能的全生命周期，同时提供桌面 GUI 与
+              npm CLI 两种交互方式。
+            </p>
+            <div
+              style="
+                display: flex;
+                gap: 24px;
+                margin-top: 24px;
+                flex-wrap: wrap;
+              "
+            >
+              <a
+                class="gh-cta-btn"
+                href="https://github.com/luochang212/skill-zoo"
+                target="_blank"
+                rel="noopener noreferrer"
+                >GitHub →</a
+              >
+              <a
+                class="gh-cta-btn"
+                href="https://www.luochang.ink/posts/skill_zoo/"
+                target="_blank"
+                rel="noopener noreferrer"
+                >Blog</a
+              >
+            </div>
+          </div>
+          <div class="hero-report-fig" data-reveal style="--r-delay: 150ms">
+            <div class="mockup-window" id="zoo-mockup">
+              <!-- App header (merged: macOS dots + logo + tabs) -->
+              <div class="m-app-header">
+                <div class="mockup-dots">
+                  <span class="mockup-dot red"></span>
+                  <span class="mockup-dot yellow"></span>
+                  <span class="mockup-dot green"></span>
+                </div>
+                <span class="m-logo">Skill Zoo</span>
+                <div class="m-tab-bar">
+                  <span class="m-tab">Discover</span>
+                  <span class="m-tab active">Local</span>
+                  <span class="m-tab">Settings</span>
+                </div>
+              </div>
+              <!-- App body -->
+              <div class="m-body">
+                <div class="m-sidebar">
+                  <div class="m-sidebar-header">Skills</div>
+                  <div class="m-sidebar-items">
+                    <div class="m-sidebar-item active">
+                      <span class="m-si-icon">◇</span>All<span
+                        class="m-si-badge"
+                        >12</span
+                      >
+                    </div>
+                    <div class="m-sidebar-item">
+                      <span class="m-si-icon">★</span>Star<span
+                        class="m-si-badge"
+                        >5</span
+                      >
+                    </div>
+                    <div class="m-sidebar-item">
+                      <span class="m-si-icon">▣</span>My Skills<span
+                        class="m-si-badge"
+                        >3</span
+                      >
+                    </div>
+                    <div class="m-sidebar-item">
+                      <span class="m-si-icon">▤</span>Archive<span
+                        class="m-si-badge"
+                        >2</span
+                      >
+                    </div>
+                    <div class="m-sidebar-item">
+                      <span class="m-si-icon">▦</span>Repos
+                    </div>
+                    <div class="m-sidebar-item m-si-repo-child">
+                      luochang212/skill-zoo
+                    </div>
+                    <div class="m-sidebar-item m-si-repo-child">
+                      vercel-labs/skills
+                    </div>
+                    <div class="m-sidebar-item m-si-repo-child">Unassigned</div>
+                  </div>
+                </div>
+                <div class="m-content">
+                  <div class="m-toolbar">
+                    <input
+                      class="m-search"
+                      value="Search installed…"
+                      readonly
+                    />
+                    <span class="m-filter active">All</span>
+                    <span class="m-filter">Claude Code</span>
+                    <span class="m-filter">Codex</span>
+                    <span class="m-filter">Gemini</span>
+                    <span class="m-filter">Cursor</span>
+                    <span class="m-filter">Hermes</span>
+                    <span class="m-spacer"></span>
+                    <span class="m-view-btn active">▦</span>
+                    <span class="m-view-btn">☰</span>
+                  </div>
+                  <div class="m-card-grid">
+                    <div class="m-card">
+                      <div class="m-card-top">
+                        <span class="m-card-name">code-review</span>
+                        <span class="m-card-star">★</span>
+                      </div>
+                      <div class="m-card-desc">
+                        Review diffs for correctness bugs and simplification
+                        cleanups.
+                      </div>
+                      <div class="m-card-repo">luochang212/skill-zoo</div>
+                    </div>
+                    <div class="m-card">
+                      <div class="m-card-top">
+                        <span class="m-card-name">frontend-design</span>
+                        <span class="m-card-star">★</span>
+                      </div>
+                      <div class="m-card-desc">
+                        Build beautiful, responsive frontend UIs with modern
+                        best practices.
+                      </div>
+                      <div class="m-card-repo">luochang212/skill-zoo</div>
+                    </div>
+                    <div class="m-card">
+                      <div class="m-card-top">
+                        <span class="m-card-name">web-scraper</span>
+                        <span class="m-card-star">★</span>
+                      </div>
+                      <div class="m-card-desc">
+                        Scrape websites with smart content extraction and
+                        pagination.
+                      </div>
+                      <div class="m-card-repo">luochang212/skill-zoo</div>
+                    </div>
+                    <div class="m-card">
+                      <div class="m-card-top">
+                        <span class="m-card-name">skill-creator</span>
+                        <span class="m-card-star">★</span>
+                      </div>
+                      <div class="m-card-desc">
+                        Create, modify, and optimize AI coding assistant skills.
+                      </div>
+                      <div class="m-card-repo">luochang212/skill-zoo</div>
+                    </div>
+                    <div class="m-card">
+                      <div class="m-card-top">
+                        <span class="m-card-name">gh-fix-ci</span>
+                        <span class="m-card-star">★</span>
+                      </div>
+                      <div class="m-card-desc">
+                        Diagnose and fix broken GitHub Actions CI pipelines.
+                      </div>
+                      <div class="m-card-repo">luochang212/skill-zoo</div>
+                    </div>
+                    <div class="m-card">
+                      <div class="m-card-top">
+                        <span class="m-card-name">prototype</span>
+                        <span class="m-card-star">★</span>
+                      </div>
+                      <div class="m-card-desc">
+                        Quickly spin up throwaway prototypes and experiments.
+                      </div>
+                      <div class="m-card-repo">luochang212/skill-zoo</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -3400,6 +4068,15 @@
         "install-linux-alt-desc": {
           zh: "提供 x86_64 和 ARM64 AppImage；Debian 系发行版也可安装对应的 .deb 包。",
           en: "x86_64 and ARM64 AppImages are available. Debian-based distributions can alternatively install the matching .deb package.",
+        },
+        // Closing CTA
+        "cta-title": {
+          zh: "准备好整理你的技能库了吗？",
+          en: "Ready to organize your skill library?",
+        },
+        "cta-desc": {
+          zh: "为 Claude Code、Codex、OpenCode 等 Coding Agent 打造的本地技能管理器。覆盖技能的全生命周期，同时提供桌面 GUI 与 npm CLI 两种交互方式。",
+          en: "A local skill manager built for Claude Code, Codex, OpenCode and other coding agents. Covers the full skill lifecycle, with both a desktop GUI and npm CLI.",
         },
       };
 
@@ -3727,7 +4404,8 @@
         const v = version || cachedVersion || "v0.0.0";
         const base = `https://github.com/${REPO}/releases/download/${v}`;
         if (os === "macos") return `${base}/Skill-Zoo-${v}-macOS.dmg`;
-        if (os === "linux") return `${base}/Skill-Zoo-${v}-Linux-${detectLinuxArch()}.AppImage`;
+        if (os === "linux")
+          return `${base}/Skill-Zoo-${v}-Linux-${detectLinuxArch()}.AppImage`;
         return `${base}/Skill-Zoo-${v}-Windows.exe`;
       }
 
@@ -3739,7 +4417,8 @@
       function getFilename(os, version) {
         const v = version || cachedVersion || "v0.0.0";
         if (os === "macos") return `Skill-Zoo-${v}-macOS.dmg`;
-        if (os === "linux") return `Skill-Zoo-${v}-Linux-${detectLinuxArch()}.AppImage`;
+        if (os === "linux")
+          return `Skill-Zoo-${v}-Linux-${detectLinuxArch()}.AppImage`;
         return `Skill-Zoo-${v}-Windows.exe`;
       }
 
@@ -3801,10 +4480,13 @@
         }
         if (os === "linux") {
           const title =
-            (T["install-linux-alt-title"] && T["install-linux-alt-title"][lang]) ||
+            (T["install-linux-alt-title"] &&
+              T["install-linux-alt-title"][lang]) ||
             "Linux download options";
           const desc =
-            (T["install-linux-alt-desc"] && T["install-linux-alt-desc"][lang]) || "";
+            (T["install-linux-alt-desc"] &&
+              T["install-linux-alt-desc"][lang]) ||
+            "";
           return `<h4>${title}</h4><p style="margin:0 0 8px;">${desc}</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;font-size:13px;"><a href="${getLinuxPackageUrl(cachedVersion, "x86_64", "AppImage")}" style="color:var(--copper);">x86_64 AppImage</a><a href="${getLinuxPackageUrl(cachedVersion, "x86_64", "deb")}" style="color:var(--copper);">x86_64 .deb</a><a href="${getLinuxPackageUrl(cachedVersion, "aarch64", "AppImage")}" style="color:var(--copper);">ARM64 AppImage</a><a href="${getLinuxPackageUrl(cachedVersion, "aarch64", "deb")}" style="color:var(--copper);">ARM64 .deb</a></div>`;
         }
         const title =
