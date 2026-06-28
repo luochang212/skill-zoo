@@ -44,7 +44,7 @@ export function useRepoLoadProgress(owner: string | null, name: string | null) {
     let disposed = false;
     const unlistens: Array<() => void> = [];
 
-    const register = async <T,>(eventName: string, handler: EventCallback<T>) => {
+    const register = async <T>(eventName: string, handler: EventCallback<T>) => {
       const unlisten = await listen<T>(eventName, handler);
       if (disposed) {
         unlisten();
@@ -65,14 +65,14 @@ export function useRepoLoadProgress(owner: string | null, name: string | null) {
       }),
 
       register<RepoDownloadProgressPayload>("repo-download-progress", (event) => {
-          if (event.payload.owner === owner && event.payload.repo === name) {
-            setState((prev) => ({
-              stage: prev?.stage ?? "downloading",
-              downloaded: event.payload.downloaded,
-              total: event.payload.total,
-            }));
-          }
-        }),
+        if (event.payload.owner === owner && event.payload.repo === name) {
+          setState((prev) => ({
+            stage: prev?.stage ?? "downloading",
+            downloaded: event.payload.downloaded,
+            total: event.payload.total,
+          }));
+        }
+      }),
 
       register<RepoLoadDonePayload>("repo-load-done", (event) => {
         if (event.payload.owner === owner && event.payload.repo === name) {

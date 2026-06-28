@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.10] — 2026-06-29
+
+### Added
+- Update Manager dialog with per-skill selection, check diagnostics, and update history tab.
+- Update history persistence — records each update operation with success/failure tracking.
+
+### Changed
+- GitHub URL parsing extracted to a shared module, used consistently across the backend.
+- File read errors migrated from plain strings to structured codes for better error handling.
+- Product page: enlarged carousel and buttons, refined CTA layout and mobile responsiveness.
+
+### Fixed
+- Update check diagnostics now surface per-skill error reasons instead of silently skipping.
+- Fresh installs now record an update baseline so update detection works immediately.
+- Footer background now matches the CTA gradient; duplicate footer block removed.
+- Navigation padding unified; hero font-size scales properly on mobile.
+- Edge cases in update history and stale persistence files hardened against data loss.
+
 ## [0.3.9] — 2026-06-26
 
 ### Fixed

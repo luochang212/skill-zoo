@@ -38,7 +38,7 @@ impl MetadataStore {
         if !path.exists() {
             return Ok(Self::empty());
         }
-        let content = std::fs::read_to_string(&path).map_err(|e| crate::error::io(&path, e))?;
+        let content = std::fs::read_to_string(path).map_err(|e| crate::error::io(path, e))?;
         if content.trim().is_empty() {
             return Ok(Self::empty());
         }
