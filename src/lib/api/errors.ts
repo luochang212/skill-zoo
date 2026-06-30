@@ -9,6 +9,8 @@ interface ApiError {
 const ERROR_KEYS: Record<string, string> = {
   downloadNetwork: "error.downloadNetwork",
   downloadTimeout: "error.downloadTimeout",
+  downloadDns: "error.downloadDns",
+  downloadConnect: "error.downloadConnect",
   downloadUnavailable: "error.downloadUnavailable",
   repoNotFound: "error.repoNotFound",
   rateLimited: "error.rateLimit",
@@ -45,6 +47,21 @@ export function formatApiError(error: unknown): string {
     lower.includes("network error")
   ) {
     return translateError("error.downloadNetwork", repo);
+  }
+  if (
+    lower.includes("dns") ||
+    lower.includes("name resolution") ||
+    lower.includes("no address") ||
+    lower.includes("could not resolve")
+  ) {
+    return translateError("error.downloadDns", repo);
+  }
+  if (
+    lower.includes("connection refused") ||
+    lower.includes("connection reset") ||
+    lower.includes("could not connect")
+  ) {
+    return translateError("error.downloadConnect", repo);
   }
   if (lower.includes("download temporarily unavailable")) {
     return translateError("error.downloadUnavailable", repo);

@@ -35,6 +35,18 @@ pub enum AppError {
         source: reqwest::Error,
     },
 
+    #[error("DNS lookup failed for {repo}: {source}")]
+    DownloadDns {
+        repo: String,
+        source: reqwest::Error,
+    },
+
+    #[error("Could not connect to GitHub for {repo}: {source}")]
+    DownloadConnect {
+        repo: String,
+        source: reqwest::Error,
+    },
+
     #[error("Download temporarily unavailable: {0}")]
     DownloadUnavailable(String),
 
@@ -92,6 +104,8 @@ impl AppError {
         match self {
             AppError::DownloadNetwork { .. } | AppError::Network(_) => "downloadNetwork",
             AppError::DownloadTimeout { .. } => "downloadTimeout",
+            AppError::DownloadDns { .. } => "downloadDns",
+            AppError::DownloadConnect { .. } => "downloadConnect",
             AppError::DownloadUnavailable(_) => "downloadUnavailable",
             AppError::RepoNotFound(_) => "repoNotFound",
             AppError::RateLimited(_) => "rateLimited",
@@ -110,6 +124,8 @@ impl AppError {
         match self {
             AppError::DownloadNetwork { repo, .. }
             | AppError::DownloadTimeout { repo, .. }
+            | AppError::DownloadDns { repo, .. }
+            | AppError::DownloadConnect { repo, .. }
             | AppError::DownloadUnavailable(repo)
             | AppError::RepoNotFound(repo)
             | AppError::RateLimited(repo) => Some(repo.clone()),
@@ -120,8 +136,48 @@ impl AppError {
 }
 
 pub fn classify_download_error(repo: String, error: reqwest::Error) -> AppError {
+    eprintln!("download error for {repo}: {error}");
+    eprintln!(
+        "  is_timeout={} is_connect={} is_request={} is_body={} status={:?}",
+        error.is_timeout(),
+        error.is_connect(),
+        error.is_request(),
+        error.is_body(),
+        error.status()
+    );
+
     if error.is_timeout() {
         AppError::DownloadTimeout {
+            repo,
+            source: error,
+        }
+    } else if error.is_connect() {
+        // When is_request() is also true, hyper combined the connect + request error
+        // into a single opaque error. We can't reliably distinguish DNS from
+        // connection-refused in that case, so lean toward the more common scenario.
+        let msg = error.to_string().to_lowercase();
+        if msg.contains("dns")
+            || msg.contains("name resolution")
+            || msg.contains("no address")
+            || msg.contains("not found")
+            || (!error.is_request()
+                && (msg.contains("resolve")
+                    || msg.contains("lookup")
+                    || msg.contains("unreachable")))
+        {
+            AppError::DownloadDns {
+                repo,
+                source: error,
+            }
+        } else {
+            AppError::DownloadConnect {
+                repo,
+                source: error,
+            }
+        }
+    } else if let Some(status) = error.status() {
+        eprintln!("  http_status={}", status.as_u16());
+        AppError::DownloadNetwork {
             repo,
             source: error,
         }
@@ -148,7 +204,7 @@ impl From<zip::result::ZipError> for AppError {
 
 #[cfg(test)]
 mod tests {
-    use super::{AppError, CommandError};
+    use super::{classify_download_error, AppError, CommandError};
 
     #[test]
     fn command_error_preserves_download_repo_and_code() {
@@ -178,5 +234,60 @@ mod tests {
 
         assert_eq!(command_error.code, "downloadUnavailable");
         assert_eq!(command_error.repo.as_deref(), Some("owner/repo"));
+    }
+
+    #[test]
+    fn command_error_maps_dns_and_connect_variants() {
+        // Verify the two new AppError variants map to the expected error codes.
+        // Use a URL parse error to get a cheap reqwest::Error for construction.
+        let source = reqwest::Client::new()
+            .get("not a valid url")
+            .build()
+            .unwrap_err();
+
+        let dns_error = AppError::DownloadDns {
+            repo: "test/repo".into(),
+            source: source, // reqwest::Error doesn't impl Clone, reconstruct
+        };
+        let dns_cmd = CommandError::from(dns_error);
+        assert_eq!(dns_cmd.code, "downloadDns");
+        assert_eq!(dns_cmd.repo.as_deref(), Some("test/repo"));
+
+        let source2 = reqwest::Client::new()
+            .get("also invalid")
+            .build()
+            .unwrap_err();
+        let connect_error = AppError::DownloadConnect {
+            repo: "test/repo".into(),
+            source: source2,
+        };
+        let connect_cmd = CommandError::from(connect_error);
+        assert_eq!(connect_cmd.code, "downloadConnect");
+        assert_eq!(connect_cmd.repo.as_deref(), Some("test/repo"));
+    }
+
+    #[tokio::test]
+    async fn classify_download_error_handles_connect_failure() {
+        // Trigger a real connection failure against a guaranteed non-existent domain.
+        let error = reqwest::Client::new()
+            .get("https://this-domain-definitely-does-not-exist.invalid")
+            .timeout(std::time::Duration::from_secs(2))
+            .send()
+            .await
+            .unwrap_err();
+        assert!(error.is_connect());
+
+        let app_error = classify_download_error("test/repo".into(), error);
+        let command_error = CommandError::from(app_error);
+
+        assert_eq!(command_error.repo.as_deref(), Some("test/repo"));
+        // Hyper wraps DNS errors in a combined connect+request error.
+        // When the OS-level DNS message isn't preserved, we classify as
+        // downloadConnect (general connectivity issue) rather than downloadDns.
+        assert!(
+            command_error.code == "downloadDns" || command_error.code == "downloadConnect",
+            "unexpected code: {}",
+            command_error.code
+        );
     }
 }

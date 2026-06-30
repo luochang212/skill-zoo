@@ -134,6 +134,8 @@
     "network": "Network error. Check your internet connection and try again.",
     "downloadNetwork": "Could not download {{repo}}. Check your internet connection and try again.",
     "downloadTimeout": "GitHub connection timed out while downloading {{repo}}. Check your connection and try again.",
+    "downloadDns": "We couldn't look up GitHub's address. This usually means a DNS issue — if you're in a region with restricted access, try switching to a public DNS like 8.8.8.8.",
+    "downloadConnect": "We couldn't reach GitHub's servers. Your internet might be working fine, but something is blocking the connection — check your firewall or proxy settings.",
     "downloadUnavailable": "GitHub could not download the update package for {{repo}}. Please try again later.",
     "downloadFailed": "Could not download {{repo}}. Please try again.",
     "cliMissing": "Required tools not found. Make sure Node.js and npx are installed.",

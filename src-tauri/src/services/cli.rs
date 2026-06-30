@@ -564,7 +564,7 @@ impl CliService {
             .timeout(std::time::Duration::from_secs(30))
             .send()
             .await
-            .map_err(|e| AppError::Cli(format!("Failed to fetch tree for {owner}/{repo}: {e}")))?;
+            .map_err(|e| classify_download_error(format!("{owner}/{repo}"), e))?;
 
         match resp.status().as_u16() {
             403 | 429 => Err(AppError::RateLimited(format!("{owner}/{repo}"))),

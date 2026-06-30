@@ -134,6 +134,8 @@
     "network": "网络连接失败，请检查网络后重试。",
     "downloadNetwork": "无法下载 {{repo}}。请检查网络连接后重试。",
     "downloadTimeout": "连接 GitHub 超时，无法下载 {{repo}}。请检查网络后重试。",
+    "downloadDns": "无法解析 GitHub 的域名，这通常是 DNS 问题。如果你所在地区网络受限，可以尝试更换公共 DNS，例如 8.8.8.8。",
+    "downloadConnect": "无法连接到 GitHub 服务器。你的网络可能是正常的，但有什么东西阻止了连接——请检查防火墙或代理设置。",
     "downloadUnavailable": "GitHub 暂时无法下载 {{repo}} 的更新包，请稍后再试。",
     "downloadFailed": "无法下载 {{repo}}，请稍后重试。",
     "cliMissing": "未找到所需工具，请确认已安装 Node.js 和 npx。",

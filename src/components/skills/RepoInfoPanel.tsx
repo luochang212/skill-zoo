@@ -7,11 +7,13 @@ import {
   type RefObject,
   type WheelEvent,
 } from "react";
-import { Star, GitFork, BookOpen, AlertCircle, LoaderCircle } from "lucide-react";
+import { Star, GitFork, BookOpen, AlertCircle, AlertTriangle, LoaderCircle } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRefreshRepoPanel, useRepoMetadata, useRepoReadme } from "@/hooks/useSkills";
 import { MarkdownContent } from "@/components/skills/MarkdownContent";
 import { useRepoPanelCollapsed } from "@/hooks/useRepoPanelCollapsed";
+import { formatApiError } from "@/lib/api/errors";
+import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -140,6 +142,7 @@ function usePullToRefresh({
 }
 
 export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
+  const { t } = useTranslation();
   const { collapsed, rotation, handleToggle } = useRepoPanelCollapsed();
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const wasRefreshingRef = useRef(false);
@@ -150,8 +153,13 @@ export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
     data: metadata,
     isLoading: metaLoading,
     isError: metaError,
+    error: metaErrorObj,
   } = useRepoMetadata(owner, name);
-  const { data: readme, isLoading: readmeLoading } = useRepoReadme(owner, name, undefined);
+  const {
+    data: readme,
+    isLoading: readmeLoading,
+    isError: readmeError,
+  } = useRepoReadme(owner, name, undefined);
   const refreshPanel = useRefreshRepoPanel(owner, name, undefined);
   const isRefreshing = refreshPanel.isPending;
   const showRefreshing = isRefreshing || spinnerHolding;
@@ -290,7 +298,19 @@ export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
                         </div>
                       </div>
                     ) : metaError ? (
-                      <p className="text-xs text-muted-foreground mt-1">Failed to load repo info</p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <AlertTriangle className="h-3 w-3 text-destructive/70 shrink-0" />
+                        <span className="text-xs text-destructive/80">
+                          {formatApiError(metaErrorObj)}
+                        </span>
+                        <button
+                          type="button"
+                          className="text-xs underline hover:text-foreground cursor-pointer ml-1"
+                          onClick={() => refreshPanel.mutate()}
+                        >
+                          {t("error.retry")}
+                        </button>
+                      </div>
                     ) : (
                       metadata?.description && (
                         <p className="text-sm text-muted-foreground mt-1 leading-relaxed line-clamp-3">

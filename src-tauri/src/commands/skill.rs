@@ -1,6 +1,6 @@
 use crate::config;
 use crate::config::{AgentConfig, AgentPathInfo};
-use crate::error::{AppError, CommandError};
+use crate::error::{classify_download_error, AppError, CommandError};
 use crate::persistence::archive::SUPPORTED_ARCHIVE_VERSION;
 use crate::persistence::{
     atomic_write, ArchiveManifest, ArchivedSkill, SkillCache, SkillCacheEntry, SkillUpdateHistory,
@@ -1747,7 +1747,10 @@ pub fn get_recommended_repos(app: tauri::AppHandle) -> Result<Vec<DiscoverRepo>,
         .collect())
 }
 
-async fn fetch_github_repo_metadata(owner: &str, name: &str) -> Option<DiscoverRepo> {
+async fn fetch_github_repo_metadata(
+    owner: &str,
+    name: &str,
+) -> Result<DiscoverRepo, AppError> {
     let url = format!("https://api.github.com/repos/{owner}/{name}");
     let client = config::http_client();
 
@@ -1758,7 +1761,7 @@ async fn fetch_github_repo_metadata(owner: &str, name: &str) -> Option<DiscoverR
         .await
     {
         Ok(resp) if resp.status().is_success() => match resp.json::<serde_json::Value>().await {
-            Ok(json) => Some(DiscoverRepo {
+            Ok(json) => Ok(DiscoverRepo {
                 owner: owner.to_string(),
                 name: name.to_string(),
                 branch: None,
@@ -1809,10 +1812,30 @@ async fn fetch_github_repo_metadata(owner: &str, name: &str) -> Option<DiscoverR
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string()),
             }),
-            Err(_) => None,
+            Err(e) => Err(AppError::Parse(format!(
+                "Invalid repo metadata JSON for {owner}/{name}: {e}"
+            ))),
         },
-        Ok(_) => None,
-        Err(_) => None,
+        Ok(resp) => {
+            eprintln!(
+                "metadata fetch HTTP {} for {owner}/{name}",
+                resp.status().as_u16()
+            );
+            let status = resp.status().as_u16();
+            if status == 404 {
+                Err(AppError::RepoNotFound(format!("{owner}/{name}")))
+            } else {
+                Err(AppError::DownloadUnavailable(format!("{owner}/{name}")))
+            }
+        }
+        Err(e) => {
+            eprintln!(
+                "metadata fetch error for {owner}/{name}: connect={} timeout={}",
+                e.is_connect(),
+                e.is_timeout()
+            );
+            Err(classify_download_error(format!("{owner}/{name}"), e))
+        }
     }
 }
 
@@ -1830,7 +1853,13 @@ pub async fn search_repo(query: String) -> Result<DiscoverRepo, String> {
     let name = repo_query.name;
     match get_repo_metadata(owner.clone(), name.clone(), None).await {
         Ok(repo) => Ok(repo),
-        Err(_) => Ok(minimal_discover_repo(owner, name, None)),
+        Err(e) => {
+            eprintln!(
+                "search_repo: metadata degraded for {owner}/{name}: code={} message={}",
+                e.code, e.message
+            );
+            Ok(minimal_discover_repo(owner, name, None))
+        }
     }
 }
 
@@ -1884,8 +1913,8 @@ pub async fn get_repo_metadata(
     owner: String,
     name: String,
     force: Option<bool>,
-) -> Result<DiscoverRepo, String> {
-    github::validate_repo_segments(&owner, &name, "HEAD")?;
+) -> Result<DiscoverRepo, CommandError> {
+    github::validate_repo_segments(&owner, &name, "HEAD").map_err(CommandError::bad_request)?;
     let force = force.unwrap_or(false);
     let key = format!("{owner}/{name}");
     let mut cache = load_repo_metadata_cache();
@@ -1905,25 +1934,32 @@ pub async fn get_repo_metadata(
     }
 
     // Fetch from GitHub
-    if let Some(data) = fetch_github_repo_metadata(&owner, &name).await {
-        // Persist on success
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        cache.insert(
-            key,
-            RepoMetadataCacheEntry {
-                data: data.clone(),
-                fetched_at: now,
-            },
-        );
-        save_repo_metadata_cache(&cache);
-        Ok(data)
-    } else if let Some(data) = stale_cache {
-        Ok(data)
-    } else {
-        Err("Network error fetching repo metadata".into())
+    match fetch_github_repo_metadata(&owner, &name).await {
+        Ok(data) => {
+            // Persist on success
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            cache.insert(
+                key,
+                RepoMetadataCacheEntry {
+                    data: data.clone(),
+                    fetched_at: now,
+                },
+            );
+            save_repo_metadata_cache(&cache);
+            Ok(data)
+        }
+        Err(e) => {
+            if let Some(data) = stale_cache {
+                eprintln!(
+                    "metadata fetch failed for {owner}/{name}, using stale cache: {e}"
+                );
+                return Ok(data);
+            }
+            Err(CommandError::from(e))
+        }
     }
 }
 
@@ -1962,22 +1998,36 @@ fn repo_ref_cache_key(branch: Option<&str>) -> &str {
     branch.unwrap_or("default")
 }
 
-async fn fetch_repo_readme(owner: &str, name: &str, branch: Option<&str>) -> Result<String, ()> {
+async fn fetch_repo_readme(
+    owner: &str,
+    name: &str,
+    branch: Option<&str>,
+) -> Result<String, AppError> {
     let url = match branch {
         Some(branch) => format!("https://api.github.com/repos/{owner}/{name}/readme?ref={branch}"),
         None => format!("https://api.github.com/repos/{owner}/{name}/readme"),
     };
     let client = config::http_client();
 
-    let resp = client.get(&url).send().await.map_err(|_| ())?;
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| classify_download_error(format!("{owner}/{name}"), e))?;
     if resp.status().as_u16() == 404 {
-        return Err(());
+        return Err(AppError::RepoNotFound(format!("{owner}/{name}")));
     }
     if !resp.status().is_success() {
-        return Err(());
+        return Err(AppError::DownloadUnavailable(format!("{owner}/{name}")));
     }
-    let json: serde_json::Value = resp.json().await.map_err(|_| ())?;
-    let content = json.get("content").and_then(|v| v.as_str()).ok_or(())?;
+    let json: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| AppError::Parse(format!("Invalid README response for {owner}/{name}: {e}")))?;
+    let content = json
+        .get("content")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::Parse("README response missing content".into()))?;
     let encoding = json.get("encoding").and_then(|v| v.as_str());
 
     let decoded = if encoding == Some("base64") {
@@ -1985,12 +2035,13 @@ async fn fetch_repo_readme(owner: &str, name: &str, branch: Option<&str>) -> Res
         use base64::Engine;
         base64::engine::general_purpose::STANDARD
             .decode(&cleaned)
-            .map_err(|_| ())?
+            .map_err(|e| AppError::Parse(format!("README base64 decode: {e}")))?
     } else {
         content.as_bytes().to_vec()
     };
 
-    String::from_utf8(decoded).map_err(|_| ())
+    String::from_utf8(decoded)
+        .map_err(|e| AppError::Parse(format!("README not valid UTF-8: {e}")))
 }
 
 fn read_repo_readme_from_zip_path(zip_path: &Path) -> Result<String, ()> {
@@ -2044,12 +2095,13 @@ pub async fn get_repo_readme(
     name: String,
     branch: Option<String>,
     force: Option<bool>,
-) -> Result<String, String> {
+) -> Result<String, CommandError> {
     let force = force.unwrap_or(false);
     if let Some(branch) = branch.as_deref() {
-        github::validate_repo_segments(&owner, &name, branch)?;
+        github::validate_repo_segments(&owner, &name, branch).map_err(CommandError::bad_request)?;
     } else {
-        github::validate_repo_segments(&owner, &name, "HEAD")?;
+        github::validate_repo_segments(&owner, &name, "HEAD")
+            .map_err(CommandError::bad_request)?;
     }
     let key = format!("{owner}/{name}/{}", repo_ref_cache_key(branch.as_deref()));
 
@@ -2083,8 +2135,11 @@ pub async fn get_repo_readme(
             save_readme_cache(&cache);
             Ok(content)
         }
-        Err(()) => {
+        Err(e) => {
             if let Some(content) = stale_cache {
+                eprintln!(
+                    "README fetch failed for {owner}/{name}, using stale cache: {e}"
+                );
                 return Ok(content);
             }
 
@@ -2104,7 +2159,7 @@ pub async fn get_repo_readme(
                     save_readme_cache(&cache);
                     Ok(content)
                 }
-                Err(()) => Err("Network error fetching README".into()),
+                Err(()) => Err(CommandError::from(e)),
             }
         }
     }
