@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RepoDetail } from "@/components/skills/RepoDetail";
+import type { DiscoverRepo } from "@/types/skills";
 
 const mocks = vi.hoisted(() => ({
   installMutate: vi.fn(),
@@ -75,11 +76,11 @@ vi.mock("@/hooks/useRepoLoadStage", () => ({
   useRepoLoadProgress: () => null,
 }));
 
-function renderDetail() {
+function renderDetail(repo: DiscoverRepo = { owner: "owner", name: "repo", branch: "main" }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const view = render(
     <QueryClientProvider client={queryClient}>
-      <RepoDetail repo={{ owner: "owner", name: "repo", branch: "main" }} onBack={vi.fn()} />
+      <RepoDetail repo={repo} onBack={vi.fn()} />
     </QueryClientProvider>,
   );
   return { ...view, queryClient };
@@ -124,6 +125,28 @@ describe("RepoDetail discover status", () => {
     expect(mocks.installMutate).toHaveBeenCalledWith(
       {
         repoUrl: "https://github.com/owner/repo/tree/main",
+        skillNames: ["available"],
+        agents: ["codex"],
+      },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+    expect(setQueryData).not.toHaveBeenCalled();
+  });
+
+  it("installs the repository default branch without pinning metadata as an explicit branch", async () => {
+    const { queryClient } = renderDetail({
+      owner: "owner",
+      name: "repo",
+      defaultBranch: "master",
+    });
+    const setQueryData = vi.spyOn(queryClient, "setQueryData");
+
+    await userEvent.click(screen.getByRole("button", { name: "Install" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirm install test" }));
+
+    expect(mocks.installMutate).toHaveBeenCalledWith(
+      {
+        repoUrl: "https://github.com/owner/repo",
         skillNames: ["available"],
         agents: ["codex"],
       },

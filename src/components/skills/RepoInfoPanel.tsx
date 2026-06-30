@@ -151,8 +151,8 @@ export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
     isLoading: metaLoading,
     isError: metaError,
   } = useRepoMetadata(owner, name);
-  const { data: readme, isLoading: readmeLoading } = useRepoReadme(owner, name, metadata?.branch);
-  const refreshPanel = useRefreshRepoPanel(owner, name, metadata?.branch);
+  const { data: readme, isLoading: readmeLoading } = useRepoReadme(owner, name, undefined);
+  const refreshPanel = useRefreshRepoPanel(owner, name, undefined);
   const isRefreshing = refreshPanel.isPending;
   const showRefreshing = isRefreshing || spinnerHolding;
   const {
@@ -383,7 +383,7 @@ export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
                           content={readme}
                           repoOwner={owner}
                           repoName={name}
-                          repoBranch={metadata?.branch}
+                          repoBranch={metadata?.defaultBranch}
                         />
                       </div>
                     </motion.div>

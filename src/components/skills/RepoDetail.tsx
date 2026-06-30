@@ -135,7 +135,9 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
 
   const handleInstall = (skillNames: string[], agents: string[]) => {
     if (!installSkills) return;
-    const repoUrl = `https://github.com/${repo.owner}/${repo.name}/tree/${repo.branch || "main"}`;
+    const repoUrl = repo.branch
+      ? `https://github.com/${repo.owner}/${repo.name}/tree/${repo.branch}`
+      : `https://github.com/${repo.owner}/${repo.name}`;
     installMutation.mutate(
       { repoUrl, skillNames, agents },
       {

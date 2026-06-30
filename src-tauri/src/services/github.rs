@@ -6,7 +6,7 @@ use std::sync::LazyLock;
 pub struct GitHubRepoRef {
     pub owner: String,
     pub name: String,
-    pub branch: String,
+    pub branch: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,7 +24,7 @@ pub fn parse_repo_ref(input: &str) -> Result<GitHubRepoRef, AppError> {
     Ok(GitHubRepoRef {
         owner: query.owner,
         name: query.name,
-        branch: query.branch.unwrap_or_else(|| "main".to_string()),
+        branch: query.branch,
     })
 }
 
@@ -56,7 +56,7 @@ pub fn parse_repo_query(input: &str) -> Result<GitHubRepoQuery, String> {
             None
         };
 
-        validate_repo_segments(&owner, &name, branch.as_deref().unwrap_or("main"))?;
+        validate_repo_segments(&owner, &name, branch.as_deref().unwrap_or("HEAD"))?;
         Ok(GitHubRepoQuery {
             owner,
             name,
@@ -69,7 +69,7 @@ pub fn parse_repo_query(input: &str) -> Result<GitHubRepoQuery, String> {
         }
         let owner = parts[0].to_string();
         let name = parts[1].trim_end_matches(".git").to_string();
-        validate_repo_segments(&owner, &name, "main")?;
+        validate_repo_segments(&owner, &name, "HEAD")?;
         Ok(GitHubRepoQuery {
             owner,
             name,
@@ -94,12 +94,12 @@ mod tests {
     use super::{parse_repo_query, parse_repo_ref};
 
     #[test]
-    fn repo_ref_defaults_branch_to_main() {
+    fn repo_ref_preserves_unknown_default_branch() {
         let repo_ref = parse_repo_ref("vercel-labs/skills").unwrap();
 
         assert_eq!(repo_ref.owner, "vercel-labs");
         assert_eq!(repo_ref.name, "skills");
-        assert_eq!(repo_ref.branch, "main");
+        assert_eq!(repo_ref.branch, None);
     }
 
     #[test]
@@ -108,7 +108,7 @@ mod tests {
 
         assert_eq!(repo_ref.owner, "anthropics");
         assert_eq!(repo_ref.name, "skills");
-        assert_eq!(repo_ref.branch, "dev");
+        assert_eq!(repo_ref.branch.as_deref(), Some("dev"));
     }
 
     #[test]
@@ -117,7 +117,7 @@ mod tests {
 
         assert_eq!(repo_ref.owner, "anthropics");
         assert_eq!(repo_ref.name, "skills");
-        assert_eq!(repo_ref.branch, "main");
+        assert_eq!(repo_ref.branch, None);
     }
 
     #[test]

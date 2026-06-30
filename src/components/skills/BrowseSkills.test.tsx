@@ -8,10 +8,23 @@ const mocks = vi.hoisted(() => ({
   refetchRepoSearch: vi.fn(),
   refetchSkillsSearch: vi.fn(),
   searchRepo: vi.fn(),
+  repoResult: undefined as
+    | {
+        owner: string;
+        name: string;
+        branch?: string;
+        defaultBranch?: string;
+        description?: string;
+      }
+    | undefined,
+  repoSearchLoading: false,
+  skillsSearchLoading: false,
+  skillsSearchQueries: [] as Array<string | null | undefined>,
   recommendedRepos: [] as Array<{
     owner: string;
     name: string;
-    branch: string;
+    branch?: string;
+    defaultBranch?: string;
     description?: string;
   }>,
   skillsResults: [] as Array<{
@@ -40,17 +53,20 @@ vi.mock("@/hooks/useSkills", () => ({
     refetch: vi.fn(),
   }),
   useSearchRepo: () => ({
-    data: undefined,
-    isLoading: false,
+    data: mocks.repoResult,
+    isLoading: mocks.repoSearchLoading,
     isError: false,
     refetch: mocks.refetchRepoSearch,
   }),
-  useSearchSkillsSh: () => ({
-    data: mocks.skillsResults,
-    isLoading: false,
-    isError: mocks.skillsSearchError,
-    refetch: mocks.refetchSkillsSearch,
-  }),
+  useSearchSkillsSh: (query: string | null) => {
+    mocks.skillsSearchQueries.push(query);
+    return {
+      data: mocks.skillsResults,
+      isLoading: mocks.skillsSearchLoading,
+      isError: mocks.skillsSearchError,
+      refetch: mocks.refetchSkillsSearch,
+    };
+  },
 }));
 
 vi.mock("@/hooks/useRecentlyViewed", () => ({
@@ -67,7 +83,11 @@ describe("BrowseSkills", () => {
     vi.useRealTimers();
     mocks.recommendedRepos = [];
     mocks.skillsResults = [];
+    mocks.repoResult = undefined;
+    mocks.repoSearchLoading = false;
+    mocks.skillsSearchLoading = false;
     mocks.skillsSearchError = false;
+    mocks.skillsSearchQueries = [];
     mocks.refetchRepoSearch.mockReset();
     mocks.refetchSkillsSearch.mockReset();
     mocks.searchRepo.mockReset();
@@ -102,7 +122,7 @@ describe("BrowseSkills", () => {
     expect(mocks.refetchSkillsSearch).toHaveBeenCalled();
   });
 
-  it("resolves the repository default branch before opening a skills.sh result", async () => {
+  it("keeps a repository default branch separate when opening a skills.sh result", async () => {
     vi.useFakeTimers();
     mocks.skillsResults = [
       {
@@ -114,7 +134,7 @@ describe("BrowseSkills", () => {
         installStatus: "available",
       },
     ];
-    mocks.searchRepo.mockResolvedValue({ owner: "owner", name: "repo", branch: "master" });
+    mocks.searchRepo.mockResolvedValue({ owner: "owner", name: "repo", defaultBranch: "master" });
     const onSelectRepo = vi.fn();
     render(<BrowseSkills selectedRepo={null} onSelectRepo={onSelectRepo} />);
 
@@ -128,6 +148,61 @@ describe("BrowseSkills", () => {
     await userEvent.click(screen.getByRole("button", { name: /Example Skill/ }));
 
     expect(mocks.searchRepo).toHaveBeenCalledWith("owner/repo");
-    expect(onSelectRepo).toHaveBeenCalledWith({ owner: "owner", name: "repo", branch: "master" });
+    expect(onSelectRepo).toHaveBeenCalledWith({
+      owner: "owner",
+      name: "repo",
+      defaultBranch: "master",
+    });
+  });
+
+  it("routes owner/repo input to repository search without waiting on skills.sh", async () => {
+    vi.useFakeTimers();
+    mocks.repoResult = { owner: "hugmouse", name: "skills" };
+    mocks.skillsSearchLoading = true;
+    render(<BrowseSkills selectedRepo={null} onSelectRepo={vi.fn()} />);
+
+    fireEvent.change(screen.getByPlaceholderText("Search skills or GitHub repo..."), {
+      target: { value: "hugmouse/skills" },
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+
+    expect(mocks.skillsSearchQueries).not.toContain("hugmouse/skills");
+    expect(screen.queryByText("Searching...")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /hugmouse\/skills/ })).toBeInTheDocument();
+  });
+
+  it("opens a skills.sh result even when repository metadata is unavailable", async () => {
+    vi.useFakeTimers();
+    mocks.skillsResults = [
+      {
+        key: "skill-key",
+        name: "Example Skill",
+        directory: "example",
+        repoOwner: "owner",
+        repoName: "repo",
+        installStatus: "available",
+      },
+    ];
+    mocks.searchRepo.mockRejectedValue(new Error("Network error fetching repo metadata"));
+    const onSelectRepo = vi.fn();
+    render(<BrowseSkills selectedRepo={null} onSelectRepo={onSelectRepo} />);
+
+    fireEvent.change(screen.getByPlaceholderText("Search skills or GitHub repo..."), {
+      target: { value: "example" },
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    vi.useRealTimers();
+    await userEvent.click(screen.getByRole("button", { name: /Example Skill/ }));
+
+    expect(mocks.searchRepo).toHaveBeenCalledWith("owner/repo");
+    expect(onSelectRepo).toHaveBeenCalledWith({
+      owner: "owner",
+      name: "repo",
+      description: undefined,
+    });
   });
 });

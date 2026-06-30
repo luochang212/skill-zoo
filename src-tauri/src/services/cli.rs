@@ -42,16 +42,19 @@ pub struct KnownSkillUpdate {
 struct RepoZipRequest {
     owner: String,
     repo: String,
-    branch: String,
+    branch: Option<String>,
     force: bool,
 }
 
 struct KnownUpdateRepoGroup {
     owner: String,
     repo: String,
-    branch: String,
+    branch: Option<String>,
     skills: Vec<KnownSkillUpdate>,
 }
+
+type RepoUpdateKey = (String, String, Option<String>);
+type RepoLockEntries = Vec<(String, SkillLockEntry)>;
 
 pub struct CliService;
 
@@ -75,7 +78,7 @@ impl CliService {
         let (owner, repo, branch) = (repo_ref.owner, repo_ref.name, repo_ref.branch);
 
         let (_temp_dir, clone_path) =
-            Self::download_repo_zip(&owner, &repo, &branch, false).await?;
+            Self::download_repo_zip(&owner, &repo, branch.as_deref(), false).await?;
 
         // Discover skills in the cloned tree
         let discovered = Self::discover_skills_in_tree(&clone_path);
@@ -158,7 +161,7 @@ impl CliService {
         // commit_sha stays None and check_skill_updates will
         // auto-baseline on the next successful check (one-cycle degradation).
         let folder_shas: std::collections::HashMap<String, Option<String>> =
-            match Self::fetch_repo_tree(&owner, &repo, &branch).await {
+            match Self::fetch_repo_tree(&owner, &repo, branch.as_deref()).await {
                 Ok(Some(tree)) => installed_skills
                     .iter()
                     .map(|(name, skill_path)| {
@@ -170,15 +173,17 @@ impl CliService {
                     .collect(),
                 Ok(None) => {
                     eprintln!(
-                        "install: tree not found for {owner}/{repo}@{branch}, \
-                         update detection will auto-baseline on next check"
+                        "install: tree not found for {}, \
+                         update detection will auto-baseline on next check",
+                        Self::repo_ref_label(&owner, &repo, branch.as_deref())
                     );
                     std::collections::HashMap::new()
                 }
                 Err(e) => {
                     eprintln!(
-                        "install: tree fetch failed for {owner}/{repo}@{branch}: {e}, \
-                         update detection will auto-baseline on next check"
+                        "install: tree fetch failed for {}: {e}, \
+                         update detection will auto-baseline on next check",
+                        Self::repo_ref_label(&owner, &repo, branch.as_deref())
                     );
                     std::collections::HashMap::new()
                 }
@@ -187,7 +192,7 @@ impl CliService {
             &installed_skills,
             &owner,
             &repo,
-            &branch,
+            branch.as_deref(),
             &folder_shas,
         );
 
@@ -316,11 +321,9 @@ impl CliService {
         let mut errors: Vec<String> = Vec::new();
         let report_missing_baseline = to_update.len() == 1;
 
-        // Group skills by (owner, repo, branch) so each repo is fetched only once
-        let mut by_repo: std::collections::HashMap<
-            (String, String, String),
-            Vec<(String, SkillLockEntry)>,
-        > = std::collections::HashMap::new();
+        // Group skills by (owner, repo, branch/default) so each repo is fetched only once
+        let mut by_repo: std::collections::HashMap<RepoUpdateKey, RepoLockEntries> =
+            std::collections::HashMap::new();
         for (name, entry) in &to_update {
             // Entries without a stored folder SHA cannot be safely compared.
             // The update loop already skips them after a successful tree fetch;
@@ -353,12 +356,13 @@ impl CliService {
         let mut known_updates = Vec::new();
 
         for ((owner, repo, branch), skills) in &by_repo {
-            let tree = match Self::fetch_repo_tree(owner, repo, branch).await {
+            let tree = match Self::fetch_repo_tree(owner, repo, branch.as_deref()).await {
                 Ok(Some(t)) => t,
                 Ok(None) => {
                     errors.extend(skills.iter().map(|(name, _)| {
                         format!(
-                            "{name}: repository or branch not found for {owner}/{repo}@{branch}"
+                            "{name}: repository or branch not found for {}",
+                            Self::repo_ref_label(owner, repo, branch.as_deref())
                         )
                     }));
                     continue;
@@ -370,7 +374,14 @@ impl CliService {
             };
 
             for (name, entry) in skills {
-                match Self::known_update_from_tree(name, entry, &tree, owner, repo, branch) {
+                match Self::known_update_from_tree(
+                    name,
+                    entry,
+                    &tree,
+                    owner,
+                    repo,
+                    branch.as_deref(),
+                ) {
                     Ok(Some(update)) => known_updates.push(update),
                     Ok(None) => {}
                     Err(error) => errors.push(error),
@@ -390,13 +401,14 @@ impl CliService {
         tree: &RepoTreeResponse,
         owner: &str,
         repo: &str,
-        branch: &str,
+        branch: Option<&str>,
     ) -> Result<Option<KnownSkillUpdate>, String> {
         let old_sha = entry.commit_sha.as_deref();
         let skill_path = entry.skill_path.as_deref().unwrap_or("");
         let Some(new_sha) = Self::get_folder_sha_from_tree(tree, skill_path) else {
             return Err(format!(
-                "{name}: Skill path no longer exists in {owner}/{repo}@{branch}: {}",
+                "{name}: Skill path no longer exists in {}: {}",
+                Self::repo_ref_label(owner, repo, branch),
                 Self::normalize_skill_path(skill_path)
             ));
         };
@@ -429,11 +441,12 @@ impl CliService {
         let mut updated_shas: Vec<(String, String)> = Vec::new();
 
         for group in &groups {
-            let request = Self::update_download_request(&group.owner, &group.repo, &group.branch);
+            let request =
+                Self::update_download_request(&group.owner, &group.repo, group.branch.as_deref());
             let (_temp_dir, clone_path) = match Self::download_repo_zip(
                 &request.owner,
                 &request.repo,
-                &request.branch,
+                request.branch.as_deref(),
                 request.force,
             )
             .await
@@ -537,11 +550,11 @@ impl CliService {
     pub async fn fetch_repo_tree(
         owner: &str,
         repo: &str,
-        branch: &str,
+        branch: Option<&str>,
     ) -> Result<Option<RepoTreeResponse>, AppError> {
         let url = format!(
             "https://api.github.com/repos/{owner}/{repo}/git/trees/{}?recursive=1",
-            urlencoding::encode(branch)
+            urlencoding::encode(branch.unwrap_or("HEAD"))
         );
         let client = config::http_client();
 
@@ -587,21 +600,46 @@ impl CliService {
         branch.replace(['/', '\\'], "--")
     }
 
-    fn update_repo_info(entry: &SkillLockEntry) -> Result<(String, String, String), AppError> {
+    fn repo_ref_label(owner: &str, repo: &str, branch: Option<&str>) -> String {
+        match branch {
+            Some(branch) => format!("{owner}/{repo}@{branch}"),
+            None => format!("{owner}/{repo}@default"),
+        }
+    }
+
+    fn cache_ref_key(branch: Option<&str>) -> String {
+        match branch {
+            Some(branch) => format!("branch--{}", Self::sanitize_branch(branch)),
+            None => "default".to_string(),
+        }
+    }
+
+    fn archive_zip_url(owner: &str, repo: &str, branch: Option<&str>) -> String {
+        match branch {
+            Some(branch) => {
+                format!("https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.zip")
+            }
+            None => format!("https://github.com/{owner}/{repo}/archive/HEAD.zip"),
+        }
+    }
+
+    fn update_repo_info(
+        entry: &SkillLockEntry,
+    ) -> Result<(String, String, Option<String>), AppError> {
         let source_url = entry.effective_url().ok_or_else(|| {
             AppError::BadRequest("Skill lock entry has no GitHub source URL".into())
         })?;
         let repo_ref = github::parse_repo_ref(&source_url)?;
-        let branch = entry.branch.clone().unwrap_or(repo_ref.branch);
+        let branch = entry.branch.clone().or(repo_ref.branch);
         let (owner, repo) = (repo_ref.owner, repo_ref.name);
         Ok((owner, repo, branch))
     }
 
-    fn update_download_request(owner: &str, repo: &str, branch: &str) -> RepoZipRequest {
+    fn update_download_request(owner: &str, repo: &str, branch: Option<&str>) -> RepoZipRequest {
         RepoZipRequest {
             owner: owner.to_string(),
             repo: repo.to_string(),
-            branch: branch.to_string(),
+            branch: branch.map(str::to_string),
             force: true,
         }
     }
@@ -621,17 +659,17 @@ impl CliService {
         Some(Self::normalize_skill_path(&path))
     }
 
-    pub fn cache_zip_path(owner: &str, repo: &str, branch: &str) -> PathBuf {
+    pub fn cache_zip_path(owner: &str, repo: &str, branch: Option<&str>) -> PathBuf {
         config::get_repo_zip_cache_dir().join(format!(
             "{owner}--{repo}--{}.zip",
-            Self::sanitize_branch(branch)
+            Self::cache_ref_key(branch)
         ))
     }
 
     pub async fn ensure_cached_zip(
         owner: &str,
         repo: &str,
-        branch: &str,
+        branch: Option<&str>,
         force: bool,
     ) -> Result<PathBuf, AppError> {
         Self::ensure_cached_zip_with_progress(owner, repo, branch, force, None).await
@@ -640,7 +678,7 @@ impl CliService {
     pub async fn ensure_cached_zip_with_progress(
         owner: &str,
         repo: &str,
-        branch: &str,
+        branch: Option<&str>,
         force: bool,
         app_handle: Option<&tauri::AppHandle>,
     ) -> Result<PathBuf, AppError> {
@@ -661,7 +699,7 @@ impl CliService {
         let cache_dir = config::get_repo_zip_cache_dir();
         std::fs::create_dir_all(&cache_dir).map_err(AppError::Io)?;
 
-        let url = format!("https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.zip");
+        let url = Self::archive_zip_url(owner, repo, branch);
         let repo_id = format!("{owner}/{repo}");
         let client = config::http_client();
         let response = client
@@ -686,7 +724,7 @@ impl CliService {
         let mut downloaded: u64 = 0;
         let tmp_path = cache_dir.join(format!(
             ".{owner}--{repo}--{}.zip.tmp",
-            Self::sanitize_branch(branch)
+            Self::cache_ref_key(branch)
         ));
         let mut file = std::fs::File::create(&tmp_path).map_err(AppError::Io)?;
 
@@ -737,7 +775,7 @@ impl CliService {
     async fn download_repo_zip(
         owner: &str,
         repo: &str,
-        branch: &str,
+        branch: Option<&str>,
         force: bool,
     ) -> Result<(tempfile::TempDir, PathBuf), AppError> {
         let zip_path = Self::ensure_cached_zip(owner, repo, branch, force).await?;
@@ -846,7 +884,7 @@ impl CliService {
         skills: &[(String, String)],
         owner: &str,
         repo: &str,
-        branch: &str,
+        branch: Option<&str>,
         folder_shas: &std::collections::HashMap<String, Option<String>>,
     ) -> Result<(), AppError> {
         let mut lock = SkillLock::read()?;
@@ -868,7 +906,7 @@ impl CliService {
                     source: Some(source.clone()),
                     source_type: Some("github".into()),
                     source_url: Some(source_url.clone()),
-                    branch: Some(branch.into()),
+                    branch: branch.map(str::to_string),
                     skill_path: Some(skill_path.clone()),
                     skill_folder_hash: Some(String::new()),
                     installed_at: Some(existing_installed_at.unwrap_or_else(|| now.clone())),
@@ -1109,7 +1147,33 @@ mod tests {
 
         assert_eq!(
             (owner, repo, branch),
-            ("owner".to_string(), "repo".to_string(), "main".to_string())
+            (
+                "owner".to_string(),
+                "repo".to_string(),
+                Some("main".to_string())
+            )
+        );
+    }
+
+    #[test]
+    fn update_repo_info_preserves_missing_ref_as_default_branch() {
+        let entry = SkillLockEntry {
+            source: Some("owner/repo".to_string()),
+            source_type: Some("github".to_string()),
+            source_url: None,
+            branch: None,
+            skill_path: Some("skills/demo".to_string()),
+            skill_folder_hash: None,
+            installed_at: None,
+            updated_at: None,
+            commit_sha: Some("old".to_string()),
+        };
+
+        let (owner, repo, branch) = CliService::update_repo_info(&entry).unwrap();
+
+        assert_eq!(
+            (owner, repo, branch),
+            ("owner".to_string(), "repo".to_string(), None)
         );
     }
 
@@ -1142,7 +1206,12 @@ mod tests {
         };
 
         let error = match CliService::known_update_from_tree(
-            "demo", &entry, &tree, "owner", "repo", "main",
+            "demo",
+            &entry,
+            &tree,
+            "owner",
+            "repo",
+            Some("main"),
         ) {
             Ok(_) => panic!("expected missing skill path error"),
             Err(error) => error,
@@ -1167,12 +1236,29 @@ mod tests {
 
     #[test]
     fn update_download_request_forces_fresh_zip() {
-        let request = CliService::update_download_request("owner", "repo", "main");
+        let request = CliService::update_download_request("owner", "repo", Some("main"));
 
         assert_eq!(request.owner, "owner");
         assert_eq!(request.repo, "repo");
-        assert_eq!(request.branch, "main");
+        assert_eq!(request.branch.as_deref(), Some("main"));
         assert!(request.force);
+    }
+
+    #[test]
+    fn default_branch_zip_uses_head_url_and_separate_cache_key() {
+        assert_eq!(
+            CliService::archive_zip_url("owner", "repo", None),
+            "https://github.com/owner/repo/archive/HEAD.zip"
+        );
+        assert_eq!(
+            CliService::archive_zip_url("owner", "repo", Some("main")),
+            "https://github.com/owner/repo/archive/refs/heads/main.zip"
+        );
+        assert!(
+            CliService::cache_zip_path("owner", "repo", None).ends_with("owner--repo--default.zip")
+        );
+        assert!(CliService::cache_zip_path("owner", "repo", Some("main"))
+            .ends_with("owner--repo--branch--main.zip"));
     }
 
     #[test]
@@ -1186,7 +1272,7 @@ mod tests {
         assert_eq!(groups.len(), 1);
         assert_eq!(groups[0].owner, "owner");
         assert_eq!(groups[0].repo, "repo");
-        assert_eq!(groups[0].branch, "main");
+        assert_eq!(groups[0].branch.as_deref(), Some("main"));
         assert_eq!(groups[0].skills.len(), 2);
     }
 

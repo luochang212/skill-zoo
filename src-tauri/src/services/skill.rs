@@ -757,7 +757,7 @@ impl SkillService {
     pub async fn discover_from_repo(
         owner: &str,
         name: &str,
-        branch: &str,
+        branch: Option<&str>,
         force: bool,
         app_handle: Option<&tauri::AppHandle>,
     ) -> Result<Vec<DiscoverableSkill>, AppError> {
@@ -815,7 +815,7 @@ impl SkillService {
             let Some(root_dir) = root_dir else {
                 return Ok(skills);
             };
-            Self::scan_for_skills(&root_dir, &root_dir, owner, name, branch, 0, &mut skills)?;
+            Self::scan_for_skills(&root_dir, &root_dir, owner, name, 0, &mut skills)?;
             Ok(skills)
         }
         .await;
@@ -836,7 +836,6 @@ impl SkillService {
         base_path: &PathBuf,
         owner: &str,
         repo: &str,
-        _branch: &str,
         depth: usize,
         skills: &mut Vec<DiscoverableSkill>,
     ) -> Result<(), AppError> {
@@ -873,15 +872,7 @@ impl SkillService {
                     if crate::config::SKIP_DIRS.contains(&file_name) {
                         continue;
                     }
-                    Self::scan_for_skills(
-                        &path,
-                        base_path,
-                        owner,
-                        repo,
-                        _branch,
-                        depth + 1,
-                        skills,
-                    )?;
+                    Self::scan_for_skills(&path, base_path, owner, repo, depth + 1, skills)?;
                 }
             }
         }
@@ -891,7 +882,7 @@ impl SkillService {
     pub async fn discover_from_repo_capped(
         owner: &str,
         name: &str,
-        branch: &str,
+        branch: Option<&str>,
         max_skills: usize,
         force: bool,
         app_handle: Option<&tauri::AppHandle>,

@@ -17,7 +17,6 @@ import { RepoDetail } from "@/components/skills/RepoDetail";
 import type { DiscoverRepo } from "@/types/skills";
 import { Search, Loader2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
 
 interface RepoCardProps {
   repo: DiscoverRepo;
@@ -108,7 +107,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Parallel search: skills.sh always, GitHub repo for owner/name or github.com URL
+  // Route repository-shaped queries directly to GitHub repo lookup.
   const isRepoQuery = useMemo(
     () =>
       /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(debouncedSearch ?? "") ||
@@ -126,9 +125,9 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
     isLoading: searchingSkillsSh,
     isError: skillsShSearchError,
     refetch: refetchSkillsShSearch,
-  } = useSearchSkillsSh(debouncedSearch);
+  } = useSearchSkillsSh(isRepoQuery ? null : debouncedSearch);
 
-  const isSearching = searchingRepo || searchingSkillsSh;
+  const isSearching = !repoResult && (searchingRepo || searchingSkillsSh);
   const skillsList = skillsShResults ?? [];
   const hasResults = !!repoResult || skillsList.length > 0;
   const searchFailed = skillsShSearchError || (isRepoQuery && repoSearchError);
@@ -177,11 +176,13 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
 
   const handleSkillSearchResult = useCallback(
     async (owner: string, name: string) => {
+      let repo: DiscoverRepo = { owner, name, description: undefined };
       try {
-        navigateToRepo(await skillsApi.searchRepo(`${owner}/${name}`));
-      } catch (error) {
-        toast.error(String(error));
+        repo = await skillsApi.searchRepo(`${owner}/${name}`);
+      } catch {
+        // Metadata only enriches the detail page. It should not block opening a search result.
       }
+      navigateToRepo(repo);
     },
     [navigateToRepo],
   );
@@ -255,7 +256,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
                         variant="outline"
                         className="h-7 text-xs"
                         onClick={() => {
-                          void refetchSkillsShSearch();
+                          if (!isRepoQuery) void refetchSkillsShSearch();
                           if (isRepoQuery) void refetchRepoSearch();
                         }}
                       >

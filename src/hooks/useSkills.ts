@@ -343,7 +343,7 @@ export function useRepoReadme(owner: string | null, name: string | null, branch?
   return useQuery({
     queryKey: ["repos", "readme", owner, name, branch],
     queryFn: () => skillsApi.getRepoReadme(owner!, name!, branch ?? undefined),
-    enabled: !!owner && !!name && !!branch,
+    enabled: !!owner && !!name,
     staleTime: 7 * 24 * 60 * 60 * 1000,
     retry: false,
   });
@@ -354,7 +354,7 @@ export function useRefreshRepoPanel(owner: string, name: string, branch?: string
   return useMutation({
     mutationFn: async () => {
       const metadata = await skillsApi.getRepoMetadata(owner, name, true).catch(() => undefined);
-      const readmeBranch = metadata?.branch ?? branch ?? undefined;
+      const readmeBranch = branch ?? undefined;
       const readme = await skillsApi
         .getRepoReadme(owner, name, readmeBranch, true)
         .catch(() => undefined);
@@ -366,9 +366,6 @@ export function useRefreshRepoPanel(owner: string, name: string, branch?: string
       }
       if (readme) {
         qc.setQueryData(["repos", "readme", owner, name, readmeBranch], readme);
-      }
-      if (readme && branch && branch !== readmeBranch) {
-        qc.setQueryData(["repos", "readme", owner, name, branch], readme);
       }
     },
   });

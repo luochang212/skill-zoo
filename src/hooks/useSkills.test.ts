@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   useRepoReadme,
+  useRefreshRepoPanel,
   useRestoreArchivedSkill,
   useStarSkill,
   useUnstarSkill,
@@ -219,25 +220,56 @@ describe("useRepoReadme", () => {
     vi.mocked(invoke).mockReset();
   });
 
-  it("waits for the repository branch before requesting the README", async () => {
+  it("requests the default README when the repository branch is unknown", async () => {
     vi.mocked(invoke).mockResolvedValue("# README");
     const { wrapper } = createQueryWrapper();
-    const { rerender } = renderHook(
-      ({ branch }: { branch?: string }) => useRepoReadme("owner", "repo", branch),
-      { wrapper, initialProps: { branch: undefined as string | undefined } },
-    );
-
-    expect(invoke).not.toHaveBeenCalled();
-
-    rerender({ branch: "master" });
+    renderHook(() => useRepoReadme("owner", "repo", undefined), { wrapper });
 
     await waitFor(() =>
       expect(invoke).toHaveBeenCalledWith("get_repo_readme", {
         owner: "owner",
         name: "repo",
-        branch: "master",
+        branch: undefined,
         force: undefined,
       }),
     );
+  });
+});
+
+describe("useRefreshRepoPanel", () => {
+  beforeEach(() => {
+    vi.mocked(invoke).mockReset();
+  });
+
+  it("does not turn metadata defaultBranch into an explicit README branch", async () => {
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === "get_repo_metadata") {
+        return Promise.resolve({ owner: "owner", name: "repo", defaultBranch: "master" });
+      }
+      if (command === "get_repo_readme") {
+        return Promise.resolve("# README");
+      }
+      return Promise.resolve(undefined);
+    });
+    const { wrapper } = createQueryWrapper();
+    const { result } = renderHook(() => useRefreshRepoPanel("owner", "repo", undefined), {
+      wrapper,
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync();
+    });
+
+    expect(invoke).toHaveBeenCalledWith("get_repo_metadata", {
+      owner: "owner",
+      name: "repo",
+      force: true,
+    });
+    expect(invoke).toHaveBeenCalledWith("get_repo_readme", {
+      owner: "owner",
+      name: "repo",
+      branch: undefined,
+      force: true,
+    });
   });
 });

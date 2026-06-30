@@ -84,7 +84,8 @@ export interface AgentPreferences {
 export interface DiscoverRepo {
   owner: string;
   name: string;
-  branch: string;
+  branch?: string;
+  defaultBranch?: string;
   description?: string;
   stars?: number;
   forks?: number;

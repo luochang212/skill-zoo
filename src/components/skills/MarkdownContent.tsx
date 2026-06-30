@@ -16,7 +16,7 @@ function makeAbsoluteUrl(
   if (!owner || !name) return url;
   // Already absolute
   if (/^https?:\/\//i.test(url)) return url;
-  const ref = branch || "main";
+  const ref = branch || "HEAD";
   // Path relative to repo root
   const clean = url.startsWith("./") ? url.slice(2) : url;
   const base = clean.startsWith("/") ? clean.slice(1) : clean;

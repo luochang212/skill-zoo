@@ -6,6 +6,9 @@ use std::collections::HashMap;
 use tauri::State;
 use tauri_plugin_opener::OpenerExt;
 
+type UpdateRepoKey = (String, String, Option<String>);
+type UpdateRepoEntries = Vec<(String, SkillLockEntry)>;
+
 #[tauri::command]
 pub fn is_portable_build() -> bool {
     cfg!(feature = "portable")
@@ -363,11 +366,19 @@ impl CheckedRemoteSkill {
     }
 }
 
-fn repo_branch_ref(owner: &str, repo: &str, branch: &str) -> String {
-    format!("{owner}/{repo}@{branch}")
+fn repo_branch_ref(owner: &str, repo: &str, branch: Option<&str>) -> String {
+    match branch {
+        Some(branch) => format!("{owner}/{repo}@{branch}"),
+        None => format!("{owner}/{repo}@default"),
+    }
 }
 
-fn missing_remote_path_error(owner: &str, repo: &str, branch: &str, skill_path: &str) -> String {
+fn missing_remote_path_error(
+    owner: &str,
+    repo: &str,
+    branch: Option<&str>,
+    skill_path: &str,
+) -> String {
     let remote_ref = repo_branch_ref(owner, repo, branch);
     if skill_path.is_empty() {
         format!("Skill root no longer exists in {remote_ref}")
@@ -383,15 +394,14 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
     let lock = SkillLock::read().map_err(|e| e.to_string())?;
 
     // Group skills by (owner, repo, branch) to minimize API calls
-    let mut skills_by_repo: HashMap<(String, String, String), Vec<(String, SkillLockEntry)>> =
-        HashMap::new();
+    let mut skills_by_repo: HashMap<UpdateRepoKey, UpdateRepoEntries> = HashMap::new();
 
     for (skill_name, entry) in &lock.skills {
         let (owner, name) = entry.parse_source_owner_name();
         let (Some(owner), Some(name)) = (owner, name) else {
             continue;
         };
-        let branch = entry.branch.clone().unwrap_or_else(|| "main".to_string());
+        let branch = entry.branch.clone();
         let key = (owner.clone(), name.clone(), branch.clone());
         skills_by_repo
             .entry(key)
@@ -406,7 +416,7 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
     let mut checked_skills: HashMap<String, CheckedRemoteSkill> = HashMap::new();
 
     // Randomize repo order for fairness when rate-limited
-    let mut repos: Vec<(String, String, String)> = skills_by_repo.keys().cloned().collect();
+    let mut repos: Vec<(String, String, Option<String>)> = skills_by_repo.keys().cloned().collect();
     repos.shuffle(&mut rand::thread_rng());
 
     for (owner, repo, branch) in repos {
@@ -419,7 +429,7 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
             continue;
         };
 
-        match CliService::fetch_repo_tree(&owner, &repo, &branch).await {
+        match CliService::fetch_repo_tree(&owner, &repo, branch.as_deref()).await {
             Ok(Some(tree)) => {
                 checked_repos += 1;
 
@@ -432,7 +442,7 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
                         None => CheckedRemoteSkill::error(
                             repo.clone(),
                             "missingRemotePath",
-                            missing_remote_path_error(&owner, &repo, &branch, skill_path),
+                            missing_remote_path_error(&owner, &repo, branch.as_deref(), skill_path),
                         ),
                     };
                     checked_skills.insert(skill_name.clone(), checked);
@@ -450,7 +460,7 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
                             "repoUnavailable",
                             format!(
                                 "Repository or branch could not be found: {}",
-                                repo_branch_ref(&owner, &repo, &branch)
+                                repo_branch_ref(&owner, &repo, branch.as_deref())
                             ),
                         ),
                     );
@@ -467,7 +477,7 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
                             "rateLimited",
                             format!(
                                 "GitHub rate limit stopped update checks for {}",
-                                repo_branch_ref(&owner, &repo, &branch)
+                                repo_branch_ref(&owner, &repo, branch.as_deref())
                             ),
                         ),
                     );
@@ -483,7 +493,7 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
                             "checkFailed",
                             format!(
                                 "Could not check updates for {}: {}",
-                                repo_branch_ref(&owner, &repo, &branch),
+                                repo_branch_ref(&owner, &repo, branch.as_deref()),
                                 error
                             ),
                         ),
@@ -559,7 +569,7 @@ mod skill_update_check_tests {
     #[test]
     fn missing_remote_path_error_names_repo_branch_and_path() {
         assert_eq!(
-            missing_remote_path_error("owner", "repo", "main", "skills/demo"),
+            missing_remote_path_error("owner", "repo", Some("main"), "skills/demo"),
             "Skill path no longer exists in owner/repo@main: skills/demo"
         );
     }

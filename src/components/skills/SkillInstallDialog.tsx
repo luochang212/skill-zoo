@@ -21,7 +21,7 @@ interface SkillInstallDialogProps {
   skills: DiscoverableSkill[];
   repoOwner: string;
   repoName: string;
-  repoBranch: string;
+  repoBranch?: string;
   onInstall: (skillNames: string[], agents: string[]) => void;
   isPending?: boolean;
 }
@@ -62,7 +62,7 @@ export function SkillInstallDialog({
         <DialogHeader>
           <DialogTitle>{t("installDialog.title")}</DialogTitle>
           <DialogDescription>
-            {t("installDialog.from")} {repoOwner}/{repoName} ({repoBranch})
+            {t("installDialog.from")} {repoOwner}/{repoName} ({repoBranch ?? "default"})
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">

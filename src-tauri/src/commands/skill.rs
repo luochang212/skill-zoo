@@ -1680,7 +1680,10 @@ struct RecommendedRepoEntry {
 pub struct DiscoverRepo {
     pub owner: String,
     pub name: String,
-    pub branch: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_branch: Option<String>,
     pub description: Option<String>,
     pub stars: Option<i32>,
     pub forks: Option<i32>,
@@ -1691,6 +1694,24 @@ pub struct DiscoverRepo {
     #[serde(default)]
     pub topics: Vec<String>,
     pub html_url: Option<String>,
+}
+
+fn minimal_discover_repo(owner: String, name: String, branch: Option<String>) -> DiscoverRepo {
+    DiscoverRepo {
+        owner,
+        name,
+        branch,
+        default_branch: None,
+        description: None,
+        stars: None,
+        forks: None,
+        language: None,
+        license: None,
+        open_issues: None,
+        pushed_at: None,
+        topics: vec![],
+        html_url: None,
+    }
 }
 
 #[tauri::command]
@@ -1711,7 +1732,8 @@ pub fn get_recommended_repos(app: tauri::AppHandle) -> Result<Vec<DiscoverRepo>,
         .map(|e| DiscoverRepo {
             owner: e.owner,
             name: e.name,
-            branch: e.branch,
+            branch: Some(e.branch),
+            default_branch: None,
             description: Some(e.description),
             stars: None,
             forks: None,
@@ -1729,16 +1751,21 @@ async fn fetch_github_repo_metadata(owner: &str, name: &str) -> Option<DiscoverR
     let url = format!("https://api.github.com/repos/{owner}/{name}");
     let client = config::http_client();
 
-    match client.get(&url).send().await {
+    match client
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+    {
         Ok(resp) if resp.status().is_success() => match resp.json::<serde_json::Value>().await {
             Ok(json) => Some(DiscoverRepo {
                 owner: owner.to_string(),
                 name: name.to_string(),
-                branch: json
+                branch: None,
+                default_branch: json
                     .get("default_branch")
                     .and_then(|v| v.as_str())
-                    .unwrap_or("main")
-                    .to_string(),
+                    .map(|s| s.to_string()),
                 description: json
                     .get("description")
                     .and_then(|v| v.as_str())
@@ -1793,22 +1820,18 @@ async fn fetch_github_repo_metadata(owner: &str, name: &str) -> Option<DiscoverR
 pub async fn search_repo(query: String) -> Result<DiscoverRepo, String> {
     let repo_query = github::parse_repo_query(&query)?;
     if let Some(branch) = repo_query.branch {
-        return Ok(DiscoverRepo {
-            owner: repo_query.owner,
-            name: repo_query.name,
-            branch,
-            description: None,
-            stars: None,
-            forks: None,
-            language: None,
-            license: None,
-            open_issues: None,
-            pushed_at: None,
-            topics: vec![],
-            html_url: None,
-        });
+        return Ok(minimal_discover_repo(
+            repo_query.owner,
+            repo_query.name,
+            Some(branch),
+        ));
     }
-    get_repo_metadata(repo_query.owner, repo_query.name, None).await
+    let owner = repo_query.owner;
+    let name = repo_query.name;
+    match get_repo_metadata(owner.clone(), name.clone(), None).await {
+        Ok(repo) => Ok(repo),
+        Err(_) => Ok(minimal_discover_repo(owner, name, None)),
+    }
 }
 
 /// Cache entry keyed by "owner/name", stored in ~/.skill-zoo/repo-metadata-cache.json
@@ -1820,13 +1843,30 @@ struct RepoMetadataCacheEntry {
     fetched_at: u64,
 }
 
+fn normalize_repo_metadata_cache_entry(
+    mut entry: RepoMetadataCacheEntry,
+) -> RepoMetadataCacheEntry {
+    let legacy_default_branch = entry.data.branch.take();
+    if entry.data.default_branch.is_none() {
+        entry.data.default_branch = legacy_default_branch;
+    }
+    entry
+}
+
 fn load_repo_metadata_cache() -> std::collections::HashMap<String, RepoMetadataCacheEntry> {
     let path = config::get_app_config_dir().join("repo-metadata-cache.json");
     let content = match std::fs::read_to_string(&path) {
         Ok(s) => s,
         Err(_) => return std::collections::HashMap::new(),
     };
-    serde_json::from_str(&content).unwrap_or_default()
+    serde_json::from_str::<std::collections::HashMap<String, RepoMetadataCacheEntry>>(&content)
+        .map(|cache| {
+            cache
+                .into_iter()
+                .map(|(key, entry)| (key, normalize_repo_metadata_cache_entry(entry)))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn save_repo_metadata_cache(cache: &std::collections::HashMap<String, RepoMetadataCacheEntry>) {
@@ -1845,7 +1885,7 @@ pub async fn get_repo_metadata(
     name: String,
     force: Option<bool>,
 ) -> Result<DiscoverRepo, String> {
-    github::validate_repo_segments(&owner, &name, "main")?;
+    github::validate_repo_segments(&owner, &name, "HEAD")?;
     let force = force.unwrap_or(false);
     let key = format!("{owner}/{name}");
     let mut cache = load_repo_metadata_cache();
@@ -1918,8 +1958,15 @@ fn save_readme_cache(cache: &std::collections::HashMap<String, RepoReadmeCacheEn
 
 // Returns Ok(content) on success, Err(()) on 404 or network/timeout errors.
 // Neither is cached, since repos may add a README later.
-async fn fetch_repo_readme(owner: &str, name: &str, branch: &str) -> Result<String, ()> {
-    let url = format!("https://api.github.com/repos/{owner}/{name}/readme?ref={branch}");
+fn repo_ref_cache_key(branch: Option<&str>) -> &str {
+    branch.unwrap_or("default")
+}
+
+async fn fetch_repo_readme(owner: &str, name: &str, branch: Option<&str>) -> Result<String, ()> {
+    let url = match branch {
+        Some(branch) => format!("https://api.github.com/repos/{owner}/{name}/readme?ref={branch}"),
+        None => format!("https://api.github.com/repos/{owner}/{name}/readme"),
+    };
     let client = config::http_client();
 
     let resp = client.get(&url).send().await.map_err(|_| ())?;
@@ -1982,7 +2029,11 @@ fn is_root_readme_path(path: &str) -> bool {
     )
 }
 
-fn read_cached_repo_readme_from_zip(owner: &str, name: &str, branch: &str) -> Result<String, ()> {
+fn read_cached_repo_readme_from_zip(
+    owner: &str,
+    name: &str,
+    branch: Option<&str>,
+) -> Result<String, ()> {
     let zip_path = CliService::cache_zip_path(owner, name, branch);
     read_repo_readme_from_zip_path(&zip_path)
 }
@@ -1994,10 +2045,13 @@ pub async fn get_repo_readme(
     branch: Option<String>,
     force: Option<bool>,
 ) -> Result<String, String> {
-    let branch = branch.unwrap_or_else(|| "main".to_string());
     let force = force.unwrap_or(false);
-    github::validate_repo_segments(&owner, &name, &branch)?;
-    let key = format!("{owner}/{name}/{branch}");
+    if let Some(branch) = branch.as_deref() {
+        github::validate_repo_segments(&owner, &name, branch)?;
+    } else {
+        github::validate_repo_segments(&owner, &name, "HEAD")?;
+    }
+    let key = format!("{owner}/{name}/{}", repo_ref_cache_key(branch.as_deref()));
 
     let mut cache = load_readme_cache();
     let stale_cache = cache.get(&key).map(|entry| entry.content.clone());
@@ -2013,7 +2067,7 @@ pub async fn get_repo_readme(
         }
     }
 
-    match fetch_repo_readme(&owner, &name, &branch).await {
+    match fetch_repo_readme(&owner, &name, branch.as_deref()).await {
         Ok(content) => {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -2034,7 +2088,7 @@ pub async fn get_repo_readme(
                 return Ok(content);
             }
 
-            match read_cached_repo_readme_from_zip(&owner, &name, &branch) {
+            match read_cached_repo_readme_from_zip(&owner, &name, branch.as_deref()) {
                 Ok(content) => {
                     let now = std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
@@ -2065,14 +2119,23 @@ pub async fn get_repo_skills(
     branch: Option<String>,
     force: Option<bool>,
 ) -> Result<RepoSkillsResult, CommandError> {
-    let branch = branch.unwrap_or_else(|| "main".to_string());
-    github::validate_repo_segments(&owner, &name, &branch).map_err(CommandError::bad_request)?;
+    if let Some(branch) = branch.as_deref() {
+        github::validate_repo_segments(&owner, &name, branch).map_err(CommandError::bad_request)?;
+    } else {
+        github::validate_repo_segments(&owner, &name, "HEAD").map_err(CommandError::bad_request)?;
+    }
     let force = force.unwrap_or(false);
 
-    let (mut skills, total) =
-        SkillService::discover_from_repo_capped(&owner, &name, &branch, 800, force, Some(&app))
-            .await
-            .map_err(CommandError::from)?;
+    let (mut skills, total) = SkillService::discover_from_repo_capped(
+        &owner,
+        &name,
+        branch.as_deref(),
+        800,
+        force,
+        Some(&app),
+    )
+    .await
+    .map_err(CommandError::from)?;
 
     let cache = state
         .skill_cache
@@ -2088,7 +2151,7 @@ pub async fn get_repo_skills(
                 &skill.directory,
                 &owner,
                 &name,
-                Some(&branch),
+                branch.as_deref(),
             );
     }
 
@@ -2102,11 +2165,14 @@ pub async fn preview_skill_md(
     branch: Option<String>,
     skill_dir: String,
 ) -> Result<String, CommandError> {
-    let branch = branch.unwrap_or_else(|| "main".to_string());
-    github::validate_repo_segments(&owner, &name, &branch).map_err(CommandError::bad_request)?;
+    if let Some(branch) = branch.as_deref() {
+        github::validate_repo_segments(&owner, &name, branch).map_err(CommandError::bad_request)?;
+    } else {
+        github::validate_repo_segments(&owner, &name, "HEAD").map_err(CommandError::bad_request)?;
+    }
     validate_skill_directory(&skill_dir).map_err(CommandError::bad_request)?;
 
-    let zip_path = CliService::ensure_cached_zip(&owner, &name, &branch, false)
+    let zip_path = CliService::ensure_cached_zip(&owner, &name, branch.as_deref(), false)
         .await
         .map_err(CommandError::from)?;
 
@@ -2438,6 +2504,42 @@ mod tests {
         let result = read_repo_readme_from_zip_path(&dir.path().join("repo.zip"));
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn metadata_cache_treats_legacy_branch_as_default_branch_only() {
+        let entry = RepoMetadataCacheEntry {
+            data: minimal_discover_repo(
+                "owner".to_string(),
+                "repo".to_string(),
+                Some("master".to_string()),
+            ),
+            fetched_at: 1,
+        };
+
+        let entry = normalize_repo_metadata_cache_entry(entry);
+
+        assert_eq!(entry.data.branch, None);
+        assert_eq!(entry.data.default_branch.as_deref(), Some("master"));
+    }
+
+    #[test]
+    fn metadata_cache_clears_branch_when_default_branch_is_present() {
+        let mut repo = minimal_discover_repo(
+            "owner".to_string(),
+            "repo".to_string(),
+            Some("main".to_string()),
+        );
+        repo.default_branch = Some("master".to_string());
+        let entry = RepoMetadataCacheEntry {
+            data: repo,
+            fetched_at: 1,
+        };
+
+        let entry = normalize_repo_metadata_cache_entry(entry);
+
+        assert_eq!(entry.data.branch, None);
+        assert_eq!(entry.data.default_branch.as_deref(), Some("master"));
     }
 
     #[test]
