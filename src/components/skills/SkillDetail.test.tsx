@@ -267,7 +267,7 @@ describe("SkillDetail", () => {
 
     await userEvent.click(await screen.findByText("artifact.bin"));
 
-    await screen.findByText("Binary file — cannot preview in app");
+    await screen.findByText("Binary file, cannot preview in app");
     expect(screen.queryByText("Edit")).not.toBeInTheDocument();
     expect(screen.queryByText("Split")).not.toBeInTheDocument();
   });

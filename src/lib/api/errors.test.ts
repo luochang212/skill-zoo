@@ -10,7 +10,7 @@ describe("formatApiError", () => {
         message: "Download failed for owner/repo",
         repo: "owner/repo",
       }),
-    ).toBe("Could not download owner/repo. Check your internet connection and try again.");
+    ).toBe("Failed to download owner/repo. Check your internet connection and try again.");
   });
 
   it("keeps a fallback for legacy download strings", () => {
@@ -19,7 +19,7 @@ describe("formatApiError", () => {
         "CLI error: Failed to download vercel-labs/agent-browser: error sending request",
       ),
     ).toBe(
-      "Could not download vercel-labs/agent-browser. Check your internet connection and try again.",
+      "Failed to download vercel-labs/agent-browser. Check your internet connection and try again.",
     );
   });
 
@@ -66,7 +66,7 @@ describe("formatApiError", () => {
           repo: "owner/repo",
         }),
       ),
-    ).toBe("GitHub could not download the update package for owner/repo. Please try again later.");
+    ).toBe("owner/repo is temporarily unavailable. Please try again later.");
   });
 
   it("formats bad-request errors with the backend detail", () => {
@@ -91,7 +91,7 @@ describe("formatApiError", () => {
 
   it("formats legacy download-unavailable strings without calling them API rate limits", () => {
     expect(formatApiError("demo: Download temporarily unavailable: owner/repo")).toBe(
-      "GitHub could not download the update package for owner/repo. Please try again later.",
+      "owner/repo is temporarily unavailable. Please try again later.",
     );
   });
 

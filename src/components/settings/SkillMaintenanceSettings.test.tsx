@@ -169,7 +169,7 @@ describe("SkillMaintenanceSettings", () => {
 
     await waitFor(() =>
       expect(toast.warning).toHaveBeenCalledWith(
-        "GitHub could not download the update package for vercel-labs/agent-browser. Please try again later.",
+        "vercel-labs/agent-browser is temporarily unavailable. Please try again later.",
       ),
     );
   });

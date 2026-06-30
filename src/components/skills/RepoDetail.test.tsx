@@ -166,7 +166,7 @@ describe("RepoDetail discover status", () => {
 
     expect(
       screen.getByText(
-        "Could not download owner/repo. Check your internet connection and try again.",
+        "Failed to download owner/repo. Check your internet connection and try again.",
       ),
     ).toBeInTheDocument();
   });
