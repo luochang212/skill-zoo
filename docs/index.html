@@ -34,7 +34,7 @@
 
         --serif:
           ui-serif, Georgia, "Times New Roman", "Noto Serif CJK SC",
-          "Source Han Serif SC", serif;
+          "Source Han Serif SC", "FangSong", "STSong", "KaiTi", serif;
         --sans:
           system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans CJK SC",
           "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -52,6 +52,7 @@
       }
       html {
         scroll-behavior: smooth;
+        scroll-padding-top: 60px;
       }
       body {
         background: var(--bg);
@@ -558,13 +559,31 @@
         margin-bottom: 16px;
       }
       @media (min-width: 861px) {
+        #cta .hero-report-inner {
+          max-width: clamp(960px, 92vw, 1600px);
+        }
         #cta .hero-report-grid {
-          justify-content: flex-end;
-          gap: clamp(72px, 7vw, 108px);
+          justify-content: center;
+          gap: clamp(80px, 8vw, 128px);
         }
         #cta .hero-report-grid > div:first-child {
-          flex: 0 0 clamp(240px, 29vw, 378px);
+          flex: 0 0 clamp(280px, 32vw, 420px);
           margin-left: 0;
+        }
+        #cta .hero-report-grid > div:last-child {
+          max-width: clamp(440px, 60vw, 960px);
+        }
+        #cta .hero-report-fig {
+          transform: translateX(clamp(24px, 3vw, 72px));
+        }
+        #cta .mockup-window {
+          max-width: 960px;
+        }
+        #cta .m-sidebar {
+          width: 180px;
+        }
+        #cta .m-body {
+          height: 500px;
         }
       }
       .hero-report-fig svg {
@@ -2605,7 +2624,7 @@
 
         <div class="stat-row">
           <div>
-            <div class="stat-num">33</div>
+            <div class="stat-num">54</div>
             <div class="stat-label" data-i18n="stat-commands">
               Tauri IPC 命令
             </div>
@@ -2617,7 +2636,7 @@
             </div>
           </div>
           <div>
-            <div class="stat-num">9</div>
+            <div class="stat-num">11</div>
             <div class="stat-label" data-i18n="stat-agents">
               编程工具类型支持
             </div>
@@ -3186,7 +3205,7 @@
             </div>
             <h3 data-i18n="feat-local">本地 Skill 管理</h3>
             <p data-i18n="feat-local-d">
-              侧边栏分类（收藏/我的/仓库分组），网格与列表双视图，支持按名称、仓库、更新时间排序及关键字搜索。
+              侧边栏五类筛选（全部/收藏/归档/我的/一致性审计），网格与列表双视图，支持按名称、仓库、更新时间排序及关键字搜索。
             </p>
           </div>
           <div class="card dark-card">
@@ -3972,13 +3991,13 @@
         },
         "feat-local": { zh: "本地 Skill 管理", en: "Local Skill Management" },
         "feat-local-d": {
-          zh: "侧边栏分类（收藏/我的/仓库分组），网格与列表双视图，支持按名称、仓库、更新时间排序及关键字搜索。",
-          en: "Sidebar categories (favorites/mine/by repo), grid and list views, sort by name, repo, update time, and keyword search.",
+          zh: "侧边栏五类筛选（全部/收藏/归档/我的/一致性审计），网格与列表双视图，支持按名称、仓库、更新时间排序及关键字搜索。",
+          en: "Five sidebar filters (all/starred/archived/mine/consistency), grid and list views, sort by name, repo, update time, and keyword search.",
         },
         "feat-editor": { zh: "Skill 编辑器", en: "Skill Editor" },
         "feat-editor-d": {
-          zh: "四标签页：Markdown 渲染、文本编辑、可拖拽分屏、文件树浏览。YAML frontmatter 自动解析为信息表格，内含安全审计面板。",
-          en: "Four tabs: Markdown preview, text editor, draggable split view, file tree. YAML frontmatter parsed into info table with built-in security audit.",
+          zh: "三标签页：Markdown 预览、文本编辑、可拖拽分屏，侧边栏文件树快速切换。YAML frontmatter 自动解析为信息表格，内置一致性审计面板。",
+          en: "Three tabs: Markdown preview, text editor, draggable split view, with a sidebar file tree for quick navigation. YAML frontmatter parsed into info table with built-in consistency audit.",
         },
         "feat-create": { zh: "Skill 创建", en: "Skill Creation" },
         "feat-create-d": {
@@ -4018,8 +4037,8 @@
           en: "Tauri IPC is the only bridge",
         },
         "d3-desc": {
-          zh: "前端零文件系统访问、零 GitHub API 调用、零 git 执行。所有外部交互通过 33 个类型化 Rust Tauri 命令完成。路径遍历严格验证，拒绝绝对路径与 ..。",
-          en: "Zero filesystem access, zero GitHub API calls, zero git execution from the frontend. All external interaction goes through 33 typed Rust Tauri commands. Path traversal is strictly validated — absolute paths and .. are rejected.",
+          zh: "前端零文件系统访问、零 GitHub API 调用、零 git 执行。所有外部交互通过 54 个类型化 Rust Tauri 命令完成。路径遍历严格验证，拒绝绝对路径与 ..。",
+          en: "Zero filesystem access, zero GitHub API calls, zero git execution from the frontend. All external interaction goes through 54 typed Rust Tauri commands. Path traversal is strictly validated — absolute paths and .. are rejected.",
         },
         // UX
         "ux-eyebrow": { zh: "用户体验", en: "User Experience" },
@@ -4175,8 +4194,8 @@
           en: "Ready to organize your skill library?",
         },
         "cta-desc": {
-          zh: "为 Claude Code、Codex、OpenCode 等 Coding Agent 打造的本地技能管理器。覆盖技能的全生命周期，同时提供桌面 GUI 与 npm CLI 两种交互方式。",
-          en: "A local skill manager built for Claude Code, Codex, OpenCode and other coding agents. Covers the full skill lifecycle, with both a desktop GUI and npm CLI.",
+          zh: "为 Claude Code、Codex、Cursor、OpenCode 等 11 款 Coding Agent 打造的本地技能管理器。覆盖技能的全生命周期，同时提供桌面 GUI 与 npm CLI 两种交互方式。",
+          en: "A local skill manager built for Claude Code, Codex, Cursor, OpenCode and 11 coding agents in total. Covers the full skill lifecycle, with both a desktop GUI and npm CLI.",
         },
       };
 
