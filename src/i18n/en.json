@@ -100,7 +100,7 @@
   "skillFiles": {
     "empty": "No files found.",
     "error": "Could not load file tree.",
-    "binaryFile": "Binary file — cannot preview in app",
+    "binaryFile": "Binary file, cannot preview in app",
     "imageTooLarge": "Image is too large to preview in app",
     "openInFinder": "Open in Finder",
     "save": "Save",
@@ -132,12 +132,13 @@
     "retry": "Retry",
     "repository": "the repository",
     "network": "Network error. Check your internet connection and try again.",
-    "downloadNetwork": "Could not download {{repo}}. Check your internet connection and try again.",
+    "downloadNetwork": "Failed to download {{repo}}. Check your internet connection and try again.",
     "downloadTimeout": "GitHub connection timed out while downloading {{repo}}. Check your connection and try again.",
-    "downloadDns": "We couldn't look up GitHub's address. This usually means a DNS issue — if you're in a region with restricted access, try switching to a public DNS like 8.8.8.8.",
-    "downloadConnect": "We couldn't reach GitHub's servers. Your internet might be working fine, but something is blocking the connection — check your firewall or proxy settings.",
-    "downloadUnavailable": "GitHub could not download the update package for {{repo}}. Please try again later.",
-    "downloadFailed": "Could not download {{repo}}. Please try again.",
+    "downloadDns": "DNS lookup failed, can't reach GitHub.",
+    "downloadConnect": "Can't reach GitHub's servers.",
+    "downloadTls": "TLS / certificate verification failed for {{repo}}.",
+    "downloadUnavailable": "{{repo}} is temporarily unavailable. Please try again later.",
+    "downloadFailed": "Failed to download {{repo}}. Please try again.",
     "cliMissing": "Required tools not found. Make sure Node.js and npx are installed.",
     "permDenied": "Permission denied. Check that the skills directory is accessible.",
     "diskFull": "Disk is full. Free up some space and try again.",
@@ -364,7 +365,7 @@
     },
     "about": {
       "title": "About",
-      "description": "Agent Skill Manager — Unified management for skills in Claude Code, Codex, Cursor, and more",
+      "description": "Agent Skill Manager. Unified management for skills in Claude Code, Codex, Cursor, and more",
       "officialSite": "Official Site"
     },
     "updater": {

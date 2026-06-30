@@ -47,6 +47,12 @@ pub enum AppError {
         source: reqwest::Error,
     },
 
+    #[error("TLS / certificate error connecting to GitHub for {repo}: {source}")]
+    DownloadTls {
+        repo: String,
+        source: reqwest::Error,
+    },
+
     #[error("Download temporarily unavailable: {0}")]
     DownloadUnavailable(String),
 
@@ -106,6 +112,7 @@ impl AppError {
             AppError::DownloadTimeout { .. } => "downloadTimeout",
             AppError::DownloadDns { .. } => "downloadDns",
             AppError::DownloadConnect { .. } => "downloadConnect",
+            AppError::DownloadTls { .. } => "downloadTls",
             AppError::DownloadUnavailable(_) => "downloadUnavailable",
             AppError::RepoNotFound(_) => "repoNotFound",
             AppError::RateLimited(_) => "rateLimited",
@@ -126,6 +133,7 @@ impl AppError {
             | AppError::DownloadTimeout { repo, .. }
             | AppError::DownloadDns { repo, .. }
             | AppError::DownloadConnect { repo, .. }
+            | AppError::DownloadTls { repo, .. }
             | AppError::DownloadUnavailable(repo)
             | AppError::RepoNotFound(repo)
             | AppError::RateLimited(repo) => Some(repo.clone()),
@@ -147,45 +155,99 @@ pub fn classify_download_error(repo: String, error: reqwest::Error) -> AppError 
     );
 
     if error.is_timeout() {
-        AppError::DownloadTimeout {
+        return AppError::DownloadTimeout {
             repo,
             source: error,
-        }
-    } else if error.is_connect() {
-        // When is_request() is also true, hyper combined the connect + request error
-        // into a single opaque error. We can't reliably distinguish DNS from
-        // connection-refused in that case, so lean toward the more common scenario.
-        let msg = error.to_string().to_lowercase();
-        if msg.contains("dns")
+        };
+    }
+
+    let msg = error.to_string().to_lowercase();
+
+    if error.is_connect() {
+        // macOS DNS: "nodename nor servname provided, or not known"
+        // Linux glibc DNS: "Temporary failure in name resolution"
+        // Linux glibc DNS: "Name or service not known"
+        // BSD/macOS DNS: "No address associated with hostname"
+        // Windows DNS: "No such host is known"
+        let is_dns = msg.contains("dns")
             || msg.contains("name resolution")
-            || msg.contains("no address")
-            || msg.contains("not found")
-            || (!error.is_request()
-                && (msg.contains("resolve")
-                    || msg.contains("lookup")
-                    || msg.contains("unreachable")))
+            || msg.contains("nodename nor servname")
+            || msg.contains("no address associated with hostname")
+            || msg.contains("no such host is known")
+            || msg.contains("temporary failure in name")
+            || msg.contains("name or service not known");
+
+        if is_dns {
+            return AppError::DownloadDns {
+                repo,
+                source: error,
+            };
+        }
+
+        // When is_request() is also true, hyper combined the connect + request
+        // error. Check remaining keywords only against the connect-only case
+        // to avoid misclassifying HTTP-level errors as DNS.
+        if !error.is_request() {
+            if msg.contains("resolve")
+                || msg.contains("lookup")
+                || msg.contains("unreachable")
+                || msg.contains("not found")
+                || msg.contains("no address")
+            {
+                return AppError::DownloadDns {
+                    repo,
+                    source: error,
+                };
+            }
+        }
+
+        // TLS errors — distinct from plain "can't connect"
+        if msg.contains("tls")
+            || msg.contains("ssl")
+            || msg.contains("certificate")
+            || msg.contains("handshake")
+            || msg.contains("UnknownIssuer")
+            || msg.contains("CertExpired")
+            || msg.contains("HostnameMismatch")
         {
-            AppError::DownloadDns {
+            return AppError::DownloadTls {
                 repo,
                 source: error,
-            }
-        } else {
-            AppError::DownloadConnect {
-                repo,
-                source: error,
-            }
+            };
         }
-    } else if let Some(status) = error.status() {
+
+        return AppError::DownloadConnect {
+            repo,
+            source: error,
+        };
+    }
+
+    // We have an error after the connection was established.
+    // Check for TLS issues in the response phase too (e.g. incomplete handshake).
+    if msg.contains("tls")
+        || msg.contains("ssl")
+        || msg.contains("certificate")
+        || msg.contains("handshake")
+    {
+        return AppError::DownloadTls {
+            repo,
+            source: error,
+        };
+    }
+
+    // Preserve HTTP status when available — it helps distinguish
+    // "connected but body transfer failed" from other network errors.
+    if let Some(status) = error.status() {
         eprintln!("  http_status={}", status.as_u16());
-        AppError::DownloadNetwork {
+        return AppError::DownloadNetwork {
             repo,
             source: error,
-        }
-    } else {
-        AppError::DownloadNetwork {
-            repo,
-            source: error,
-        }
+        };
+    }
+
+    AppError::DownloadNetwork {
+        repo,
+        source: error,
     }
 }
 
@@ -237,9 +299,8 @@ mod tests {
     }
 
     #[test]
-    fn command_error_maps_dns_and_connect_variants() {
-        // Verify the two new AppError variants map to the expected error codes.
-        // Use a URL parse error to get a cheap reqwest::Error for construction.
+    fn command_error_maps_dns_connect_tls_variants() {
+        // Verify the DNS, connect, and TLS AppError variants map to expected codes.
         let source = reqwest::Client::new()
             .get("not a valid url")
             .build()
@@ -247,7 +308,7 @@ mod tests {
 
         let dns_error = AppError::DownloadDns {
             repo: "test/repo".into(),
-            source: source, // reqwest::Error doesn't impl Clone, reconstruct
+            source,
         };
         let dns_cmd = CommandError::from(dns_error);
         assert_eq!(dns_cmd.code, "downloadDns");
@@ -264,6 +325,18 @@ mod tests {
         let connect_cmd = CommandError::from(connect_error);
         assert_eq!(connect_cmd.code, "downloadConnect");
         assert_eq!(connect_cmd.repo.as_deref(), Some("test/repo"));
+
+        let source3 = reqwest::Client::new()
+            .get("nope again")
+            .build()
+            .unwrap_err();
+        let tls_error = AppError::DownloadTls {
+            repo: "test/repo".into(),
+            source: source3,
+        };
+        let tls_cmd = CommandError::from(tls_error);
+        assert_eq!(tls_cmd.code, "downloadTls");
+        assert_eq!(tls_cmd.repo.as_deref(), Some("test/repo"));
     }
 
     #[tokio::test]

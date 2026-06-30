@@ -11,6 +11,7 @@ const ERROR_KEYS: Record<string, string> = {
   downloadTimeout: "error.downloadTimeout",
   downloadDns: "error.downloadDns",
   downloadConnect: "error.downloadConnect",
+  downloadTls: "error.downloadTls",
   downloadUnavailable: "error.downloadUnavailable",
   repoNotFound: "error.repoNotFound",
   rateLimited: "error.rateLimit",
@@ -62,6 +63,14 @@ export function formatApiError(error: unknown): string {
     lower.includes("could not connect")
   ) {
     return translateError("error.downloadConnect", repo);
+  }
+  if (
+    lower.includes("tls") ||
+    lower.includes("ssl") ||
+    lower.includes("certificate") ||
+    lower.includes("handshake")
+  ) {
+    return translateError("error.downloadTls", repo);
   }
   if (lower.includes("download temporarily unavailable")) {
     return translateError("error.downloadUnavailable", repo);

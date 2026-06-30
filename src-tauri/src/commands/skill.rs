@@ -1828,14 +1828,7 @@ async fn fetch_github_repo_metadata(
                 Err(AppError::DownloadUnavailable(format!("{owner}/{name}")))
             }
         }
-        Err(e) => {
-            eprintln!(
-                "metadata fetch error for {owner}/{name}: connect={} timeout={}",
-                e.is_connect(),
-                e.is_timeout()
-            );
-            Err(classify_download_error(format!("{owner}/{name}"), e))
-        }
+        Err(e) => Err(classify_download_error(format!("{owner}/{name}"), e)),
     }
 }
 
@@ -2296,7 +2289,13 @@ pub async fn search_skills_sh(
         .query(&[("q", query.as_str()), ("limit", &limit.to_string())])
         .send()
         .await
-        .map_err(|e| format!("skills.sh request failed: {e}"))?;
+        .map_err(|e| {
+            serde_json::to_string(&CommandError::from(classify_download_error(
+                "skills.sh".into(),
+                e,
+            )))
+            .unwrap_or_else(|_| "skills.sh request failed".into())
+        })?;
 
     if !resp.status().is_success() {
         return Err(format!("skills.sh returned status {}", resp.status()));
@@ -2396,7 +2395,13 @@ pub async fn get_skill_audit(
         .timeout(std::time::Duration::from_secs(10))
         .send()
         .await
-        .map_err(|e| format!("Audit request failed: {e}"))?;
+        .map_err(|e| {
+            serde_json::to_string(&CommandError::from(classify_download_error(
+                "skills.sh/audit".into(),
+                e,
+            )))
+            .unwrap_or_else(|_| "Audit request failed".into())
+        })?;
 
     if !resp.status().is_success() {
         let status = resp.status();
