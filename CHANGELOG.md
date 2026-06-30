@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.11] — 2026-07-01
+
+### Changed
+- GitHub repos now follow the actual default branch instead of assuming `main`. The lock file stores an explicit branch only when specified; missing means "follow default."
+- Network errors are now classified with specific diagnostics: DNS lookup failures, connection refused (firewall/proxy), TLS/certificate errors (corporate HTTPS inspection), and timeouts each get distinct error messages instead of a generic "Check your internet connection."
+- SSH-style repo URLs (`git@github.com:owner/repo`) are now recognized in the search bar alongside HTTPS URLs and `owner/repo` shorthand.
+- Repo info panel metadata errors now show a specific error message with a Retry button, replacing the previous silent gray text.
+
 ## [0.3.10] — 2026-06-29
 
 ### Added

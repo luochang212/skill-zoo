@@ -1747,10 +1747,7 @@ pub fn get_recommended_repos(app: tauri::AppHandle) -> Result<Vec<DiscoverRepo>,
         .collect())
 }
 
-async fn fetch_github_repo_metadata(
-    owner: &str,
-    name: &str,
-) -> Result<DiscoverRepo, AppError> {
+async fn fetch_github_repo_metadata(owner: &str, name: &str) -> Result<DiscoverRepo, AppError> {
     let url = format!("https://api.github.com/repos/{owner}/{name}");
     let client = config::http_client();
 
@@ -1946,9 +1943,7 @@ pub async fn get_repo_metadata(
         }
         Err(e) => {
             if let Some(data) = stale_cache {
-                eprintln!(
-                    "metadata fetch failed for {owner}/{name}, using stale cache: {e}"
-                );
+                eprintln!("metadata fetch failed for {owner}/{name}, using stale cache: {e}");
                 return Ok(data);
             }
             Err(CommandError::from(e))
@@ -2033,8 +2028,7 @@ async fn fetch_repo_readme(
         content.as_bytes().to_vec()
     };
 
-    String::from_utf8(decoded)
-        .map_err(|e| AppError::Parse(format!("README not valid UTF-8: {e}")))
+    String::from_utf8(decoded).map_err(|e| AppError::Parse(format!("README not valid UTF-8: {e}")))
 }
 
 fn read_repo_readme_from_zip_path(zip_path: &Path) -> Result<String, ()> {
@@ -2093,8 +2087,7 @@ pub async fn get_repo_readme(
     if let Some(branch) = branch.as_deref() {
         github::validate_repo_segments(&owner, &name, branch).map_err(CommandError::bad_request)?;
     } else {
-        github::validate_repo_segments(&owner, &name, "HEAD")
-            .map_err(CommandError::bad_request)?;
+        github::validate_repo_segments(&owner, &name, "HEAD").map_err(CommandError::bad_request)?;
     }
     let key = format!("{owner}/{name}/{}", repo_ref_cache_key(branch.as_deref()));
 
@@ -2130,9 +2123,7 @@ pub async fn get_repo_readme(
         }
         Err(e) => {
             if let Some(content) = stale_cache {
-                eprintln!(
-                    "README fetch failed for {owner}/{name}, using stale cache: {e}"
-                );
+                eprintln!("README fetch failed for {owner}/{name}, using stale cache: {e}");
                 return Ok(content);
             }
 

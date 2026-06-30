@@ -155,11 +155,7 @@ export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
     isError: metaError,
     error: metaErrorObj,
   } = useRepoMetadata(owner, name);
-  const {
-    data: readme,
-    isLoading: readmeLoading,
-    isError: readmeError,
-  } = useRepoReadme(owner, name, undefined);
+  const { data: readme, isLoading: readmeLoading } = useRepoReadme(owner, name, undefined);
   const refreshPanel = useRefreshRepoPanel(owner, name, undefined);
   const isRefreshing = refreshPanel.isPending;
   const showRefreshing = isRefreshing || spinnerHolding;

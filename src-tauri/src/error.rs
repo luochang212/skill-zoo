@@ -187,18 +187,17 @@ pub fn classify_download_error(repo: String, error: reqwest::Error) -> AppError 
         // When is_request() is also true, hyper combined the connect + request
         // error. Check remaining keywords only against the connect-only case
         // to avoid misclassifying HTTP-level errors as DNS.
-        if !error.is_request() {
-            if msg.contains("resolve")
+        if !error.is_request()
+            && (msg.contains("resolve")
                 || msg.contains("lookup")
                 || msg.contains("unreachable")
                 || msg.contains("not found")
-                || msg.contains("no address")
-            {
-                return AppError::DownloadDns {
-                    repo,
-                    source: error,
-                };
-            }
+                || msg.contains("no address"))
+        {
+            return AppError::DownloadDns {
+                repo,
+                source: error,
+            };
         }
 
         // TLS errors — distinct from plain "can't connect"
