@@ -558,7 +558,10 @@
         letter-spacing: -0.01em;
         margin-bottom: 16px;
       }
-      @media (min-width: 861px) {
+      #cta .hero-report-grid > div:first-child {
+        margin-left: clamp(0px, 2vw, 28px);
+      }
+      @media (min-width: 1600px) {
         #cta .hero-report-inner {
           max-width: clamp(960px, 92vw, 1600px);
         }
@@ -584,6 +587,26 @@
         }
         #cta .m-body {
           height: 500px;
+        }
+      }
+      /* Product Overview — spread out on large screens */
+      @media (min-width: 1600px) {
+        #report .hero-report-grid > div:first-child {
+          flex: 0 0 clamp(300px, 28vw, 420px);
+          margin-left: clamp(12px, 4vw, 60px);
+        }
+        #report .hero-report-grid > div:last-child {
+          max-width: clamp(440px, 56vw, 880px);
+        }
+        #report .hero-report h1 {
+          font-size: clamp(38px, 5.5vw, 62px);
+        }
+        #report .hero-report .lead {
+          font-size: 16px;
+        }
+        #report .hero-dl-btn {
+          font-size: 16px;
+          padding: 14px 26px;
         }
       }
       .hero-report-fig svg {
@@ -700,7 +723,12 @@
         border: 1px solid rgba(255, 255, 255, 0.18);
         color: #f4f4f4;
         background: rgba(255, 255, 255, 0.03);
-        transition: all 200ms ease;
+        transition: all 150ms ease;
+        cursor: pointer;
+      }
+      .gh-cta-btn:active {
+        transform: translateY(0);
+        transition: all 60ms ease;
       }
       /* primary — GitHub, copper solid (mirrors hero primary) */
       .gh-cta-btn:first-child {
@@ -708,7 +736,14 @@
         border-color: var(--copper);
         color: #fff;
         font-weight: 700;
-        box-shadow: 0 2px 12px rgba(197, 102, 59, 0.2);
+        box-shadow:
+          0 2px 12px rgba(197, 102, 59, 0.2),
+          inset 0 1px 0 rgba(255, 255, 255, 0.18);
+      }
+      .gh-cta-btn:first-child:active {
+        box-shadow:
+          0 1px 4px rgba(197, 102, 59, 0.25),
+          inset 0 1px 0 rgba(255, 255, 255, 0.12);
       }
       /* hover — only on devices with true hover (skip touch to avoid
          double-tap: first tap triggers :hover, second tap actually clicks) */
@@ -719,7 +754,9 @@
         .gh-cta-btn:first-child:hover {
           background: var(--copper-d);
           border-color: var(--copper-d);
-          box-shadow: 0 8px 24px rgba(197, 102, 59, 0.38);
+          box-shadow:
+            0 8px 24px rgba(197, 102, 59, 0.38),
+            inset 0 1px 0 rgba(255, 255, 255, 0.22);
         }
         .gh-cta-btn:last-child:hover {
           border-color: var(--copper);
@@ -798,7 +835,8 @@
         text-decoration: none;
         font-family: var(--sans);
         font-size: 15px;
-        transition: all 200ms ease;
+        transition: all 150ms ease;
+        cursor: pointer;
       }
       .hero-dl-btn:hover {
         border-color: var(--copper);
@@ -806,16 +844,33 @@
         transform: translateY(-2px);
         box-shadow: 0 4px 16px rgba(197, 102, 59, 0.25);
       }
+      .hero-dl-btn:active {
+        transform: translateY(0);
+        box-shadow: none;
+        transition: all 60ms ease;
+      }
       .hero-dl-btn:first-child {
         background: var(--copper);
         border-color: var(--copper);
         color: #fff;
         font-weight: 700;
+        box-shadow:
+          0 2px 12px rgba(197, 102, 59, 0.2),
+          inset 0 1px 0 rgba(255, 255, 255, 0.18);
       }
       .hero-dl-btn:first-child:hover {
         background: var(--copper-d);
         border-color: var(--copper-d);
-        box-shadow: 0 6px 24px rgba(197, 102, 59, 0.35);
+        box-shadow:
+          0 6px 24px rgba(197, 102, 59, 0.35),
+          inset 0 1px 0 rgba(255, 255, 255, 0.22);
+      }
+      .hero-dl-btn:first-child:active {
+        transform: translateY(0);
+        box-shadow:
+          0 1px 4px rgba(197, 102, 59, 0.25),
+          inset 0 1px 0 rgba(255, 255, 255, 0.12);
+        transition: all 60ms ease;
       }
       .hero-dl-btn:first-child svg {
         color: #fff;
@@ -4791,6 +4846,7 @@
           }
         });
       })();
+
     </script>
   </body>
 </html>
