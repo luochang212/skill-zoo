@@ -273,7 +273,7 @@ fn recent_skills(events: &[SkillUsageEvent]) -> Vec<RecentSkillUsage> {
         }
         recent.push(RecentSkillUsage {
             name: event.name.clone(),
-            command: format!("/{}", event.name),
+            command: event.name.clone(),
             last_used_at: event.ts_ms,
         });
         if recent.len() == RECENT_LIMIT {
@@ -489,8 +489,8 @@ mod tests {
         assert_eq!(usage.week.total_calls, 3);
         assert_eq!(usage.week.skills[0].name, "code-review");
         assert_eq!(usage.week.skills[0].count, 2);
-        assert_eq!(usage.recent[0].command, "/code-review");
-        assert_eq!(usage.recent[1].command, "/translate");
+        assert_eq!(usage.recent[0].command, "code-review");
+        assert_eq!(usage.recent[1].command, "translate");
     }
 
     #[test]

@@ -63,8 +63,8 @@ const usage: ClaudeSkillUsage = {
     dailyBreakdown: [],
   },
   recent: [
-    { name: "code-review", command: "/code-review", lastUsedAt: 4 },
-    { name: "translate", command: "/translate", lastUsedAt: 1 },
+    { name: "code-review", command: "code-review", lastUsedAt: 4 },
+    { name: "translate", command: "translate", lastUsedAt: 1 },
   ],
 };
 

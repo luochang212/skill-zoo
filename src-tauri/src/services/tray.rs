@@ -408,7 +408,7 @@ fn copy_companion_item(app: &AppHandle, item_id: &str) -> Result<(), String> {
 fn copy_recent_skill(skill_name: &str) -> Result<(), String> {
     let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
     clipboard
-        .set_text(format!("/{skill_name}"))
+        .set_text(skill_name.to_string())
         .map_err(|e| e.to_string())
 }
 
