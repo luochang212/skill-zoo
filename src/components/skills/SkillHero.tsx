@@ -205,10 +205,12 @@ export function SkillHero({
               {visibleAgents.map((agent) => {
                 const color = getAgentColor(agent, agentConfigs);
                 return (
-                  <span
+                  <button
                     key={agent}
+                    type="button"
+                    onClick={onConfigure}
                     className={cn(
-                      "px-2.5 py-1 h-6 text-[11px] rounded-lg font-medium",
+                      "px-2.5 py-1 h-6 text-[11px] rounded-lg font-medium cursor-pointer hover:ring-1 hover:ring-border transition-shadow",
                       color.bg,
                       color.text,
                       color.darkBg,
@@ -216,7 +218,7 @@ export function SkillHero({
                     )}
                   >
                     {getAgentLabel(agent, agentConfigs)}
-                  </span>
+                  </button>
                 );
               })}
               {overflowCount > 0 && (
