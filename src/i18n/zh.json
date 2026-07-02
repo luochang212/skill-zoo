@@ -329,6 +329,26 @@
       "clearCacheFailed": "清除下载缓存失败",
       "openCacheDir": "缓存目录"
     },
+    "skillCompanion": {
+      "title": "技能伴侣",
+      "summary": "技能常用指令",
+      "summaryDescription": "已配置 {{count}} 个常用技能指令",
+      "empty": "还没有添加常用指令。",
+      "manage": "管理",
+      "manageTitle": "技能常用指令",
+      "manageDescription": "把常用的技能调用语句放到托盘，点击即可复制。",
+      "add": "添加常用指令",
+      "itemContent": "技能指令 {{index}} 内容",
+      "contentPlaceholder": "/code-review 检测一下未提交代码的改动是否正确",
+      "reorder": "调整技能指令 {{index}} 顺序",
+      "edit": "编辑技能指令 {{index}}",
+      "saveItem": "保存技能指令 {{index}}",
+      "delete": "删除技能指令 {{index}}",
+      "emptyPreview": "空技能指令",
+      "editingHint": "保存当前编辑后可以继续调整其他项。",
+      "validation": "每条技能指令都需要内容。",
+      "saveFailed": "技能常用指令保存失败"
+    },
     "agentPaths": {
       "title": "Coding Agent 设置",
       "description": "管理编程工具可见性和技能目录路径",

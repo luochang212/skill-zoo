@@ -4,11 +4,12 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { settingsApi } from "@/lib/api/settings";
 import { useAgentConfigs } from "@/lib/agents";
-import type { AgentPreferences, VisibleAgents } from "@/types/skills";
+import type { AgentPreferences, SkillCompanionItem, VisibleAgents } from "@/types/skills";
 
 const VISIBLE_AGENTS_KEY = ["settings", "visibleAgents"] as const;
 const HIDE_NON_SSOT_KEY = ["settings", "hideNonSsot"] as const;
 const AGENT_ORDER_KEY = ["settings", "agentOrder"] as const;
+export const SKILL_COMPANION_ITEMS_KEY = ["settings", "skillCompanionItems"] as const;
 const AGENT_ORDER_SETTING = "agent_order";
 
 export function useVisibleAgents() {
@@ -38,6 +39,25 @@ export function useUpdateHideNonSsot() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: HIDE_NON_SSOT_KEY });
       qc.invalidateQueries({ queryKey: ["skills", "installed"] });
+    },
+  });
+}
+
+export function useSkillCompanionItems() {
+  return useQuery({
+    queryKey: SKILL_COMPANION_ITEMS_KEY,
+    queryFn: () => settingsApi.getSkillCompanionItems(),
+    staleTime: 0,
+  });
+}
+
+export function useSaveSkillCompanionItems() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (items: SkillCompanionItem[]) => settingsApi.saveSkillCompanionItems(items),
+    onSuccess: (items) => {
+      qc.setQueryData(SKILL_COMPANION_ITEMS_KEY, items);
+      qc.invalidateQueries({ queryKey: SKILL_COMPANION_ITEMS_KEY });
     },
   });
 }

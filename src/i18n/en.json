@@ -329,6 +329,26 @@
       "clearCacheFailed": "Could not clear download cache",
       "openCacheDir": "Cache folder"
     },
+    "skillCompanion": {
+      "title": "Skill Companion",
+      "summary": "Common Skill Commands",
+      "summaryDescription": "{{count}} common skill command(s) configured",
+      "empty": "No common commands added yet.",
+      "manage": "Manage",
+      "manageTitle": "Common Skill Commands",
+      "manageDescription": "Put common skill invocation phrases in the tray, then click to copy.",
+      "add": "Add common command",
+      "itemContent": "Skill command {{index}} content",
+      "contentPlaceholder": "/code-review Check whether the uncommitted changes are correct",
+      "reorder": "Reorder skill command {{index}}",
+      "edit": "Edit skill command {{index}}",
+      "saveItem": "Save skill command {{index}}",
+      "delete": "Delete skill command {{index}}",
+      "emptyPreview": "Empty skill command",
+      "editingHint": "Save the current edit before adjusting another item.",
+      "validation": "Every skill command needs content.",
+      "saveFailed": "Could not save common skill commands"
+    },
     "agentPaths": {
       "title": "Coding Agent Settings",
       "description": "Manage coding agent visibility and skill directory paths",

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ThemeSettings } from "@/components/settings/ThemeSettings";
 import { LanguageSettings } from "@/components/settings/LanguageSettings";
 import { SkillMaintenanceSettings } from "@/components/settings/SkillMaintenanceSettings";
+import { SkillCompanionSettings } from "@/components/settings/SkillCompanionSettings";
 import { AgentPathsSettings } from "@/components/settings/AgentPathsSettings";
 import { AboutSection } from "@/components/settings/AboutSection";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -31,6 +32,9 @@ export function SettingsView() {
 
             {/* Skill Maintenance */}
             <SkillMaintenanceSettings />
+
+            {/* Skill Companion */}
+            <SkillCompanionSettings />
 
             {/* Agent Paths */}
             <AgentPathsSettings />

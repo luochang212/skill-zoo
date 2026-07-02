@@ -81,6 +81,11 @@ export interface AgentPreferences {
   agentOrder: string[];
 }
 
+export interface SkillCompanionItem {
+  id: string;
+  content: string;
+}
+
 export interface DiscoverRepo {
   owner: string;
   name: string;

@@ -41,6 +41,7 @@ import {
 } from "@/hooks/useSkills";
 import { useSidebarFilter } from "@/hooks/useSidebarFilter";
 import { applyTheme } from "@/hooks/useTheme";
+import { settingsApi } from "@/lib/api/settings";
 import type { View, DiscoverRepo } from "@/types/skills";
 
 interface EBProps {
@@ -84,7 +85,7 @@ class ErrorBoundary extends Component<EBProps, EBState> {
 }
 
 export default function App() {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   const [view, setView] = useState<View>("local");
   const [showCreateSkill, setShowCreateSkill] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<DiscoverRepo | null>(null);
@@ -112,6 +113,12 @@ export default function App() {
     const theme = (localStorage.getItem("theme") as string | null) ?? "system";
     applyTheme(theme as "light" | "dark" | "system");
   }, []);
+
+  useEffect(() => {
+    settingsApi.setTrayLanguage(i18n.language).catch((error) => {
+      console.error("Failed to update tray language", error);
+    });
+  }, [i18n.language]);
 
   const hasLocalDetail = view === "local" && !showCreateSkill && (editor.open || !!archivedEditor);
 

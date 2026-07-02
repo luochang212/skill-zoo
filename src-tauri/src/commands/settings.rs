@@ -1,5 +1,8 @@
 use crate::services::cli::CliService;
 use crate::services::lock::{SkillLock, SkillLockEntry};
+use crate::services::tray::{
+    validate_skill_companion_items, SkillCompanionItem, SKILL_COMPANION_ITEMS_SETTING,
+};
 use crate::store::AppState;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -85,6 +88,44 @@ pub fn update_setting(
     let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
     settings.set(key, value);
     settings.save().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_skill_companion_items(
+    state: State<'_, AppState>,
+) -> Result<Vec<SkillCompanionItem>, String> {
+    let settings = state.settings.lock().map_err(|e| e.to_string())?;
+    Ok(crate::services::tray::parse_skill_companion_items(
+        &settings,
+    ))
+}
+
+#[tauri::command]
+pub fn save_skill_companion_items(
+    app_handle: tauri::AppHandle,
+    state: State<'_, AppState>,
+    items: Vec<SkillCompanionItem>,
+) -> Result<Vec<SkillCompanionItem>, String> {
+    validate_skill_companion_items(&items)?;
+    let json = serde_json::to_string(&items).map_err(|e| e.to_string())?;
+    {
+        let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
+        let previous = settings.clone();
+        settings.set(SKILL_COMPANION_ITEMS_SETTING.to_string(), json);
+        if let Err(error) = settings.save() {
+            *settings = previous;
+            return Err(error.to_string());
+        }
+    }
+    if let Err(error) = crate::services::tray::refresh_skill_companion_menu(&app_handle) {
+        eprintln!("Failed to refresh skill companion tray menu after saving settings: {error}");
+    }
+    Ok(items)
+}
+
+#[tauri::command]
+pub fn set_tray_language(app_handle: tauri::AppHandle, language: String) -> Result<(), String> {
+    crate::services::tray::set_tray_language(&app_handle, &language)
 }
 
 #[tauri::command]

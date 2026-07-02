@@ -64,6 +64,10 @@ pub fn run() {
             let app_state = AppState::new(skill_cache, metadata, settings);
             app.manage(app_state);
 
+            if let Err(e) = services::tray::setup_tray(app) {
+                eprintln!("Failed to set up system tray: {e}");
+            }
+
             if should_reconcile_cache {
                 let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
@@ -148,6 +152,9 @@ pub fn run() {
             commands::skill::write_skill_file_path,
             commands::settings::get_settings,
             commands::settings::update_setting,
+            commands::settings::get_skill_companion_items,
+            commands::settings::save_skill_companion_items,
+            commands::settings::set_tray_language,
             commands::settings::set_window_theme,
             commands::settings::get_visible_agents,
             commands::settings::update_visible_agents,
