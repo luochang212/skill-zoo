@@ -9,7 +9,10 @@ export function SkillBadges({ issues }: { issues?: SkillIssues }) {
   return (
     <>
       {issues.hasConflict && (
-        <Badge variant="destructive" className="text-[9px] px-1.5 py-0 h-4 shrink-0">
+        <Badge
+          variant="secondary"
+          className="text-[9px] px-1.5 py-0 h-4 bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-700/50 shrink-0"
+        >
           {t("consistency.conflict")}
         </Badge>
       )}
