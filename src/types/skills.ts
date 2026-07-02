@@ -86,6 +86,39 @@ export interface SkillCompanionItem {
   content: string;
 }
 
+export interface SkillUsageRank {
+  name: string;
+  count: number;
+  lastUsedAt: number;
+}
+
+export interface DailyCount {
+  label: string;
+  date: string;
+  count: number;
+}
+
+export interface SkillUsagePeriod {
+  totalCalls: number;
+  skills: SkillUsageRank[];
+  dailyBreakdown: DailyCount[];
+}
+
+export interface RecentSkillUsage {
+  name: string;
+  command: string;
+  lastUsedAt: number;
+}
+
+export interface ClaudeSkillUsage {
+  installedSkillCount: number;
+  totalCalls: number;
+  week: SkillUsagePeriod;
+  month: SkillUsagePeriod;
+  all: SkillUsagePeriod;
+  recent: RecentSkillUsage[];
+}
+
 export interface DiscoverRepo {
   owner: string;
   name: string;

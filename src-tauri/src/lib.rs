@@ -155,6 +155,7 @@ pub fn run() {
             commands::settings::get_skill_companion_items,
             commands::settings::save_skill_companion_items,
             commands::settings::set_tray_language,
+            commands::settings::get_claude_skill_usage,
             commands::settings::set_window_theme,
             commands::settings::get_visible_agents,
             commands::settings::update_visible_agents,

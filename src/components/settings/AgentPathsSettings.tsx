@@ -77,34 +77,36 @@ function DraggablePathRow({
       dragListener={false}
       dragControls={dragControls}
       onDragEnd={onDragEnd}
-      className="flex list-none items-center gap-3 border-b border-border/40 bg-background p-4 last:border-b-0"
+      className="flex list-none items-center border-b border-border/40 p-0 last:border-b-0"
     >
-      <button
-        type="button"
-        onPointerDown={(event) => !disabled && dragControls.start(event)}
-        disabled={disabled}
-        className="flex h-8 w-7 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground/55 hover:bg-accent hover:text-muted-foreground active:cursor-grabbing disabled:cursor-default disabled:opacity-40"
-        aria-label={t("settings.agentPaths.reorder", { agent: info.label })}
-      >
-        <GripVertical className="h-4 w-4" />
-      </button>
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-background ring-1 ring-border">
-        <FolderOpen className="h-4 w-4 text-muted-foreground" />
+      <div className="flex w-full items-center gap-3 p-4 bg-card hover:bg-muted/50 transition-colors">
+        <button
+          type="button"
+          onPointerDown={(event) => !disabled && dragControls.start(event)}
+          disabled={disabled}
+          className="flex h-8 w-7 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground/55 hover:bg-accent hover:text-muted-foreground active:cursor-grabbing disabled:cursor-default disabled:opacity-40"
+          aria-label={t("settings.agentPaths.reorder", { agent: info.label })}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-background ring-1 ring-border">
+          <FolderOpen className="h-4 w-4 text-muted-foreground" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <PathDetails info={info} />
+        </div>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-8 shrink-0 gap-1.5 px-2 text-xs"
+          onClick={() => skillsApi.openSkillsDir(info.agent)}
+          disabled={!info.exists}
+          aria-label={t("settings.agentPaths.openAgent", { agent: info.label })}
+        >
+          <FolderOpen className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">{t("settings.agentPaths.open")}</span>
+        </Button>
       </div>
-      <div className="min-w-0 flex-1">
-        <PathDetails info={info} />
-      </div>
-      <Button
-        size="sm"
-        variant="ghost"
-        className="h-8 shrink-0 gap-1.5 px-2 text-xs"
-        onClick={() => skillsApi.openSkillsDir(info.agent)}
-        disabled={!info.exists}
-        aria-label={t("settings.agentPaths.openAgent", { agent: info.label })}
-      >
-        <FolderOpen className="h-3.5 w-3.5" />
-        <span className="hidden sm:inline">{t("settings.agentPaths.open")}</span>
-      </Button>
     </Reorder.Item>
   );
 }

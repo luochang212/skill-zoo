@@ -1,5 +1,15 @@
 import { Reorder, useDragControls } from "framer-motion";
-import { Check, Copy, GripVertical, PenLine, Plus, Settings, Trash2 } from "lucide-react";
+import {
+  Activity,
+  BarChart3,
+  Check,
+  Copy,
+  GripVertical,
+  PenLine,
+  Plus,
+  Settings,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -11,9 +21,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useSaveSkillCompanionItems, useSkillCompanionItems } from "@/hooks/useSettings";
+import {
+  useClaudeSkillUsage,
+  useSaveSkillCompanionItems,
+  useSkillCompanionItems,
+} from "@/hooks/useSettings";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import type { SkillCompanionItem } from "@/types/skills";
+import type { DailyCount, SkillCompanionItem, SkillUsagePeriod } from "@/types/skills";
 
 function createItemId() {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
@@ -36,6 +51,219 @@ function reorderItems(items: SkillCompanionItem[], nextOrder: string[]) {
 
 function normalizePreview(content: string) {
   return content.split(/\s+/).filter(Boolean).join(" ");
+}
+
+type UsageRange = "week" | "month";
+
+const USAGE_RANGES: UsageRange[] = ["week", "month"];
+
+function DailyChart({ breakdown }: { breakdown: DailyCount[] }) {
+  const max = breakdown.reduce((value, d) => Math.max(value, d.count), 0) || 1;
+  const n = breakdown.length;
+  const gapPct = Math.max(0.8, Math.min(6, 32 / n));
+  const radius = n > 16 ? 1 : 3;
+
+  return (
+    <div>
+      <div
+        className="relative w-full"
+        style={{ height: 64, display: "flex", alignItems: "flex-end", gap: `${gapPct}%` }}
+      >
+        {[0.25, 0.5, 0.75, 1].map((g, i) => (
+          <div
+            key={i}
+            className="absolute left-0 right-0 border-t border-border/40"
+            style={{ bottom: `${g * 100}%` }}
+          />
+        ))}
+        {breakdown.map((d) => (
+          <div
+            key={d.date}
+            className="flex-1 flex flex-col justify-end min-w-0 self-stretch"
+            title={`${d.date}  ${d.count} call(s)`}
+          >
+            <div
+              className="w-full bg-emerald-500/70 hover:bg-emerald-500 transition-colors duration-150"
+              style={{
+                height: `${Math.max(1, (d.count / max) * 100)}%`,
+                borderRadius: `${radius}px ${radius}px 0 0`,
+              }}
+            />
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: `${gapPct}%`, marginTop: 6 }}>
+        {breakdown.map((d) => (
+          <div
+            key={d.date}
+            className="flex-1 text-center font-mono text-[9px] text-muted-foreground whitespace-nowrap"
+          >
+            {d.label}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SkillUsageBars({
+  period,
+  compact = false,
+}: {
+  period: SkillUsagePeriod | undefined;
+  compact?: boolean;
+}) {
+  const { t } = useTranslation();
+  const skills = period?.skills ?? [];
+  const shown = compact ? skills.slice(0, 3) : skills;
+  const max = shown.reduce((value, skill) => Math.max(value, skill.count), 0) || 1;
+
+  if (shown.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground">{t("settings.skillCompanion.usageEmpty")}</p>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {shown.map((skill) => (
+        <div
+          key={skill.name}
+          className="grid grid-cols-[minmax(0,9rem)_1fr_auto] items-center gap-2 group cursor-default"
+        >
+          <span className="truncate font-mono text-[11px] text-foreground">{skill.name}</span>
+          <div className="h-1.5 overflow-hidden rounded-full bg-border/60">
+            <div
+              className="h-full rounded-full bg-emerald-500 group-hover:bg-emerald-400 transition-colors duration-150"
+              style={{ width: `${(skill.count / max) * 100}%` }}
+            />
+          </div>
+          <span className="min-w-6 text-right font-mono text-[11px] font-medium text-muted-foreground">
+            {skill.count}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SkillUsageDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  const { data: usage, isLoading } = useClaudeSkillUsage({ enabled: open });
+  const [range, setRange] = useState<UsageRange>("week");
+  const period = usage?.[range];
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="flex h-[min(640px,calc(100vh-6rem))] w-[calc(100vw-2rem)] max-w-[560px] flex-col gap-0 overflow-hidden p-0 sm:rounded-xl"
+        data-selectable
+      >
+        <DialogHeader className="shrink-0 border-b border-border/50 px-4 py-4 text-left">
+          <DialogTitle>{t("settings.skillCompanion.usageTitle")}</DialogTitle>
+          <DialogDescription>{t("settings.skillCompanion.usageDescription")}</DialogDescription>
+        </DialogHeader>
+        <div className="flex shrink-0 items-center gap-3 border-b border-border/40 px-4 py-3">
+          <div className="flex min-w-0 flex-1 items-center gap-1 rounded-md bg-muted/60 p-1">
+            {USAGE_RANGES.map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => setRange(item)}
+                className={cn(
+                  "flex h-8 flex-1 items-center justify-center gap-1.5 rounded px-2 text-xs font-medium transition-colors",
+                  range === item
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground",
+                )}
+              >
+                {t(`settings.skillCompanion.usageRanges.${item}`)}
+              </button>
+            ))}
+          </div>
+          <p className="whitespace-nowrap text-xs text-muted-foreground">
+            {t("settings.skillCompanion.usageCalls", { count: period?.totalCalls ?? 0 })}
+          </p>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-4">
+          {isLoading ? (
+            <>
+              <Skeleton className="h-16 w-full rounded-lg" />
+              <div className="h-px bg-border/20 mx-0 my-2.5" />
+              <Skeleton className="h-3 w-20 rounded" />
+              <div className="space-y-3 py-1">
+                {[82, 60, 45, 32, 18].map((width, i) => (
+                  <div
+                    key={i}
+                    className="grid grid-cols-[minmax(0,9rem)_1fr_auto] items-center gap-2"
+                  >
+                    <Skeleton className="h-3 w-20 rounded" />
+                    <Skeleton className="h-3 rounded-full" style={{ width: `${width}%` }} />
+                    <Skeleton className="h-3 w-5 rounded" />
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              {period && period.dailyBreakdown.length > 0 && (
+                <>
+                  <DailyChart breakdown={period.dailyBreakdown} />
+                  <div className="h-px bg-border/20 mx-0 my-2.5" />
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                    {t("settings.skillCompanion.usageRanking")}
+                  </p>
+                </>
+              )}
+              <SkillUsageBars period={period} />
+            </>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SkillUsageSettingsCard() {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <div className="group flex items-center justify-between gap-4 rounded-xl border border-border bg-card/50 p-4 transition-colors hover:bg-muted/50">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-background ring-1 ring-border">
+            <BarChart3 className="h-4 w-4 text-emerald-500" />
+          </div>
+          <div className="min-w-0 flex-1 space-y-1">
+            <p className="text-sm font-medium leading-none">
+              {t("settings.skillCompanion.usageTitle")}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {t("settings.skillCompanion.usageHint")}
+            </p>
+          </div>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-8 shrink-0 gap-1.5 text-xs"
+          onClick={() => setOpen(true)}
+        >
+          <BarChart3 className="h-3.5 w-3.5" />
+          {t("settings.skillCompanion.usageView")}
+        </Button>
+      </div>
+      <SkillUsageDialog open={open} onOpenChange={setOpen} />
+    </>
+  );
 }
 
 function SkillCompanionRow({
@@ -323,7 +551,7 @@ export function SkillCompanionSettings() {
   return (
     <section className="space-y-3">
       <div className="flex items-center gap-2 border-b border-border/40 pb-2">
-        <Copy className="h-4 w-4 text-emerald-500" />
+        <Activity className="h-4 w-4 text-emerald-500" />
         <h3 className="text-sm font-medium">{t("settings.skillCompanion.title")}</h3>
       </div>
       <div className="group flex items-center justify-between gap-4 rounded-xl border border-border bg-card/50 p-4 transition-colors hover:bg-muted/50">
@@ -354,6 +582,8 @@ export function SkillCompanionSettings() {
           {t("settings.skillCompanion.manage")}
         </Button>
       </div>
+
+      <SkillUsageSettingsCard />
 
       <SkillCompanionManagerDialog
         open={managerOpen}

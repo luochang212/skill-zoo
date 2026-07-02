@@ -6,7 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import i18n from "@/i18n";
-import type { SkillCompanionItem } from "@/types/skills";
+import type { ClaudeSkillUsage, SkillCompanionItem } from "@/types/skills";
 import { SkillCompanionSettings } from "./SkillCompanionSettings";
 
 vi.mock("sonner", () => ({
@@ -31,11 +31,50 @@ function renderSettings() {
   );
 }
 
+const usage: ClaudeSkillUsage = {
+  installedSkillCount: 2,
+  totalCalls: 4,
+  week: {
+    totalCalls: 4,
+    skills: [
+      { name: "code-review", count: 3, lastUsedAt: 4 },
+      { name: "translate", count: 1, lastUsedAt: 1 },
+    ],
+    dailyBreakdown: [
+      { label: "Tue", date: "07-01", count: 2 },
+      { label: "Wed", date: "07-02", count: 1 },
+      { label: "Thu", date: "07-03", count: 1 },
+    ],
+  },
+  month: {
+    totalCalls: 4,
+    skills: [
+      { name: "code-review", count: 3, lastUsedAt: 4 },
+      { name: "translate", count: 1, lastUsedAt: 1 },
+    ],
+    dailyBreakdown: [],
+  },
+  all: {
+    totalCalls: 4,
+    skills: [
+      { name: "code-review", count: 3, lastUsedAt: 4 },
+      { name: "translate", count: 1, lastUsedAt: 1 },
+    ],
+    dailyBreakdown: [],
+  },
+  recent: [
+    { name: "code-review", command: "/code-review", lastUsedAt: 4 },
+    { name: "translate", command: "/translate", lastUsedAt: 1 },
+  ],
+};
+
 function mockItems(items: SkillCompanionItem[], options: { rejectSave?: boolean } = {}) {
   vi.mocked(invoke).mockImplementation((command, args) => {
     switch (command) {
       case "get_skill_companion_items":
         return Promise.resolve(items);
+      case "get_claude_skill_usage":
+        return Promise.resolve(usage);
       case "save_skill_companion_items":
         if (options.rejectSave) return Promise.reject(new Error("save failed"));
         return Promise.resolve((args as { items: SkillCompanionItem[] }).items);
@@ -167,5 +206,25 @@ describe("SkillCompanionSettings", () => {
     );
     expect(screen.getByDisplayValue("First prompt")).toBeInTheDocument();
     expect(screen.getByText("Second prompt")).toBeInTheDocument();
+  });
+
+  it("shows Claude skill usage habits without historical prompt text", async () => {
+    const user = userEvent.setup();
+    mockItems([]);
+
+    renderSettings();
+
+    expect(await screen.findByText("Skill Usage Habits")).toBeInTheDocument();
+    expect(
+      await screen.findByText("View historical skill usage habits"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("code-review")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "View" }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Past week" })).toBeInTheDocument();
+    expect(screen.getByText("4 call(s)")).toBeInTheDocument();
+    expect(screen.getByText("code-review")).toBeInTheDocument();
   });
 });

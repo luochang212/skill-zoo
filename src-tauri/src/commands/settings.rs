@@ -1,5 +1,6 @@
 use crate::services::cli::CliService;
 use crate::services::lock::{SkillLock, SkillLockEntry};
+use crate::services::skill_usage::ClaudeSkillUsage;
 use crate::services::tray::{
     validate_skill_companion_items, SkillCompanionItem, SKILL_COMPANION_ITEMS_SETTING,
 };
@@ -126,6 +127,21 @@ pub fn save_skill_companion_items(
 #[tauri::command]
 pub fn set_tray_language(app_handle: tauri::AppHandle, language: String) -> Result<(), String> {
     crate::services::tray::set_tray_language(&app_handle, &language)
+}
+
+#[tauri::command]
+pub async fn get_claude_skill_usage(
+    state: State<'_, AppState>,
+) -> Result<ClaudeSkillUsage, String> {
+    let (whitelist, installed_skill_count) = {
+        let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
+        crate::services::skill_usage::claude_skill_whitelist(&cache)
+    };
+    tokio::task::spawn_blocking(move || {
+        crate::services::skill_usage::discover_claude_skill_usage(whitelist, installed_skill_count)
+    })
+    .await
+    .map_err(|e| format!("Claude skill usage scan failed: {e}"))
 }
 
 #[tauri::command]

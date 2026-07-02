@@ -347,7 +347,19 @@
       "emptyPreview": "空技能指令",
       "editingHint": "保存当前编辑后可以继续调整其他项。",
       "validation": "每条技能指令都需要内容。",
-      "saveFailed": "技能常用指令保存失败"
+      "saveFailed": "技能常用指令保存失败",
+      "usageTitle": "技能使用习惯",
+      "usageHint": "查看历史技能使用习惯",
+      "usageDescription": "统计来自 Claude Code 的技能使用情况",
+      "usageView": "查看",
+      "usageCalls": "{{count}} 次调用",
+      "usageRanking": "技能排名",
+      "usageEmpty": "还没有发现 Claude 技能调用记录。",
+      "usageFailed": "Claude 技能使用记录读取失败",
+      "usageRanges": {
+        "week": "最近一周",
+        "month": "最近一月"
+      }
     },
     "agentPaths": {
       "title": "Coding Agent 设置",
