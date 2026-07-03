@@ -696,12 +696,18 @@ fn remove_lock_entry_for_skill(skill: &SkillCacheEntry) {
     let Ok(mut lock) = SkillLock::read() else {
         return;
     };
-    if lock.skills.remove(&skill.directory).is_some() {
+    // Mirror archive's lookup order: full directory first, leaf name as legacy fallback.
+    let lock_key = if lock.skills.contains_key(&skill.directory) {
+        Some(skill.directory.clone())
+    } else if lock.skills.contains_key(&skill.name) {
+        Some(skill.name.clone())
+    } else {
+        None
+    };
+    if let Some(key) = lock_key {
+        lock.skills.remove(&key);
         if let Err(e) = lock.write() {
-            eprintln!(
-                "Failed to write lock after removing {}: {e}",
-                skill.directory
-            );
+            eprintln!("Failed to write lock after removing {key}: {e}");
         }
     }
 }
