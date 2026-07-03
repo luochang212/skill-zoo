@@ -17,6 +17,12 @@ export const AGENTS: AgentConfig[] = [
   { id: "workbuddy", label: "WorkBuddy", skillsSubdir: ".workbuddy" },
   { id: "qoder-cn", label: "Qoder CN", skillsSubdir: ".qoder-cn" },
   { id: "qoderworkcn", label: "QoderWork CN", skillsSubdir: ".qoderworkcn" },
+  { id: "windsurf", label: "Windsurf", skillsSubdir: ".windsurf" },
+  { id: "codebuddy", label: "CodeBuddy", skillsSubdir: ".codebuddy" },
+  { id: "qwen-code", label: "Qwen Code", skillsSubdir: ".qwen" },
+  { id: "qoder", label: "Qoder", skillsSubdir: ".qoder" },
+  { id: "kilo", label: "Kilo Code", skillsSubdir: ".kilocode" },
+  { id: "antigravity", label: "Antigravity", skillsSubdir: ".gemini/antigravity" },
 ];
 
 export const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", "__pycache__"]);
