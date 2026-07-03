@@ -518,7 +518,7 @@ export const SkillContentPane = memo(function SkillContentPane({
             )}
             style={{
               width: sidebarWidth,
-              willChange: sidebarDragging ? undefined : "transform, opacity",
+              willChange: sidebarDragging ? "transform, opacity" : undefined,
             }}
           >
             <SkillFileTree

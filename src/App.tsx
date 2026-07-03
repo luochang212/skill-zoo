@@ -143,8 +143,8 @@ export default function App() {
   };
 
   const handleUpdate = async () => {
-    if (!editor.skillId) return;
-    await updateMutation.mutateAsync(editor.skillId);
+    if (!editor.skillId) return Promise.resolve(null);
+    return updateMutation.mutateAsync(editor.skillId);
   };
 
   const handleRemove = () => {
@@ -334,7 +334,6 @@ export default function App() {
                     ref={detailOverlayRef}
                     tabIndex={-1}
                     className="absolute inset-0 z-10 bg-background"
-                    style={{ contain: "layout paint" }}
                   >
                     {renderSkillDetail()}
                   </div>

@@ -519,7 +519,7 @@ export const InstalledSkills = memo(function InstalledSkills({
   };
 
   return (
-    <div className="flex h-full relative" style={{ contain: "layout paint" }}>
+    <div className="flex h-full relative">
       {/* Sidebar */}
       <SkillSidebar
         skills={visibleSkills}

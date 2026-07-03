@@ -179,7 +179,6 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
               boxShadow: style.shadow,
               transition:
                 "transform 0.7s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.7s ease, box-shadow 0.7s ease",
-              willChange: "transform, opacity",
               transformStyle: "preserve-3d",
             }}
             onClick={() => {
