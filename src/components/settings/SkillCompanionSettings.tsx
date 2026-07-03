@@ -261,16 +261,22 @@ function SkillUsageDialog({
 
   const saveScreenshot = async () => {
     if (isCapturing) return;
-    const target = captureRef.current;
-    if (!target) {
+    const dialog = captureRef.current;
+    if (!dialog) {
       toast.error(t("settings.skillCompanion.screenshotFailed"));
       return;
     }
+    // Capture the scroll region's full content (scrollHeight), not the dialog's
+    // fixed viewport — the dialog shell is overflow:hidden at 640px, so skills
+    // past the fold would otherwise be clipped. Mirrors tokenscope's approach.
+    const target = dialog.querySelector<HTMLElement>("[data-screenshot-scroll]") ?? dialog;
     setIsCapturing(true);
     try {
       const dataUrl = await domToPng(target, {
         scale: 2,
-        backgroundColor: getComputedStyle(target).backgroundColor,
+        backgroundColor: getComputedStyle(dialog).backgroundColor,
+        width: target.scrollWidth,
+        height: target.scrollHeight,
         filter: (node) =>
           !(node instanceof HTMLElement && node.closest("[data-screenshot-exclude]")),
       });
@@ -330,7 +336,10 @@ function SkillUsageDialog({
             )}
           </Button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-4">
+        <div
+          data-screenshot-scroll
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-4"
+        >
           {isLoading ? (
             <>
               <div className="grid grid-cols-3 gap-2.5">
