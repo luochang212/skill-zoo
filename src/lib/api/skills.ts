@@ -20,8 +20,7 @@ export const skillsApi = {
   getInstalledSkills: (force?: boolean) =>
     invoke<InstalledSkill[]>("get_installed_skills", { force }),
 
-  updateSkill: (skillId: string) =>
-    invoke<SingleSkillUpdateResult>("update_skill", { skillId }),
+  updateSkill: (skillId: string) => invoke<SingleSkillUpdateResult>("update_skill", { skillId }),
 
   updateAllSkills: (checkedUpdates?: CheckedSkillUpdate[]) =>
     invoke<UpdateAllResult>("update_all_skills", { checkedUpdates: checkedUpdates ?? null }),

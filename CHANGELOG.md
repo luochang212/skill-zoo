@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.3.13] — 2026-07-04
+
+### Added
+- 7 new coding agents — Windsurf, CodeBuddy, Qwen Code, Qoder, Kilo, Antigravity, and Qoder CN (total now 18).
+- Skill usage dialog can be saved as a screenshot; usage UI refreshed.
+- Skill detail update flow with clearer feedback and agent display.
+
+### Changed
+- Docs landing page: rebuilt the product overview as a full-bleed layout, raised the coding-agent count to 18, and improved large-screen scaling.
+- Skill update path rewritten with check-then-update semantics and structured errors.
+- Minor i18n wording fixes.
+
+### Fixed
+- Skill usage screenshot now captures the full scrollable content.
+- Aligned skill usage ranking columns and refined the dialog layout.
+- Removing a skill now uses an archive-compatible lock key lookup.
+- Corrected the calendar-day window in the skill usage period report.
+- Removed the SimSun font fallback on Windows in the product page.
+
+### Performance
+- Removed unnecessary GPU compositor layers.
+
 ## [0.3.12] — 2026-07-03
 
 ### Added
