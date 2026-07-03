@@ -224,6 +224,7 @@
   "skillHero": {
     "updated": "Updated",
     "updating": "Updating...",
+    "upToDate": "Already up to date",
     "updateFromGit": "Update from git",
     "noRepo": "No git repo linked",
     "configureAgents": "Configure coding agents",

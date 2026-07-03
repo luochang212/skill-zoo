@@ -14,6 +14,7 @@ import type { InstalledSkill } from "@/types/skills";
 import {
   Archive,
   ArchiveRestore,
+  Check,
   Settings,
   Trash2,
   CircleArrowUp,
@@ -155,6 +156,7 @@ interface SkillHeroProps {
   archiveDisabled?: boolean;
   archiveDisabledReason?: string;
   updateSuccess?: boolean;
+  updateUpToDate?: boolean;
 }
 
 export function SkillHero({
@@ -175,13 +177,14 @@ export function SkillHero({
   archiveDisabled,
   archiveDisabledReason,
   updateSuccess,
+  updateUpToDate,
 }: SkillHeroProps) {
   const { t } = useTranslation();
   const { data: agentConfigs } = useAgentConfigs();
   const { namespace, name } = parseSkillName(skill.name);
   const linkedAgents = getLinkedAgents(skill.apps);
-  const visibleAgents = linkedAgents.slice(0, 2);
-  const canUpdate = !!(skill.repoOwner && skill.repoName);
+  const visibleAgents = linkedAgents.slice(0, 3);
+  const canUpdate = skill.origin === "ssot" && !!(skill.repoOwner && skill.repoName);
   const canAudit = !!(skill.repoOwner && skill.repoName && skill.directory);
   const overflowCount = linkedAgents.length - visibleAgents.length;
 
@@ -232,18 +235,18 @@ export function SkillHero({
         <div className="flex items-center gap-1 shrink-0">
           {onToggleStar && <StarButton starred={starred ?? false} onToggle={onToggleStar} />}
           <SkillInfoPopover skill={skill} />
-          {onUpdate && (
+          {onUpdate && canUpdate && (
             <Button
               variant="ghost"
               size="icon"
               className="h-7 w-7"
               onClick={onUpdate}
-              disabled={!canUpdate || updatePending || updateSuccess}
+              disabled={updatePending || updateSuccess || updateUpToDate}
               title={
-                !canUpdate
-                  ? t("skillHero.noRepo")
-                  : updateSuccess
-                    ? t("skillHero.updated")
+                updateSuccess
+                  ? t("skillHero.updated")
+                  : updateUpToDate
+                    ? t("skillHero.upToDate")
                     : updatePending
                       ? t("skillHero.updating")
                       : t("skillHero.updateFromGit")
@@ -251,6 +254,8 @@ export function SkillHero({
             >
               {updateSuccess ? (
                 <CircleArrowUp className="h-3.5 w-3.5 text-green-600" />
+              ) : updateUpToDate ? (
+                <Check className="h-3.5 w-3.5 text-muted-foreground" />
               ) : updatePending ? (
                 <CircleArrowUp className="h-3.5 w-3.5 animate-pulse" />
               ) : (

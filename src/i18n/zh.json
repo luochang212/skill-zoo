@@ -224,6 +224,7 @@
   "skillHero": {
     "updated": "已更新",
     "updating": "更新中...",
+    "upToDate": "已是最新",
     "updateFromGit": "从 Git 更新",
     "noRepo": "未关联 Git 仓库",
     "configureAgents": "配置编程工具",
