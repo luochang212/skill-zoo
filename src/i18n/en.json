@@ -350,7 +350,7 @@
       "validation": "Every skill command needs content.",
       "saveFailed": "Could not save common skill commands",
       "usageTitle": "Skill Usage Habits",
-      "usageHint": "View historical skill usage habits",
+      "usageHint": "View historical skill usage",
       "usageDescription": "Statistics on skill usage from Claude Code",
       "usageView": "View",
       "usageCalls": "{{count}} call(s)",
