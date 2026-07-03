@@ -268,25 +268,6 @@ impl CliService {
 
     // ─── Update ─────────────────────────────────────────────────────
 
-    /// Update one or all installed skills by re-downloading and overwriting.
-    pub async fn update_skills(skill_name: Option<&str>) -> Result<UpdateResult, AppError> {
-        let lock = SkillLock::read()?;
-
-        let to_update: Vec<(String, SkillLockEntry)> = if let Some(name) = skill_name {
-            let entry = lock.skills.get(name).cloned().ok_or_else(|| {
-                AppError::NotFound(format!("Skill not found in lock file: {name}"))
-            })?;
-            vec![(name.to_string(), entry)]
-        } else {
-            lock.skills
-                .iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect()
-        };
-
-        Self::update_skill_entries(to_update).await
-    }
-
     /// Update a pre-filtered set of installed skills.
     ///
     /// Used by the command layer when it needs filesystem/cache context, for

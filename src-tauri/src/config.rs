@@ -82,12 +82,17 @@ pub const AGENTS: &[AgentConfig] = &[
         label: "Qoder CN",
         skills_subdir: ".qoder-cn",
     },
+    AgentConfig {
+        id: "qoderworkcn",
+        label: "QoderWork CN",
+        skills_subdir: ".qoderworkcn",
+    },
 ];
 
 pub fn default_visibility(agent_id: &str) -> bool {
     !matches!(
         agent_id,
-        "trae" | "trae-cn" | "gemini" | "opencode" | "workbuddy" | "qoder-cn"
+        "trae" | "trae-cn" | "gemini" | "opencode" | "workbuddy" | "qoder-cn" | "qoderworkcn"
     )
 }
 
