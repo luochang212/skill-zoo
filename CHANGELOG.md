@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.12] — 2026-07-03
+
+### Added
+- Tray skill companion shortcuts — right-click tray to copy frequently used commands.
+- Tray recent skills — automatically surfaces the last 5 skills used in Claude Code.
+- Skill usage habits dialog with daily chart and skill ranking.
+- Agent badges are now clickable to open the configure dialog.
+
+### Changed
+- Docs landing page: refined layout, typography, and product overview positioning.
+
+### Fixed
+- Tray recent skills now copies the skill name without a leading slash prefix.
+- Unified badge styles for conflict, mismatch, and duplicate warnings.
+- Race conditions in skill companion settings when saving, deleting, or reordering items.
+
 ## [0.3.11] — 2026-07-01
 
 ### Changed

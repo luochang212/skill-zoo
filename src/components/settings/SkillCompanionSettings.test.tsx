@@ -215,9 +215,7 @@ describe("SkillCompanionSettings", () => {
     renderSettings();
 
     expect(await screen.findByText("Skill Usage Habits")).toBeInTheDocument();
-    expect(
-      await screen.findByText("View historical skill usage habits"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("View historical skill usage habits")).toBeInTheDocument();
     expect(screen.queryByText("code-review")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "View" }));

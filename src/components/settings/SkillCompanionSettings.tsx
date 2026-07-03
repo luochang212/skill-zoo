@@ -440,8 +440,8 @@ function SkillCompanionManagerDialog({
       toast.error(t("settings.skillCompanion.validation"));
       return;
     }
-    saveList(items, () => {
-      setEditingId(null);
+    saveList(itemsRef.current, () => {
+      setEditingId((current) => (current === item.id ? null : current));
     });
   };
 
@@ -450,6 +450,9 @@ function SkillCompanionManagerDialog({
     const previousEditingId = editingId;
     const nextItems = items.filter((item) => item.id !== id);
     setItems(nextItems);
+    if (editingId === id) {
+      setEditingId(null);
+    }
     saveList(nextItems, undefined, () => {
       setItems(previousItems);
       setEditingId(previousEditingId);
@@ -496,7 +499,13 @@ function SkillCompanionManagerDialog({
               as="div"
               axis="y"
               values={itemOrder}
-              onReorder={(nextOrder) => setItems((current) => reorderItems(current, nextOrder))}
+              onReorder={(nextOrder) =>
+                setItems((current) => {
+                  const next = reorderItems(current, nextOrder);
+                  itemsRef.current = next;
+                  return next;
+                })
+              }
               layoutScroll
             >
               {items.map((item, index) => (
