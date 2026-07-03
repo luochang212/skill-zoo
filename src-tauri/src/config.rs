@@ -87,12 +87,42 @@ pub const AGENTS: &[AgentConfig] = &[
         label: "QoderWork CN",
         skills_subdir: ".qoderworkcn",
     },
+    AgentConfig {
+        id: "windsurf",
+        label: "Windsurf",
+        skills_subdir: ".windsurf",
+    },
+    AgentConfig {
+        id: "codebuddy",
+        label: "CodeBuddy",
+        skills_subdir: ".codebuddy",
+    },
+    AgentConfig {
+        id: "qwen-code",
+        label: "Qwen Code",
+        skills_subdir: ".qwen",
+    },
+    AgentConfig {
+        id: "qoder",
+        label: "Qoder",
+        skills_subdir: ".qoder",
+    },
+    AgentConfig {
+        id: "kilo",
+        label: "Kilo Code",
+        skills_subdir: ".kilocode",
+    },
+    AgentConfig {
+        id: "antigravity",
+        label: "Antigravity",
+        skills_subdir: ".gemini/antigravity",
+    },
 ];
 
 pub fn default_visibility(agent_id: &str) -> bool {
     !matches!(
         agent_id,
-        "trae" | "trae-cn" | "gemini" | "opencode" | "workbuddy" | "qoder-cn" | "qoderworkcn"
+        "trae" | "trae-cn" | "gemini" | "opencode" | "workbuddy" | "qoder-cn" | "qoderworkcn" | "windsurf" | "codebuddy" | "qwen-code" | "qoder" | "kilo" | "antigravity"
     )
 }
 
