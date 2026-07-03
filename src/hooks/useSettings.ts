@@ -141,6 +141,7 @@ export function useUpdateAgentPreferences() {
       qc.invalidateQueries({ queryKey: VISIBLE_AGENTS_KEY });
       qc.invalidateQueries({ queryKey: AGENT_ORDER_KEY });
       qc.invalidateQueries({ queryKey: ["skills", "symlinks"] });
+      qc.invalidateQueries({ queryKey: ["skills", "installed"] });
     },
   });
 }

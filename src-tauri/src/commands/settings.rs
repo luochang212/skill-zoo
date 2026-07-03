@@ -152,6 +152,17 @@ pub fn get_visible_agents(state: State<'_, AppState>) -> Result<HashMap<String, 
     ))
 }
 
+fn refresh_cached_agent_apps(state: &AppState) -> Result<(), String> {
+    let mut cache = state.skill_cache.write().map_err(|e| e.to_string())?;
+    let mut entries = cache.skills().to_vec();
+    for entry in &mut entries {
+        entry.apps =
+            crate::services::skill::SkillService::detect_agents(&entry.directory, &entry.home_path);
+    }
+    cache.replace_all(entries);
+    cache.save().map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn update_visible_agents(
     state: State<'_, AppState>,
@@ -176,6 +187,7 @@ pub fn update_visible_agents(
     }
 
     // Clean up symlinks for newly hidden agents
+    let mut removed_any_agent_links = false;
     for agent in crate::config::AGENTS {
         let was_visible = old_visible
             .get(agent.id)
@@ -187,7 +199,11 @@ pub fn update_visible_agents(
             .unwrap_or(crate::config::default_visibility(agent.id));
         if was_visible && !now_visible {
             let _ = crate::services::skill::SkillService::remove_agent_symlinks(agent.id);
+            removed_any_agent_links = true;
         }
+    }
+    if removed_any_agent_links {
+        refresh_cached_agent_apps(&state)?;
     }
 
     Ok(())
@@ -289,6 +305,7 @@ pub fn update_agent_preferences(
         }
     }
 
+    let mut removed_any_agent_links = false;
     for agent in crate::config::AGENTS {
         let was_visible = old_visible
             .get(agent.id)
@@ -300,7 +317,11 @@ pub fn update_agent_preferences(
             .unwrap_or(crate::config::default_visibility(agent.id));
         if was_visible && !now_visible {
             let _ = crate::services::skill::SkillService::remove_agent_symlinks(agent.id);
+            removed_any_agent_links = true;
         }
+    }
+    if removed_any_agent_links {
+        refresh_cached_agent_apps(&state)?;
     }
 
     Ok(AgentPreferences {

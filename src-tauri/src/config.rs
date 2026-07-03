@@ -122,7 +122,19 @@ pub const AGENTS: &[AgentConfig] = &[
 pub fn default_visibility(agent_id: &str) -> bool {
     !matches!(
         agent_id,
-        "trae" | "trae-cn" | "gemini" | "opencode" | "workbuddy" | "qoder-cn" | "qoderworkcn" | "windsurf" | "codebuddy" | "qwen-code" | "qoder" | "kilo" | "antigravity"
+        "trae"
+            | "trae-cn"
+            | "gemini"
+            | "opencode"
+            | "workbuddy"
+            | "qoder-cn"
+            | "qoderworkcn"
+            | "windsurf"
+            | "codebuddy"
+            | "qwen-code"
+            | "qoder"
+            | "kilo"
+            | "antigravity"
     )
 }
 

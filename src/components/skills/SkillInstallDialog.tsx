@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Dialog,
@@ -39,9 +39,24 @@ export function SkillInstallDialog({
   const { t } = useTranslation();
   const { data: agentConfigs } = useAgentConfigs();
   const visibleAgentOrder = useVisibleAgentOrder();
+  const visibleAgentKey = visibleAgentOrder.join("\0");
   const skillNames = skills.map((s) => s.directory);
 
-  const [agents, setAgents] = useState<Set<string>>(new Set(["claude-code"]));
+  const [agents, setAgents] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setAgents((prev) => {
+      const visible = new Set(visibleAgentOrder);
+      const next = new Set([...prev].filter((agent) => visible.has(agent)));
+      if (next.size === 0 && visibleAgentOrder[0]) {
+        next.add(visibleAgentOrder[0]);
+      }
+      if (prev.size === next.size && [...prev].every((agent) => next.has(agent))) {
+        return prev;
+      }
+      return next;
+    });
+  }, [visibleAgentKey]);
 
   const toggleAgent = (agent: string) => {
     setAgents((prev) => {
