@@ -247,6 +247,7 @@
         color: var(--glow);
         font-family: "Geist Sans", system-ui, sans-serif;
         font-size: clamp(3em, 10vw, 7em);
+        line-height: 0.92;
         font-weight: 700;
         letter-spacing: 0.12em;
         text-shadow:
@@ -563,6 +564,22 @@
         margin-left: clamp(0px, 2vw, 28px);
       }
       @media (min-width: 1600px) {
+        .hero-zoo .glowing-txt {
+          font-size: clamp(7em, 8vw, 13em);
+          text-shadow:
+            0 0 6px rgba(255, 255, 255, 0.16),
+            0 0 28px var(--glow),
+            0 0 92px var(--glow);
+        }
+        .hero-zoo .hero-subtitle {
+          margin-top: clamp(28px, 2.2vw, 44px);
+          font-size: clamp(16px, 1vw, 20px);
+        }
+        .hero-zoo .scroll-hint {
+          bottom: clamp(42px, 4vh, 72px);
+        }
+      }
+      @media (min-width: 1600px) {
         #cta .hero-report-inner {
           max-width: clamp(960px, 92vw, 1600px);
         }
@@ -592,13 +609,19 @@
       }
       /* Product Overview — spread out on large screens */
       @media (min-width: 1600px) {
+        #report .hero-report-inner {
+          max-width: clamp(1400px, 90vw, 1800px);
+        }
+        #report .hero-report-grid {
+          gap: clamp(72px, 6vw, 128px);
+        }
         #report .hero-report-grid > div:first-child {
-          flex: 0 0 clamp(300px, 28vw, 420px);
-          margin-left: clamp(12px, 4vw, 60px);
-          transform: translateX(clamp(-56px, -3vw, -32px));
+          flex: 0 0 clamp(320px, 24vw, 460px);
+          margin-left: clamp(0px, 2vw, 40px);
+          transform: translateX(clamp(-48px, -2vw, -20px));
         }
         #report .hero-report-grid > div:last-child {
-          max-width: clamp(440px, 56vw, 880px);
+          max-width: clamp(900px, 58vw, 1280px);
         }
         #report .hero-report h1 {
           font-size: clamp(38px, 5.5vw, 62px);
@@ -4380,12 +4403,13 @@
       function carouselLayout() {
         const n = cards.length;
         const mobile = isMobile();
+        const desktopCardMax = window.innerWidth >= 1600 ? 1120 : 720;
         const cardW = Math.min(
-          wrapper.clientWidth * (mobile ? 0.76 : 0.75),
-          mobile ? 620 : 720,
+          wrapper.clientWidth * (mobile ? 0.76 : 0.78),
+          mobile ? 620 : desktopCardMax,
         );
         const cardH = cardW / ASPECT;
-        wrapper.style.height = `${Math.max(cardH + 60, 280)}px`;
+        wrapper.style.height = `${Math.max(cardH + (mobile ? 60 : 88), 280)}px`;
         cards.forEach(({ card, dot }, i) => {
           let diff = (i - current + n) % n;
           if (diff > n / 2) diff -= n;
