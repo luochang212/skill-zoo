@@ -180,9 +180,10 @@ fn period_report(
     period: Period,
     now: DateTime<Local>,
 ) -> SkillUsagePeriod {
-    let threshold = match period {
-        Period::Week => Some(now - Duration::days(7)),
-        Period::Month => Some(now - Duration::days(30)),
+    let today = now.date_naive();
+    let start_date = match period {
+        Period::Week => Some(today - Duration::days(6)),
+        Period::Month => Some(today - Duration::days(29)),
         Period::All => None,
     };
 
@@ -193,8 +194,9 @@ fn period_report(
         let Some(ts) = Local.timestamp_millis_opt(event.ts_ms).single() else {
             continue;
         };
-        if let Some(cutoff) = threshold {
-            if ts < cutoff {
+        let date = ts.date_naive();
+        if let Some(start) = start_date {
+            if date < start {
                 continue;
             }
         }
@@ -202,7 +204,7 @@ fn period_report(
         let entry = counts.entry(event.name.clone()).or_default();
         entry.0 += 1;
         entry.1 = entry.1.max(event.ts_ms);
-        *daily.entry(ts.date_naive()).or_default() += 1;
+        *daily.entry(date).or_default() += 1;
     }
 
     let daily_breakdown = match period {
@@ -212,11 +214,9 @@ fn period_report(
                 Period::Month => 30,
                 _ => unreachable!(),
             };
-            let today = now.date_naive();
-            let start = today - Duration::days(days as i64 - 1);
             (0..days)
                 .map(|i| {
-                    let date = start + Duration::days(i as i64);
+                    let date = start_date.unwrap() + Duration::days(i as i64);
                     let label = match period {
                         Period::Week => weekday_label(date.weekday()),
                         Period::Month => {
@@ -487,6 +487,11 @@ mod tests {
         let usage = build_usage(2, events, now);
         assert_eq!(usage.total_calls, 3);
         assert_eq!(usage.week.total_calls, 3);
+        assert_eq!(
+            usage.week.daily_breakdown.iter().map(|d| d.count).sum::<u64>(),
+            usage.week.total_calls,
+            "daily_breakdown sum must equal total_calls"
+        );
         assert_eq!(usage.week.skills[0].name, "code-review");
         assert_eq!(usage.week.skills[0].count, 2);
         assert_eq!(usage.recent[0].command, "code-review");
