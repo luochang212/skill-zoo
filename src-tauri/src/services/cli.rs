@@ -623,7 +623,7 @@ impl CliService {
         }
     }
 
-    fn update_repo_info(
+    pub fn update_repo_info(
         entry: &SkillLockEntry,
     ) -> Result<(String, String, Option<String>), AppError> {
         let source_url = entry.effective_url().ok_or_else(|| {

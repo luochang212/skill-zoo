@@ -25,6 +25,13 @@ use tauri::{Manager, State};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SingleSkillUpdateResult {
+    pub skill: InstalledSkill,
+    pub updated: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateAllResult {
     pub skills: Vec<InstalledSkill>,
     pub success_count: usize,
@@ -266,78 +273,121 @@ pub async fn get_installed_skills(
 pub async fn update_skill(
     state: State<'_, AppState>,
     skill_id: String,
-) -> Result<InstalledSkill, String> {
+) -> Result<SingleSkillUpdateResult, CommandError> {
     let skill = SkillService::find_in_cache(&state.skill_cache, &skill_id)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
+        .map_err(CommandError::from)?
+        .ok_or_else(|| CommandError::not_found(format!("Skill not found: {skill_id}")))?;
 
     if skill.origin != "ssot" {
-        return Err(
-            "Only Skill Zoo-managed skills in the SSOT store can be updated from Git.".to_string(),
-        );
+        return Err(CommandError::bad_request(
+            "Only Skill Zoo-managed skills in the SSOT store can be updated from Git.",
+        ));
     }
+
+    let lock = SkillLock::read().map_err(CommandError::from)?;
+    let lock_entry = lock
+        .skills
+        .get(&skill.directory)
+        .cloned()
+        .ok_or_else(|| {
+            CommandError::not_found(format!(
+                "Skill {} is not tracked in the lock file. Reinstall from GitHub to enable updates.",
+                skill.directory
+            ))
+        })?;
+
+    let (owner, repo, branch) = CliService::update_repo_info(&lock_entry)
+        .map_err(CommandError::from)?;
+
+    let tree = CliService::fetch_repo_tree(&owner, &repo, branch.as_deref())
+        .await
+        .map_err(CommandError::from)?
+        .ok_or_else(|| {
+            CommandError::not_found(format!(
+                "Repository or branch not found: {}/{}",
+                owner, repo
+            ))
+        })?;
+
+    let skill_path = lock_entry.skill_path.as_deref().unwrap_or("");
+    let new_sha = CliService::get_folder_sha_from_tree(&tree, skill_path).ok_or_else(|| {
+        CommandError::not_found(format!(
+            "Skill path no longer exists in {}/{}: {}",
+            owner, repo, skill_path
+        ))
+    })?;
 
     let started_at = chrono::Utc::now().to_rfc3339();
     let requested_skills = vec![skill.directory.clone()];
-    let result = match CliService::update_skills(Some(&skill.directory)).await {
-        Ok(result) => result,
-        Err(e) => {
-            let message = e.to_string();
-            let result = crate::services::cli::UpdateResult {
+
+    // No update needed
+    if lock_entry.commit_sha.as_deref() == Some(&new_sha) {
+        let result = crate::services::cli::UpdateResult {
+            success_count: 0,
+            fail_count: 0,
+            errors: vec![],
+            updated: vec![],
+        };
+        record_update_history_with_started_at(started_at, "single", requested_skills, &result);
+
+        let skills = SkillService::read_all_skills(&state.skill_cache, &state.metadata)
+            .map_err(|e| CommandError::generic(e.to_string()))?;
+        let updated_skill = skills
+            .into_iter()
+            .find(|s| s.id == skill_id)
+            .unwrap_or_else(|| InstalledSkill::from(skill.clone()));
+        return Ok(SingleSkillUpdateResult {
+            skill: updated_skill,
+            updated: false,
+        });
+    }
+
+    // Perform update
+    let known_update = KnownSkillUpdate {
+        name: skill.directory.clone(),
+        entry: lock_entry,
+        latest_sha: new_sha,
+    };
+
+    let result = CliService::update_known_skill_entries(vec![known_update])
+        .await
+        .unwrap_or_else(|e| {
+            eprintln!("Update skill error: {e}");
+            crate::services::cli::UpdateResult {
                 success_count: 0,
                 fail_count: 1,
-                errors: vec![format!("{}: {message}", skill.directory)],
+                errors: vec![format!("{}: {e}", skill.directory)],
                 updated: vec![],
-            };
-            record_update_history_with_started_at(started_at, "single", requested_skills, &result);
-            return Err(message);
-        }
-    };
+            }
+        });
 
     if result.fail_count > 0 {
         record_update_history_with_started_at(started_at, "single", requested_skills, &result);
-        return Err(result.errors.join("; "));
+        return Err(CommandError::generic(result.errors.join("; ")));
     }
 
-    let entry = match SkillService::scan_single_skill(&skill.directory) {
-        Ok(entry) => entry,
-        Err(e) => {
-            let message = e.to_string();
-            let result =
-                update_result_with_added_error(result, format!("{}: {message}", skill.directory));
-            record_update_history_with_started_at(started_at, "single", requested_skills, &result);
-            return Err(message);
-        }
-    };
-    if let Err(e) = SkillService::upsert_cache_entry(&state.skill_cache, entry) {
-        let message = e.to_string();
-        let result =
-            update_result_with_added_error(result, format!("{}: {message}", skill.directory));
-        record_update_history_with_started_at(started_at, "single", requested_skills, &result);
-        return Err(message);
-    }
+    let entry = SkillService::scan_single_skill(&skill.directory)
+        .map_err(|e| CommandError::generic(e.to_string()))?;
+    SkillService::upsert_cache_entry(&state.skill_cache, entry)
+        .map_err(|e| CommandError::generic(e.to_string()))?;
 
-    let skills = match SkillService::read_all_skills(&state.skill_cache, &state.metadata) {
-        Ok(skills) => skills,
-        Err(e) => {
-            let message = e.to_string();
-            let result =
-                update_result_with_added_error(result, format!("{}: {message}", skill.directory));
-            record_update_history_with_started_at(started_at, "single", requested_skills, &result);
-            return Err(message);
-        }
-    };
+    let skills = SkillService::read_all_skills(&state.skill_cache, &state.metadata)
+        .map_err(|e| CommandError::generic(e.to_string()))?;
+
     match skills.into_iter().find(|s| s.id == skill_id) {
         Some(skill) => {
             record_update_history_with_started_at(started_at, "single", requested_skills, &result);
-            Ok(skill)
+            Ok(SingleSkillUpdateResult {
+                skill,
+                updated: true,
+            })
         }
         None => {
             let message = "Skill disappeared after update".to_string();
             let result =
                 update_result_with_added_error(result, format!("{}: {message}", skill.directory));
             record_update_history_with_started_at(started_at, "single", requested_skills, &result);
-            Err(message)
+            Err(CommandError::generic(message))
         }
     }
 }

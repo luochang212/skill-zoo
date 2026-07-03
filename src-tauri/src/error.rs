@@ -96,6 +96,14 @@ impl CommandError {
         }
     }
 
+    pub fn not_found(message: impl Into<String>) -> Self {
+        Self {
+            code: "notFound",
+            message: message.into(),
+            repo: None,
+        }
+    }
+
     pub fn generic(message: impl Into<String>) -> Self {
         Self {
             code: "generic",
