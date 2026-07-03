@@ -17,6 +17,7 @@ const MENU_COMPANION_COPY_HINT: &str = "skill-companion-copy-hint";
 const MENU_COMPANION_EMPTY: &str = "skill-companion-empty";
 const COMPANION_MENU_ID: &str = "skill-companion-menu";
 const COMPANION_MENU_PREFIX: &str = "skill-companion:";
+const MENU_RECENT_COPY_HINT: &str = "skill-recent-copy-hint";
 const MENU_RECENT_EMPTY: &str = "skill-recent-empty";
 const RECENT_MENU_ID: &str = "skill-recent-menu";
 const RECENT_MENU_PREFIX: &str = "skill-recent:";
@@ -346,6 +347,15 @@ fn replace_recent_menu_items(
             None::<&str>,
         )?)?;
     }
+
+    menu.append(&PredefinedMenuItem::separator(app)?)?;
+    menu.append(&MenuItem::with_id(
+        app,
+        MENU_RECENT_COPY_HINT,
+        labels.copy_hint,
+        false,
+        None::<&str>,
+    )?)?;
 
     Ok(())
 }
