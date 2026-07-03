@@ -285,19 +285,15 @@ pub async fn update_skill(
     }
 
     let lock = SkillLock::read().map_err(CommandError::from)?;
-    let lock_entry = lock
-        .skills
-        .get(&skill.directory)
-        .cloned()
-        .ok_or_else(|| {
-            CommandError::not_found(format!(
-                "Skill {} is not tracked in the lock file. Reinstall from GitHub to enable updates.",
-                skill.directory
-            ))
-        })?;
+    let lock_entry = lock.skills.get(&skill.directory).cloned().ok_or_else(|| {
+        CommandError::not_found(format!(
+            "Skill {} is not tracked in the lock file. Reinstall from GitHub to enable updates.",
+            skill.directory
+        ))
+    })?;
 
-    let (owner, repo, branch) = CliService::update_repo_info(&lock_entry)
-        .map_err(CommandError::from)?;
+    let (owner, repo, branch) =
+        CliService::update_repo_info(&lock_entry).map_err(CommandError::from)?;
 
     let tree = CliService::fetch_repo_tree(&owner, &repo, branch.as_deref())
         .await

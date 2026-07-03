@@ -488,7 +488,12 @@ mod tests {
         assert_eq!(usage.total_calls, 3);
         assert_eq!(usage.week.total_calls, 3);
         assert_eq!(
-            usage.week.daily_breakdown.iter().map(|d| d.count).sum::<u64>(),
+            usage
+                .week
+                .daily_breakdown
+                .iter()
+                .map(|d| d.count)
+                .sum::<u64>(),
             usage.week.total_calls,
             "daily_breakdown sum must equal total_calls"
         );

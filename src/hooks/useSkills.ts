@@ -90,11 +90,7 @@ export function useInstallSkills() {
 
 export function useUpdateSkill() {
   const qc = useQueryClient();
-  return useMutation<
-    SingleSkillUpdateResult,
-    Error,
-    string
-  >({
+  return useMutation<SingleSkillUpdateResult, Error, string>({
     mutationKey: ["updateSkill"],
     mutationFn: (skillId: string) => skillsApi.updateSkill(skillId),
     onSuccess: (result) => {

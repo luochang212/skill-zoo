@@ -101,7 +101,7 @@ export function SkillDetail({
   const handleUpdate = async () => {
     if (!onUpdate) return;
     try {
-      const result = await onUpdate() as { updated: boolean } | null;
+      const result = (await onUpdate()) as { updated: boolean } | null;
       if (result?.updated) {
         setUpdateSuccess(true);
         if (successTimerRef.current) clearTimeout(successTimerRef.current);
