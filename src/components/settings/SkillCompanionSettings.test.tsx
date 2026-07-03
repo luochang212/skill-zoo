@@ -232,7 +232,7 @@ describe("SkillCompanionSettings", () => {
     expect(screen.getByText("Active skills")).toBeInTheDocument();
     expect(screen.getByText("Primary use")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
-    expect(screen.getAllByText("75%").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("75.0%").length).toBeGreaterThan(0);
     expect(screen.getByText("From code-review")).toBeInTheDocument();
     expect(
       screen.getByText((content) =>

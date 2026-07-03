@@ -62,11 +62,12 @@ type UsageRange = "week" | "month";
 const USAGE_RANGES: UsageRange[] = ["week", "month"];
 
 function formatUsageShare(count: number, total: number) {
-  if (total <= 0) return "0%";
+  if (total <= 0) return "0.0%";
   const share = count / total;
   return new Intl.NumberFormat(undefined, {
     style: "percent",
-    maximumFractionDigits: share < 0.1 ? 1 : 0,
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
   }).format(share);
 }
 
@@ -95,7 +96,7 @@ function DailyChart({ breakdown }: { breakdown: DailyCount[] }) {
     <div className="relative pt-2">
       <div
         className="relative w-full"
-        style={{ height: 132, display: "flex", alignItems: "flex-end", gap: `${gapPct}%` }}
+        style={{ height: 96, display: "flex", alignItems: "flex-end", gap: `${gapPct}%` }}
       >
         {[0.25, 0.5, 0.75, 1].map((g, i) => (
           <div
@@ -154,25 +155,25 @@ function SkillUsageBars({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 font-mono text-[11px]">
       {shown.map((skill) => (
         <div
           key={skill.name}
-          className="grid grid-cols-[minmax(0,9rem)_1fr_auto] items-center gap-2 group cursor-default"
+          className="grid grid-cols-[minmax(0,9rem)_1fr_3ch_5ch] items-center gap-3 group cursor-default"
           title={`${skill.name}: ${skill.count} (${formatUsageShare(skill.count, total)})`}
         >
-          <span className="truncate font-mono text-[11px] text-foreground">{skill.name}</span>
+          <span className="truncate text-foreground">{skill.name}</span>
           <div className="h-1.5 overflow-hidden rounded-full bg-border/60">
             <div
               className="h-full rounded-full bg-emerald-500 group-hover:bg-emerald-400 transition-colors duration-150"
               style={{ width: `${(skill.count / max) * 100}%` }}
             />
           </div>
-          <span className="min-w-12 text-right font-mono text-[11px] font-medium text-muted-foreground tabular-nums">
+          <span className="text-right tabular-nums font-medium text-muted-foreground">
             {skill.count}
-            <span className="ml-1 text-muted-foreground/60">
-              {formatUsageShare(skill.count, total)}
-            </span>
+          </span>
+          <span className="text-right tabular-nums text-muted-foreground/60">
+            {formatUsageShare(skill.count, total)}
           </span>
         </div>
       ))}
@@ -332,22 +333,28 @@ function SkillUsageDialog({
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-4">
           {isLoading ? (
             <>
-              <Skeleton className="h-16 w-full rounded-lg" />
-              <Skeleton className="h-24 w-full rounded-lg" />
+              <div className="grid grid-cols-3 gap-2.5">
+                <Skeleton className="h-24 rounded-lg" />
+                <Skeleton className="h-24 rounded-lg" />
+                <Skeleton className="h-24 rounded-lg" />
+              </div>
+              <Skeleton className="h-32 w-full rounded-lg" />
               <div className="h-px bg-border/20 mx-0 my-2.5" />
               <Skeleton className="h-3 w-20 rounded" />
               <div className="space-y-3 py-1">
                 {[82, 60, 45, 32, 18].map((width, i) => (
                   <div
                     key={i}
-                    className="grid grid-cols-[minmax(0,9rem)_1fr_auto] items-center gap-2"
+                    className="grid grid-cols-[minmax(0,9rem)_1fr_3ch_5ch] items-center gap-3"
                   >
                     <Skeleton className="h-3 w-20 rounded" />
                     <Skeleton className="h-3 rounded-full" style={{ width: `${width}%` }} />
-                    <Skeleton className="h-3 w-5 rounded" />
+                    <Skeleton className="h-3 rounded" />
+                    <Skeleton className="h-3 rounded" />
                   </div>
                 ))}
               </div>
+              <Skeleton className="h-3 w-2/3 rounded" />
             </>
           ) : (
             <>
