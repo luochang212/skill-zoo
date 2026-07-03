@@ -590,12 +590,18 @@
         #cta .hero-report-grid > div:first-child {
           flex: 0 0 clamp(280px, 32vw, 420px);
           margin-left: 0;
+          position: relative;
+          left: clamp(
+            -178px,
+            calc(426px + clamp(12px, 1.5vw, 36px) - 25vw),
+            50px
+          );
         }
         #cta .hero-report-grid > div:last-child {
           max-width: clamp(440px, 60vw, 960px);
         }
         #cta .hero-report-fig {
-          transform: translateX(clamp(24px, 3vw, 72px));
+          transform: translateX(calc(clamp(24px, 3vw, 72px) - 30px));
         }
         #cta .mockup-window {
           max-width: 960px;
@@ -2144,6 +2150,59 @@
        * card-grid / num-list 作为容器整体浮入，不做子元素阶梯。
        * .card 已有 hover transition，叠加会导致 transition 属性冲突。
        */
+      #features .feature-wave-grid.reveal-init,
+      #features .feature-wave-grid.reveal-init.reveal-visible {
+        opacity: 1;
+        transform: none;
+        transition: none;
+      }
+      #features .feature-wave-grid.reveal-init .card {
+        opacity: 0;
+        transform: translateY(24px) scale(0.985);
+      }
+      #features .feature-wave-grid.reveal-visible .card {
+        opacity: 1;
+        animation: feature-card-wave 720ms cubic-bezier(0.16, 1, 0.3, 1)
+          backwards;
+      }
+      #features .feature-wave-grid.reveal-visible .card:not(:hover) {
+        transform: none;
+      }
+      #features .feature-wave-grid.reveal-visible .card:hover {
+        transform: translateY(-3px);
+      }
+      #features .feature-wave-grid.reveal-visible .card:nth-child(1) {
+        animation-delay: calc(var(--r-delay, 0ms) + 0ms);
+      }
+      #features .feature-wave-grid.reveal-visible .card:nth-child(2) {
+        animation-delay: calc(var(--r-delay, 0ms) + 70ms);
+      }
+      #features .feature-wave-grid.reveal-visible .card:nth-child(3) {
+        animation-delay: calc(var(--r-delay, 0ms) + 140ms);
+      }
+      #features .feature-wave-grid.reveal-visible .card:nth-child(4) {
+        animation-delay: calc(var(--r-delay, 0ms) + 210ms);
+      }
+      #features .feature-wave-grid.reveal-visible .card:nth-child(5) {
+        animation-delay: calc(var(--r-delay, 0ms) + 280ms);
+      }
+      #features .feature-wave-grid.reveal-visible .card:nth-child(6) {
+        animation-delay: calc(var(--r-delay, 0ms) + 350ms);
+      }
+      @keyframes feature-card-wave {
+        0% {
+          opacity: 0;
+          transform: translateY(24px) scale(0.985);
+        }
+        62% {
+          opacity: 1;
+          transform: translateY(-3px) scale(1.006);
+        }
+        100% {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
       @media (prefers-reduced-motion: reduce) {
         [data-reveal].reveal-init {
           opacity: 1;
@@ -2151,6 +2210,12 @@
         }
         [data-reveal].reveal-init.reveal-visible {
           transition: none;
+        }
+        #features .feature-wave-grid.reveal-init .card,
+        #features .feature-wave-grid.reveal-visible .card {
+          opacity: 1;
+          transform: none;
+          animation: none;
         }
       }
 
@@ -3213,7 +3278,11 @@
           大功能模块提供完整管理体验。
         </p>
 
-        <div class="card-grid" data-reveal style="--r-delay: 240ms">
+        <div
+          class="card-grid feature-wave-grid"
+          data-reveal
+          style="--r-delay: 240ms"
+        >
           <div class="card dark-card">
             <div
               class="icon"
