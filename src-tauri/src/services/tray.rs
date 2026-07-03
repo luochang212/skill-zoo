@@ -150,6 +150,7 @@ pub fn setup_tray(app: &mut App) -> tauri::Result<()> {
 
     let tray_icon =
         tauri::image::Image::from_bytes(include_bytes!("../../icons/tray-template.png"))?;
+    #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
     let mut tray = TrayIconBuilder::with_id(TRAY_ID)
         .menu(&menu)
         .icon(tray_icon)
