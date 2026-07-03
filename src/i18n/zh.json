@@ -356,6 +356,19 @@
       "usageCalls": "{{count}} 次调用",
       "usageRanking": "技能排名",
       "usageEmpty": "还没有发现 Claude 技能调用记录。",
+      "screenshotSave": "保存截图到桌面",
+      "screenshotSaved": "截图已保存到桌面",
+      "screenshotFailed": "截图保存失败",
+      "usageStats": {
+        "total": "本期调用量",
+        "active": "活跃技能",
+        "focus": "主要使用",
+        "installed": "共 {{count}} 个 Claude 技能",
+        "noInstalled": "未发现 Claude 技能",
+        "none": "暂无",
+        "focusDetail": "来自 {{name}}",
+        "focusEmpty": "本周期暂无调用"
+      },
       "usageFailed": "Claude 技能使用记录读取失败",
       "usageRanges": {
         "week": "最近一周",

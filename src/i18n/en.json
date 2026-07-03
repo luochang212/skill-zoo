@@ -356,6 +356,19 @@
       "usageCalls": "{{count}} call(s)",
       "usageRanking": "Skill ranking",
       "usageEmpty": "No Claude skill calls found yet.",
+      "screenshotSave": "Save screenshot to Desktop",
+      "screenshotSaved": "Saved screenshot to Desktop",
+      "screenshotFailed": "Could not save screenshot",
+      "usageStats": {
+        "total": "Period calls",
+        "active": "Active skills",
+        "focus": "Primary use",
+        "installed": "{{count}} Claude skill(s) installed",
+        "noInstalled": "No Claude skills found",
+        "none": "None yet",
+        "focusDetail": "From {{name}}",
+        "focusEmpty": "No calls in this period"
+      },
       "usageFailed": "Could not read Claude skill usage",
       "usageRanges": {
         "week": "Past week",

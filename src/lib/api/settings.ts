@@ -20,6 +20,9 @@ export const settingsApi = {
 
   getClaudeSkillUsage: () => invoke<ClaudeSkillUsage>("get_claude_skill_usage"),
 
+  saveSkillUsageScreenshot: (dataUrl: string) =>
+    invoke<string>("save_skill_usage_screenshot", { dataUrl }),
+
   getVisibleAgents: () => invoke<VisibleAgents>("get_visible_agents"),
 
   updateAgentPreferences: (preferences: AgentPreferences) =>

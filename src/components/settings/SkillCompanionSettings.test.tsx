@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@tauri-apps/api/core";
+import { domToPng } from "modern-screenshot";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import i18n from "@/i18n";
@@ -14,6 +15,10 @@ vi.mock("sonner", () => ({
     success: vi.fn(),
     error: vi.fn(),
   },
+}));
+
+vi.mock("modern-screenshot", () => ({
+  domToPng: vi.fn(),
 }));
 
 function renderSettings() {
@@ -54,21 +59,16 @@ const usage: ClaudeSkillUsage = {
     ],
     dailyBreakdown: [],
   },
-  all: {
-    totalCalls: 4,
-    skills: [
-      { name: "code-review", count: 3, lastUsedAt: 4 },
-      { name: "translate", count: 1, lastUsedAt: 1 },
-    ],
-    dailyBreakdown: [],
-  },
   recent: [
     { name: "code-review", command: "code-review", lastUsedAt: 4 },
     { name: "translate", command: "translate", lastUsedAt: 1 },
   ],
 };
 
-function mockItems(items: SkillCompanionItem[], options: { rejectSave?: boolean } = {}) {
+function mockItems(
+  items: SkillCompanionItem[],
+  options: { rejectSave?: boolean; rejectScreenshot?: boolean } = {},
+) {
   vi.mocked(invoke).mockImplementation((command, args) => {
     switch (command) {
       case "get_skill_companion_items":
@@ -78,6 +78,9 @@ function mockItems(items: SkillCompanionItem[], options: { rejectSave?: boolean 
       case "save_skill_companion_items":
         if (options.rejectSave) return Promise.reject(new Error("save failed"));
         return Promise.resolve((args as { items: SkillCompanionItem[] }).items);
+      case "save_skill_usage_screenshot":
+        if (options.rejectScreenshot) return Promise.reject(new Error("save screenshot failed"));
+        return Promise.resolve("/Users/demo/Desktop/Skill Zoo Skill Preferences.png");
       default:
         return Promise.reject(new Error(`Unexpected command: ${command}`));
     }
@@ -87,6 +90,8 @@ function mockItems(items: SkillCompanionItem[], options: { rejectSave?: boolean 
 describe("SkillCompanionSettings", () => {
   beforeEach(async () => {
     vi.mocked(invoke).mockReset();
+    vi.mocked(domToPng).mockReset();
+    vi.mocked(domToPng).mockResolvedValue("data:image/png;base64,abc123");
     vi.mocked(toast.success).mockReset();
     vi.mocked(toast.error).mockReset();
     await i18n.changeLanguage("en");
@@ -215,14 +220,77 @@ describe("SkillCompanionSettings", () => {
     renderSettings();
 
     expect(await screen.findByText("Skill Usage Habits")).toBeInTheDocument();
-    expect(await screen.findByText("View historical skill usage habits")).toBeInTheDocument();
+    expect(await screen.findByText("View historical skill usage")).toBeInTheDocument();
     expect(screen.queryByText("code-review")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "View" }));
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Past week" })).toBeInTheDocument();
-    expect(screen.getByText("4 call(s)")).toBeInTheDocument();
-    expect(screen.getByText("code-review")).toBeInTheDocument();
+    expect(screen.getByText("Period calls")).toBeInTheDocument();
+    expect(screen.getByText("4")).toBeInTheDocument();
+    expect(screen.getByText("Active skills")).toBeInTheDocument();
+    expect(screen.getByText("Primary use")).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.getAllByText("75%").length).toBeGreaterThan(0);
+    expect(screen.getByText("From code-review")).toBeInTheDocument();
+    expect(
+      screen.getByText((content) =>
+        /^▸ Skill preferences · 2 skills · \d{4}\.\d{1,2}\.\d{1,2} ~ \d{4}\.\d{1,2}\.\d{1,2}$/.test(
+          content,
+        ),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("code-review").length).toBeGreaterThan(0);
+  });
+
+  it("saves the skill usage dialog screenshot to Desktop", async () => {
+    const user = userEvent.setup();
+    let resolveCapture!: (dataUrl: string) => void;
+    vi.mocked(domToPng).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCapture = resolve;
+        }),
+    );
+    mockItems([]);
+
+    renderSettings();
+
+    await user.click(await screen.findByRole("button", { name: "View" }));
+    const saveButton = await screen.findByRole("button", { name: "Save screenshot to Desktop" });
+
+    await user.click(saveButton);
+
+    expect(saveButton).toBeDisabled();
+    expect(domToPng).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({
+        scale: 2,
+        backgroundColor: expect.any(String),
+        filter: expect.any(Function),
+      }),
+    );
+
+    resolveCapture("data:image/png;base64,abc123");
+
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("save_skill_usage_screenshot", {
+        dataUrl: "data:image/png;base64,abc123",
+      }),
+    );
+    expect(toast.success).toHaveBeenCalledWith("Saved screenshot to Desktop");
+  });
+
+  it("shows an error toast when screenshot saving fails", async () => {
+    const user = userEvent.setup();
+    mockItems([], { rejectScreenshot: true });
+
+    renderSettings();
+
+    await user.click(await screen.findByRole("button", { name: "View" }));
+    await user.click(await screen.findByRole("button", { name: "Save screenshot to Desktop" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Could not save screenshot"));
   });
 });

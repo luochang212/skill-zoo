@@ -115,7 +115,6 @@ export interface ClaudeSkillUsage {
   totalCalls: number;
   week: SkillUsagePeriod;
   month: SkillUsagePeriod;
-  all: SkillUsagePeriod;
   recent: RecentSkillUsage[];
 }
 

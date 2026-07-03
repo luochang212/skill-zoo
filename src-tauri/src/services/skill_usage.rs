@@ -45,7 +45,6 @@ pub struct ClaudeSkillUsage {
     pub total_calls: u64,
     pub week: SkillUsagePeriod,
     pub month: SkillUsagePeriod,
-    pub all: SkillUsagePeriod,
     pub recent: Vec<RecentSkillUsage>,
 }
 
@@ -155,7 +154,6 @@ fn build_usage(
     let total_calls = events.len() as u64;
     let week = period_report(&events, Period::Week, now);
     let month = period_report(&events, Period::Month, now);
-    let all = period_report(&events, Period::All, now);
     let recent = recent_skills(&events);
 
     ClaudeSkillUsage {
@@ -163,7 +161,6 @@ fn build_usage(
         total_calls,
         week,
         month,
-        all,
         recent,
     }
 }
@@ -172,7 +169,6 @@ fn build_usage(
 enum Period {
     Week,
     Month,
-    All,
 }
 
 fn period_report(
@@ -182,9 +178,8 @@ fn period_report(
 ) -> SkillUsagePeriod {
     let today = now.date_naive();
     let start_date = match period {
-        Period::Week => Some(today - Duration::days(6)),
-        Period::Month => Some(today - Duration::days(29)),
-        Period::All => None,
+        Period::Week => today - Duration::days(6),
+        Period::Month => today - Duration::days(29),
     };
 
     let mut counts: HashMap<String, (u64, i64)> = HashMap::new();
@@ -195,10 +190,8 @@ fn period_report(
             continue;
         };
         let date = ts.date_naive();
-        if let Some(start) = start_date {
-            if date < start {
-                continue;
-            }
+        if date < start_date {
+            continue;
         }
         total_calls += 1;
         let entry = counts.entry(event.name.clone()).or_default();
@@ -207,37 +200,30 @@ fn period_report(
         *daily.entry(date).or_default() += 1;
     }
 
-    let daily_breakdown = match period {
-        Period::Week | Period::Month => {
-            let days = match period {
-                Period::Week => 7,
-                Period::Month => 30,
-                _ => unreachable!(),
-            };
-            (0..days)
-                .map(|i| {
-                    let date = start_date.unwrap() + Duration::days(i as i64);
-                    let label = match period {
-                        Period::Week => weekday_label(date.weekday()),
-                        Period::Month => {
-                            if i == 0 || (i + 1) % 5 == 0 {
-                                date.format("%m-%d").to_string()
-                            } else {
-                                String::new()
-                            }
-                        }
-                        _ => unreachable!(),
-                    };
-                    DailyCount {
-                        label,
-                        date: date.format("%m-%d").to_string(),
-                        count: daily.get(&date).copied().unwrap_or(0),
-                    }
-                })
-                .collect()
-        }
-        Period::All => Vec::new(),
+    let days = match period {
+        Period::Week => 7,
+        Period::Month => 30,
     };
+    let daily_breakdown = (0..days)
+        .map(|i| {
+            let date = start_date + Duration::days(i as i64);
+            let label = match period {
+                Period::Week => weekday_label(date.weekday()),
+                Period::Month => {
+                    if i == 0 || (i + 1) % 5 == 0 {
+                        date.format("%m-%d").to_string()
+                    } else {
+                        String::new()
+                    }
+                }
+            };
+            DailyCount {
+                label,
+                date: date.format("%m-%d").to_string(),
+                count: daily.get(&date).copied().unwrap_or(0),
+            }
+        })
+        .collect();
 
     SkillUsagePeriod {
         total_calls,

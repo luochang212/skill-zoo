@@ -5,6 +5,7 @@ use crate::services::tray::{
     validate_skill_companion_items, SkillCompanionItem, SKILL_COMPANION_ITEMS_SETTING,
 };
 use crate::store::AppState;
+use base64::Engine;
 use serde::Serialize;
 use std::collections::HashMap;
 use tauri::State;
@@ -72,6 +73,29 @@ pub fn set_window_theme(window: tauri::Window, theme: String) -> Result<(), Stri
         _ => None,
     };
     window.set_theme(tauri_theme).map_err(|e| e.to_string())
+}
+
+fn decode_png_data_url(data_url: &str) -> Result<Vec<u8>, String> {
+    const PREFIX: &str = "data:image/png;base64,";
+    let encoded = data_url
+        .strip_prefix(PREFIX)
+        .ok_or_else(|| "expected a data:image/png;base64,... URL".to_string())?;
+    base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .map_err(|e| format!("PNG data URL decode failed: {e}"))
+}
+
+#[tauri::command]
+pub fn save_skill_usage_screenshot(data_url: String) -> Result<String, String> {
+    let bytes = decode_png_data_url(&data_url)?;
+    let desktop_dir =
+        dirs::desktop_dir().ok_or_else(|| "Desktop directory not found".to_string())?;
+    let filename = chrono::Local::now()
+        .format("Skill Zoo Skill Preferences %Y-%m-%d at %H.%M.%S.png")
+        .to_string();
+    let path = desktop_dir.join(filename);
+    std::fs::write(&path, bytes).map_err(|e| format!("Screenshot save failed: {e}"))?;
+    Ok(path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
@@ -150,6 +174,31 @@ pub fn get_visible_agents(state: State<'_, AppState>) -> Result<HashMap<String, 
     Ok(crate::services::skill::SkillService::get_visible_agents(
         &settings,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decode_png_data_url;
+    use base64::Engine;
+
+    #[test]
+    fn decodes_png_data_url() {
+        let encoded = base64::engine::general_purpose::STANDARD.encode([1_u8, 2, 3]);
+        let data_url = format!("data:image/png;base64,{encoded}");
+        assert_eq!(decode_png_data_url(&data_url).unwrap(), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn rejects_non_png_data_url() {
+        let encoded = base64::engine::general_purpose::STANDARD.encode([1_u8, 2, 3]);
+        let data_url = format!("data:image/jpeg;base64,{encoded}");
+        assert!(decode_png_data_url(&data_url).is_err());
+    }
+
+    #[test]
+    fn rejects_invalid_base64_png_data_url() {
+        assert!(decode_png_data_url("data:image/png;base64,not valid base64").is_err());
+    }
 }
 
 fn refresh_cached_agent_apps(state: &AppState) -> Result<(), String> {

@@ -154,6 +154,7 @@ pub fn run() {
             commands::settings::update_setting,
             commands::settings::get_skill_companion_items,
             commands::settings::save_skill_companion_items,
+            commands::settings::save_skill_usage_screenshot,
             commands::settings::set_tray_language,
             commands::settings::get_claude_skill_usage,
             commands::settings::set_window_theme,

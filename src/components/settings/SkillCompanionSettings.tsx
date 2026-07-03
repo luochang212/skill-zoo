@@ -1,10 +1,13 @@
 import { Reorder, useDragControls } from "framer-motion";
+import { domToPng } from "modern-screenshot";
 import {
   Activity,
   BarChart3,
+  Camera,
   Check,
   Copy,
   GripVertical,
+  Loader2,
   PenLine,
   Plus,
   Settings,
@@ -26,6 +29,7 @@ import {
   useSaveSkillCompanionItems,
   useSkillCompanionItems,
 } from "@/hooks/useSettings";
+import { settingsApi } from "@/lib/api/settings";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { DailyCount, SkillCompanionItem, SkillUsagePeriod } from "@/types/skills";
@@ -57,6 +61,30 @@ type UsageRange = "week" | "month";
 
 const USAGE_RANGES: UsageRange[] = ["week", "month"];
 
+function formatUsageShare(count: number, total: number) {
+  if (total <= 0) return "0%";
+  const share = count / total;
+  return new Intl.NumberFormat(undefined, {
+    style: "percent",
+    maximumFractionDigits: share < 0.1 ? 1 : 0,
+  }).format(share);
+}
+
+function formatCompactDate(date: Date) {
+  return `${date.getFullYear()}.${date.getMonth() + 1}.${date.getDate()}`;
+}
+
+function usageDateRange(dayCount: number) {
+  const end = new Date();
+  end.setHours(0, 0, 0, 0);
+  const start = new Date(end);
+  start.setDate(end.getDate() - Math.max(dayCount - 1, 0));
+  return {
+    start: formatCompactDate(start),
+    end: formatCompactDate(end),
+  };
+}
+
 function DailyChart({ breakdown }: { breakdown: DailyCount[] }) {
   const max = breakdown.reduce((value, d) => Math.max(value, d.count), 0) || 1;
   const n = breakdown.length;
@@ -64,10 +92,10 @@ function DailyChart({ breakdown }: { breakdown: DailyCount[] }) {
   const radius = n > 16 ? 1 : 3;
 
   return (
-    <div>
+    <div className="relative pt-2">
       <div
         className="relative w-full"
-        style={{ height: 64, display: "flex", alignItems: "flex-end", gap: `${gapPct}%` }}
+        style={{ height: 132, display: "flex", alignItems: "flex-end", gap: `${gapPct}%` }}
       >
         {[0.25, 0.5, 0.75, 1].map((g, i) => (
           <div
@@ -85,7 +113,7 @@ function DailyChart({ breakdown }: { breakdown: DailyCount[] }) {
             <div
               className="w-full bg-emerald-500/70 hover:bg-emerald-500 transition-colors duration-150"
               style={{
-                height: `${Math.max(1, (d.count / max) * 100)}%`,
+                height: d.count > 0 ? `${Math.max(1, (d.count / max) * 100)}%` : "0%",
                 borderRadius: `${radius}px ${radius}px 0 0`,
               }}
             />
@@ -117,6 +145,7 @@ function SkillUsageBars({
   const skills = period?.skills ?? [];
   const shown = compact ? skills.slice(0, 3) : skills;
   const max = shown.reduce((value, skill) => Math.max(value, skill.count), 0) || 1;
+  const total = period?.totalCalls ?? 0;
 
   if (shown.length === 0) {
     return (
@@ -130,6 +159,7 @@ function SkillUsageBars({
         <div
           key={skill.name}
           className="grid grid-cols-[minmax(0,9rem)_1fr_auto] items-center gap-2 group cursor-default"
+          title={`${skill.name}: ${skill.count} (${formatUsageShare(skill.count, total)})`}
         >
           <span className="truncate font-mono text-[11px] text-foreground">{skill.name}</span>
           <div className="h-1.5 overflow-hidden rounded-full bg-border/60">
@@ -138,11 +168,74 @@ function SkillUsageBars({
               style={{ width: `${(skill.count / max) * 100}%` }}
             />
           </div>
-          <span className="min-w-6 text-right font-mono text-[11px] font-medium text-muted-foreground">
+          <span className="min-w-12 text-right font-mono text-[11px] font-medium text-muted-foreground tabular-nums">
             {skill.count}
+            <span className="ml-1 text-muted-foreground/60">
+              {formatUsageShare(skill.count, total)}
+            </span>
           </span>
         </div>
       ))}
+    </div>
+  );
+}
+
+function SkillUsageSummaryTiles({
+  period,
+  installedSkillCount,
+  rangeLabel,
+}: {
+  period: SkillUsagePeriod | undefined;
+  installedSkillCount: number;
+  rangeLabel: string;
+}) {
+  const { t } = useTranslation();
+  const totalCalls = period?.totalCalls ?? 0;
+  const activeSkills = period?.skills.length ?? 0;
+  const topSkill = period?.skills[0];
+  const topShare = topSkill ? formatUsageShare(topSkill.count, totalCalls) : null;
+
+  return (
+    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+      <div className="min-w-0 rounded-lg border border-border bg-muted/30 px-3.5 py-3">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/65">
+          {t("settings.skillCompanion.usageStats.active")}
+        </p>
+        <p className="mt-1 font-mono text-2xl font-semibold leading-none tracking-tight tabular-nums">
+          {activeSkills}
+        </p>
+        <p className="mt-1 truncate text-[11px] text-muted-foreground">
+          {installedSkillCount > 0
+            ? t("settings.skillCompanion.usageStats.installed", {
+                count: installedSkillCount,
+              })
+            : t("settings.skillCompanion.usageStats.noInstalled")}
+        </p>
+      </div>
+      <div className="min-w-0 rounded-lg border border-border bg-muted/30 px-3.5 py-3">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/65">
+          {t("settings.skillCompanion.usageStats.total")}
+        </p>
+        <p className="mt-1 font-mono text-2xl font-semibold leading-none tracking-tight tabular-nums">
+          {totalCalls}
+        </p>
+        <p className="mt-1 truncate text-[11px] text-muted-foreground">{rangeLabel}</p>
+      </div>
+      <div className="min-w-0 rounded-lg border border-border bg-muted/30 px-3.5 py-3">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/65">
+          {t("settings.skillCompanion.usageStats.focus")}
+        </p>
+        <p className="mt-1 truncate font-mono text-xl font-semibold leading-none tracking-tight">
+          {topShare ?? t("settings.skillCompanion.usageStats.none")}
+        </p>
+        <p className="mt-1 truncate text-[11px] text-muted-foreground">
+          {topSkill
+            ? t("settings.skillCompanion.usageStats.focusDetail", {
+                name: topSkill.name,
+              })
+            : t("settings.skillCompanion.usageStats.focusEmpty")}
+        </p>
+      </div>
     </div>
   );
 }
@@ -156,12 +249,43 @@ function SkillUsageDialog({
 }) {
   const { t } = useTranslation();
   const { data: usage, isLoading } = useClaudeSkillUsage({ enabled: open });
+  const captureRef = useRef<HTMLDivElement>(null);
   const [range, setRange] = useState<UsageRange>("week");
+  const [isCapturing, setIsCapturing] = useState(false);
   const period = usage?.[range];
+  const rangeLabel = t(`settings.skillCompanion.usageRanges.${range}`);
+  const activeSkillCount = period?.skills.length ?? 0;
+  const periodDays = period?.dailyBreakdown.length ?? 0;
+  const dateRange = usageDateRange(periodDays);
+
+  const saveScreenshot = async () => {
+    if (isCapturing) return;
+    const target = captureRef.current;
+    if (!target) {
+      toast.error(t("settings.skillCompanion.screenshotFailed"));
+      return;
+    }
+    setIsCapturing(true);
+    try {
+      const dataUrl = await domToPng(target, {
+        scale: 2,
+        backgroundColor: getComputedStyle(target).backgroundColor,
+        filter: (node) =>
+          !(node instanceof HTMLElement && node.closest("[data-screenshot-exclude]")),
+      });
+      await settingsApi.saveSkillUsageScreenshot(dataUrl);
+      toast.success(t("settings.skillCompanion.screenshotSaved"));
+    } catch {
+      toast.error(t("settings.skillCompanion.screenshotFailed"));
+    } finally {
+      setIsCapturing(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        ref={captureRef}
         className="flex h-[min(640px,calc(100vh-6rem))] w-[calc(100vw-2rem)] max-w-[560px] flex-col gap-0 overflow-hidden p-0 sm:rounded-xl"
         data-selectable
       >
@@ -187,14 +311,29 @@ function SkillUsageDialog({
               </button>
             ))}
           </div>
-          <p className="whitespace-nowrap text-xs text-muted-foreground">
-            {t("settings.skillCompanion.usageCalls", { count: period?.totalCalls ?? 0 })}
-          </p>
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            className="h-8 w-8 shrink-0"
+            disabled={isCapturing}
+            onClick={saveScreenshot}
+            aria-label={t("settings.skillCompanion.screenshotSave")}
+            title={t("settings.skillCompanion.screenshotSave")}
+            data-screenshot-exclude
+          >
+            {isCapturing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Camera className="h-3.5 w-3.5" />
+            )}
+          </Button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-4">
           {isLoading ? (
             <>
               <Skeleton className="h-16 w-full rounded-lg" />
+              <Skeleton className="h-24 w-full rounded-lg" />
               <div className="h-px bg-border/20 mx-0 my-2.5" />
               <Skeleton className="h-3 w-20 rounded" />
               <div className="space-y-3 py-1">
@@ -212,6 +351,11 @@ function SkillUsageDialog({
             </>
           ) : (
             <>
+              <SkillUsageSummaryTiles
+                period={period}
+                installedSkillCount={usage?.installedSkillCount ?? 0}
+                rangeLabel={rangeLabel}
+              />
               {period && period.dailyBreakdown.length > 0 && (
                 <>
                   <DailyChart breakdown={period.dailyBreakdown} />
@@ -222,6 +366,10 @@ function SkillUsageDialog({
                 </>
               )}
               <SkillUsageBars period={period} />
+              <p className="border-t border-border/30 pt-3 text-[11px] leading-5 text-muted-foreground">
+                {/* Intentional non-i18n metadata label for a compact product signature. */}
+                {`▸ Skill preferences · ${activeSkillCount} skills · ${dateRange.start} ~ ${dateRange.end}`}
+              </p>
             </>
           )}
         </div>
