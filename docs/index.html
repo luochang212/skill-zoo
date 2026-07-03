@@ -34,8 +34,8 @@
 
         --serif:
           "Songti SC", "STSongti", Georgia, "Times New Roman",
-          "Noto Serif CJK SC", "Source Han Serif SC",
-          "Microsoft YaHei", sans-serif;
+          "Noto Serif CJK SC", "Source Han Serif SC", "Microsoft YaHei",
+          sans-serif;
         --sans:
           system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans CJK SC",
           "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -613,21 +613,46 @@
           height: 500px;
         }
       }
-      /* Product Overview — spread out on large screens */
-      @media (min-width: 1600px) {
+      /* Product Overview (#report): full-bleed grid so the text block centers
+         exactly between the viewport's left edge and the carousel's left edge
+         at every desktop width. Carousel is right-anchored (with breathing
+         room); #cta keeps the centered max-width layout. Mobile (≤860px)
+         still uses the stacked flex column from the base rules. */
+      @media (min-width: 861px) {
+        #report.hero-report {
+          padding-left: 0;
+          padding-right: 0;
+        }
         #report .hero-report-inner {
-          max-width: clamp(1400px, 90vw, 1800px);
+          max-width: none;
+          margin: 0;
         }
         #report .hero-report-grid {
-          gap: clamp(72px, 6vw, 128px);
+          display: grid;
+          grid-template-columns: 1fr clamp(400px, 50vw, 760px);
+          align-items: center;
+          gap: 0;
+          padding-right: clamp(32px, 5vw, 96px);
         }
         #report .hero-report-grid > div:first-child {
-          flex: 0 0 clamp(320px, 24vw, 460px);
-          margin-left: clamp(0px, 2vw, 40px);
-          transform: translateX(clamp(-48px, -2vw, -20px));
+          justify-self: center;
+          width: clamp(275px, 26vw, 375px);
+          margin-left: 0;
+          transform: none;
         }
         #report .hero-report-grid > div:last-child {
-          max-width: clamp(900px, 58vw, 1280px);
+          max-width: none;
+          min-width: 0;
+        }
+      }
+
+      /* Large screens: spread out, carousel ~60px narrower */
+      @media (min-width: 1600px) {
+        #report .hero-report-grid {
+          grid-template-columns: 1fr calc(clamp(900px, 54vw, 1220px) - 60px);
+        }
+        #report .hero-report-grid > div:first-child {
+          width: clamp(320px, 24vw, 460px);
         }
         #report .hero-report h1 {
           font-size: clamp(38px, 5.5vw, 62px);
@@ -796,7 +821,10 @@
         }
         /* mockup */
         .m-card {
-          transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+          transition:
+            transform 0.2s ease,
+            box-shadow 0.2s ease,
+            border-color 0.2s ease;
         }
         .m-card:hover {
           transform: translateY(-2px);
@@ -4941,7 +4969,6 @@
           }
         });
       })();
-
     </script>
   </body>
 </html>
