@@ -87,10 +87,10 @@ describe("SkillDetail", () => {
   });
 
   it("shows update success only after the update resolves successfully", async () => {
-    let resolveUpdate!: () => void;
+    let resolveUpdate!: (value: { updated: boolean }) => void;
     const onUpdate = vi.fn(
       () =>
-        new Promise<void>((resolve) => {
+        new Promise<{ updated: boolean }>((resolve) => {
           resolveUpdate = resolve;
         }),
     );
@@ -109,7 +109,7 @@ describe("SkillDetail", () => {
     await userEvent.click(screen.getByTitle("Update from git"));
     expect(screen.queryByTitle("Updated")).not.toBeInTheDocument();
 
-    resolveUpdate();
+    resolveUpdate({ updated: true });
 
     expect(await screen.findByTitle("Updated")).toBeInTheDocument();
   });

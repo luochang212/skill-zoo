@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
+import { toast } from "sonner";
 import {
   skillsApi,
   type ArchiveSkillsResult,
+  type CheckedSkillUpdate,
   type RemoveSkillsResult,
   type RestoreArchivedSkillsResult,
+  type SingleSkillUpdateResult,
   type UpdateAllResult,
-  type CheckedSkillUpdate,
 } from "@/lib/api/skills";
 import { invalidateFor } from "@/hooks/queryInvalidation";
 import type { InstalledSkill } from "@/types/skills";
@@ -88,9 +90,19 @@ export function useInstallSkills() {
 
 export function useUpdateSkill() {
   const qc = useQueryClient();
-  return useMutation({
+  return useMutation<
+    SingleSkillUpdateResult,
+    Error,
+    string
+  >({
+    mutationKey: ["updateSkill"],
     mutationFn: (skillId: string) => skillsApi.updateSkill(skillId),
-    onSuccess: () => invalidateFor(qc, "updateSkill"),
+    onSuccess: (result) => {
+      invalidateFor(qc, "updateSkill");
+      if (result.updated) {
+        toast.success(`${result.skill.name} updated to the latest version`);
+      }
+    },
     onSettled: () => qc.invalidateQueries({ queryKey: ["skills", "updateHistory"] }),
   });
 }

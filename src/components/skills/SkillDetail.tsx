@@ -75,6 +75,7 @@ export function SkillDetail({
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const [updateSuccess, setUpdateSuccess] = useState(false);
+  const [updateUpToDate, setUpdateUpToDate] = useState(false);
   const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Auto-navigate back when skill disappears (deleted externally)
@@ -100,12 +101,19 @@ export function SkillDetail({
   const handleUpdate = async () => {
     if (!onUpdate) return;
     try {
-      await onUpdate();
-      setUpdateSuccess(true);
-      if (successTimerRef.current) clearTimeout(successTimerRef.current);
-      successTimerRef.current = setTimeout(() => setUpdateSuccess(false), 1500);
+      const result = await onUpdate() as { updated: boolean } | null;
+      if (result?.updated) {
+        setUpdateSuccess(true);
+        if (successTimerRef.current) clearTimeout(successTimerRef.current);
+        successTimerRef.current = setTimeout(() => setUpdateSuccess(false), 1500);
+      } else {
+        setUpdateUpToDate(true);
+        if (successTimerRef.current) clearTimeout(successTimerRef.current);
+        successTimerRef.current = setTimeout(() => setUpdateUpToDate(false), 2000);
+      }
     } catch {
-      // Mutation errors are surfaced by the global mutation handler.
+      setUpdateSuccess(false);
+      // Error toast is handled by the global mutation onError handler
     }
   };
 
@@ -155,6 +163,7 @@ export function SkillDetail({
           archiveDisabled={archiveDisabled}
           archiveDisabledReason={t("archiveDialog.dirtyHint")}
           updateSuccess={updateSuccess}
+          updateUpToDate={updateUpToDate}
         />
       ) : (
         <div className="px-5 pt-4 pb-3">
