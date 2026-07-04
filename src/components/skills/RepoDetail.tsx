@@ -105,7 +105,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
     previewSkill?.repoOwner ?? null,
     previewSkill?.repoName ?? null,
     repo.branch,
-    previewSkill?.directory ?? null,
+    previewSkill?.key ?? null,
   );
 
   const handleInstallSelected = () => {

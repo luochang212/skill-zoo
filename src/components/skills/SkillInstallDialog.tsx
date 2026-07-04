@@ -40,7 +40,7 @@ export function SkillInstallDialog({
   const { data: agentConfigs } = useAgentConfigs();
   const visibleAgentOrder = useVisibleAgentOrder();
   const visibleAgentKey = visibleAgentOrder.join("\0");
-  const skillNames = skills.map((s) => s.directory);
+  const skillNames = skills.map((s) => s.key);
 
   const [agents, setAgents] = useState<Set<string>>(new Set());
 

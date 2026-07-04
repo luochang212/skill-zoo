@@ -27,7 +27,7 @@ vi.mock("@/hooks/useSkills", () => ({
           total: 3,
           skills: [
             {
-              key: "available",
+              key: ".agents/skills/available",
               name: "Available Skill",
               directory: "available",
               repoOwner: "owner",
@@ -66,10 +66,23 @@ vi.mock("@/hooks/useSkills", () => ({
 
 vi.mock("@/components/skills/SkillInstallDialog", () => ({
   SkillInstallDialog: ({
+    skills,
     onInstall,
   }: {
+    skills: Array<{ key: string }>;
     onInstall: (skillNames: string[], agents: string[]) => void;
-  }) => <button onClick={() => onInstall(["available"], ["codex"])}>Confirm install test</button>,
+  }) => (
+    <button
+      onClick={() =>
+        onInstall(
+          skills.map((skill) => skill.key),
+          ["codex"],
+        )
+      }
+    >
+      Confirm install test
+    </button>
+  ),
 }));
 
 vi.mock("@/hooks/useRepoLoadStage", () => ({
@@ -125,7 +138,7 @@ describe("RepoDetail discover status", () => {
     expect(mocks.installMutate).toHaveBeenCalledWith(
       {
         repoUrl: "https://github.com/owner/repo/tree/main",
-        skillNames: ["available"],
+        skillNames: [".agents/skills/available"],
         agents: ["codex"],
       },
       expect.objectContaining({ onSuccess: expect.any(Function) }),
@@ -147,7 +160,7 @@ describe("RepoDetail discover status", () => {
     expect(mocks.installMutate).toHaveBeenCalledWith(
       {
         repoUrl: "https://github.com/owner/repo",
-        skillNames: ["available"],
+        skillNames: [".agents/skills/available"],
         agents: ["codex"],
       },
       expect.objectContaining({ onSuccess: expect.any(Function) }),

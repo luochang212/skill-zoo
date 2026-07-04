@@ -87,18 +87,8 @@ impl CliService {
         }
 
         // Filter by requested names
-        let to_install: Vec<&(String, String, PathBuf)> = if install_all {
-            discovered.iter().collect()
-        } else {
-            discovered
-                .iter()
-                .filter(|(name, _, _)| {
-                    skills
-                        .iter()
-                        .any(|s| s.to_lowercase() == name.to_lowercase())
-                })
-                .collect()
-        };
+        let to_install =
+            Self::select_discovered_skills(&clone_path, &discovered, skills, install_all);
 
         if to_install.is_empty() {
             return Err(AppError::Cli(format!(
@@ -638,6 +628,43 @@ impl CliService {
             .to_string_lossy()
             .replace(std::path::MAIN_SEPARATOR, "/");
         Some(Self::normalize_skill_path(&path))
+    }
+
+    fn select_discovered_skills<'a>(
+        repo_root: &Path,
+        discovered: &'a [(String, String, PathBuf)],
+        requested: &[String],
+        install_all: bool,
+    ) -> Vec<&'a (String, String, PathBuf)> {
+        if install_all {
+            return discovered.iter().collect();
+        }
+
+        discovered
+            .iter()
+            .filter(|(name, _, path)| {
+                requested
+                    .iter()
+                    .any(|selector| Self::matches_discovered_skill(repo_root, selector, name, path))
+            })
+            .collect()
+    }
+
+    fn matches_discovered_skill(
+        repo_root: &Path,
+        selector: &str,
+        name: &str,
+        skill_path: &Path,
+    ) -> bool {
+        let selector = Self::normalize_skill_path(selector);
+        if selector.is_empty() {
+            return false;
+        }
+        if selector.eq_ignore_ascii_case(name) {
+            return true;
+        }
+
+        Self::lock_skill_path(repo_root, skill_path).as_deref() == Some(selector.as_str())
     }
 
     pub fn cache_zip_path(owner: &str, repo: &str, branch: Option<&str>) -> PathBuf {
@@ -1213,6 +1240,64 @@ mod tests {
         let path = CliService::lock_skill_path(repo.path(), &skill_dir).unwrap();
 
         assert_eq!(path, "nested/demo");
+    }
+
+    #[test]
+    fn install_selection_uses_relative_path_to_disambiguate_duplicate_leaf_names() {
+        let repo = tempfile::tempdir().unwrap();
+        let claude = repo.path().join(".claude").join("skills").join("recap");
+        let codex = repo.path().join(".codex").join("skills").join("recap");
+        std::fs::create_dir_all(&claude).unwrap();
+        std::fs::create_dir_all(&codex).unwrap();
+
+        let discovered = vec![
+            ("recap".to_string(), String::new(), claude.clone()),
+            ("recap".to_string(), String::new(), codex.clone()),
+        ];
+        let requested = vec![".codex/skills/recap".to_string()];
+
+        let selected =
+            CliService::select_discovered_skills(repo.path(), &discovered, &requested, false);
+
+        assert_eq!(selected.len(), 1);
+        assert_eq!(&selected[0].2, &codex);
+    }
+
+    #[test]
+    fn install_selection_keeps_true_duplicate_destinations_visible_to_preflight() {
+        let repo = tempfile::tempdir().unwrap();
+        let claude = repo.path().join(".claude").join("skills").join("recap");
+        let codex = repo.path().join(".codex").join("skills").join("recap");
+        std::fs::create_dir_all(&claude).unwrap();
+        std::fs::create_dir_all(&codex).unwrap();
+
+        let discovered = vec![
+            ("recap".to_string(), String::new(), claude),
+            ("recap".to_string(), String::new(), codex),
+        ];
+        let requested = vec![
+            ".claude/skills/recap".to_string(),
+            ".codex/skills/recap".to_string(),
+        ];
+
+        let selected =
+            CliService::select_discovered_skills(repo.path(), &discovered, &requested, false);
+        let destinations = selected
+            .iter()
+            .map(|(name, _, _)| name.as_str())
+            .collect::<Vec<_>>();
+
+        let result = CliService::ensure_install_destinations_available(
+            &destinations,
+            &repo.path().join("ssot"),
+            &[],
+        );
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("multiple selected skills target the same destination"));
     }
 
     #[test]
