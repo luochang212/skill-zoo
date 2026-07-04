@@ -104,7 +104,7 @@ describe("SkillCompanionSettings", () => {
     renderSettings();
 
     expect(await screen.findByText("Skill Companion")).toBeInTheDocument();
-    expect(await screen.findByText("Common Skill Commands")).toBeInTheDocument();
+    expect(await screen.findByText("Common Commands")).toBeInTheDocument();
     expect(await screen.findByText("1 common skill command(s) configured")).toBeInTheDocument();
     expect(screen.queryByDisplayValue("Review this code")).not.toBeInTheDocument();
 
@@ -219,7 +219,7 @@ describe("SkillCompanionSettings", () => {
 
     renderSettings();
 
-    expect(await screen.findByText("Skill Usage Habits")).toBeInTheDocument();
+    expect(await screen.findByText("Usage Habits")).toBeInTheDocument();
     expect(await screen.findByText("View historical skill usage")).toBeInTheDocument();
     expect(screen.queryByText("code-review")).not.toBeInTheDocument();
 
@@ -230,7 +230,7 @@ describe("SkillCompanionSettings", () => {
     expect(screen.getByText("Period calls")).toBeInTheDocument();
     expect(screen.getByText("4")).toBeInTheDocument();
     expect(screen.getByText("Active skills")).toBeInTheDocument();
-    expect(screen.getByText("Primary use")).toBeInTheDocument();
+    expect(screen.getByText("Top skill share")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
     expect(screen.getAllByText("75.0%").length).toBeGreaterThan(0);
     expect(screen.getByText("From code-review")).toBeInTheDocument();
