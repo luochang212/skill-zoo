@@ -1033,6 +1033,44 @@
         color: #b8b6af;
       }
 
+      /* ── Supported coding agents ── */
+      .agent-showcase {
+        margin-top: 48px;
+      }
+      .agent-grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 32px 20px;
+      }
+      .agent-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        text-align: center;
+      }
+      .agent-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.92);
+      }
+      .agent-icon img {
+        width: 28px;
+        height: 28px;
+        display: block;
+        object-fit: contain;
+      }
+      .agent-name {
+        color: var(--g500);
+        font-size: 13px;
+        font-weight: 450;
+        line-height: 1.3;
+      }
+
       /* ── Stat row ── */
       .stat-row {
         display: grid;
@@ -1382,6 +1420,21 @@
           font-size: 13px;
           line-height: 1.45;
         }
+        .agent-showcase {
+          margin-top: 32px;
+        }
+        .agent-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 28px 16px;
+        }
+        .agent-icon {
+          width: 42px;
+          height: 42px;
+        }
+        .agent-icon img {
+          width: 24px;
+          height: 24px;
+        }
 
         /* ── Stat row ── */
         .stat-row {
@@ -1473,6 +1526,18 @@
         .cmd-list {
           grid-template-columns: 1fr;
         }
+        .agent-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 24px 12px;
+        }
+        .agent-icon {
+          width: 38px;
+          height: 38px;
+        }
+        .agent-icon img {
+          width: 22px;
+          height: 22px;
+        }
         /* Hide verbose UX code block */
         .card.dark-card pre.no-copy {
           display: none;
@@ -1544,6 +1609,17 @@
         .card .icon {
           width: 24px;
           height: 24px;
+        }
+        .agent-icon {
+          width: 34px;
+          height: 34px;
+        }
+        .agent-icon img {
+          width: 20px;
+          height: 20px;
+        }
+        .agent-name {
+          font-size: 12px;
         }
 
         .num-circle {
@@ -3690,106 +3766,132 @@
       </div>
     </section>
 
-    <!-- ═══════════ I18N + ERROR + SECURITY ═══════════ -->
+    <!-- ═══════════ SUPPORTED CODING AGENTS ═══════════ -->
     <section class="sec">
       <div class="sec-inner">
-        <div class="eyebrow" data-i18n="robust-eyebrow">稳定性</div>
-        <h2 data-i18n="robust-title" data-reveal style="--r-delay: 0ms">
-          国际化、错误处理与安全
+        <div class="eyebrow" data-i18n="agents-eyebrow">生态</div>
+        <h2 data-i18n="agents-title" data-reveal style="--r-delay: 0ms">
+          覆盖主流 Coding Agent
         </h2>
         <p
           class="lead"
-          data-i18n="robust-lead"
+          data-i18n="agents-lead"
           data-reveal
           style="--r-delay: 120ms"
         >
-          从多语言支持到异常恢复，从数据校验到路径防护，每一层都经过仔细考量。
+          从 CLI 到 IDE，从终端到桌面，覆盖主流 AI 编程工具。
         </p>
 
-        <div
-          class="card-grid"
-          style="
-            grid-template-columns: repeat(3, 1fr);
-            margin-top: 48px;
-            --r-delay: 240ms;
-          "
-          data-reveal
-        >
-          <div class="card">
-            <div
-              class="icon"
-              style="background: rgba(197, 102, 59, 0.08); color: #c5663b"
-            >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linecap="round"
-              >
-                <circle cx="12" cy="12" r="9" />
-                <line x1="2" y1="12" x2="22" y2="12" />
-                <path d="M12 2a15 15 0 010 20" />
-              </svg>
+        <div class="agent-showcase" data-reveal style="--r-delay: 240ms">
+          <div class="agent-grid" aria-label="Supported coding agents">
+            <div class="agent-card">
+              <span class="agent-icon">
+                <img src="agent-icons/claude-code.png" alt="" />
+              </span>
+              <div class="agent-name">Claude Code</div>
             </div>
-            <h3 data-i18n="robust-i18n">国际化 (i18n)</h3>
-            <p data-i18n="robust-i18n-d">
-              翻译资源构建时编译为 JS
-              模块，不依赖运行时网络，离线也能即时切换语言。用户选择持久化到
-              localStorage，下次启动自动恢复。检测顺序：localStorage →
-              浏览器语言 → 默认英文。
-            </p>
-          </div>
-          <div class="card">
-            <div
-              class="icon"
-              style="background: rgba(74, 124, 150, 0.08); color: #4a7c96"
-            >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linecap="round"
-              >
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
+            <div class="agent-card">
+              <span class="agent-icon">
+                <img src="agent-icons/codex.png" alt="" />
+              </span>
+              <div class="agent-name">Codex</div>
             </div>
-            <h3 data-i18n="robust-error">分层错误处理</h3>
-            <p data-i18n="robust-error-d">
-              渲染崩溃与数据错误走两套独立恢复路径。ErrorBoundary
-              兜底组件异常，显示"重试"按钮而非白屏；每个页面自行接管 API
-              失败，一个页面出错，其余照常可用。
-            </p>
-          </div>
-          <div class="card">
-            <div
-              class="icon"
-              style="background: rgba(107, 139, 93, 0.08); color: #6b8b5d"
-            >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linecap="round"
-              >
-                <rect x="3" y="11" width="18" height="11" rx="2" />
-                <path d="M7 11V7a5 5 0 0110 0v4" />
-              </svg>
+            <div class="agent-card">
+              <span class="agent-icon">
+                <img src="agent-icons/gemini.png" alt="" />
+              </span>
+              <div class="agent-name">Gemini</div>
             </div>
-            <h3 data-i18n="robust-security">安全措施</h3>
-            <p data-i18n="robust-security-d">
-              SHA-256 校验文件完整性并去重，写入走原子路径防止崩溃丢数据。CSP
-              限制脚本来源，路径遍历严格验证，破坏性操作必经确认。ZIP 下载强制
-              500MB 上限，内置 skills.sh 安全审计面板。
-            </p>
+            <div class="agent-card">
+              <span class="agent-icon">
+                <img src="agent-icons/opencode.png" alt="" />
+              </span>
+              <div class="agent-name">OpenCode</div>
+            </div>
+            <div class="agent-card">
+              <span class="agent-icon">
+                <img src="agent-icons/cursor.png" alt="" />
+              </span>
+              <div class="agent-name">Cursor</div>
+            </div>
+            <div class="agent-card">
+              <span class="agent-icon">
+                <img src="agent-icons/trae.png" alt="" />
+              </span>
+              <div class="agent-name">Trae</div>
+            </div>
+            <div class="agent-card">
+              <span class="agent-icon">
+                <img src="agent-icons/trae-cn.png" alt="" />
+              </span>
+              <div class="agent-name">Trae CN</div>
+            </div>
+            <div class="agent-card">
+              <span class="agent-icon">
+                <img src="agent-icons/hermes.png" alt="" />
+              </span>
+              <div class="agent-name">Hermes</div>
+            </div>
+            <div class="agent-card">
+              <span class="agent-icon">
+                <img src="agent-icons/openclaw.png" alt="" />
+              </span>
+              <div class="agent-name">OpenClaw</div>
+            </div>
+            <div class="agent-card">
+              <span class="agent-icon">
+                <img src="agent-icons/workbuddy.svg" alt="" />
+              </span>
+              <div class="agent-name">WorkBuddy</div>
+            </div>
+            <div class="agent-card">
+              <span class="agent-icon">
+                <img src="agent-icons/qoder-cn.png" alt="" />
+              </span>
+              <div class="agent-name">Qoder CN</div>
+            </div>
+            <div class="agent-card">
+              <span class="agent-icon">
+                <img src="agent-icons/qoderworkcn.png" alt="" />
+              </span>
+              <div class="agent-name">QoderWork CN</div>
+            </div>
+            <div class="agent-card">
+              <span class="agent-icon">
+                <img src="agent-icons/windsurf.png" alt="" />
+              </span>
+              <div class="agent-name">Windsurf</div>
+            </div>
+            <div class="agent-card">
+              <span class="agent-icon">
+                <img src="agent-icons/codebuddy.png" alt="" />
+              </span>
+              <div class="agent-name">CodeBuddy</div>
+            </div>
+            <div class="agent-card">
+              <span class="agent-icon">
+                <img src="agent-icons/qwen-code.png" alt="" />
+              </span>
+              <div class="agent-name">Qwen Code</div>
+            </div>
+            <div class="agent-card">
+              <span class="agent-icon">
+                <img src="agent-icons/qoder.png" alt="" />
+              </span>
+              <div class="agent-name">Qoder</div>
+            </div>
+            <div class="agent-card">
+              <span class="agent-icon">
+                <img src="agent-icons/kilo.png" alt="" />
+              </span>
+              <div class="agent-name">Kilo Code</div>
+            </div>
+            <div class="agent-card">
+              <span class="agent-icon">
+                <img src="agent-icons/antigravity.png" alt="" />
+              </span>
+              <div class="agent-name">Antigravity</div>
+            </div>
           </div>
         </div>
       </div>
@@ -4255,33 +4357,15 @@
           zh: "即使重新扫描只需 200ms，加载状态也会持续至少 800ms，避免一闪而过，让每次操作都感觉真实可靠。",
           en: "Even when rescan takes only 200ms, loading state persists for at least 800ms to avoid flickers, making every operation feel tangible.",
         },
-        // i18n & Security
-        "robust-eyebrow": { zh: "稳定性", en: "Robustness" },
-        "robust-title": {
-          zh: "国际化、错误处理与安全",
-          en: "i18n, Error Handling & Security",
+        // Supported Agents
+        "agents-eyebrow": { zh: "生态", en: "Ecosystem" },
+        "agents-title": {
+          zh: "覆盖主流 Coding Agent",
+          en: "Across Major Coding Agents",
         },
-        "robust-lead": {
-          zh: "从多语言支持到异常恢复，从数据校验到路径防护，每一层都经过仔细考量。",
-          en: "From multi-language support to error recovery, from data validation to path protection — every layer is carefully considered.",
-        },
-        "robust-i18n": {
-          zh: "国际化 (i18n)",
-          en: "Internationalization (i18n)",
-        },
-        "robust-i18n-d": {
-          zh: "翻译资源构建时编译为 JS 模块，不依赖运行时网络，离线也能即时切换语言。用户选择持久化到 localStorage，下次启动自动恢复。检测顺序：localStorage → 浏览器语言 → 默认英文。",
-          en: "Translation resources compiled to JS modules at build time. No runtime network dependency — switch languages instantly offline. User preference persisted to localStorage. Detection order: localStorage → browser language → default English.",
-        },
-        "robust-error": { zh: "分层错误处理", en: "Layered Error Handling" },
-        "robust-error-d": {
-          zh: '渲染崩溃与数据错误走两套独立恢复路径。ErrorBoundary 兜底组件异常，显示"重试"按钮而非白屏；每个页面自行接管 API 失败，一个页面出错，其余照常可用。',
-          en: 'Render crashes and data errors take independent recovery paths. ErrorBoundary catches component exceptions with a "Retry" button instead of a white screen. Each page handles its own API failures — one broken page never takes down the rest.',
-        },
-        "robust-security": { zh: "安全措施", en: "Security Measures" },
-        "robust-security-d": {
-          zh: "SHA-256 校验文件完整性并去重，写入走原子路径防止崩溃丢数据。CSP 限制脚本来源，路径遍历严格验证，破坏性操作必经确认。ZIP 下载强制 500MB 上限，内置 skills.sh 安全审计面板。",
-          en: "SHA-256 integrity checks with dedup, atomic writes prevent data loss on crash. CSP restricts script sources, path traversal is validated, destructive operations require confirmation. ZIP downloads capped at 500MB, built-in skills.sh security audit panel.",
+        "agents-lead": {
+          zh: "从 CLI 到 IDE，从终端到桌面，覆盖主流 AI 编程工具。",
+          en: "From CLI to IDE, terminal to desktop — across the full spectrum of AI coding tools.",
         },
         // Product Overview
         "overview-eyebrow": {
