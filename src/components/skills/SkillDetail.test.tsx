@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@tauri-apps/api/core";
 import type { ReactElement } from "react";
@@ -112,6 +112,135 @@ describe("SkillDetail", () => {
     resolveUpdate({ updated: true });
 
     expect(await screen.findByTitle("Updated")).toBeInTheDocument();
+  });
+
+  it("clears update success when switching skills", async () => {
+    const onUpdate = vi.fn(() => Promise.resolve({ updated: true }));
+    const { queryClient, rerender } = renderWithQueryClient(
+      <SkillDetail
+        skill={{ ...skill, repoOwner: "owner", repoName: "repo" }}
+        skillName="Skill 1"
+        contentLoading={false}
+        content="# Skill content"
+        onChange={() => {}}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    await userEvent.click(screen.getByTitle("Update from git"));
+    expect(await screen.findByTitle("Updated")).toBeInTheDocument();
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <SkillDetail
+          skill={{
+            ...skill,
+            id: "skill-2",
+            name: "Skill 2",
+            directory: "skill-2",
+            repoOwner: "owner",
+            repoName: "repo",
+          }}
+          skillName="Skill 2"
+          contentLoading={false}
+          content="# Skill content"
+          onChange={() => {}}
+          onUpdate={onUpdate}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.queryByTitle("Updated")).not.toBeInTheDocument();
+    expect(screen.getByTitle("Update from git")).toBeInTheDocument();
+  });
+
+  it("clears up-to-date status when switching skills", async () => {
+    const onUpdate = vi.fn(() => Promise.resolve({ updated: false }));
+    const { queryClient, rerender } = renderWithQueryClient(
+      <SkillDetail
+        skill={{ ...skill, repoOwner: "owner", repoName: "repo" }}
+        skillName="Skill 1"
+        contentLoading={false}
+        content="# Skill content"
+        onChange={() => {}}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    await userEvent.click(screen.getByTitle("Update from git"));
+    expect(await screen.findByTitle("Already up to date")).toBeInTheDocument();
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <SkillDetail
+          skill={{
+            ...skill,
+            id: "skill-2",
+            name: "Skill 2",
+            directory: "skill-2",
+            repoOwner: "owner",
+            repoName: "repo",
+          }}
+          skillName="Skill 2"
+          contentLoading={false}
+          content="# Skill content"
+          onChange={() => {}}
+          onUpdate={onUpdate}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.queryByTitle("Already up to date")).not.toBeInTheDocument();
+    expect(screen.getByTitle("Update from git")).toBeInTheDocument();
+  });
+
+  it("ignores stale update results after switching skills", async () => {
+    let resolveUpdate!: (value: { updated: boolean }) => void;
+    const onUpdate = vi.fn(
+      () =>
+        new Promise<{ updated: boolean }>((resolve) => {
+          resolveUpdate = resolve;
+        }),
+    );
+    const { queryClient, rerender } = renderWithQueryClient(
+      <SkillDetail
+        skill={{ ...skill, repoOwner: "owner", repoName: "repo" }}
+        skillName="Skill 1"
+        contentLoading={false}
+        content="# Skill content"
+        onChange={() => {}}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    await userEvent.click(screen.getByTitle("Update from git"));
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <SkillDetail
+          skill={{
+            ...skill,
+            id: "skill-2",
+            name: "Skill 2",
+            directory: "skill-2",
+            repoOwner: "owner",
+            repoName: "repo",
+          }}
+          skillName="Skill 2"
+          contentLoading={false}
+          content="# Skill content"
+          onChange={() => {}}
+          onUpdate={onUpdate}
+        />
+      </QueryClientProvider>,
+    );
+
+    await act(async () => {
+      resolveUpdate({ updated: true });
+    });
+
+    expect(screen.queryByTitle("Updated")).not.toBeInTheDocument();
+    expect(screen.getByTitle("Update from git")).toBeInTheDocument();
   });
 
   it("does not show update success when the update fails", async () => {

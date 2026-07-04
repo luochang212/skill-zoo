@@ -35,6 +35,8 @@ function skill(index: number): InstalledSkill {
     directory: `skill-${index}`,
     apps: { codex: true },
     origin: "ssot",
+    repoOwner: "owner",
+    repoName: "repo",
     starred: false,
     installedAt: index,
     updatedAt: index,
@@ -84,6 +86,8 @@ describe("App local skill detail navigation", () => {
               isSkillMd: true,
             },
           ]);
+        case "update_skill":
+          return new Promise(() => {});
         default:
           return Promise.resolve(undefined);
       }
@@ -112,5 +116,23 @@ describe("App local skill detail navigation", () => {
     await waitFor(() => expect(hiddenList).not.toHaveAttribute("aria-hidden"));
     expect(hiddenList).not.toHaveAttribute("inert");
     expect(firstSkillButton).toBeInTheDocument();
+  });
+
+  it("does not show a different skill as updating while an earlier update is pending", async () => {
+    renderApp();
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Skill 0" }));
+    await screen.findByText("Skill content");
+
+    await user.click(screen.getByTitle("Update from git"));
+    expect(screen.getByTitle("Updating...")).toBeInTheDocument();
+
+    await user.click(screen.getByTitle("Back"));
+    await user.click(await screen.findByRole("button", { name: "Skill 1" }));
+
+    expect(await screen.findByRole("heading", { name: "Skill 1" })).toBeInTheDocument();
+    expect(screen.queryByTitle("Updating...")).not.toBeInTheDocument();
+    expect(screen.getByTitle("Update from git")).toBeInTheDocument();
   });
 });

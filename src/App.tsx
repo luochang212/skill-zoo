@@ -242,7 +242,7 @@ export default function App() {
           onRemove={handleRemove}
           onArchive={handleArchive}
           onToggleStar={handleToggleStar}
-          updatePending={updateMutation.isPending}
+          updatePending={updateMutation.isPending && updateMutation.variables === editor.skillId}
           removePending={removeMutation.isPending}
           archivePending={archiveMutation.isPending}
           archiveDisabled={editor.dirty}

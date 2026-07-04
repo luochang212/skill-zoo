@@ -77,18 +77,35 @@ export function SkillDetail({
   const [updateSuccess, setUpdateSuccess] = useState(false);
   const [updateUpToDate, setUpdateUpToDate] = useState(false);
   const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentSkillIdRef = useRef(skill?.id);
+
+  const clearUpdateTimer = useCallback(() => {
+    if (successTimerRef.current) {
+      clearTimeout(successTimerRef.current);
+      successTimerRef.current = null;
+    }
+  }, []);
+
+  const clearUpdateStatus = useCallback(() => {
+    clearUpdateTimer();
+    setUpdateSuccess(false);
+    setUpdateUpToDate(false);
+  }, [clearUpdateTimer]);
 
   // Auto-navigate back when skill disappears (deleted externally)
   useEffect(() => {
     if (!skillLoading && !isError && !skill && onBack) onBack();
   }, [skill, skillLoading, isError, onBack]);
 
+  useEffect(() => {
+    currentSkillIdRef.current = skill?.id;
+    clearUpdateStatus();
+  }, [skill?.id, clearUpdateStatus]);
+
   // Clean up timer on unmount
   useEffect(() => {
-    return () => {
-      if (successTimerRef.current) clearTimeout(successTimerRef.current);
-    };
-  }, []);
+    return clearUpdateTimer;
+  }, [clearUpdateTimer]);
 
   const handleTabChange = useCallback(
     (tab: ContentTab) => {
@@ -100,19 +117,24 @@ export function SkillDetail({
 
   const handleUpdate = async () => {
     if (!onUpdate) return;
+    const updateSkillId = skill?.id;
+    clearUpdateStatus();
     try {
       const result = (await onUpdate()) as { updated: boolean } | null;
+      if (currentSkillIdRef.current !== updateSkillId) return;
       if (result?.updated) {
+        setUpdateUpToDate(false);
         setUpdateSuccess(true);
-        if (successTimerRef.current) clearTimeout(successTimerRef.current);
         successTimerRef.current = setTimeout(() => setUpdateSuccess(false), 1500);
       } else {
+        setUpdateSuccess(false);
         setUpdateUpToDate(true);
-        if (successTimerRef.current) clearTimeout(successTimerRef.current);
         successTimerRef.current = setTimeout(() => setUpdateUpToDate(false), 2000);
       }
     } catch {
-      setUpdateSuccess(false);
+      if (currentSkillIdRef.current === updateSkillId) {
+        clearUpdateStatus();
+      }
       // Error toast is handled by the global mutation onError handler
     }
   };
