@@ -1,6 +1,6 @@
 [package]
 name = "skill-zoo"
-version = "0.3.13"
+version = "0.3.14"
 description = "Local GUI tool for managing Agent Skills"
 authors = ["luochang212"]
 license = "MIT"

@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.14] — 2026-07-04
+
+### Changed
+- Updated tray template icon.
+- Refined skill companion usage labels.
+- Polished local skills loading skeleton animation.
+
+### Fixed
+- Nested repo skills with duplicate leaf names can now be disambiguated by selecting the full path.
+- Skill update button state no longer leaks across skill cards.
+
 ## [0.3.13] — 2026-07-04
 
 ### Added
