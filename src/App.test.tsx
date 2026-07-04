@@ -19,6 +19,7 @@ vi.mock("@tauri-apps/api/event", () => ({
 }));
 vi.mock("@tauri-apps/api/window", () => ({
   getCurrentWindow: () => ({
+    show: vi.fn().mockResolvedValue(undefined),
     startDragging: vi.fn(),
     toggleMaximize: vi.fn(),
   }),

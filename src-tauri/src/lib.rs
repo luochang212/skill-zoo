@@ -24,6 +24,7 @@ mod services;
 #[cfg(not(feature = "test-helpers"))]
 mod store;
 
+use std::time::Duration;
 use store::AppState;
 use tauri::{Emitter, Manager};
 
@@ -63,6 +64,15 @@ pub fn run() {
 
             let app_state = AppState::new(skill_cache, metadata, settings);
             app.manage(app_state);
+
+            if let Some(window) = app.get_webview_window("main") {
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                    if window.is_visible().map(|visible| !visible).unwrap_or(true) {
+                        let _ = window.show();
+                    }
+                });
+            }
 
             if let Err(e) = services::tray::setup_tray(app) {
                 eprintln!("Failed to set up system tray: {e}");
