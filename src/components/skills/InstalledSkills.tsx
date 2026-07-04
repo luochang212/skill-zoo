@@ -164,6 +164,187 @@ function BatchConfirmDialog({
   );
 }
 
+function InstalledSkillsSkeleton({
+  category,
+  viewMode,
+  agentCount,
+}: {
+  category: SidebarCategory;
+  viewMode: ViewMode;
+  agentCount: number;
+}) {
+  const showToolbar = category.type !== "consistency";
+  const showCreateRow = category.type === "mine";
+
+  return (
+    <div className="flex h-full">
+      <SkeletonSidebar />
+
+      <div className="flex flex-col flex-1 min-w-0">
+        <div className="flex-1 min-h-0 p-6 pb-0 flex flex-col">
+          {showToolbar && <SkeletonToolbar viewMode={viewMode} agentCount={agentCount} />}
+
+          {showCreateRow && (
+            <div className="mb-5">
+              <Skeleton className="h-9 w-28 rounded-lg" />
+            </div>
+          )}
+
+          {category.type === "consistency" ? (
+            <SkeletonConsistencyPanel />
+          ) : (
+            <div className="flex-1 min-h-0 flex gap-0 relative">
+              <ScrollArea className="flex-1 pt-1 @container/main">
+                {viewMode === "grid" ? <SkeletonGrid /> : <SkeletonList />}
+              </ScrollArea>
+              {category.type === "repo" && (
+                <div className="hidden @4col/main:block w-[260px] shrink-0 border-l border-border/50 ml-5 pl-5">
+                  <Skeleton className="h-4 w-32 mb-3" />
+                  <Skeleton className="h-3 w-24 mb-5" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-11/12" />
+                    <Skeleton className="h-3 w-4/5" />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SkeletonSidebar() {
+  return (
+    <div className="w-[220px] h-full shrink-0 border-r border-border/60 bg-sidebar flex flex-col overflow-hidden">
+      <div className="px-4 py-4">
+        <Skeleton className="h-4 w-20" />
+      </div>
+      <ScrollArea className="flex-1">
+        <div className="space-y-0.5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-2.5 px-4 py-2.5">
+              <Skeleton className="h-4 w-4 rounded shrink-0" />
+              <Skeleton className="h-3.5 flex-1" />
+              <Skeleton className="h-4 w-7 rounded-full shrink-0" />
+            </div>
+          ))}
+          <div className="flex items-center gap-2.5 px-4 py-2.5">
+            <Skeleton className="h-4 w-4 rounded shrink-0" />
+            <Skeleton className="h-3.5 w-16" />
+            <div className="flex-1" />
+            <Skeleton className="h-4 w-4 rounded shrink-0" />
+          </div>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center px-4 py-2 pl-8">
+              <Skeleton className="h-3.5 w-full" />
+            </div>
+          ))}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}
+
+function SkeletonToolbar({ viewMode, agentCount }: { viewMode: ViewMode; agentCount: number }) {
+  const pillCount = Math.max(2, Math.min(agentCount + 1, 5));
+
+  return (
+    <div className="flex items-center gap-3 mb-6">
+      <Skeleton className="h-9 w-64 max-w-xs rounded-md" />
+      <div className="flex gap-0.5 flex-wrap">
+        {Array.from({ length: pillCount }).map((_, i) => (
+          <Skeleton key={i} className="h-7 w-12 rounded-lg" />
+        ))}
+      </div>
+      <div className="flex-1" />
+      <div className="inline-flex items-center bg-muted rounded-lg p-1 gap-1">
+        <Skeleton
+          className={`h-6 w-6 rounded-md ${viewMode === "grid" ? "bg-background shadow-sm" : ""}`}
+        />
+        <Skeleton
+          className={`h-6 w-6 rounded-md ${viewMode === "list" ? "bg-background shadow-sm" : ""}`}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SkeletonGrid() {
+  return (
+    <div className="grid grid-cols-1 max-w-[780px] @md/main:grid-cols-2 @md/main:max-w-none @3col/main:grid-cols-3 @4col/main:grid-cols-4 gap-4 pt-1 pb-3">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div key={i} className="rounded-xl border bg-card p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-4 w-4 rounded-full shrink-0" />
+          </div>
+          <Skeleton className="h-3 w-1/2" />
+          <div className="space-y-2 pt-1">
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-5/6" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SkeletonList() {
+  return (
+    <div className="flex flex-col">
+      <div className="flex items-center gap-4 px-5 py-1.5 border-b border-border/40">
+        <div className="w-8 shrink-0 flex justify-center">
+          <Skeleton className="h-4 w-4 rounded" />
+        </div>
+        <Skeleton className="h-3 w-48 shrink-0" />
+        <Skeleton className="h-3 flex-1 min-w-0 hidden @2xl/main:block" />
+        <Skeleton className="h-3 w-28 shrink-0 hidden @md/main:block" />
+        <div className="w-8 shrink-0 hidden @lg/main:block" />
+      </div>
+      {Array.from({ length: 10 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-4 px-5 py-2">
+          <div className="w-8 shrink-0 flex justify-center">
+            <Skeleton className="h-4 w-4 rounded" />
+          </div>
+          <div className="w-48 shrink-0 min-w-0 flex items-center gap-2">
+            <Skeleton className="h-4 flex-1" />
+            {i % 4 === 0 && <Skeleton className="h-4 w-8 rounded-full shrink-0" />}
+          </div>
+          <Skeleton className="h-3 flex-1 min-w-0 hidden @2xl/main:block" />
+          <Skeleton className="h-3 w-28 shrink-0 hidden @md/main:block" />
+          <div className="w-8 shrink-0 hidden @lg/main:flex justify-center">
+            <Skeleton className="h-4 w-4 rounded-full" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SkeletonConsistencyPanel() {
+  return (
+    <div className="flex-1 min-h-0 pt-1">
+      <div className="space-y-3 max-w-3xl">
+        <Skeleton className="h-4 w-40" />
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="rounded-lg border bg-card p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-4 w-4 rounded" />
+              <Skeleton className="h-4 w-44" />
+              <Skeleton className="h-5 w-16 rounded-full" />
+            </div>
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-3/4" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export const InstalledSkills = memo(function InstalledSkills({
   onViewSkill,
   onViewArchivedSkill,
@@ -340,57 +521,11 @@ export const InstalledSkills = memo(function InstalledSkills({
 
   if (isLoading || (category.type === "archived" && archivedLoading)) {
     return (
-      <div className="flex h-full">
-        {/* Skeleton sidebar — mirrors SkillSidebar: header + icon-label-count rows */}
-        <div className="w-[220px] h-full shrink-0 border-r border-border/60 bg-sidebar flex flex-col overflow-hidden">
-          <div className="px-4 py-4">
-            <Skeleton className="h-4 w-20" />
-          </div>
-          <ScrollArea className="flex-1">
-            <div className="space-y-0.5">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-2.5 px-4 py-2.5">
-                  <Skeleton className="h-4 w-4 rounded shrink-0" />
-                  <Skeleton className="h-3.5 flex-1" />
-                  <Skeleton className="h-4 w-7 rounded-full shrink-0" />
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
-        </div>
-
-        {/* Skeleton main content */}
-        <div className="flex flex-col flex-1 min-w-0 p-6">
-          {/* Toolbar skeleton */}
-          <div className="flex items-center gap-3 mb-6">
-            <Skeleton className="h-9 w-64 rounded-md" />
-            <div className="flex gap-0.5">
-              <Skeleton className="h-7 w-10 rounded-lg" />
-              <Skeleton className="h-7 w-14 rounded-lg" />
-              <Skeleton className="h-7 w-16 rounded-lg" />
-            </div>
-            <div className="flex-1" />
-            <Skeleton className="h-7 w-14 rounded-lg" />
-          </div>
-
-          {/* Card grid skeleton */}
-          <ScrollArea className="flex-1 pt-1 @container/main">
-            <div className="grid grid-cols-1 max-w-[780px] @md/main:grid-cols-2 @md/main:max-w-none @3col/main:grid-cols-3 @4col/main:grid-cols-4 gap-4 pt-1 pb-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="rounded-xl border bg-card p-4 space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <Skeleton className="h-4 w-3/4" />
-                    <Skeleton className="h-4 w-4 rounded-full" />
-                  </div>
-                  <Skeleton className="h-3 w-1/2" />
-                  <Skeleton className="h-3 w-full" />
-                  <Skeleton className="h-3 w-5/6" />
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
-        </div>
-      </div>
+      <InstalledSkillsSkeleton
+        category={category}
+        viewMode={viewMode}
+        agentCount={visibleAgentOrder.length}
+      />
     );
   }
 
