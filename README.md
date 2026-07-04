@@ -13,20 +13,7 @@
 
 ![app-screenshot](docs/header-image.webp)
 
-Local Agent Skills Manager — Discover, install, and manage skills for AI coding tools including Claude Code, Codex, Gemini, OpenCode, Cursor, Trae, Hermes, OpenClaw and more.
-
-<!-- ## Why Skill Zoo?
-
-AI coding tools are multiplying — Claude Code, Cursor, Codex, Gemini. Each stores skills in a different directory. Before Skill Zoo, managing skills meant:
-
-- Manually copying files between coding tool directories
-- No way to discover what skills exist in the community
-- No visibility into which skills are installed where
-- Divergent copies of the same skill silently drifting out of sync
-
-Skill Zoo gives you a single place to **browse**, **install**, **edit**, and **sync** skills across all your AI coding tools. It's a file manager with a purpose-built UI — local-first, no cloud, no lock-in.
-
-![Demo](docs/demo.gif) -->
+Local Agent Skills Manager: Discover, install, and manage skills for AI coding tools including Claude Code, Codex, Gemini, OpenCode, Cursor, Trae, Hermes, OpenClaw and more.
 
 ## ✨ Tech Stack
 
@@ -48,7 +35,7 @@ Skill Zoo gives you a single place to **browse**, **install**, **edit**, and **s
 
 - **Explore & Install**: Search and download skills from GitHub repositories
 - **Update Skills**: Update installed skills to the latest version from GitHub
-- **Skill Authoring**: Built-in Markdown editor — create skills anywhere, anytime
+- **Skill Authoring**: Built-in Markdown editor to create skills anywhere, anytime
 - **Batch Operations**: Install, delete, or merge duplicate skills in bulk
 - **Security Audit**: View community audit scores from skills.sh
 - **Consistency Check**: Proactively detect three types of inconsistencies and prompt fixes
@@ -97,15 +84,15 @@ chmod +x Skill-Zoo-*-Linux-*.AppImage
 
 ## 😇 Trust & Security
 
-- **Auditable Code** — 100% open source. Every build runs on GitHub Actions for anyone to inspect.
-- **Connects On Demand** — No background polling. Network only fires on browse or install.
-- **You Stay in Control** — Any operation that touches real files (delete, move, overwrite) asks for confirmation first.
+- **Auditable Code**: 100% open source. Every build runs on GitHub Actions for anyone to inspect.
+- **Connects On Demand**: No background polling. Network only fires on browse or install.
+- **You Stay in Control**: Any operation that touches real files (delete, move, overwrite) asks for confirmation first.
 
 ## 💡 Contributing
 
 For development, see [docs/development.md](docs/development.md).
 
-Found a bug or have an idea? Open an [issue](https://github.com/luochang212/skill-zoo/issues) or submit a PR — contributions of all kinds are welcome!
+Found a bug or have an idea? Open an [issue](https://github.com/luochang212/skill-zoo/issues) or submit a PR. Contributions of all kinds are welcome!
 
 ## 📜 License
 

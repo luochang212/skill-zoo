@@ -13,20 +13,7 @@
 
 ![app-screenshot](docs/header-image.webp)
 
-本地 Agent Skills 管理工具 — 发现、安装、管理 Claude Code、Codex、Gemini、OpenCode、Cursor、Trae、Hermes、OpenClaw 等 AI 编程工具的技能。
-
-<!-- ## 为什么选择 Skill Zoo？
-
-AI 编程工具越来越多 — Claude Code、Cursor、Codex、Gemini。每个工具把技能存在不同目录。没有 Skill Zoo 之前，管理技能意味着：
-
-- 在多个编程工具目录之间手动复制文件
-- 无法发现社区中有哪些技能
-- 看不到哪些技能安装到了哪里
-- 同一技能的多个副本各自修改，逐渐产生差异
-
-Skill Zoo 让你在一个地方**浏览**、**安装**、**编辑**和**同步**所有 AI 编程工具的 skill。它是一个拥有专用界面设计的文件管理器 — 本地优先，无云端，无锁定。
-
-![Demo](docs/demo.gif) -->
+本地 Agent Skills 管理工具：发现、安装、管理 Claude Code、Codex、Gemini、OpenCode、Cursor、Trae、Hermes、OpenClaw 等 AI 编程工具的技能。
 
 ## ✨ 技术栈
 
@@ -97,9 +84,9 @@ chmod +x Skill-Zoo-*-Linux-*.AppImage
 
 ## 😇 信任与安全
 
-- **代码可见** — 全部源码开源，构建过程由 GitHub Actions 自动完成，任何人都可以审计
-- **按需联网** — 不后台偷跑，只在用户主动触发操作时请求 GitHub / skills.sh API
-- **操作经你确认** — 所有涉及真实文件的操作（删除、移动、覆盖）都会弹出确认，由你拍板
+- **代码可见**：全部源码开源，构建过程由 GitHub Actions 自动完成，任何人都可以审计
+- **按需联网**：不后台偷跑，只在用户主动触发操作时请求 GitHub / skills.sh API
+- **操作经你确认**：所有涉及真实文件的操作（删除、移动、覆盖）都会弹出确认，由你拍板
 
 ## 💡 贡献代码
 
