@@ -385,7 +385,10 @@ pub fn watch_external_path(state: &AppState, source_path: &Path) {
     if let Ok(mut guard) = state.fs_watcher.lock() {
         if let Some(watcher) = guard.as_mut() {
             if let Err(e) = watcher.watch(source_path, RecursiveMode::Recursive) {
-                eprintln!("Failed to watch external import path {}: {e}", source_path.display());
+                eprintln!(
+                    "Failed to watch external import path {}: {e}",
+                    source_path.display()
+                );
             }
         }
     }

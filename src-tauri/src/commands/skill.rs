@@ -623,7 +623,8 @@ pub async fn import_external_skills(
             let preexisting = external_import_link_path(&selection.directory, agent)
                 .ok()
                 .map(|link| {
-                    is_symlink_or_junction(&link) && link_points_to_import_source(&link, source_path)
+                    is_symlink_or_junction(&link)
+                        && link_points_to_import_source(&link, source_path)
                 })
                 .unwrap_or(false);
             if let Err(e) = SkillService::toggle_symlink(
