@@ -69,21 +69,23 @@ function DuplicateGroupCard({ group, onMerge }: { group: DuplicateGroup; onMerge
             <SkillEntry key={s.id} skill={s} showHash={!group.sameContent} />
           ))}
 
-          {group.sameContent && onMerge && (
-            <div className="pt-2">
-              <Button
-                size="sm"
-                variant="default"
-                className="h-8 text-xs rounded-lg"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onMerge();
-                }}
-              >
-                {t("consistency.mergeToSsot")}
-              </Button>
-            </div>
-          )}
+          {group.sameContent &&
+            onMerge &&
+            group.skills.filter((s) => s.origin !== "external").length >= 2 && (
+              <div className="pt-2">
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="h-8 text-xs rounded-lg"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMerge();
+                  }}
+                >
+                  {t("consistency.mergeToSsot")}
+                </Button>
+              </div>
+            )}
         </div>
       )}
     </div>
@@ -98,6 +100,11 @@ function SkillEntry({ skill, showHash }: { skill: InstalledSkill; showHash: bool
       <span className="text-muted-foreground truncate flex-1 min-w-0" title={skill.homePath}>
         {skill.homePath}
       </span>
+      {skill.origin === "external" && (
+        <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded shrink-0">
+          {t("skillInfo.imported")}
+        </span>
+      )}
       {showHash && skill.contentHash && (
         <code className="text-[10px] text-muted-foreground/70 bg-muted px-1.5 py-0.5 rounded shrink-0">
           {skill.contentHash.slice(0, 8)}
@@ -248,6 +255,9 @@ export function ConsistencyPanel({
   }, [menuOpen]);
 
   const duplicateGroups = allGroups.filter((g) => g.sameContent);
+  const mergeableGroups = duplicateGroups.filter(
+    (g) => g.skills.filter((s) => s.origin !== "external").length >= 2,
+  );
   const conflictGroups = allGroups.filter((g) => !g.sameContent);
 
   const resolvedTab: ConsistencyTab =
@@ -384,7 +394,7 @@ export function ConsistencyPanel({
             empty={t("consistency.noDuplicates")}
             hasItems={duplicateGroups.length > 0}
           >
-            {duplicateGroups.length > 0 && (
+            {mergeableGroups.length > 0 && (
               <Button
                 size="sm"
                 className="h-8 text-xs rounded-lg"
@@ -430,7 +440,7 @@ export function ConsistencyPanel({
         <MergeConfirmDialog
           skillName={confirmGroup.name}
           skillDirs={confirmGroup.skills
-            .filter((s) => s.origin !== "ssot")
+            .filter((s) => s.origin !== "ssot" && s.origin !== "external")
             .map((s) => s.homePath ?? s.directory)}
           onConfirm={() => {
             mergeMutation.mutate(confirmGroup.name, {
@@ -449,13 +459,13 @@ export function ConsistencyPanel({
             <DialogHeader>
               <DialogTitle>{t("consistency.mergeAllConfirmTitle")}</DialogTitle>
               <DialogDescription>
-                {t("consistency.mergeAllConfirmDesc", { count: duplicateGroups.length })}
+                {t("consistency.mergeAllConfirmDesc", { count: mergeableGroups.length })}
               </DialogDescription>
             </DialogHeader>
 
             <ScrollArea className="max-h-60">
               <div className="space-y-2 text-[12px]">
-                {duplicateGroups.map((group) => (
+                {mergeableGroups.map((group) => (
                   <div key={group.name} className="flex items-center gap-2">
                     <Copy className="h-3 w-3 shrink-0 text-amber-500 dark:text-amber-400" />
                     <span className="flex-1 truncate">
@@ -488,7 +498,7 @@ export function ConsistencyPanel({
                 disabled={merging}
                 onClick={() => {
                   setMerging(true);
-                  duplicateGroups
+                  mergeableGroups
                     .reduce(
                       (chain, group) =>
                         chain.then(() =>

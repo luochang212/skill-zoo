@@ -1666,9 +1666,16 @@ impl SkillService {
             )));
         }
 
-        if entries.iter().any(|entry| entry.origin == "external") {
-            return Err(AppError::BadRequest(format!(
-                "Cannot merge: '{skill_name}' includes an external import. Remove the external import instead."
+        // Filter out external imports — they can't be merged into SSOT
+        // because their source files are owned by the user elsewhere.
+        let entries: Vec<SkillCacheEntry> = entries
+            .into_iter()
+            .filter(|entry| entry.origin != "external")
+            .collect();
+
+        if entries.is_empty() {
+            return Err(AppError::NotFound(format!(
+                "No mergeable skills found with name: {skill_name}"
             )));
         }
 
