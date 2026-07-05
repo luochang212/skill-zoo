@@ -202,7 +202,7 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
               onClick={() => setTab("manage")}
             >
               <LayoutList className="h-3.5 w-3.5" />
-              {t("settings.localImports.tabManage")}
+              {t("settings.localImports.tabManage", { count: imports?.length ?? 0 })}
             </button>
           </div>
         </div>

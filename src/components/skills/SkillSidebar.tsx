@@ -175,6 +175,23 @@ export function SkillSidebar({
             <CountBadge count={starCount} />
           </button>
 
+          {/* My Skills */}
+          <button
+            onClick={() => onSelectCategory({ type: "mine" })}
+            className={cn(
+              "w-full px-4 py-2.5 flex items-center text-[13px] transition-colors",
+              isActive({ type: "mine" })
+                ? "bg-primary/5 text-foreground border-l-2 border-l-primary"
+                : "text-foreground/70 hover:bg-accent/50 hover:text-foreground",
+            )}
+          >
+            <span className="flex items-center gap-2.5 min-w-0 flex-1">
+              <User className="h-4 w-4 shrink-0" />
+              <span>{t("sidebar.mySkills")}</span>
+            </span>
+            <CountBadge count={mySkillsCount} />
+          </button>
+
           {/* Import */}
           {importedCount > 0 && (
             <button
@@ -193,23 +210,6 @@ export function SkillSidebar({
               <CountBadge count={importCount} />
             </button>
           )}
-
-          {/* My Skills */}
-          <button
-            onClick={() => onSelectCategory({ type: "mine" })}
-            className={cn(
-              "w-full px-4 py-2.5 flex items-center text-[13px] transition-colors",
-              isActive({ type: "mine" })
-                ? "bg-primary/5 text-foreground border-l-2 border-l-primary"
-                : "text-foreground/70 hover:bg-accent/50 hover:text-foreground",
-            )}
-          >
-            <span className="flex items-center gap-2.5 min-w-0 flex-1">
-              <User className="h-4 w-4 shrink-0" />
-              <span>{t("sidebar.mySkills")}</span>
-            </span>
-            <CountBadge count={mySkillsCount} />
-          </button>
 
           {/* Consistency */}
           {consistencyCount > 0 && (
