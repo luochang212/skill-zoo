@@ -3,8 +3,13 @@ use crate::error::AppError;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::sync::Mutex;
 
 pub const SUPPORTED_LOCK_VERSION: i32 = 3;
+
+/// Process-wide mutex serializing all lock-file read-modify-write so concurrent
+/// `SkillLock::update` calls don't lose fields to interleaved writes.
+static LOCK_WRITE: Mutex<()> = Mutex::new(());
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -43,6 +48,24 @@ fn default_version() -> i32 {
 }
 
 impl SkillLock {
+    /// Atomically read-modify-write the lock file under an exclusive guard.
+    ///
+    /// Runs under a process-wide mutex, so concurrent callers serialize. The
+    /// closure must be pure memory mutation — no await, no IO, no reentrant
+    /// `read`/`write`/`update` (the mutex is non-reentrant).
+    pub fn update<F, R>(f: F) -> Result<R, AppError>
+    where
+        F: FnOnce(&mut SkillLock) -> Result<R, AppError>,
+    {
+        let _guard = LOCK_WRITE.lock().map_err(|e| {
+            AppError::Io(std::io::Error::other(format!("lock mutex poisoned: {e}")))
+        })?;
+        let mut lock = Self::read()?;
+        let result = f(&mut lock)?;
+        lock.write()?;
+        Ok(result)
+    }
+
     pub fn read() -> Result<Self, AppError> {
         let path = config::get_agent_lock_file();
         if !path.exists() {
@@ -84,12 +107,12 @@ impl SkillLock {
 
 impl SkillLock {
     pub fn update_commit_sha(skill_name: &str, sha: &str) -> Result<(), AppError> {
-        let mut lock = Self::read()?;
-        if let Some(entry) = lock.skills.get_mut(skill_name) {
-            entry.commit_sha = Some(sha.to_string());
-            lock.write()?;
-        }
-        Ok(())
+        Self::update(|lock| {
+            if let Some(entry) = lock.skills.get_mut(skill_name) {
+                entry.commit_sha = Some(sha.to_string());
+            }
+            Ok(())
+        })
     }
 }
 

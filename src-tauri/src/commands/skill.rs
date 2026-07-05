@@ -1238,22 +1238,22 @@ fn remove_lock_entry_for_skill(skill: &SkillCacheEntry) {
     if skill.origin != "ssot" {
         return;
     }
-    let Ok(mut lock) = SkillLock::read() else {
-        return;
-    };
     // Mirror archive's lookup order: full directory first, leaf name as legacy fallback.
-    let lock_key = if lock.skills.contains_key(&skill.directory) {
-        Some(skill.directory.clone())
-    } else if lock.skills.contains_key(&skill.name) {
-        Some(skill.name.clone())
-    } else {
-        None
-    };
-    if let Some(key) = lock_key {
+    if let Err(e) = SkillLock::update(|lock| {
+        let key = if lock.skills.contains_key(&skill.directory) {
+            skill.directory.clone()
+        } else if lock.skills.contains_key(&skill.name) {
+            skill.name.clone()
+        } else {
+            return Ok::<(), AppError>(());
+        };
         lock.skills.remove(&key);
-        if let Err(e) = lock.write() {
-            eprintln!("Failed to write lock after removing {key}: {e}");
-        }
+        Ok::<(), AppError>(())
+    }) {
+        eprintln!(
+            "Failed to write lock after removing {}: {e}",
+            skill.directory
+        );
     }
 }
 
@@ -1649,9 +1649,6 @@ fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String>
                 log_archive_rollback_error("restore metadata after archive failure", e);
             }
         }
-        if let Err(e) = old_lock.write() {
-            log_archive_rollback_error("restore lock after archive failure", e);
-        }
         if let Err(e) = old_manifest.save() {
             log_archive_rollback_error("restore manifest after archive failure", e);
         }
@@ -1706,9 +1703,10 @@ fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String>
 
     if !is_external {
         if let Some(key) = lock_key {
-            let mut lock = old_lock.clone();
-            lock.skills.remove(&key);
-            if let Err(e) = lock.write() {
+            if let Err(e) = SkillLock::update(|lock| {
+                lock.skills.remove(&key);
+                Ok::<(), AppError>(())
+            }) {
                 return Err(rollback(e.to_string(), &removed_agents));
             }
         }
@@ -1890,8 +1888,15 @@ fn restore_archived_skill_inner(state: &AppState, archive_id: String) -> Result<
                 log_archive_rollback_error("restore metadata after restore failure", e);
             }
         }
-        if let Err(e) = old_lock.write() {
-            log_archive_rollback_error("restore lock after restore failure", e);
+        let restore_key = archived_skill
+            .lock_key
+            .clone()
+            .unwrap_or_else(|| archived_skill.directory.clone());
+        if let Err(e) = SkillLock::update(|lock| {
+            lock.skills.remove(&restore_key);
+            Ok::<(), AppError>(())
+        }) {
+            log_archive_rollback_error("remove restored lock entry after restore failure", e);
         }
         if let Err(e) = old_manifest.save() {
             log_archive_rollback_error("restore manifest after restore failure", e);
@@ -1901,13 +1906,14 @@ fn restore_archived_skill_inner(state: &AppState, archive_id: String) -> Result<
 
     if !is_external {
         if let Some(lock_entry) = archived_skill.lock_entry.clone() {
-            let mut lock = old_lock.clone();
             let key = archived_skill
                 .lock_key
                 .clone()
                 .unwrap_or_else(|| archived_skill.directory.clone());
-            lock.skills.insert(key, lock_entry);
-            if let Err(e) = lock.write() {
+            if let Err(e) = SkillLock::update(|lock| {
+                lock.skills.insert(key, lock_entry);
+                Ok::<(), AppError>(())
+            }) {
                 return Err(rollback(e.to_string(), &restored_agents));
             }
         }
@@ -2076,12 +2082,12 @@ pub fn write_skill_md(
                     .any(|skill| skill.directory == directory && skill.origin == "ssot")
             });
         if should_update_lock {
-            if let Ok(mut lock) = crate::services::lock::SkillLock::read() {
+            let _ = SkillLock::update(|lock| {
                 if let Some(entry) = lock.skills.get_mut(&directory) {
                     entry.updated_at = Some(chrono::Utc::now().to_rfc3339());
-                    let _ = lock.write();
                 }
-            }
+                Ok::<(), AppError>(())
+            });
         }
     }
 
@@ -2313,12 +2319,12 @@ pub fn write_skill_file_path(
     if let Some(skill) = cached_skill {
         // Update lock file timestamp
         if skill.origin == "ssot" {
-            if let Ok(mut lock) = crate::services::lock::SkillLock::read() {
+            let _ = SkillLock::update(|lock| {
                 if let Some(entry) = lock.skills.get_mut(&skill.directory) {
                     entry.updated_at = Some(chrono::Utc::now().to_rfc3339());
-                    let _ = lock.write();
                 }
-            }
+                Ok::<(), AppError>(())
+            });
         }
         // Refresh cache so updatedAt is reflected in the frontend
         let home = PathBuf::from(

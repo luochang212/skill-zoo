@@ -454,15 +454,16 @@ impl CliService {
         }
 
         if !updated_shas.is_empty() {
-            let mut lock = SkillLock::read()?;
             let now = chrono::Utc::now().to_rfc3339();
-            for (name, sha) in &updated_shas {
-                if let Some(entry) = lock.skills.get_mut(name) {
-                    entry.updated_at = Some(now.clone());
-                    entry.commit_sha = Some(sha.clone());
+            SkillLock::update(|lock| {
+                for (name, sha) in &updated_shas {
+                    if let Some(entry) = lock.skills.get_mut(name) {
+                        entry.updated_at = Some(now.clone());
+                        entry.commit_sha = Some(sha.clone());
+                    }
                 }
-            }
-            lock.write()?;
+                Ok(())
+            })?;
         }
 
         Ok(UpdateResult {
@@ -895,36 +896,37 @@ impl CliService {
         branch: Option<&str>,
         folder_shas: &std::collections::HashMap<String, Option<String>>,
     ) -> Result<(), AppError> {
-        let mut lock = SkillLock::read()?;
         let now = chrono::Utc::now().to_rfc3339();
         let source = format!("{owner}/{repo}");
         let source_url = format!("https://github.com/{owner}/{repo}");
 
-        for (name, skill_path) in skills {
-            let existing_installed_at = lock.skills.get(name).and_then(|e| e.installed_at.clone());
-            // Prefer freshly fetched folder SHA; fall back to existing lock entry
-            let commit_sha = folder_shas
-                .get(name)
-                .and_then(|s| s.clone())
-                .or_else(|| lock.skills.get(name).and_then(|e| e.commit_sha.clone()));
+        SkillLock::update(|lock| {
+            for (name, skill_path) in skills {
+                let existing_installed_at =
+                    lock.skills.get(name).and_then(|e| e.installed_at.clone());
+                // Prefer freshly fetched folder SHA; fall back to existing lock entry
+                let commit_sha = folder_shas
+                    .get(name)
+                    .and_then(|s| s.clone())
+                    .or_else(|| lock.skills.get(name).and_then(|e| e.commit_sha.clone()));
 
-            lock.skills.insert(
-                name.clone(),
-                SkillLockEntry {
-                    source: Some(source.clone()),
-                    source_type: Some("github".into()),
-                    source_url: Some(source_url.clone()),
-                    branch: branch.map(str::to_string),
-                    skill_path: Some(skill_path.clone()),
-                    skill_folder_hash: Some(String::new()),
-                    installed_at: Some(existing_installed_at.unwrap_or_else(|| now.clone())),
-                    updated_at: Some(now.clone()),
-                    commit_sha,
-                },
-            );
-        }
-
-        lock.write()
+                lock.skills.insert(
+                    name.clone(),
+                    SkillLockEntry {
+                        source: Some(source.clone()),
+                        source_type: Some("github".into()),
+                        source_url: Some(source_url.clone()),
+                        branch: branch.map(str::to_string),
+                        skill_path: Some(skill_path.clone()),
+                        skill_folder_hash: Some(String::new()),
+                        installed_at: Some(existing_installed_at.unwrap_or_else(|| now.clone())),
+                        updated_at: Some(now.clone()),
+                        commit_sha,
+                    },
+                );
+            }
+            Ok(())
+        })
     }
 
     fn reinstall_skill_from_discovered(
