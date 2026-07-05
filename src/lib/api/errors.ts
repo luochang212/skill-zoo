@@ -107,7 +107,9 @@ function asApiError(error: unknown): ApiError | null {
   if (error instanceof Error) return asApiError(error.message);
   if (typeof error === "string") {
     const trimmed = error.trim();
-    if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return null;
+    if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
+      return { code: "badRequest", message: trimmed };
+    }
     try {
       return asApiError(JSON.parse(trimmed));
     } catch {
