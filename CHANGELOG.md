@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.3.15] — 2026-07-05
+
+### Added
+- External imports: import skills from any local directory as symlinks, with live refresh when source directories change.
+- Local imports dialog split into Import and Manage tabs, with manual refresh, clean stale links, select-all, origin labels, and full-path hover tooltips.
+- CLI external imports management: `imports`, `imports scan`, `imports add`, `imports remove`, `imports clean` commands, and `--origin external` filter on `list`.
+- Supported coding agent showcase section on the landing page.
+- Pre-commit hook running format and lint checks.
+
+### Changed
+- Windsurf icon updated to the official favicon.
+- Landing page reflects 18 supported coding agents.
+- i18n label refinements.
+
+### Fixed
+- Import layout now uses independent scroll areas per region, preventing overflow.
+- Backend error messages are surfaced in the UI instead of a generic fallback.
+- Pre-existing symlinks are preserved when an import operation is rolled back.
+- Toast feedback added when cleaning stale links.
+- Main window now appears after the startup theme is applied, avoiding a flash of unstyled content.
+- Only unrecognized errors surfaced in the UI; existing matching errors are no longer overridden.
+- Empty candidate panel now shows a placeholder hint instead of being hidden.
+- CLI protocol fixture tests compatible with bun test runner.
+
 ## [0.3.14] — 2026-07-04
 
 ### Changed
