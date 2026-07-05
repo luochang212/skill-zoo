@@ -4,6 +4,7 @@ import {
   Archive,
   User,
   Star,
+  Import,
   Folder,
   Layers,
   ShieldCheck,
@@ -48,68 +49,84 @@ export function SkillSidebar({
 
   const countSkillIds = useMemo(() => new Set(countSkills.map((s) => s.id)), [countSkills]);
 
-  const { starredCount, filteredStarredCount, mineCount, filteredMineCount, repos } =
-    useMemo(() => {
-      const repoMap = new Map<string, { owner: string; name: string; maxUpdatedAt: number }>();
-      let nextStarredCount = 0;
-      let nextFilteredStarredCount = 0;
-      let nextMineCount = 0;
-      let nextFilteredMineCount = 0;
+  const {
+    starredCount,
+    filteredStarredCount,
+    importedCount,
+    filteredImportedCount,
+    mineCount,
+    filteredMineCount,
+    repos,
+  } = useMemo(() => {
+    const repoMap = new Map<string, { owner: string; name: string; maxUpdatedAt: number }>();
+    let nextStarredCount = 0;
+    let nextFilteredStarredCount = 0;
+    let nextImportedCount = 0;
+    let nextFilteredImportedCount = 0;
+    let nextMineCount = 0;
+    let nextFilteredMineCount = 0;
 
-      for (const s of skills) {
-        const countsTowardFilter = countSkillIds.has(s.id);
-        if (s.starred) {
-          nextStarredCount++;
-          if (countsTowardFilter) nextFilteredStarredCount++;
-        }
-        if (s.isMine) {
-          nextMineCount++;
-          if (countsTowardFilter) nextFilteredMineCount++;
-        }
-
-        if (s.repoOwner && s.repoName) {
-          const key = `${s.repoOwner.toLowerCase()}/${s.repoName.toLowerCase()}`;
-          const existing = repoMap.get(key);
-          if (existing) {
-            if (s.updatedAt && s.updatedAt > existing.maxUpdatedAt) {
-              existing.maxUpdatedAt = s.updatedAt;
-            }
-          } else {
-            repoMap.set(key, {
-              owner: s.repoOwner,
-              name: s.repoName,
-              maxUpdatedAt: s.updatedAt,
-            });
-          }
-        }
+    for (const s of skills) {
+      const countsTowardFilter = countSkillIds.has(s.id);
+      if (s.starred) {
+        nextStarredCount++;
+        if (countsTowardFilter) nextFilteredStarredCount++;
+      }
+      if (s.origin === "external") {
+        nextImportedCount++;
+        if (countsTowardFilter) nextFilteredImportedCount++;
+      }
+      if (s.isMine) {
+        nextMineCount++;
+        if (countsTowardFilter) nextFilteredMineCount++;
       }
 
-      const nextRepos = Array.from(repoMap.values()).toSorted((a, b) => {
-        // Missing time → end
-        if (!a.maxUpdatedAt && !b.maxUpdatedAt)
-          return a.owner.localeCompare(b.owner) || a.name.localeCompare(b.name);
-        if (!a.maxUpdatedAt) return 1;
-        if (!b.maxUpdatedAt) return -1;
-        // Descending by maxUpdatedAt
-        if (b.maxUpdatedAt !== a.maxUpdatedAt) return b.maxUpdatedAt - a.maxUpdatedAt;
-        // Tiebreak: alphabetical
-        return a.owner.localeCompare(b.owner) || a.name.localeCompare(b.name);
-      });
+      if (s.repoOwner && s.repoName) {
+        const key = `${s.repoOwner.toLowerCase()}/${s.repoName.toLowerCase()}`;
+        const existing = repoMap.get(key);
+        if (existing) {
+          if (s.updatedAt && s.updatedAt > existing.maxUpdatedAt) {
+            existing.maxUpdatedAt = s.updatedAt;
+          }
+        } else {
+          repoMap.set(key, {
+            owner: s.repoOwner,
+            name: s.repoName,
+            maxUpdatedAt: s.updatedAt,
+          });
+        }
+      }
+    }
 
-      return {
-        starredCount: nextStarredCount,
-        filteredStarredCount: nextFilteredStarredCount,
-        mineCount: nextMineCount,
-        filteredMineCount: nextFilteredMineCount,
-        repos: nextRepos,
-      };
-    }, [countSkillIds, skills]);
+    const nextRepos = Array.from(repoMap.values()).toSorted((a, b) => {
+      // Missing time → end
+      if (!a.maxUpdatedAt && !b.maxUpdatedAt)
+        return a.owner.localeCompare(b.owner) || a.name.localeCompare(b.name);
+      if (!a.maxUpdatedAt) return 1;
+      if (!b.maxUpdatedAt) return -1;
+      // Descending by maxUpdatedAt
+      if (b.maxUpdatedAt !== a.maxUpdatedAt) return b.maxUpdatedAt - a.maxUpdatedAt;
+      // Tiebreak: alphabetical
+      return a.owner.localeCompare(b.owner) || a.name.localeCompare(b.name);
+    });
+
+    return {
+      starredCount: nextStarredCount,
+      filteredStarredCount: nextFilteredStarredCount,
+      importedCount: nextImportedCount,
+      filteredImportedCount: nextFilteredImportedCount,
+      mineCount: nextMineCount,
+      filteredMineCount: nextFilteredMineCount,
+      repos: nextRepos,
+    };
+  }, [countSkillIds, skills]);
 
   const isActive = (cat: SidebarCategory) =>
     category.type === cat.type && JSON.stringify(category) === JSON.stringify(cat);
 
   const allCount = isActive({ type: "all" }) ? countSkills.length : skills.length;
   const starCount = isActive({ type: "starred" }) ? filteredStarredCount : starredCount;
+  const importCount = isActive({ type: "import" }) ? filteredImportedCount : importedCount;
   const mySkillsCount = isActive({ type: "mine" }) ? filteredMineCount : mineCount;
   const archiveCount = isActive({ type: "archived" }) ? countArchivedCount : archivedCount;
 
@@ -157,6 +174,25 @@ export function SkillSidebar({
             </span>
             <CountBadge count={starCount} />
           </button>
+
+          {/* Import */}
+          {importedCount > 0 && (
+            <button
+              onClick={() => onSelectCategory({ type: "import" })}
+              className={cn(
+                "w-full px-4 py-2.5 flex items-center text-[13px] transition-colors",
+                isActive({ type: "import" })
+                  ? "bg-primary/5 text-foreground border-l-2 border-l-primary"
+                  : "text-foreground/70 hover:bg-accent/50 hover:text-foreground",
+              )}
+            >
+              <span className="flex items-center gap-2.5 min-w-0 flex-1">
+                <Import className="h-4 w-4 shrink-0" />
+                <span>{t("sidebar.import")}</span>
+              </span>
+              <CountBadge count={importCount} />
+            </button>
+          )}
 
           {/* My Skills */}
           <button

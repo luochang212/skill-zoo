@@ -3,6 +3,7 @@ import { useState, useCallback } from "react";
 export type SidebarCategory =
   | { type: "all" }
   | { type: "starred" }
+  | { type: "import" }
   | { type: "archived" }
   | { type: "mine" }
   | { type: "consistency" }

@@ -440,6 +440,8 @@ export const InstalledSkills = memo(function InstalledSkills({
             switch (category.type) {
               case "starred":
                 return s.starred;
+              case "import":
+                return s.origin === "external";
               case "mine":
                 return s.isMine;
               case "repo":
