@@ -264,12 +264,11 @@ export function SkillDetail({
             <DialogDescription>
               {t("removeDialog.description")}{" "}
               <span className="font-medium text-foreground">{skillName}</span>?{" "}
-              {skill?.origin !== "external" && t("removeDialog.warning")}
+              {skill?.origin === "external"
+                ? t("removeDialog.externalImportNote")
+                : t("removeDialog.warning")}
             </DialogDescription>
           </DialogHeader>
-          {skill?.origin === "external" && (
-            <p className="text-xs text-muted-foreground">{t("removeDialog.externalImportNote")}</p>
-          )}
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setRemoveConfirmOpen(false)}>
               {t("common.cancel")}
