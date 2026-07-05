@@ -214,7 +214,7 @@ export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
         transition={{ duration: 0.2, ease: "easeOut" }}
       >
         <motion.div
-          animate={{ rotate: rotation, opacity: collapsed ? 0.7 : 1 }}
+          animate={{ rotate: rotation.current, opacity: collapsed ? 0.7 : 1 }}
           transition={{ duration: 0.2, ease: "easeInOut" }}
         >
           <GithubIcon className="h-[20px] w-[20px] group-hover:opacity-100 transition-opacity duration-200" />

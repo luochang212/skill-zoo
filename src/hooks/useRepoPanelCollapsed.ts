@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 
 const STORAGE_KEY = "repo-panel-collapsed";
 
@@ -14,12 +14,12 @@ function read(): boolean {
 
 export function useRepoPanelCollapsed() {
   const [collapsed, setCollapsed] = useState<boolean>(read);
-  const [rotation, setRotation] = useState(0);
+  const rotationRef = useRef(0);
 
   const handleToggle = useCallback(() => {
     const expanding = collapsed;
     setCollapsed((prev) => !prev);
-    setRotation((r) => r + (expanding ? 360 : -360));
+    rotationRef.current += expanding ? 360 : -360;
   }, [collapsed]);
 
   // Persist to localStorage after state commits, not during state computation
@@ -27,5 +27,5 @@ export function useRepoPanelCollapsed() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(collapsed));
   }, [collapsed]);
 
-  return { collapsed, rotation, handleToggle } as const;
+  return { collapsed, rotation: rotationRef, handleToggle } as const;
 }

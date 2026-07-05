@@ -12,10 +12,10 @@ import { Button } from "@/components/ui/button";
 import { ToggleRow } from "@/components/ui/toggle-row";
 import { useUpdateAllSkills, useInstalledSkills } from "@/hooks/useSkills";
 import { useHideNonSsot, useUpdateHideNonSsot } from "@/hooks/useSettings";
-import { useCheckUpdates } from "@/hooks/useCheckUpdates";
+import { useMutation } from "@tanstack/react-query";
 import { useIsMutationPending } from "@/hooks/usePendingMutation";
 import { formatApiError } from "@/lib/api/errors";
-import { skillsApi } from "@/lib/api/skills";
+import { skillsApi, type CheckUpdatesResult } from "@/lib/api/skills";
 import { cn } from "@/lib/utils";
 
 function formatSize(bytes: number) {
@@ -37,7 +37,10 @@ export function SkillMaintenanceSettings() {
   const [localImportsOpen, setLocalImportsOpen] = useState(false);
   const updateManagerButtonRef = useRef<HTMLButtonElement>(null);
 
-  const checkMutation = useCheckUpdates();
+  const checkMutation = useMutation<CheckUpdatesResult, Error>({
+    mutationKey: ["checkSkillUpdates"],
+    mutationFn: () => skillsApi.checkSkillUpdates(),
+  });
 
   const refreshCacheSize = useCallback(async () => {
     const size = await skillsApi.getCacheSize();

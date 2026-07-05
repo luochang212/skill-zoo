@@ -4,6 +4,14 @@ import type { QueryClient } from "@tanstack/react-query";
  * Central mapping of which query keys each mutation should invalidate.
  * Adding a new dependent query requires changing only this map.
  */
+const SKILL_LIST_INVALIDATION = [
+  ["skills", "installed"],
+  ["skills", "archived"],
+  ["repos", "skills"],
+  ["skills", "symlinks"],
+  ["skills.sh", "search"],
+] as const;
+
 export const INVALIDATION_MAP = {
   installSkills: [
     ["skills", "installed"],
@@ -21,41 +29,11 @@ export const INVALIDATION_MAP = {
     ["skills", "file"],
     ["skills", "image"],
   ],
-  removeSkill: [
-    ["skills", "installed"],
-    ["skills", "archived"],
-    ["repos", "skills"],
-    ["skills", "symlinks"],
-    ["skills.sh", "search"],
-  ],
-  archiveSkill: [
-    ["skills", "installed"],
-    ["skills", "archived"],
-    ["repos", "skills"],
-    ["skills", "symlinks"],
-    ["skills.sh", "search"],
-  ],
-  archiveSkills: [
-    ["skills", "installed"],
-    ["skills", "archived"],
-    ["repos", "skills"],
-    ["skills", "symlinks"],
-    ["skills.sh", "search"],
-  ],
-  restoreArchivedSkill: [
-    ["skills", "installed"],
-    ["skills", "archived"],
-    ["repos", "skills"],
-    ["skills", "symlinks"],
-    ["skills.sh", "search"],
-  ],
-  restoreArchivedSkills: [
-    ["skills", "installed"],
-    ["skills", "archived"],
-    ["repos", "skills"],
-    ["skills", "symlinks"],
-    ["skills.sh", "search"],
-  ],
+  removeSkill: SKILL_LIST_INVALIDATION,
+  archiveSkill: SKILL_LIST_INVALIDATION,
+  archiveSkills: SKILL_LIST_INVALIDATION,
+  restoreArchivedSkill: SKILL_LIST_INVALIDATION,
+  restoreArchivedSkills: SKILL_LIST_INVALIDATION,
   toggleSymlink: [
     ["skills", "symlinks"],
     ["skills", "installed"],

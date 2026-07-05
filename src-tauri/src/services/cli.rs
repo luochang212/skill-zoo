@@ -507,14 +507,6 @@ impl CliService {
         (groups, errors)
     }
 
-    // ─── ANSI stripping (kept for API compatibility) ────────────────
-
-    /// Names produced by the native implementation never contain ANSI
-    /// escapes, so this is an identity function.
-    pub fn strip_ansi(s: &str) -> String {
-        s.to_string()
-    }
-
     // ─── Update check ────────────────────────────────────────────────
 
     /// Fetch the repo tree from GitHub's Trees API.

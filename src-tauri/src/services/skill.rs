@@ -818,7 +818,7 @@ impl SkillService {
             if let Ok(meta) = serde_yaml::from_str::<serde_yaml::Value>(&frontmatter) {
                 if let Some(n) = meta.get("name") {
                     let n_str = Self::yaml_value_to_string(n);
-                    name = CliService::strip_ansi(&n_str);
+                    name = n_str;
                 }
                 if let Some(d) = meta.get("description") {
                     description = Some(Self::yaml_value_to_string(d));
@@ -1109,7 +1109,6 @@ impl SkillService {
             .next()
             .unwrap_or(skill_dir)
             .to_string();
-        let parsed_name = CliService::strip_ansi(&parsed_name);
         let yaml_name = if parsed_name == name {
             None
         } else {
@@ -1220,7 +1219,6 @@ impl SkillService {
             })?;
         let (parsed_name, description) =
             Self::parse_skill_md(&skill_md).unwrap_or((dir_name.to_string(), None));
-        let parsed_name = CliService::strip_ansi(&parsed_name);
         let yaml_name = if parsed_name == dir_name {
             None
         } else {
@@ -1291,7 +1289,6 @@ impl SkillService {
 
         let (parsed_name, description) =
             Self::parse_skill_md(&skill_md).unwrap_or((dir_name.to_string(), None));
-        let parsed_name = CliService::strip_ansi(&parsed_name);
         let yaml_name = if parsed_name == dir_name {
             None
         } else {

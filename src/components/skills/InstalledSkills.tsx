@@ -18,7 +18,6 @@ import { SkillCard } from "@/components/skills/SkillCard";
 import { SkillCardRow } from "@/components/skills/SkillCardRow";
 import { SkillSidebar } from "@/components/skills/SkillSidebar";
 import { ConsistencyPanel } from "@/components/skills/ConsistencyPanel";
-import { ViewModeToggle } from "@/components/skills/ViewModeToggle";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -32,10 +31,21 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { RepoInfoPanel } from "@/components/skills/RepoInfoPanel";
-import { AlertTriangle, Archive, ArrowUp, ArrowDown, RotateCcw, Trash2 } from "lucide-react";
-import type { ViewMode } from "@/components/skills/ViewModeToggle";
+import {
+  AlertTriangle,
+  Archive,
+  ArrowUp,
+  ArrowDown,
+  RotateCcw,
+  Trash2,
+  LayoutGrid,
+  List,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { SidebarCategory } from "@/hooks/useSidebarFilter";
 import type { ArchivedSkill, InstalledSkill } from "@/types/skills";
+
+type ViewMode = "grid" | "list";
 
 interface InstalledSkillsProps {
   onViewSkill: (id: string, directory: string, name: string) => void;
@@ -723,7 +733,31 @@ export const InstalledSkills = memo(function InstalledSkills({
                 ))}
               </div>
               <div className="flex-1" />
-              <ViewModeToggle value={viewMode} onChange={setViewMode} />
+              <button
+                onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
+                className="inline-flex items-center bg-muted rounded-lg p-1 gap-1 cursor-pointer"
+              >
+                <span
+                  className={cn(
+                    "p-1.5 rounded-md transition-all duration-200",
+                    viewMode === "grid"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                </span>
+                <span
+                  className={cn(
+                    "p-1.5 rounded-md transition-all duration-200",
+                    viewMode === "list"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  <List className="h-3.5 w-3.5" />
+                </span>
+              </button>
             </div>
           )}
 
