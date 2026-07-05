@@ -68,7 +68,7 @@
     },
     "packages/cli": {
       "name": "skill-zoo",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "bin": {
         "skill-zoo": "dist/index.js",
         "szoo": "dist/index.js",

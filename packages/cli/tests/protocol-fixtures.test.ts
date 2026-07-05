@@ -98,33 +98,30 @@ describe("desktop local protocol fixtures", () => {
   it("refuses writes for future desktop protocol versions", async () => {
     const lockHome = await makeTempHome();
     await copyFixture("lock-v4-future.json", getPaths(lockHome).agentLockFile);
-    await expect(async () => {
-      assertWritableSchema(
-        await readLock(lockHome),
-        await readArchiveManifest(lockHome),
-        await readExternalImports(lockHome),
-      );
-    }).rejects.toThrow("Lock file version 4 is newer than this CLI supports");
+    const v4Lock = await readLock(lockHome);
+    const v4Manifest = await readArchiveManifest(lockHome);
+    const v4Imports = await readExternalImports(lockHome);
+    expect(() => assertWritableSchema(v4Lock, v4Manifest, v4Imports)).toThrow(
+      "Lock file version 4 is newer than this CLI supports",
+    );
 
     const archiveHome = await makeTempHome();
     await copyFixture("archive-v2-future.json", getPaths(archiveHome).archiveManifestFile);
-    await expect(async () => {
-      assertWritableSchema(
-        await readLock(archiveHome),
-        await readArchiveManifest(archiveHome),
-        await readExternalImports(archiveHome),
-      );
-    }).rejects.toThrow("Archive manifest version 2 is newer than this CLI supports");
+    const v2Lock = await readLock(archiveHome);
+    const v2Manifest = await readArchiveManifest(archiveHome);
+    const v2Imports = await readExternalImports(archiveHome);
+    expect(() => assertWritableSchema(v2Lock, v2Manifest, v2Imports)).toThrow(
+      "Archive manifest version 2 is newer than this CLI supports",
+    );
 
     const importsHome = await makeTempHome();
     await copyFixture("imports-v2-future.json", getPaths(importsHome).externalImportsFile);
-    await expect(async () => {
-      assertWritableSchema(
-        await readLock(importsHome),
-        await readArchiveManifest(importsHome),
-        await readExternalImports(importsHome),
-      );
-    }).rejects.toThrow("External imports version 2 is newer than this CLI supports");
+    const futLock = await readLock(importsHome);
+    const futManifest = await readArchiveManifest(importsHome);
+    const futImports = await readExternalImports(importsHome);
+    expect(() => assertWritableSchema(futLock, futManifest, futImports)).toThrow(
+      "External imports version 2 is newer than this CLI supports",
+    );
   });
 });
 

@@ -17,7 +17,18 @@ import { AGENTS } from "./protocol/agents.js";
 import { getAllAgentPaths } from "./protocol/paths.js";
 import { rebuildCache, scanInstalledSkills } from "./protocol/scan.js";
 import type { InstalledSkill, SkillOrigin } from "./protocol/types.js";
+import type { BatchFailure, Change } from "./protocol/types.js";
 import { CliError, messageFromError } from "./lib/errors.js";
+import {
+  cleanExternalImportLinks,
+  importExternalSkills,
+  importsBatchExitCode,
+  listExternalImports,
+  removeExternalImport,
+  scanExternalImportFolder,
+  type ExternalImportCandidate,
+  type ExternalImportInfo,
+} from "./protocol/imports.js";
 import {
   formatArchivedList,
   formatSkillList,
@@ -76,7 +87,7 @@ Command map:
   Discover:  list, status, paths
   Explain:   inspect, show
   Maintain:  doctor, doctor fix, consistency, refresh
-  Change:    archive, restore
+  Change:    archive, restore, imports
   UI:        wui
 
 Common workflows:
@@ -99,6 +110,14 @@ Common workflows:
   Restore safely:
     $ skill-zoo restore <archive-id> --dry-run --json
     $ skill-zoo restore <archive-id> --yes --json
+
+  Manage external imports:
+    $ skill-zoo imports
+    $ skill-zoo imports scan ~/private-skills --json
+    $ skill-zoo imports add ~/private-skills/utils --dry-run --json
+    $ skill-zoo imports add ~/private-skills/utils --yes --json
+    $ skill-zoo imports remove external:utils-a1b2c3d4 --dry-run --json
+    $ skill-zoo imports clean
 
   Open local Web UI:
     $ skill-zoo wui
@@ -432,6 +451,192 @@ Safe workflow:
       }),
     );
 
+  const importsCommand = program
+    .command("imports")
+    .description("Manage external skill imports")
+    .option("--json", "print machine-readable JSON")
+    .addHelpText(
+      "after",
+      `
+
+List external imports:
+  $ skill-zoo imports
+  $ skill-zoo imports --json
+
+Manage external imports:
+  $ skill-zoo imports scan ~/private-skills
+  $ skill-zoo imports add ~/private-skills/utils --agent claude-code --dry-run --json
+  $ skill-zoo imports remove external:utils-a1b2c3d4 --dry-run --json
+  $ skill-zoo imports clean
+`,
+    )
+    .action(async (options: CommonOptions) =>
+      withErrors(io, withHome(program, options), async () => {
+        const opts = withHome(program, options);
+        const imports = await listExternalImports(opts.home);
+        writeSuccess(io, opts, imports, undefined, formatImportList(imports));
+      }),
+    );
+
+  importsCommand
+    .command("scan")
+    .description("Scan a folder for importable skills")
+    .argument("<path>", "folder to scan for skills")
+    .option("--json", "print machine-readable JSON")
+    .addHelpText(
+      "after",
+      `
+
+Examples:
+  $ skill-zoo imports scan ~/private-skills
+  $ skill-zoo imports scan ~/private-skills --json
+`,
+    )
+    .action(async (folderPath: string, options: CommonOptions, command: Command) => {
+      const parentOptions = (command.parent?.opts() ?? {}) as CommonOptions;
+      const localOptions: CommonOptions = { ...options, json: options.json ?? parentOptions.json };
+      return withErrors(io, withHome(program, localOptions), async () => {
+        const opts = withHome(program, localOptions);
+        const candidates = await scanExternalImportFolder(opts.home, folderPath);
+        writeSuccess(io, opts, candidates, undefined, formatScanResults(candidates));
+      });
+    });
+
+  importsCommand
+    .command("add")
+    .description("Import external skills as symlinks")
+    .argument("<path...>", "paths to skill directories")
+    .option("--agent <id...>", "target agents (default: all)")
+    .option("--dry-run", "show changes without writing")
+    .option("--yes", "skip confirmation")
+    .option("--json", "print machine-readable JSON")
+    .addHelpText(
+      "after",
+      `
+
+Safe workflow:
+  $ skill-zoo imports add ~/private-skills/utils --dry-run --json
+  $ skill-zoo imports add ~/private-skills/utils --yes --json
+
+Target specific agents:
+  $ skill-zoo imports add ~/private-skills/utils --agent claude-code --agent codex --yes --json
+`,
+    )
+    .action(async (paths: string[], options: WriteOptions & { agent?: string[] }, command: Command) => {
+      const parentOptions = (command.parent?.opts() ?? {}) as CommonOptions;
+      const localOptions: WriteOptions & { agent?: string[] } = {
+        ...options,
+        json: options.json ?? parentOptions.json,
+      };
+      return withErrors(io, withHome(program, localOptions), async () => {
+        const opts = withHome(program, localOptions);
+        const agents = validateAgentSelections(opts.agent);
+        await requireConfirmation(io, opts, `Import ${paths.length} external skill(s)?`);
+        const result = await importExternalSkills(opts.home, paths, agents, { dryRun: opts.dryRun });
+        const exitCode = importsBatchExitCode(result.added, result.failed);
+        writeResult(
+          io,
+          opts,
+          exitCode === 0,
+          formatAddData(result, Boolean(opts.dryRun)),
+          result.changes,
+          formatBatch(opts.dryRun ? "Would import" : "Imported", result.added, result.failed),
+        );
+        if (exitCode !== 0) {
+          process.exitCode = exitCode;
+        }
+      });
+    });
+
+  importsCommand
+    .command("remove")
+    .description("Remove external imports (source files are left untouched)")
+    .argument("<id...>", "external import ids")
+    .option("--dry-run", "show changes without writing")
+    .option("--yes", "skip confirmation")
+    .option("--json", "print machine-readable JSON")
+    .addHelpText(
+      "after",
+      `
+
+Safe workflow:
+  $ skill-zoo imports remove external:utils-a1b2c3d4 --dry-run --json
+  $ skill-zoo imports remove external:utils-a1b2c3d4 --yes --json
+`,
+    )
+    .action(async (ids: string[], options: WriteOptions, command: Command) => {
+      const parentOptions = (command.parent?.opts() ?? {}) as CommonOptions;
+      const localOptions: WriteOptions = { ...options, json: options.json ?? parentOptions.json };
+      return withErrors(io, withHome(program, localOptions), async () => {
+        const opts = withHome(program, localOptions);
+        await requireConfirmation(io, opts, `Remove ${ids.length} external import(s)?`);
+        const removed: string[] = [];
+        const failed: BatchFailure[] = [];
+        const changes: Change[] = [];
+        for (const id of ids) {
+          try {
+            const result = await removeExternalImport(opts.home, id, { dryRun: opts.dryRun });
+            removed.push(...result.removed);
+            failed.push(...result.failed);
+            changes.push(...result.changes);
+          } catch (error) {
+            failed.push({ ref: id, error: error instanceof Error ? error.message : String(error) });
+          }
+        }
+        const exitCode = importsBatchExitCode(removed, failed);
+        writeResult(
+          io,
+          opts,
+          exitCode === 0,
+          { removed, failed },
+          changes,
+          formatBatch(opts.dryRun ? "Would remove" : "Removed", removed, failed),
+        );
+        if (exitCode !== 0) {
+          process.exitCode = exitCode;
+        }
+      });
+    });
+
+  importsCommand
+    .command("clean")
+    .description("Remove stale symlinks for invalid external imports")
+    .argument("[id]", "optional: clean only this import")
+    .option("--dry-run", "show changes without writing")
+    .option("--yes", "skip confirmation")
+    .option("--json", "print machine-readable JSON")
+    .addHelpText(
+      "after",
+      `
+
+Examples:
+  $ skill-zoo imports clean --dry-run --json
+  $ skill-zoo imports clean --yes --json
+  $ skill-zoo imports clean external:utils-a1b2c3d4 --yes --json
+`,
+    )
+    .action(async (id: string | undefined, options: WriteOptions, command: Command) => {
+      const parentOptions = (command.parent?.opts() ?? {}) as CommonOptions;
+      const localOptions: WriteOptions = { ...options, json: options.json ?? parentOptions.json };
+      return withErrors(io, withHome(program, localOptions), async () => {
+        const opts = withHome(program, localOptions);
+        await requireConfirmation(io, opts, "Clean stale external import links?");
+        const result = await cleanExternalImportLinks(opts.home, id, { dryRun: opts.dryRun });
+        const exitCode = importsBatchExitCode(result.cleaned, result.failed);
+        writeResult(
+          io,
+          opts,
+          exitCode === 0,
+          result,
+          result.changes,
+          formatBatch(opts.dryRun ? "Would clean" : "Cleaned", result.cleaned, result.failed),
+        );
+        if (exitCode !== 0) {
+          process.exitCode = exitCode;
+        }
+      });
+    });
+
   program
     .command("wui")
     .description("Start the lightweight local Web UI")
@@ -526,8 +731,8 @@ function validateAgentFilter(agent: string): string {
 }
 
 function validateOriginFilter(origin: string): SkillOrigin {
-  if (origin !== "ssot" && origin !== "agent") {
-    throw new CliError(`Invalid origin: ${origin}. Expected ssot or agent.`);
+  if (origin !== "ssot" && origin !== "agent" && origin !== "external") {
+    throw new CliError(`Invalid origin: ${origin}. Expected ssot, agent, or external.`);
   }
   return origin;
 }
@@ -711,4 +916,58 @@ function formatRestoreData(
     failed: result.failed,
     changes: result.changes,
   };
+}
+
+function formatImportList(imports: ExternalImportInfo[]): string {
+  if (imports.length === 0) {
+    return "No external imports found.\n";
+  }
+  return `${imports
+    .map((imp) => {
+      const status = imp.status !== "valid" ? ` [${imp.status}]` : "";
+      const agents = imp.linkedAgents.length > 0 ? ` [${imp.linkedAgents.join(", ")}]` : "";
+      return `${imp.id} ${imp.sourcePath}${status}${agents}`;
+    })
+    .join("\n")}\n`;
+}
+
+function formatScanResults(candidates: ExternalImportCandidate[]): string {
+  if (candidates.length === 0) {
+    return "No importable skills found.\n";
+  }
+  return `${candidates
+    .map((c) => {
+      const imported = c.alreadyImported ? " [already imported]" : "";
+      return `${c.sourcePath} (${c.name})${imported}`;
+    })
+    .join("\n")}\n`;
+}
+
+function formatAddData(
+  result: Awaited<ReturnType<typeof importExternalSkills>>,
+  dryRun: boolean,
+) {
+  if (!dryRun) {
+    return result;
+  }
+  return {
+    dryRun: true,
+    wouldImport: result.added,
+    failed: result.failed,
+    changes: result.changes,
+  };
+}
+
+function validateAgentSelections(agents?: string[]): string[] {
+  if (!agents || agents.length === 0) {
+    return AGENTS.map((a) => a.id);
+  }
+  for (const agent of agents) {
+    if (!AGENTS.some((a) => a.id === agent)) {
+      throw new CliError(
+        `Unknown agent: ${agent}. Expected one of: ${AGENTS.map((a) => a.id).join(", ")}`,
+      );
+    }
+  }
+  return agents;
 }
