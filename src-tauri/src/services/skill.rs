@@ -147,7 +147,7 @@ fn canonical_paths_eq(a: &std::path::Path, b: &std::path::Path) -> bool {
 ///
 /// Resolves relative targets against the symlink's parent directory. Falls back
 /// to canonicalized path comparison when `read_link` fails (Windows junctions).
-fn symlink_target_matches(link_path: &std::path::Path, expected_target: &std::path::Path) -> bool {
+pub(crate) fn symlink_target_matches(link_path: &std::path::Path, expected_target: &std::path::Path) -> bool {
     match std::fs::read_link(link_path) {
         Ok(target) => {
             let resolved = if target.is_relative() {
@@ -164,7 +164,7 @@ fn symlink_target_matches(link_path: &std::path::Path, expected_target: &std::pa
     }
 }
 
-fn raw_symlink_target_matches(
+pub(crate) fn raw_symlink_target_matches(
     link_path: &std::path::Path,
     expected_target: &std::path::Path,
 ) -> bool {

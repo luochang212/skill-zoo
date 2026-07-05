@@ -65,7 +65,7 @@ export interface ExternalImportCandidate {
   alreadyImported: boolean;
 }
 
-export type ExternalImportStatus = "valid" | "sourceMissing" | "skillMissing" | "linkConflict";
+export type ExternalImportStatus = "valid" | "sourceMissing" | "skillMissing";
 
 export interface ExternalImportInfo {
   id: string;

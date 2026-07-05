@@ -248,25 +248,12 @@ fn is_existing_path_under_external_import(path: &Path) -> bool {
     })
 }
 
-fn canonical_paths_eq_for_imports(a: &Path, b: &Path) -> bool {
-    a.canonicalize()
-        .ok()
-        .zip(b.canonicalize().ok())
-        .is_some_and(|(a, b)| a == b)
-}
-
 fn link_points_to_import_source(link_path: &Path, source_path: &Path) -> bool {
-    match std::fs::read_link(link_path) {
-        Ok(target) => {
-            let resolved = if target.is_relative() {
-                link_path.parent().unwrap_or(Path::new(".")).join(target)
-            } else {
-                target
-            };
-            canonical_paths_eq_for_imports(&resolved, source_path) || resolved == source_path
-        }
-        Err(_) => canonical_paths_eq_for_imports(link_path, source_path),
-    }
+    // Canonical match plus raw-target match (so dangling symlinks whose target
+    // is absent still compare by raw path). Reuses the services-level helpers so
+    // this stays consistent with toggle_symlink's notion of a match.
+    crate::services::skill::symlink_target_matches(link_path, source_path)
+        || crate::services::skill::raw_symlink_target_matches(link_path, source_path)
 }
 
 fn external_import_link_path(directory: &str, agent: &str) -> Result<PathBuf, String> {
@@ -317,7 +304,6 @@ pub enum ExternalImportStatus {
     Valid,
     SourceMissing,
     SkillMissing,
-    LinkConflict,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -485,7 +471,7 @@ fn ensure_external_import_link_available(
             link_path.display()
         ));
     }
-    if link_path.exists() && !canonical_paths_eq_for_imports(&link_path, source_path) {
+    if link_path.exists() && !link_points_to_import_source(&link_path, source_path) {
         return Err(format!(
             "Cannot link {directory} for {agent}: {} already exists.",
             link_path.display()
