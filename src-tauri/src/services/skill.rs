@@ -626,9 +626,33 @@ impl SkillService {
         if scan_dirs.is_empty() {
             return;
         }
+
+        let imports = ExternalImports::load().ok();
+        let imports_by_source: HashMap<PathBuf, &ExternalImportEntry> = imports
+            .as_ref()
+            .map(|i| {
+                i.imports
+                    .values()
+                    .filter_map(|entry| {
+                        PathBuf::from(&entry.source_path)
+                            .canonicalize()
+                            .ok()
+                            .map(|p| (p, entry))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
         let mut seen_ids: HashSet<String> = HashSet::new();
         for scan_dir in &scan_dirs {
-            Self::scan_dir_recursive_into(scan_dir, entries, &mut seen_ids, scan_dir, hash_cache);
+            Self::scan_dir_recursive_into(
+                scan_dir,
+                entries,
+                &mut seen_ids,
+                scan_dir,
+                hash_cache,
+                &imports_by_source,
+            );
         }
     }
 
@@ -710,6 +734,7 @@ impl SkillService {
         seen_ids: &mut HashSet<String>,
         scan_root: &PathBuf,
         hash_cache: &mut HashMap<String, (i64, String)>,
+        imports_by_source: &HashMap<PathBuf, &ExternalImportEntry>,
     ) {
         let Ok(dir_entries) = std::fs::read_dir(dir) else {
             return;
@@ -720,9 +745,22 @@ impl SkillService {
                 // Clean up broken symlinks/junctions whose target no longer exists.
                 if !path.exists() {
                     let _ = Self::safe_remove(&path);
+                    continue;
                 }
-                // In agent directories, symlinks point to SSOT — already scanned there.
-                // In SSOT, symlinks shouldn't exist but skip them anyway.
+                // If the symlink target is an external import source, scan it
+                // here with origin = "external". Otherwise it's a symlink to
+                // SSOT which is already scanned from the SSOT root — skip it.
+                if let Ok(target) = path.canonicalize() {
+                    if let Some(import) = imports_by_source.get(&target) {
+                        if let Ok(ext_entry) =
+                            Self::scan_external_import_with_cache(import, hash_cache)
+                        {
+                            if seen_ids.insert(ext_entry.id.clone()) {
+                                entries.push(ext_entry);
+                            }
+                        }
+                    }
+                }
                 continue;
             }
             if !path.is_dir() {
@@ -755,7 +793,14 @@ impl SkillService {
                 }
                 entries.push(entry);
             } else {
-                Self::scan_dir_recursive_into(&path, entries, seen_ids, scan_root, hash_cache);
+                Self::scan_dir_recursive_into(
+                    &path,
+                    entries,
+                    seen_ids,
+                    scan_root,
+                    hash_cache,
+                    imports_by_source,
+                );
             }
         }
     }
