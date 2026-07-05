@@ -162,7 +162,7 @@
     "title": "Remove Skill",
     "description": "Are you sure you want to remove",
     "warning": "Coding agent links and local files will also be removed.",
-    "batchDescription": "Confirm remove {{count}} skills?",
+    "batchDescription": "Remove {{count}} skills?",
     "batchPartialFailed": "{{count}} skill(s) could not be removed."
   },
   "archiveDialog": {
@@ -172,12 +172,12 @@
     "dirtyHint": "Save or discard changes before archiving this skill.",
     "restoreTitle": "Restore Skill",
     "batchTitle": "Archive Skills",
-    "batchDescription": "Confirm archive {{count}} skills?",
+    "batchDescription": "Archive {{count}} skills?",
     "batchPartialFailed": "{{count}} skill(s) could not be archived."
   },
   "restoreDialog": {
     "batchTitle": "Restore Skills",
-    "batchDescription": "Confirm restore {{count}} skills?",
+    "batchDescription": "Restore {{count}} skills?",
     "warning": "Skills will be restored to their original directories and previous coding agent links when possible.",
     "batchPartialFailed": "{{count}} skill(s) could not be restored."
   },
@@ -225,7 +225,7 @@
     "updated": "Updated",
     "updating": "Updating...",
     "upToDate": "Already up to date",
-    "updateFromGit": "Update from git",
+    "updateFromGit": "Update from Git",
     "noRepo": "No git repo linked",
     "configureAgents": "Configure coding agents",
     "openInFileManager": "Open in Finder",
@@ -236,6 +236,7 @@
     "origin": "Source",
     "installed": "Installed",
     "updated": "Updated",
+    "imported": "Import",
     "local": "Local"
   },
   "audit": {
@@ -363,7 +364,7 @@
       "empty": "No common commands added yet.",
       "manage": "Manage",
       "manageTitle": "Common Commands",
-      "manageDescription": "Put common skill invocation phrases in the tray, then click to copy.",
+      "manageDescription": "Put common skill invocation phrases in the panel, then click to copy.",
       "add": "Add common command",
       "itemContent": "Skill command {{index}} content",
       "contentPlaceholder": "/code-review Check whether the uncommitted changes are correct",
@@ -386,7 +387,7 @@
       "screenshotSaved": "Saved screenshot to Desktop",
       "screenshotFailed": "Could not save screenshot",
       "usageStats": {
-        "total": "Period calls",
+        "total": "Total calls",
         "active": "Active skills",
         "focus": "Top skill share",
         "installed": "{{count}} Claude skill(s) installed",

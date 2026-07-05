@@ -236,6 +236,7 @@
     "origin": "安装源",
     "installed": "安装时间",
     "updated": "更新时间",
+    "imported": "导入",
     "local": "本地"
   },
   "audit": {
@@ -331,12 +332,12 @@
       "openCacheDir": "缓存目录"
     },
     "localImports": {
-      "cardTitle": "本地导入",
+      "cardTitle": "本地导入技能",
       "cardDesc": "从本地文件夹或私有仓库导入并管理技能",
-      "manage": "管理导入",
+      "manage": "导入管理",
       "tabImport": "导入",
       "tabManage": "管理",
-      "title": "本地导入",
+      "title": "本地导入技能",
       "description": "导入的技能会保留在原始目录中，Skill Zoo 只管理编程工具链接。",
       "importFolder": "导入文件夹",
       "cleanAll": "清理失效链接",

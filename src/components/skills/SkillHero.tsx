@@ -109,7 +109,11 @@ function SkillInfoPopover({ skill }: { skill: InstalledSkill }) {
               {t("skillInfo.origin")}
             </span>
             <span className="text-foreground text-right">
-              {skill.origin === "ssot" ? "SSOT" : t("skillInfo.local")}
+              {skill.origin === "ssot"
+                ? "SSOT"
+                : skill.origin === "external"
+                  ? t("skillInfo.imported")
+                  : t("skillInfo.local")}
             </span>
           </div>
 

@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   ExternalLink,
   FolderInput,
+  LayoutList,
   Link2Off,
   RefreshCw,
   Trash2,
@@ -75,6 +76,26 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
     () => candidates.filter((candidate) => selectedSources.has(candidate.sourcePath)),
     [candidates, selectedSources],
   );
+
+  const selectableCandidates = useMemo(
+    () => candidates.filter((candidate) => !candidate.alreadyImported),
+    [candidates],
+  );
+
+  const allSelectableSelected =
+    selectableCandidates.length > 0 &&
+    selectableCandidates.every((candidate) => selectedSources.has(candidate.sourcePath));
+
+  const setAllSelectableSelected = (checked: boolean) => {
+    setSelectedSources((prev) => {
+      const next = new Set(prev);
+      for (const candidate of selectableCandidates) {
+        if (checked) next.add(candidate.sourcePath);
+        else next.delete(candidate.sourcePath);
+      }
+      return next;
+    });
+  };
 
   const chooseFolder = async () => {
     const selected = await openDialog({ directory: true, multiple: false });
@@ -169,7 +190,7 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
               )}
               onClick={() => setTab("manage")}
             >
-              <Link2Off className="h-3.5 w-3.5" />
+              <LayoutList className="h-3.5 w-3.5" />
               {t("settings.localImports.tabManage")}
             </button>
           </div>
@@ -199,6 +220,14 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
                   </div>
                   <div className="grid gap-4 p-3 md:grid-cols-[1fr_220px] flex-1 min-h-0">
                     <ScrollArea className="h-full pr-3">
+                      <label className="flex items-center gap-1.5 px-2 py-2 text-xs text-muted-foreground cursor-pointer rounded-md hover:bg-accent/50 pt-0 pb-1">
+                        <Checkbox
+                          checked={allSelectableSelected}
+                          onCheckedChange={(checked) => setAllSelectableSelected(Boolean(checked))}
+                          disabled={selectableCandidates.length === 0}
+                        />
+                        {t("browse.selectAll")}
+                      </label>
                       <div className="space-y-1">
                         {candidates.map((candidate) => (
                           <label
@@ -224,7 +253,7 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
                         ))}
                       </div>
                     </ScrollArea>
-                    <div className="flex min-h-0 flex-col gap-3">
+                    <div className="flex min-h-0 flex-col gap-3 border-l border-border pl-4">
                       <p className="text-xs font-medium text-muted-foreground">
                         {t("installDialog.agents")}
                       </p>
