@@ -49,6 +49,15 @@ function statusVariant(status: ExternalImportStatus) {
 export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogProps) {
   const { t } = useTranslation();
   const { data: imports, isLoading, refetch } = useExternalImports();
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setTimeout(() => setRefreshing(false), 500);
+    }
+  };
   const { data: agentConfigs } = useAgentConfigs();
   const visibleAgentOrder = useVisibleAgentOrder();
   const visibleAgentKey = visibleAgentOrder.join("\0");
@@ -60,6 +69,7 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
   const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
   const [agents, setAgents] = useState<Set<string>>(new Set());
   const [scanning, setScanning] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<"import" | "manage">("import");
 
   useEffect(() => {
@@ -297,8 +307,16 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
           ) : (
             <div className="flex-1 min-h-0 flex flex-col p-4">
               <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-border">
-                <div className="shrink-0 border-b border-border px-3 py-2">
+                <div className="shrink-0 flex items-center justify-between border-b border-border px-3 py-2">
                   <p className="text-sm font-medium">{t("settings.localImports.managed")}</p>
+                  <button
+                    type="button"
+                    className="rounded p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={handleRefresh}
+                    title={t("settings.maintenance.rescanBtn")}
+                  >
+                    <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
+                  </button>
                 </div>
                 <ScrollArea className="flex-1">
                   {isLoading ? (
