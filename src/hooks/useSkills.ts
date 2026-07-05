@@ -11,7 +11,7 @@ import {
   type UpdateAllResult,
 } from "@/lib/api/skills";
 import { invalidateFor } from "@/hooks/queryInvalidation";
-import type { InstalledSkill } from "@/types/skills";
+import type { ExternalImportSelection, InstalledSkill } from "@/types/skills";
 import { useEffect } from "react";
 
 export function useInstalledSkills() {
@@ -76,6 +76,48 @@ export function useSymlinkStatus() {
     queryKey: ["skills", "symlinks"],
     queryFn: () => skillsApi.getSymlinkStatus(),
     staleTime: 30 * 1000,
+  });
+}
+
+export function useExternalImports() {
+  return useQuery({
+    queryKey: ["skills", "externalImports"],
+    queryFn: () => skillsApi.listExternalImports(),
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useImportExternalSkills() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { selections: ExternalImportSelection[]; agents: string[] }) =>
+      skillsApi.importExternalSkills(vars.selections, vars.agents),
+    onSuccess: () => invalidateFor(qc, "externalImports"),
+  });
+}
+
+export function useRemoveExternalImport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (importId: string) => skillsApi.removeExternalImport(importId),
+    onSuccess: () => invalidateFor(qc, "externalImports"),
+  });
+}
+
+export function useRelinkExternalImport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { importId: string; sourcePath: string }) =>
+      skillsApi.relinkExternalImport(vars.importId, vars.sourcePath),
+    onSuccess: () => invalidateFor(qc, "externalImports"),
+  });
+}
+
+export function useCleanExternalImportLinks() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (importId?: string | null) => skillsApi.cleanExternalImportLinks(importId),
+    onSuccess: () => invalidateFor(qc, "externalImports"),
   });
 }
 

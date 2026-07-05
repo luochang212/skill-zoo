@@ -2,9 +2,10 @@ use crate::config;
 use crate::config::{AgentConfig, AgentPathInfo};
 use crate::error::{classify_download_error, AppError, CommandError};
 use crate::persistence::archive::SUPPORTED_ARCHIVE_VERSION;
+use crate::persistence::external_imports::SUPPORTED_EXTERNAL_IMPORTS_VERSION;
 use crate::persistence::{
-    atomic_write, ArchiveManifest, ArchivedSkill, SkillCache, SkillCacheEntry, SkillUpdateHistory,
-    SkillUpdateHistoryRecord,
+    atomic_write, ArchiveManifest, ArchivedSkill, ExternalImportEntry, ExternalImports, SkillCache,
+    SkillCacheEntry, SkillUpdateHistory, SkillUpdateHistoryRecord,
 };
 use crate::services::cli::{CliService, KnownSkillUpdate};
 use crate::services::github;
@@ -20,6 +21,7 @@ use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 use tauri_plugin_opener::OpenerExt;
 
+use rand::Rng;
 use regex::Regex;
 use tauri::{Manager, State};
 
@@ -195,6 +197,83 @@ fn is_writable_path_under_skill_dir(path: &Path) -> bool {
     is_path_under_roots(path, &known_skill_roots(), false)
 }
 
+fn is_existing_path_under_cached_skill(cache: &SkillCache, path: &Path) -> bool {
+    if !path.is_absolute() {
+        return false;
+    }
+    let Some(real_path) = canonical_path_for_boundary(path, true) else {
+        return false;
+    };
+    cache.iter().any(|skill| {
+        skill
+            .home_path
+            .as_deref()
+            .and_then(|home| Path::new(home).canonicalize().ok())
+            .is_some_and(|home| real_path == home || real_path.starts_with(home))
+    })
+}
+
+fn is_writable_path_under_cached_skill(cache: &SkillCache, path: &Path) -> bool {
+    if !path.is_absolute() {
+        return false;
+    }
+    let Some(real_path) = canonical_path_for_boundary(path, false) else {
+        return false;
+    };
+    cache.iter().any(|skill| {
+        skill
+            .home_path
+            .as_deref()
+            .and_then(|home| Path::new(home).canonicalize().ok())
+            .is_some_and(|home| real_path == home || real_path.starts_with(home))
+    })
+}
+
+fn is_existing_path_under_external_import(path: &Path) -> bool {
+    if !path.is_absolute() {
+        return false;
+    }
+    let Some(real_path) = canonical_path_for_boundary(path, true) else {
+        return false;
+    };
+    let Ok(imports) = ExternalImports::load() else {
+        return false;
+    };
+    imports.imports.values().any(|import| {
+        Path::new(&import.source_path)
+            .canonicalize()
+            .ok()
+            .is_some_and(|source| real_path == source || real_path.starts_with(source))
+    })
+}
+
+fn canonical_paths_eq_for_imports(a: &Path, b: &Path) -> bool {
+    a.canonicalize()
+        .ok()
+        .zip(b.canonicalize().ok())
+        .is_some_and(|(a, b)| a == b)
+}
+
+fn link_points_to_import_source(link_path: &Path, source_path: &Path) -> bool {
+    match std::fs::read_link(link_path) {
+        Ok(target) => {
+            let resolved = if target.is_relative() {
+                link_path.parent().unwrap_or(Path::new(".")).join(target)
+            } else {
+                target
+            };
+            canonical_paths_eq_for_imports(&resolved, source_path) || resolved == source_path
+        }
+        Err(_) => canonical_paths_eq_for_imports(link_path, source_path),
+    }
+}
+
+fn external_import_link_path(directory: &str, agent: &str) -> Result<PathBuf, String> {
+    let agent_dir =
+        config::get_agent_skills_dir(agent).ok_or_else(|| format!("Unknown agent: {agent}"))?;
+    Ok(agent_dir.join(SkillService::agent_link_name(directory)))
+}
+
 #[cfg(feature = "test-helpers")]
 pub fn is_path_under_skill_roots_for_test(
     path: &Path,
@@ -212,6 +291,420 @@ pub fn get_agent_paths() -> Vec<AgentPathInfo> {
 #[tauri::command]
 pub fn get_agent_configs() -> Vec<AgentConfig> {
     crate::config::AGENTS.to_vec()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalImportSelection {
+    pub source_path: String,
+    pub directory: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalImportCandidate {
+    pub source_path: String,
+    pub directory: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub already_imported: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ExternalImportStatus {
+    Valid,
+    SourceMissing,
+    SkillMissing,
+    LinkConflict,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalImportInfo {
+    pub id: String,
+    pub source_path: String,
+    pub directory: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub status: ExternalImportStatus,
+    pub linked_agents: Vec<String>,
+    pub imported_at: i64,
+    pub updated_at: i64,
+}
+
+fn external_import_status(import: &ExternalImportEntry) -> ExternalImportStatus {
+    let source_path = PathBuf::from(&import.source_path);
+    if !source_path.exists() {
+        return ExternalImportStatus::SourceMissing;
+    }
+    if !source_path.join("SKILL.md").exists() {
+        return ExternalImportStatus::SkillMissing;
+    }
+    for agent in config::AGENTS {
+        let Ok(link_path) = external_import_link_path(&import.directory, agent.id) else {
+            continue;
+        };
+        if is_symlink_or_junction(&link_path) {
+            if !link_points_to_import_source(&link_path, &source_path) {
+                return ExternalImportStatus::LinkConflict;
+            }
+        } else if link_path.exists() && !canonical_paths_eq_for_imports(&link_path, &source_path) {
+            return ExternalImportStatus::LinkConflict;
+        }
+    }
+    ExternalImportStatus::Valid
+}
+
+fn linked_external_import_agents(import: &ExternalImportEntry) -> Vec<String> {
+    let source_path = PathBuf::from(&import.source_path);
+    config::AGENTS
+        .iter()
+        .filter_map(|agent| {
+            let link_path = external_import_link_path(&import.directory, agent.id).ok()?;
+            if is_symlink_or_junction(&link_path)
+                && link_points_to_import_source(&link_path, &source_path)
+            {
+                Some(agent.id.to_string())
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+fn external_import_info(import: &ExternalImportEntry) -> ExternalImportInfo {
+    let source_path = PathBuf::from(&import.source_path);
+    let dir_name = source_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_else(|| SkillService::agent_link_name(&import.directory))
+        .to_string();
+    let skill_md = source_path.join("SKILL.md");
+    let (parsed_name, description) =
+        SkillService::parse_skill_md(&skill_md).unwrap_or((dir_name.clone(), None));
+    ExternalImportInfo {
+        id: import.id.clone(),
+        source_path: import.source_path.clone(),
+        directory: import.directory.clone(),
+        name: parsed_name,
+        description,
+        status: external_import_status(import),
+        linked_agents: linked_external_import_agents(import),
+        imported_at: import.imported_at,
+        updated_at: import.updated_at,
+    }
+}
+
+fn collect_external_import_candidates(
+    root: &Path,
+    dir: &Path,
+    existing_sources: &HashSet<PathBuf>,
+    candidates: &mut Vec<ExternalImportCandidate>,
+) -> Result<(), String> {
+    let entries = std::fs::read_dir(dir).map_err(|e| e.to_string())?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() || is_symlink_or_junction(&path) {
+            continue;
+        }
+        let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if config::SKIP_DIRS.contains(&file_name) {
+            continue;
+        }
+        if path.join("SKILL.md").exists() {
+            let directory = path
+                .strip_prefix(root)
+                .ok()
+                .and_then(|relative| {
+                    if relative.as_os_str().is_empty() {
+                        None
+                    } else {
+                        relative.to_str().map(|s| s.to_string())
+                    }
+                })
+                .unwrap_or_else(|| file_name.to_string())
+                .replace(std::path::MAIN_SEPARATOR, "/");
+            validate_skill_directory(&directory)?;
+            let (name, description) = SkillService::parse_skill_md(&path.join("SKILL.md"))
+                .unwrap_or((file_name.into(), None));
+            let source_path = path.canonicalize().unwrap_or(path);
+            candidates.push(ExternalImportCandidate {
+                source_path: source_path.display().to_string(),
+                directory,
+                name,
+                description,
+                already_imported: existing_sources.contains(&source_path),
+            });
+        } else {
+            collect_external_import_candidates(root, &path, existing_sources, candidates)?;
+        }
+    }
+    Ok(())
+}
+
+fn make_external_import_id(source_path: &Path, imports: &ExternalImports) -> String {
+    let slug = source_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("skill")
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' || ch == '.' {
+                ch
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>()
+        .trim_matches('-')
+        .to_string();
+    let slug = if slug.is_empty() { "skill" } else { &slug };
+    loop {
+        let suffix: String = rand::thread_rng()
+            .sample_iter(&rand::distributions::Alphanumeric)
+            .take(8)
+            .map(char::from)
+            .collect::<String>()
+            .to_ascii_lowercase();
+        let id = format!("external:{slug}-{suffix}");
+        if !imports.imports.contains_key(&id) {
+            return id;
+        }
+    }
+}
+
+fn ensure_external_import_link_available(
+    directory: &str,
+    source_path: &Path,
+    agent: &str,
+) -> Result<(), String> {
+    let link_path = external_import_link_path(directory, agent)?;
+    if is_symlink_or_junction(&link_path) {
+        if link_points_to_import_source(&link_path, source_path) {
+            return Ok(());
+        }
+        return Err(format!(
+            "Cannot link {directory} for {agent}: {} already points to a different target.",
+            link_path.display()
+        ));
+    }
+    if link_path.exists() && !canonical_paths_eq_for_imports(&link_path, source_path) {
+        return Err(format!(
+            "Cannot link {directory} for {agent}: {} already exists.",
+            link_path.display()
+        ));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn list_external_imports() -> Result<Vec<ExternalImportInfo>, String> {
+    let imports = ExternalImports::load().map_err(|e| e.to_string())?;
+    Ok(imports.imports.values().map(external_import_info).collect())
+}
+
+#[tauri::command]
+pub fn scan_external_import_folder(path: String) -> Result<Vec<ExternalImportCandidate>, String> {
+    let root = PathBuf::from(&path);
+    if !root.is_dir() {
+        return Err(format!("Import folder does not exist: {}", root.display()));
+    }
+    let root = root.canonicalize().map_err(|e| e.to_string())?;
+    let imports = ExternalImports::load().map_err(|e| e.to_string())?;
+    let existing_sources: HashSet<PathBuf> = imports
+        .imports
+        .values()
+        .filter_map(|import| PathBuf::from(&import.source_path).canonicalize().ok())
+        .collect();
+    let mut candidates = Vec::new();
+    if root.join("SKILL.md").exists() {
+        let file_name = root.file_name().and_then(|n| n.to_str()).unwrap_or("skill");
+        let (name, description) = SkillService::parse_skill_md(&root.join("SKILL.md"))
+            .unwrap_or((file_name.into(), None));
+        candidates.push(ExternalImportCandidate {
+            source_path: root.display().to_string(),
+            directory: file_name.to_string(),
+            name,
+            description,
+            already_imported: existing_sources.contains(&root),
+        });
+    } else {
+        collect_external_import_candidates(&root, &root, &existing_sources, &mut candidates)?;
+    }
+    candidates.sort_by(|left, right| left.directory.cmp(&right.directory));
+    Ok(candidates)
+}
+
+#[tauri::command]
+pub async fn import_external_skills(
+    state: State<'_, AppState>,
+    selections: Vec<ExternalImportSelection>,
+    agents: Vec<String>,
+) -> Result<Vec<InstalledSkill>, String> {
+    if selections.is_empty() {
+        return Err("No external skills selected".into());
+    }
+    if agents.is_empty() {
+        return Err("Select at least one agent".into());
+    }
+
+    let mut imports = ExternalImports::load().map_err(|e| e.to_string())?;
+    if imports.version > SUPPORTED_EXTERNAL_IMPORTS_VERSION {
+        return Err(format!(
+            "External imports version {} is newer than this desktop app supports. Upgrade Skill Zoo before writing.",
+            imports.version
+        ));
+    }
+
+    let now = chrono::Utc::now().timestamp();
+    let mut imported_ids = Vec::new();
+    for selection in &selections {
+        validate_skill_directory(&selection.directory)?;
+        let source_path = PathBuf::from(&selection.source_path)
+            .canonicalize()
+            .map_err(|e| format!("Invalid source path {}: {e}", selection.source_path))?;
+        if !source_path.join("SKILL.md").exists() {
+            return Err(format!("SKILL.md not found: {}", source_path.display()));
+        }
+        for agent in &agents {
+            ensure_external_import_link_available(&selection.directory, &source_path, agent)?;
+        }
+    }
+
+    for selection in selections {
+        let source_path = PathBuf::from(&selection.source_path)
+            .canonicalize()
+            .map_err(|e| format!("Invalid source path {}: {e}", selection.source_path))?;
+        let existing_id = imports.imports.values().find_map(|import| {
+            PathBuf::from(&import.source_path)
+                .canonicalize()
+                .ok()
+                .filter(|path| path == &source_path)
+                .map(|_| import.id.clone())
+        });
+        let import_id =
+            existing_id.unwrap_or_else(|| make_external_import_id(&source_path, &imports));
+        imports
+            .imports
+            .entry(import_id.clone())
+            .or_insert_with(|| ExternalImportEntry {
+                id: import_id.clone(),
+                source_path: source_path.display().to_string(),
+                directory: selection.directory.clone(),
+                imported_at: now,
+                updated_at: now,
+            });
+
+        for agent in &agents {
+            SkillService::toggle_symlink(
+                &selection.directory,
+                &source_path.to_string_lossy(),
+                agent,
+                true,
+            )
+            .map_err(|e| e.to_string())?;
+        }
+        imported_ids.push(import_id);
+    }
+
+    imports.save().map_err(|e| e.to_string())?;
+    for import_id in &imported_ids {
+        if let Some(import) = imports.imports.get(import_id) {
+            if let Ok(entry) = SkillService::scan_external_import(import) {
+                let _ = SkillService::upsert_cache_entry(&state.skill_cache, entry);
+            }
+        }
+    }
+    SkillService::read_all_skills(&state.skill_cache, &state.metadata).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn remove_external_import(state: State<'_, AppState>, import_id: String) -> Result<(), String> {
+    let mut imports = ExternalImports::load().map_err(|e| e.to_string())?;
+    let import = imports
+        .imports
+        .remove(&import_id)
+        .ok_or_else(|| format!("External import not found: {import_id}"))?;
+    imports.save().map_err(|e| e.to_string())?;
+
+    let source_path = PathBuf::from(&import.source_path);
+    let _ = SkillService::remove_agent_links_for_target(&import.directory, &source_path);
+    let _ = SkillService::remove_cache_entry(&state.skill_cache, &import_id);
+    if let Ok(mut metadata) = state.metadata.write() {
+        metadata.remove(&import_id);
+        let _ = metadata.save();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn clean_external_import_links(import_id: Option<String>) -> Result<usize, String> {
+    let imports = ExternalImports::load().map_err(|e| e.to_string())?;
+    let mut removed = 0;
+    for import in imports.imports.values() {
+        if import_id.as_deref().is_some_and(|id| id != import.id) {
+            continue;
+        }
+        if matches!(external_import_status(import), ExternalImportStatus::Valid) {
+            continue;
+        }
+        let source_path = PathBuf::from(&import.source_path);
+        removed += SkillService::remove_agent_links_for_target(&import.directory, &source_path)
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(removed)
+}
+
+#[tauri::command]
+pub fn relink_external_import(
+    state: State<'_, AppState>,
+    import_id: String,
+    source_path: String,
+) -> Result<ExternalImportInfo, String> {
+    let mut imports = ExternalImports::load().map_err(|e| e.to_string())?;
+    let import = imports
+        .imports
+        .get(&import_id)
+        .cloned()
+        .ok_or_else(|| format!("External import not found: {import_id}"))?;
+    let new_source = PathBuf::from(&source_path)
+        .canonicalize()
+        .map_err(|e| format!("Invalid source path {source_path}: {e}"))?;
+    if !new_source.join("SKILL.md").exists() {
+        return Err(format!("SKILL.md not found: {}", new_source.display()));
+    }
+
+    let linked_agents = linked_external_import_agents(&import);
+    for agent in &linked_agents {
+        ensure_external_import_link_available(&import.directory, &new_source, agent)?;
+    }
+
+    let old_source = PathBuf::from(&import.source_path);
+    let _ = SkillService::remove_agent_links_for_target(&import.directory, &old_source);
+    for agent in &linked_agents {
+        SkillService::toggle_symlink(
+            &import.directory,
+            &new_source.to_string_lossy(),
+            agent,
+            true,
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    let mut updated = import.clone();
+    updated.source_path = new_source.display().to_string();
+    updated.updated_at = chrono::Utc::now().timestamp();
+    imports.imports.insert(import_id.clone(), updated.clone());
+    imports.save().map_err(|e| e.to_string())?;
+
+    if let Ok(entry) = SkillService::scan_external_import(&updated) {
+        let _ = SkillService::upsert_cache_entry(&state.skill_cache, entry);
+    } else {
+        let _ = SkillService::remove_cache_entry(&state.skill_cache, &import_id);
+    }
+
+    Ok(external_import_info(&updated))
 }
 
 #[tauri::command]
@@ -709,6 +1202,20 @@ fn remove_lock_entry_for_skill(skill: &SkillCacheEntry) {
 }
 
 fn remove_cached_skill_from_disk(skill: &SkillCacheEntry) -> Result<(), String> {
+    if skill.origin == "external" {
+        let mut imports = ExternalImports::load().map_err(|e| e.to_string())?;
+        let import = imports
+            .imports
+            .remove(&skill.id)
+            .ok_or_else(|| format!("External import not found: {}", skill.id))?;
+        imports.save().map_err(|e| e.to_string())?;
+        let _ = SkillService::remove_agent_links_for_target(
+            &import.directory,
+            &PathBuf::from(&import.source_path),
+        );
+        return Ok(());
+    }
+
     let home_path = skill
         .home_path
         .as_ref()
@@ -722,6 +1229,15 @@ fn scan_cached_skill_home(
     skill: &SkillCacheEntry,
     skill_dir: &Path,
 ) -> Result<SkillCacheEntry, String> {
+    if skill.origin == "external" {
+        let imports = ExternalImports::load().map_err(|e| e.to_string())?;
+        let import = imports
+            .imports
+            .get(&skill.id)
+            .ok_or_else(|| format!("External import not found: {}", skill.id))?;
+        return SkillService::scan_external_import(import).map_err(|e| e.to_string());
+    }
+
     let (scan_root, agent_id) = if skill.origin == "ssot" {
         (config::get_agents_skills_dir(), None)
     } else {
@@ -951,6 +1467,13 @@ fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String>
         .into_iter()
         .find(|s| s.id == skill_id)
         .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
+
+    if skill.origin == "external" {
+        return Err(
+            "External imports cannot be archived because their source folders are owned by the user."
+                .to_string(),
+        );
+    }
 
     let home_path = skill
         .home_path
@@ -1522,7 +2045,10 @@ fn skill_file_error(code: &'static str, message: impl Into<String>) -> CommandEr
 
 /// Read a text file at an absolute skill path (UTF-8 only).
 #[tauri::command]
-pub fn read_skill_file_path(path: String) -> Result<String, CommandError> {
+pub fn read_skill_file_path(
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<String, CommandError> {
     if path.is_empty() || path.contains('\0') {
         return Err(CommandError::bad_request("Invalid path"));
     }
@@ -1530,7 +2056,11 @@ pub fn read_skill_file_path(path: String) -> Result<String, CommandError> {
     if !p.is_absolute() {
         return Err(CommandError::bad_request("Path must be absolute"));
     }
-    if !is_existing_path_under_skill_dir(p) {
+    let cache = state
+        .skill_cache
+        .read()
+        .map_err(|e| CommandError::generic(e.to_string()))?;
+    if !is_existing_path_under_skill_dir(p) && !is_existing_path_under_cached_skill(&cache, p) {
         return Err(CommandError::bad_request(
             "Path is not under a known skill directory",
         ));
@@ -1566,7 +2096,10 @@ fn image_mime_from_path(path: &Path) -> Option<&'static str> {
 
 /// Read an image at an absolute skill path and return a browser-displayable data URL.
 #[tauri::command]
-pub fn read_skill_image_path(path: String) -> Result<String, CommandError> {
+pub fn read_skill_image_path(
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<String, CommandError> {
     if path.is_empty() || path.contains('\0') {
         return Err(CommandError::bad_request("Invalid path"));
     }
@@ -1574,7 +2107,11 @@ pub fn read_skill_image_path(path: String) -> Result<String, CommandError> {
     if !p.is_absolute() {
         return Err(CommandError::bad_request("Path must be absolute"));
     }
-    if !is_existing_path_under_skill_dir(p) {
+    let cache = state
+        .skill_cache
+        .read()
+        .map_err(|e| CommandError::generic(e.to_string()))?;
+    if !is_existing_path_under_skill_dir(p) && !is_existing_path_under_cached_skill(&cache, p) {
         return Err(CommandError::bad_request(
             "Path is not under a known skill directory",
         ));
@@ -1612,9 +2149,11 @@ pub fn write_skill_file_path(
     if !p.is_absolute() {
         return Err("Path must be absolute".into());
     }
-    if !is_writable_path_under_skill_dir(p) {
+    let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
+    if !is_writable_path_under_skill_dir(p) && !is_writable_path_under_cached_skill(&cache, p) {
         return Err("Path is not under a known skill directory".into());
     }
+    drop(cache);
     atomic_write(p, content).map_err(|e| e.to_string())?;
 
     let cached_skill = {
@@ -1648,7 +2187,11 @@ pub fn write_skill_file_path(
 /// Open an absolute skill path in the file manager.
 /// Validates that the path is under a known skill directory (SSOT or agent).
 #[tauri::command]
-pub fn open_skill_path(app_handle: tauri::AppHandle, path: String) -> Result<(), String> {
+pub fn open_skill_path(
+    state: State<'_, AppState>,
+    app_handle: tauri::AppHandle,
+    path: String,
+) -> Result<(), String> {
     if path.is_empty() || path.contains('\0') {
         return Err("Invalid path".into());
     }
@@ -1657,7 +2200,11 @@ pub fn open_skill_path(app_handle: tauri::AppHandle, path: String) -> Result<(),
         return Err("Path must be absolute".into());
     }
     // Verify the path is under a known skill directory
-    if !is_existing_path_under_skill_dir(p) {
+    let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
+    if !is_existing_path_under_skill_dir(p)
+        && !is_existing_path_under_cached_skill(&cache, p)
+        && !is_existing_path_under_external_import(p)
+    {
         return Err("Path is not under a known skill directory".into());
     }
     if !p.exists() {

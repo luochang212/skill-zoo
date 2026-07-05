@@ -200,6 +200,10 @@ pub fn get_update_history_file() -> PathBuf {
     get_app_config_dir().join("skill-update-history.json")
 }
 
+pub fn get_external_imports_file() -> PathBuf {
+    get_app_config_dir().join("imports.json")
+}
+
 pub fn get_agents_skills_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))

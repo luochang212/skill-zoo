@@ -1,7 +1,9 @@
 use crate::config;
 use crate::error::{self, AppError};
 use crate::persistence::metadata::SkillMetadata;
-use crate::persistence::{MetadataStore, Settings, SkillCache, SkillCacheEntry};
+use crate::persistence::{
+    ExternalImportEntry, ExternalImports, MetadataStore, Settings, SkillCache, SkillCacheEntry,
+};
 use crate::services::cli::CliService;
 use crate::services::lock::{SkillLock, SkillLockEntry};
 use serde::{Deserialize, Serialize};
@@ -160,6 +162,24 @@ fn symlink_target_matches(link_path: &std::path::Path, expected_target: &std::pa
         }
         Err(_) => canonical_paths_eq(link_path, expected_target),
     }
+}
+
+fn raw_symlink_target_matches(
+    link_path: &std::path::Path,
+    expected_target: &std::path::Path,
+) -> bool {
+    let Ok(target) = std::fs::read_link(link_path) else {
+        return false;
+    };
+    let resolved = if target.is_relative() {
+        link_path
+            .parent()
+            .unwrap_or(std::path::Path::new("."))
+            .join(&target)
+    } else {
+        target
+    };
+    resolved == expected_target
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -549,6 +569,7 @@ impl SkillService {
             let mut entries: Vec<SkillCacheEntry> = Vec::new();
             let mut hash_cache = Self::load_hash_cache();
             Self::scan_filesystem_into(&mut entries, &mut hash_cache);
+            Self::scan_external_imports_into(&mut entries, &mut hash_cache);
             Self::save_hash_cache(&hash_cache);
             entries
         })
@@ -591,6 +612,24 @@ impl SkillService {
         let mut seen_ids: HashSet<String> = HashSet::new();
         for scan_dir in &scan_dirs {
             Self::scan_dir_recursive_into(scan_dir, entries, &mut seen_ids, scan_dir, hash_cache);
+        }
+    }
+
+    fn scan_external_imports_into(
+        entries: &mut Vec<SkillCacheEntry>,
+        hash_cache: &mut HashMap<String, (i64, String)>,
+    ) {
+        let Ok(imports) = ExternalImports::load() else {
+            return;
+        };
+        let mut seen_ids: HashSet<String> = entries.iter().map(|entry| entry.id.clone()).collect();
+        for import in imports.imports.values() {
+            let Ok(entry) = Self::scan_external_import_with_cache(import, hash_cache) else {
+                continue;
+            };
+            if seen_ids.insert(entry.id.clone()) {
+                entries.push(entry);
+            }
         }
     }
 
@@ -1080,6 +1119,66 @@ impl SkillService {
         result
     }
 
+    pub fn scan_external_import(import: &ExternalImportEntry) -> Result<SkillCacheEntry, AppError> {
+        let mut hash_cache = Self::load_hash_cache();
+        let result = Self::scan_external_import_with_cache(import, &mut hash_cache);
+        Self::save_hash_cache(&hash_cache);
+        result
+    }
+
+    fn scan_external_import_with_cache(
+        import: &ExternalImportEntry,
+        hash_cache: &mut HashMap<String, (i64, String)>,
+    ) -> Result<SkillCacheEntry, AppError> {
+        let skill_root = PathBuf::from(&import.source_path);
+        let skill_md = skill_root.join("SKILL.md");
+        if !skill_md.exists() {
+            return Err(AppError::NotFound(format!(
+                "SKILL.md not found for external import: {}",
+                skill_root.display()
+            )));
+        }
+
+        let dir_name = skill_root
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| {
+                AppError::Parse(format!(
+                    "Invalid external skill root: {}",
+                    skill_root.display()
+                ))
+            })?;
+        let (parsed_name, description) =
+            Self::parse_skill_md(&skill_md).unwrap_or((dir_name.to_string(), None));
+        let parsed_name = CliService::strip_ansi(&parsed_name);
+        let yaml_name = if parsed_name == dir_name {
+            None
+        } else {
+            Some(parsed_name)
+        };
+        let home_path = Some(import.source_path.clone());
+        let content_hash = Self::compute_content_hash_cached(&import.source_path, hash_cache);
+        let apps = Self::detect_agents(&import.directory, &home_path);
+
+        Ok(SkillCacheEntry {
+            id: import.id.clone(),
+            name: dir_name.to_string(),
+            yaml_name,
+            description,
+            directory: import.directory.clone(),
+            repo_owner: None,
+            repo_name: None,
+            source_url: None,
+            origin: "external".to_string(),
+            home_path,
+            content_hash,
+            home_agent: None,
+            apps,
+            installed_at: import.imported_at,
+            updated_at: import.updated_at,
+        })
+    }
+
     fn scan_skill_root_with_cache(
         skill_root: &Path,
         scan_root: &Path,
@@ -1286,7 +1385,7 @@ impl SkillService {
     //  Symlink toggle
     // ──────────────────────────────────────────────
 
-    fn safe_remove(path: &std::path::Path) -> Result<(), AppError> {
+    pub(crate) fn safe_remove(path: &std::path::Path) -> Result<(), AppError> {
         if is_symlink_or_junction(path) {
             // On Unix: symlinks are files, remove_file works.
             // On Windows: junctions are directories, remove_file fails — must use remove_dir.
@@ -1336,6 +1435,26 @@ impl SkillService {
         }
 
         Ok(())
+    }
+
+    pub fn remove_agent_links_for_target(
+        skill_name: &str,
+        target_path: &std::path::Path,
+    ) -> Result<usize, AppError> {
+        let mut removed = 0;
+        for agent in config::AGENTS {
+            if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
+                let symlink_path = agent_dir.join(Self::agent_link_name(skill_name));
+                if is_symlink_or_junction(&symlink_path)
+                    && (symlink_target_matches(&symlink_path, target_path)
+                        || raw_symlink_target_matches(&symlink_path, target_path))
+                {
+                    Self::safe_remove(&symlink_path)?;
+                    removed += 1;
+                }
+            }
+        }
+        Ok(removed)
     }
 
     pub fn toggle_symlink(
@@ -1474,6 +1593,12 @@ impl SkillService {
         if entries.is_empty() {
             return Err(AppError::NotFound(format!(
                 "No skills found with name: {skill_name}"
+            )));
+        }
+
+        if entries.iter().any(|entry| entry.origin == "external") {
+            return Err(AppError::BadRequest(format!(
+                "Cannot merge: '{skill_name}' includes an external import. Remove or relink the external import instead."
             )));
         }
 

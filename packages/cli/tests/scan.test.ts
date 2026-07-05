@@ -82,4 +82,45 @@ describe("scanInstalledSkills", () => {
     });
     expect(skills[0].apps.opencode).toBe(true);
   });
+
+  it("includes valid external imports and skips missing ones", async () => {
+    const home = await makeTempHome();
+    const paths = getPaths(home);
+    const sourceDir = path.join(home, "private-skills", "skills", "demo");
+    await writeSkill(sourceDir, "name: External Demo");
+    await writeJson(paths.externalImportsFile, {
+      version: 1,
+      imports: {
+        "external:demo-a1b2c3d4": {
+          id: "external:demo-a1b2c3d4",
+          sourcePath: sourceDir,
+          directory: "skills/demo",
+          importedAt: 100,
+          updatedAt: 200,
+        },
+        "external:missing-a1b2c3d4": {
+          id: "external:missing-a1b2c3d4",
+          sourcePath: path.join(home, "missing"),
+          directory: "missing",
+          importedAt: 100,
+          updatedAt: 200,
+        },
+      },
+    });
+
+    const skills = await rebuildCache(home);
+
+    expect(skills).toHaveLength(1);
+    expect(skills[0]).toMatchObject({
+      id: "external:demo-a1b2c3d4",
+      name: "demo",
+      yamlName: "External Demo",
+      directory: "skills/demo",
+      origin: "external",
+      homePath: sourceDir,
+      homeAgent: null,
+      installedAt: 100,
+      updatedAt: 200,
+    });
+  });
 });

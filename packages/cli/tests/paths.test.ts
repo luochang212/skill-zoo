@@ -11,6 +11,7 @@ describe("paths", () => {
     expect(paths.agentsSkillsDir).toBe(path.join(home, ".agents", "skills"));
     expect(paths.agentLockFile).toBe(path.join(home, ".agents", ".skill-lock.json"));
     expect(paths.archiveManifestFile).toBe(path.join(home, ".skill-zoo", "archive", "manifest.json"));
+    expect(paths.externalImportsFile).toBe(path.join(home, ".skill-zoo", "imports.json"));
     expect(getAgentSkillsDir(home, "codex")).toBe(path.join(home, ".codex", "skills"));
     expect(getAgentSkillsDir(home, "claude-code")).toBe(path.join(home, ".claude", "skills"));
   });

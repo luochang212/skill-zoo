@@ -2,7 +2,7 @@ export interface SkillApps {
   [agentId: string]: boolean;
 }
 
-export type SkillOrigin = "ssot" | "agent";
+export type SkillOrigin = "ssot" | "agent" | "external";
 
 export interface InstalledSkill {
   id: string;
@@ -55,6 +55,33 @@ export interface SymlinkStatus {
   targetPath: string;
   exists: boolean;
   isValid: boolean;
+}
+
+export interface ExternalImportCandidate {
+  sourcePath: string;
+  directory: string;
+  name: string;
+  description?: string;
+  alreadyImported: boolean;
+}
+
+export type ExternalImportStatus = "valid" | "sourceMissing" | "skillMissing" | "linkConflict";
+
+export interface ExternalImportInfo {
+  id: string;
+  sourcePath: string;
+  directory: string;
+  name: string;
+  description?: string;
+  status: ExternalImportStatus;
+  linkedAgents: string[];
+  importedAt: number;
+  updatedAt: number;
+}
+
+export interface ExternalImportSelection {
+  sourcePath: string;
+  directory: string;
 }
 
 export type View = "discover" | "local" | "settings";

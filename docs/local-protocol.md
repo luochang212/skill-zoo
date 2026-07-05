@@ -8,6 +8,7 @@ Skill Zoo desktop owns the local protocol. The CLI is an adjunct control surface
 | --- | ---: | --- |
 | `~/.agents/.skill-lock.json` | 3 | Desktop-owned install metadata for skills managed through Skill Zoo-compatible flows. |
 | `~/.skill-zoo/archive/manifest.json` | 1 | Desktop-owned manifest for archived skills and restore metadata. |
+| `~/.skill-zoo/imports.json` | 1 | Desktop-owned registry for skills imported from user-owned external folders. |
 
 `~/.skill-zoo/metadata.json` and `~/.skill-zoo/skills-cache.json` support desktop and CLI behavior, but they are not first-class versioned protocol files in this iteration. The cache is derived state and should not drive compatibility policy. `skills-cache.json` entries may include an optional `apps` map containing derived agent availability; readers must tolerate missing `apps` and writers should refresh it from filesystem state when rebuilding the cache.
 
@@ -18,6 +19,14 @@ Skill Zoo desktop owns the local protocol. The CLI is an adjunct control surface
 ## GitHub Source Refs
 
 For GitHub lock entries, `ref` stores an explicit branch only when the user or curated source selected one, for example a `/tree/<branch>` URL. Missing `ref` means the skill follows the repository's default branch. Readers must not treat a missing `ref` as `main`; writers must omit `ref` when the branch is unknown/default rather than guessing.
+
+## External Imports
+
+External imports are user-owned skill directories outside Skill Zoo's SSOT and registered agent skill directories. The desktop app records these references in `~/.skill-zoo/imports.json`; the source directory remains the user's source of truth and must not be copied, moved, deleted, or archived by Skill Zoo-compatible tools.
+
+An import entry's `sourcePath` points to the concrete skill root containing `SKILL.md`. `directory` stores the display/link identity used for agent symlink names. Readers should include valid external imports in installed-skill scans when `sourcePath/SKILL.md` exists. Missing or invalid external imports should remain in the imports registry for management and cleanup, but should not appear as installed skills.
+
+Removing an external import means removing the registry entry and app-managed agent links that point to `sourcePath`; it must not remove files under `sourcePath`.
 
 ## Compatibility Rules
 

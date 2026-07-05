@@ -26,6 +26,7 @@ base64 = "0.22"
 chrono = { version = "0.4", features = ["serde"] }
 tauri = { version = "2", features = ["protocol-asset", "tray-icon", "image-png"] }
 tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 dirs = "6.0"

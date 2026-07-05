@@ -32,6 +32,7 @@ use tauri::{Emitter, Manager};
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
             // Clean up residual .tmp files from interrupted downloads
@@ -118,6 +119,12 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::skill::install_skills,
+            commands::skill::list_external_imports,
+            commands::skill::scan_external_import_folder,
+            commands::skill::import_external_skills,
+            commands::skill::remove_external_import,
+            commands::skill::relink_external_import,
+            commands::skill::clean_external_import_links,
             commands::skill::get_installed_skills,
             commands::skill::update_skill,
             commands::skill::update_all_skills,

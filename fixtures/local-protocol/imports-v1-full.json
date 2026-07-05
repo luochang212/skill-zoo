@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "imports": {
+    "external:demo-a1b2c3d4": {
+      "id": "external:demo-a1b2c3d4",
+      "sourcePath": "/Users/example/private-skills/skills/demo",
+      "directory": "skills/demo",
+      "importedAt": 1767472800,
+      "updatedAt": 1767472900
+    }
+  }
+}

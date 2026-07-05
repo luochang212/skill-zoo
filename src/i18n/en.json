@@ -330,6 +330,31 @@
       "clearCacheFailed": "Could not clear download cache",
       "openCacheDir": "Cache folder"
     },
+    "localImports": {
+      "cardTitle": "Local Imports",
+      "cardDesc": "Import and manage skills from local folders or private repositories",
+      "manage": "Manage Imports",
+      "title": "Local Imports",
+      "description": "Imported skills stay in their original folders. Skill Zoo only manages agent links.",
+      "importFolder": "Import Folder",
+      "cleanAll": "Clean All Links",
+      "candidates": "Found Skills",
+      "managed": "Managed Imports",
+      "empty": "No local imports yet",
+      "noCandidates": "No skills found in the selected folder",
+      "importSelected": "Import {{count}}",
+      "importSuccess": "Imported {{count}} skill(s)",
+      "removeSuccess": "Import removed",
+      "relinkSuccess": "Source folder updated",
+      "linkedAgents": "Linked: {{agents}}",
+      "none": "None",
+      "status": {
+        "valid": "Valid",
+        "sourceMissing": "Source missing",
+        "skillMissing": "SKILL.md missing",
+        "linkConflict": "Link conflict"
+      }
+    },
     "skillCompanion": {
       "title": "Skill Companion",
       "summary": "Common Commands",

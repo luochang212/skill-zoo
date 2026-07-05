@@ -4,7 +4,7 @@ import path from "node:path";
 import YAML from "yaml";
 import { AGENTS, SKIP_DIRS } from "./agents.js";
 import { agentLinkName, getAgentSkillsDir, getPaths } from "./paths.js";
-import { readLock, readMetadata, writeCache } from "./store.js";
+import { readExternalImports, readLock, readMetadata, writeCache } from "./store.js";
 import type {
   InstalledSkill,
   MetadataStore,
@@ -85,8 +85,50 @@ export async function scanCacheEntries(home?: string): Promise<SkillCacheEntry[]
   for (const scanRoot of scanRoots) {
     await scanDirRecursive(home, scanRoot, scanRoot, lock, seenIds, entries);
   }
+  await scanExternalImports(home, seenIds, entries);
 
   return entries;
+}
+
+async function scanExternalImports(
+  home: string | undefined,
+  seenIds: Set<string>,
+  entries: SkillCacheEntry[],
+): Promise<void> {
+  const imports = await readExternalImports(home).catch(() => undefined);
+  if (!imports) {
+    return;
+  }
+  for (const entry of Object.values(imports.imports)) {
+    const skillMd = path.join(entry.sourcePath, "SKILL.md");
+    if (!(await pathExists(skillMd))) {
+      continue;
+    }
+    const dirName = path.basename(entry.sourcePath);
+    const parsed = await parseSkillMd(skillMd, dirName);
+    const yamlName = parsed.name === dirName ? null : parsed.name;
+    if (seenIds.has(entry.id)) {
+      continue;
+    }
+    seenIds.add(entry.id);
+    entries.push({
+      id: entry.id,
+      name: dirName,
+      yamlName,
+      description: parsed.description ?? null,
+      directory: entry.directory,
+      repoOwner: null,
+      repoName: null,
+      sourceUrl: null,
+      origin: "external",
+      homePath: entry.sourcePath,
+      contentHash: await computeContentHash(entry.sourcePath),
+      homeAgent: null,
+      apps: await detectAgents(home, entry.directory, entry.sourcePath),
+      installedAt: entry.importedAt,
+      updatedAt: entry.updatedAt,
+    });
+  }
 }
 
 async function scanDirRecursive(
@@ -176,6 +218,10 @@ export function makeSkillId(
       return `repo:${repoOwner}/${repoName}:${directory}`;
     }
     return `ssot:${directory}`;
+  }
+
+  if (origin === "external") {
+    return directory.startsWith("external:") ? directory : `external:${directory}`;
   }
 
   if (!agentId) {
@@ -400,7 +446,7 @@ async function detectHomeAgent(
   homePath: string,
   origin: SkillOrigin,
 ): Promise<string | null> {
-  if (origin === "ssot") {
+  if (origin !== "agent") {
     return null;
   }
 

@@ -1,8 +1,10 @@
 pub mod archive;
+pub mod external_imports;
 pub mod metadata;
 pub mod update_history;
 
 pub use archive::{ArchiveManifest, ArchivedSkill};
+pub use external_imports::{ExternalImportEntry, ExternalImports};
 pub use metadata::MetadataStore;
 pub use update_history::{SkillUpdateHistory, SkillUpdateHistoryRecord};
 

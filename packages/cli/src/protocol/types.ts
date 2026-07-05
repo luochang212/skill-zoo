@@ -2,7 +2,7 @@ export interface SkillApps {
   [agentId: string]: boolean;
 }
 
-export type SkillOrigin = "ssot" | "agent";
+export type SkillOrigin = "ssot" | "agent" | "external";
 
 export interface SkillLockEntry {
   source?: string | null;
@@ -74,6 +74,19 @@ export interface ArchiveManifest {
   skills: Record<string, ArchivedSkill>;
 }
 
+export interface ExternalImportEntry {
+  id: string;
+  sourcePath: string;
+  directory: string;
+  importedAt: number;
+  updatedAt: number;
+}
+
+export interface ExternalImports {
+  version: number;
+  imports: Record<string, ExternalImportEntry>;
+}
+
 export interface Change {
   action: string;
   path: string;
@@ -94,6 +107,11 @@ export const DEFAULT_LOCK: SkillLock = {
 export const DEFAULT_ARCHIVE_MANIFEST: ArchiveManifest = {
   version: 1,
   skills: {},
+};
+
+export const DEFAULT_EXTERNAL_IMPORTS: ExternalImports = {
+  version: 1,
+  imports: {},
 };
 
 export const DEFAULT_METADATA: MetadataStore = {

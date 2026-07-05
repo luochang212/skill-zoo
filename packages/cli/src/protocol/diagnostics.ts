@@ -3,7 +3,7 @@ import { AGENTS } from "./agents.js";
 import { agentLinkName, getAgentSkillsDir, getPaths } from "./paths.js";
 import { resolveOneSkillRef } from "./refs.js";
 import { rebuildCache, scanCacheEntries, scanInstalledSkills } from "./scan.js";
-import { assertWritableSchema, readArchiveManifest, readCache, readLock } from "./store.js";
+import { assertWritableSchema, readArchiveManifest, readCache, readExternalImports, readLock } from "./store.js";
 import type { ArchivedSkill, InstalledSkill } from "./types.js";
 import { CliError, messageFromError } from "../lib/errors.js";
 import {
@@ -111,10 +111,19 @@ export async function runDoctor(home?: string): Promise<DoctorReport> {
     });
     return undefined;
   });
+  const imports = await readExternalImports(home).catch((error: unknown) => {
+    checks.push({
+      id: "external-imports-readable",
+      status: "error",
+      message: `Cannot read external imports: ${messageFromError(error)}`,
+      path: paths.externalImportsFile,
+    });
+    return undefined;
+  });
 
-  if (lock && manifest) {
+  if (lock && manifest && imports) {
     try {
-      assertWritableSchema(lock, manifest);
+      assertWritableSchema(lock, manifest, imports);
       checks.push({ id: "schema-version", status: "ok", message: "Local protocol schema is supported." });
     } catch (error) {
       checks.push({ id: "schema-version", status: "error", message: messageFromError(error) });

@@ -5,6 +5,7 @@ import { agentLinkName, getAgentSkillsDir, getPaths } from "./paths.js";
 import {
   assertWritableSchema,
   readArchiveManifest,
+  readExternalImports,
   readLock,
   readMetadata,
   writeArchiveManifest,
@@ -175,13 +176,17 @@ async function planArchive(home: string | undefined, skill: InstalledSkill): Pro
 async function archiveOne(home: string | undefined, skill: InstalledSkill): Promise<void> {
   const paths = getPaths(home);
   const homePath = skill.homePath;
+  if (skill.origin === "external") {
+    throw new CliError("External imports cannot be archived because their source folders are owned by the user.");
+  }
   if (!homePath) {
     throw new CliError("Skill has no physical home path, cannot archive");
   }
 
   const lock = await readLock(home);
   const manifest = await readArchiveManifest(home);
-  assertWritableSchema(lock, manifest);
+  const imports = await readExternalImports(home);
+  assertWritableSchema(lock, manifest, imports);
 
   const snapshots = await Promise.all([
     snapshotFile(paths.archiveManifestFile),
@@ -287,7 +292,8 @@ async function restoreOne(home: string | undefined, archiveId: string): Promise<
   const paths = getPaths(home);
   const lock = await readLock(home);
   const manifest = await readArchiveManifest(home);
-  assertWritableSchema(lock, manifest);
+  const imports = await readExternalImports(home);
+  assertWritableSchema(lock, manifest, imports);
 
   const archived = manifest.skills[archiveId];
   if (!archived) {
@@ -381,7 +387,11 @@ function makeArchivedSkill(
 
 async function getWritableSchemaError(home: string | undefined): Promise<CliError | undefined> {
   try {
-    assertWritableSchema(await readLock(home), await readArchiveManifest(home));
+    assertWritableSchema(
+      await readLock(home),
+      await readArchiveManifest(home),
+      await readExternalImports(home),
+    );
     return undefined;
   } catch (error) {
     if (error instanceof CliError) {

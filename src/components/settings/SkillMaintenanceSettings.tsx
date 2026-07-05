@@ -1,4 +1,12 @@
-import { FolderOpen, FolderSearch, History, RefreshCw, Trash2, Wrench } from "lucide-react";
+import {
+  FolderInput,
+  FolderOpen,
+  FolderSearch,
+  History,
+  RefreshCw,
+  Trash2,
+  Wrench,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -7,6 +15,7 @@ import {
   type SkillUpdateCandidate,
   type SkillUpdateIssue,
 } from "@/components/settings/SkillUpdateManagerDialog";
+import { LocalImportsDialog } from "@/components/settings/LocalImportsDialog";
 import { Button } from "@/components/ui/button";
 import { ToggleRow } from "@/components/ui/toggle-row";
 import { useUpdateAllSkills, useInstalledSkills, useRescanSkills } from "@/hooks/useSkills";
@@ -34,6 +43,7 @@ export function SkillMaintenanceSettings() {
   const [clearingCache, setClearingCache] = useState(false);
   const [cacheSize, setCacheSize] = useState<number | null>(null);
   const [updateManagerOpen, setUpdateManagerOpen] = useState(false);
+  const [localImportsOpen, setLocalImportsOpen] = useState(false);
   const updateManagerButtonRef = useRef<HTMLButtonElement>(null);
 
   const checkMutation = useCheckUpdates();
@@ -224,6 +234,30 @@ export function SkillMaintenanceSettings() {
           </div>
         </div>
 
+        {/* Local imports */}
+        <div className="flex items-center justify-between rounded-xl border border-border bg-card/50 p-4 transition-colors hover:bg-muted/50">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-background ring-1 ring-border">
+              <FolderInput className="h-4 w-4 text-blue-500" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium leading-none">
+                {t("settings.localImports.cardTitle")}
+              </p>
+              <p className="text-xs text-muted-foreground">{t("settings.localImports.cardDesc")}</p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs gap-1.5"
+            onClick={() => setLocalImportsOpen(true)}
+          >
+            <FolderInput className="h-3.5 w-3.5" />
+            {t("settings.localImports.manage")}
+          </Button>
+        </div>
+
         {/* Rescan */}
         <div className="flex items-center justify-between rounded-xl border border-border bg-card/50 p-4 transition-colors hover:bg-muted/50">
           <div className="flex items-center gap-3">
@@ -348,6 +382,7 @@ export function SkillMaintenanceSettings() {
         onCheckUpdates={() => checkMutation.mutate()}
         onUpdate={updateCheckedCandidates}
       />
+      <LocalImportsDialog open={localImportsOpen} onOpenChange={setLocalImportsOpen} />
     </section>
   );
 }

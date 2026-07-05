@@ -8,6 +8,7 @@
     "core:window:allow-show",
     "core:window:allow-start-dragging",
     "core:window:allow-toggle-maximize",
+    "dialog:allow-open",
     "opener:default",
     "opener:allow-open-path",
     "updater:default",

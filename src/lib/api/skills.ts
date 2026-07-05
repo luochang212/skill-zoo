@@ -6,6 +6,9 @@ import type {
   Banner,
   DiscoverRepo,
   DiscoverableSkill,
+  ExternalImportCandidate,
+  ExternalImportInfo,
+  ExternalImportSelection,
   InstalledSkill,
   RepoSkillsResult,
   SkillAudit,
@@ -14,6 +17,22 @@ import type {
 } from "@/types/skills";
 
 export const skillsApi = {
+  listExternalImports: () => invoke<ExternalImportInfo[]>("list_external_imports"),
+
+  scanExternalImportFolder: (path: string) =>
+    invoke<ExternalImportCandidate[]>("scan_external_import_folder", { path }),
+
+  importExternalSkills: (selections: ExternalImportSelection[], agents: string[]) =>
+    invoke<InstalledSkill[]>("import_external_skills", { selections, agents }),
+
+  removeExternalImport: (importId: string) => invoke<void>("remove_external_import", { importId }),
+
+  relinkExternalImport: (importId: string, sourcePath: string) =>
+    invoke<ExternalImportInfo>("relink_external_import", { importId, sourcePath }),
+
+  cleanExternalImportLinks: (importId?: string | null) =>
+    invoke<number>("clean_external_import_links", { importId: importId ?? null }),
+
   installSkills: (repoUrl: string, skillNames: string[], agents: string[]) =>
     invoke<InstalledSkill[]>("install_skills", { repoUrl, skillNames, agents }),
 

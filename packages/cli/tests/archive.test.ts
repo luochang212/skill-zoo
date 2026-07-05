@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { archiveSkillRefs, makeArchiveId, restoreArchiveIds } from "../src/protocol/archive.js";
 import { getPaths } from "../src/protocol/paths.js";
+import { rebuildCache } from "../src/protocol/scan.js";
 import { readArchiveManifest, readCache, readLock, readMetadata } from "../src/protocol/store.js";
 import { isSymlinkOrJunction, pathExists } from "../src/lib/io.js";
 import { CLI_VERSION } from "../src/version.js";
@@ -99,6 +100,32 @@ describe("archive and restore", () => {
       path: skillDir,
       target: skillDir,
     });
+  });
+
+  it("refuses to archive external imports", async () => {
+    const home = await makeTempHome();
+    const paths = getPaths(home);
+    const sourceDir = path.join(home, "private-skills", "demo");
+    await writeSkill(sourceDir, "name: External");
+    await writeJson(paths.externalImportsFile, {
+      version: 1,
+      imports: {
+        "external:demo-a1b2c3d4": {
+          id: "external:demo-a1b2c3d4",
+          sourcePath: sourceDir,
+          directory: "demo",
+          importedAt: 100,
+          updatedAt: 200,
+        },
+      },
+    });
+    await rebuildCache(home);
+
+    const result = await archiveSkillRefs(home, ["external:demo-a1b2c3d4"]);
+
+    expect(result.archived).toEqual([]);
+    expect(result.failed[0]?.error).toContain("External imports cannot be archived");
+    expect(await pathExists(sourceDir)).toBe(true);
   });
 
   it("archives nested skills using flat agent link paths", async () => {

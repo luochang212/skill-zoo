@@ -2,9 +2,11 @@ import { getPaths } from "./paths.js";
 import {
   DEFAULT_ARCHIVE_MANIFEST,
   DEFAULT_CACHE,
+  DEFAULT_EXTERNAL_IMPORTS,
   DEFAULT_LOCK,
   DEFAULT_METADATA,
   type ArchiveManifest,
+  type ExternalImports,
   type MetadataStore,
   type SkillCache,
   type SkillLock,
@@ -14,6 +16,7 @@ import { CliError } from "../lib/errors.js";
 
 const SUPPORTED_LOCK_VERSION = 3;
 const SUPPORTED_ARCHIVE_VERSION = 1;
+const SUPPORTED_EXTERNAL_IMPORTS_VERSION = 1;
 
 export async function readLock(home?: string): Promise<SkillLock> {
   const lock = await readJson<SkillLock>(getPaths(home).agentLockFile, DEFAULT_LOCK);
@@ -49,6 +52,26 @@ export async function writeArchiveManifest(
   await writeJsonAtomic(getPaths(home).archiveManifestFile, manifest);
 }
 
+export async function readExternalImports(home?: string): Promise<ExternalImports> {
+  const imports = await readJson<ExternalImports>(
+    getPaths(home).externalImportsFile,
+    DEFAULT_EXTERNAL_IMPORTS,
+  );
+  return {
+    ...DEFAULT_EXTERNAL_IMPORTS,
+    ...imports,
+    imports: imports.imports ?? {},
+    version: imports.version ?? DEFAULT_EXTERNAL_IMPORTS.version,
+  };
+}
+
+export async function writeExternalImports(
+  home: string | undefined,
+  imports: ExternalImports,
+): Promise<void> {
+  await writeJsonAtomic(getPaths(home).externalImportsFile, imports);
+}
+
 export async function readMetadata(home?: string): Promise<MetadataStore> {
   const metadata = await readJson<MetadataStore>(getPaths(home).metadataFile, DEFAULT_METADATA);
   return {
@@ -75,7 +98,11 @@ export async function writeCache(home: string | undefined, cache: SkillCache): P
   await writeJsonAtomic(getPaths(home).skillsCacheFile, cache);
 }
 
-export function assertWritableSchema(lock: SkillLock, manifest: ArchiveManifest): void {
+export function assertWritableSchema(
+  lock: SkillLock,
+  manifest: ArchiveManifest,
+  imports: ExternalImports = DEFAULT_EXTERNAL_IMPORTS,
+): void {
   if (lock.version > SUPPORTED_LOCK_VERSION) {
     throw new CliError(
       `Lock file version ${lock.version} is newer than this CLI supports. Upgrade skill-zoo CLI before writing.`,
@@ -85,6 +112,12 @@ export function assertWritableSchema(lock: SkillLock, manifest: ArchiveManifest)
   if (manifest.version > SUPPORTED_ARCHIVE_VERSION) {
     throw new CliError(
       `Archive manifest version ${manifest.version} is newer than this CLI supports. Upgrade skill-zoo CLI before writing.`,
+    );
+  }
+
+  if (imports.version > SUPPORTED_EXTERNAL_IMPORTS_VERSION) {
+    throw new CliError(
+      `External imports version ${imports.version} is newer than this CLI supports. Upgrade skill-zoo CLI before writing.`,
     );
   }
 }

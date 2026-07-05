@@ -10,6 +10,7 @@ export interface SkillZooPaths {
   archiveDir: string;
   archiveSkillsDir: string;
   archiveManifestFile: string;
+  externalImportsFile: string;
   metadataFile: string;
   skillsCacheFile: string;
 }
@@ -39,6 +40,7 @@ export function getPaths(homeInput?: string): SkillZooPaths {
     archiveDir,
     archiveSkillsDir: path.join(archiveDir, "skills"),
     archiveManifestFile: path.join(archiveDir, "manifest.json"),
+    externalImportsFile: path.join(appConfigDir, "imports.json"),
     metadataFile: path.join(appConfigDir, "metadata.json"),
     skillsCacheFile: path.join(appConfigDir, "skills-cache.json"),
   };

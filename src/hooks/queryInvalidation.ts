@@ -11,6 +11,16 @@ export const INVALIDATION_MAP = {
     ["skills", "symlinks"],
     ["skills.sh", "search"],
   ],
+  externalImports: [
+    ["skills", "externalImports"],
+    ["skills", "installed"],
+    ["skills", "symlinks"],
+    ["skills", "content"],
+    ["skills", "files"],
+    ["skills", "fileChildren"],
+    ["skills", "file"],
+    ["skills", "image"],
+  ],
   removeSkill: [
     ["skills", "installed"],
     ["skills", "archived"],

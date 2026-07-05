@@ -6,6 +6,7 @@ import { getPaths } from "../src/protocol/paths.js";
 import {
   assertWritableSchema,
   readArchiveManifest,
+  readExternalImports,
   readCache,
   readLock,
 } from "../src/protocol/store.js";
@@ -17,9 +18,11 @@ describe("desktop local protocol fixtures", () => {
     const paths = getPaths(home);
     await copyFixture("lock-v3-full.json", paths.agentLockFile);
     await copyFixture("archive-v1-full.json", paths.archiveManifestFile);
+    await copyFixture("imports-v1-full.json", paths.externalImportsFile);
 
     const lock = await readLock(home);
     const manifest = await readArchiveManifest(home);
+    const imports = await readExternalImports(home);
 
     expect(lock.version).toBe(3);
     expect(lock.skills.demo).toMatchObject({
@@ -40,6 +43,12 @@ describe("desktop local protocol fixtures", () => {
     });
     expect(manifest.skills["demo-abc123"]?.apps.codex).toBe(true);
     expect(manifest.skills["demo-abc123"]?.lockEntry?.source).toBe("owner/repo");
+    expect(imports.version).toBe(1);
+    expect(imports.imports["external:demo-a1b2c3d4"]).toMatchObject({
+      id: "external:demo-a1b2c3d4",
+      sourcePath: "/Users/example/private-skills/skills/demo",
+      directory: "skills/demo",
+    });
   });
 
   it("applies defaults for minimal current fixtures", async () => {
@@ -47,14 +56,18 @@ describe("desktop local protocol fixtures", () => {
     const paths = getPaths(home);
     await copyFixture("lock-v3-minimal.json", paths.agentLockFile);
     await copyFixture("archive-v1-minimal.json", paths.archiveManifestFile);
+    await copyFixture("imports-v1-minimal.json", paths.externalImportsFile);
 
     const lock = await readLock(home);
     const manifest = await readArchiveManifest(home);
+    const imports = await readExternalImports(home);
 
     expect(lock.version).toBe(3);
     expect(lock.skills).toEqual({});
     expect(manifest.version).toBe(1);
     expect(manifest.skills).toEqual({});
+    expect(imports.version).toBe(1);
+    expect(imports.imports).toEqual({});
   });
 
   it("tolerates legacy skills cache entries without apps", async () => {
@@ -86,14 +99,32 @@ describe("desktop local protocol fixtures", () => {
     const lockHome = await makeTempHome();
     await copyFixture("lock-v4-future.json", getPaths(lockHome).agentLockFile);
     await expect(async () => {
-      assertWritableSchema(await readLock(lockHome), await readArchiveManifest(lockHome));
+      assertWritableSchema(
+        await readLock(lockHome),
+        await readArchiveManifest(lockHome),
+        await readExternalImports(lockHome),
+      );
     }).rejects.toThrow("Lock file version 4 is newer than this CLI supports");
 
     const archiveHome = await makeTempHome();
     await copyFixture("archive-v2-future.json", getPaths(archiveHome).archiveManifestFile);
     await expect(async () => {
-      assertWritableSchema(await readLock(archiveHome), await readArchiveManifest(archiveHome));
+      assertWritableSchema(
+        await readLock(archiveHome),
+        await readArchiveManifest(archiveHome),
+        await readExternalImports(archiveHome),
+      );
     }).rejects.toThrow("Archive manifest version 2 is newer than this CLI supports");
+
+    const importsHome = await makeTempHome();
+    await copyFixture("imports-v2-future.json", getPaths(importsHome).externalImportsFile);
+    await expect(async () => {
+      assertWritableSchema(
+        await readLock(importsHome),
+        await readArchiveManifest(importsHome),
+        await readExternalImports(importsHome),
+      );
+    }).rejects.toThrow("External imports version 2 is newer than this CLI supports");
   });
 });
 
