@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Pre-commit checks (frontend). Bypass with `git commit --no-verify`.
+# CI re-runs these (plus typecheck/tests) on push — this is just fast local feedback.
+set -e
+
+bun run format:check
+bun run lint

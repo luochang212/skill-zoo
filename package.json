@@ -23,7 +23,8 @@
     "test:rs": "cargo test --manifest-path src-tauri/Cargo.toml --features test-helpers",
     "cli:build": "cd packages/cli && bun run build",
     "cli:test": "cd packages/cli && bun run test",
-    "cli:typecheck": "cd packages/cli && bun run typecheck"
+    "cli:typecheck": "cd packages/cli && bun run typecheck",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.5.0",
