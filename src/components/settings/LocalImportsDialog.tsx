@@ -49,15 +49,6 @@ function statusVariant(status: ExternalImportStatus) {
 export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogProps) {
   const { t } = useTranslation();
   const { data: imports, isLoading, refetch } = useExternalImports();
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await refetch();
-    } finally {
-      setTimeout(() => setRefreshing(false), 500);
-    }
-  };
   const { data: agentConfigs } = useAgentConfigs();
   const visibleAgentOrder = useVisibleAgentOrder();
   const visibleAgentKey = visibleAgentOrder.join("\0");
@@ -70,6 +61,16 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
   const [agents, setAgents] = useState<Set<string>>(new Set());
   const [scanning, setScanning] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setTimeout(() => setRefreshing(false), 500);
+    }
+  };
+
   const [tab, setTab] = useState<"import" | "manage">("import");
 
   useEffect(() => {
@@ -209,19 +210,27 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
         <div className="flex-1 min-h-0 flex flex-col">
           {tab === "import" ? (
             <div className="flex-1 min-h-0 flex flex-col gap-5 p-4">
-              <Button
-                size="sm"
-                className="gap-1.5 self-start"
-                onClick={chooseFolder}
-                disabled={scanning}
-              >
-                {scanning ? (
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <FolderInput className="h-3.5 w-3.5" />
+              <div className="flex items-center justify-between gap-3">
+                <Button size="sm" className="gap-1.5" onClick={chooseFolder} disabled={scanning}>
+                  {scanning ? (
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <FolderInput className="h-3.5 w-3.5" />
+                  )}
+                  {t("settings.localImports.importFolder")}
+                </Button>
+                {selectedCandidates.length > 0 && (
+                  <Button
+                    size="sm"
+                    onClick={importSelected}
+                    disabled={agents.size === 0 || importMutation.isPending}
+                  >
+                    {t("settings.localImports.importSelected", {
+                      count: selectedCandidates.length,
+                    })}
+                  </Button>
                 )}
-                {t("settings.localImports.importFolder")}
-              </Button>
+              </div>
 
               {candidates.length > 0 && (
                 <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-border">
@@ -285,20 +294,6 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
                           ))}
                         </div>
                       </ScrollArea>
-                      <Button
-                        size="sm"
-                        className="w-full shrink-0"
-                        onClick={importSelected}
-                        disabled={
-                          selectedCandidates.length === 0 ||
-                          agents.size === 0 ||
-                          importMutation.isPending
-                        }
-                      >
-                        {t("settings.localImports.importSelected", {
-                          count: selectedCandidates.length,
-                        })}
-                      </Button>
                     </div>
                   </div>
                 </div>
