@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
-# Pre-commit checks (frontend). Bypass with `git commit --no-verify`.
-# CI re-runs these (plus typecheck/tests) on push — this is just fast local feedback.
+# Pre-commit checks. Bypass with `git commit --no-verify`.
+# CI re-runs these (plus typecheck + tests) on push — this is fast local feedback.
+
+# If you touch frontend i18n or UI, run `bun run test` manually before pushing.
+# If you touch Rust, run `cargo test --features test-helpers --manifest-path src-tauri/Cargo.toml`.
+
 set -e
 
 bun run format:check
 bun run lint
+cargo fmt --check --manifest-path src-tauri/Cargo.toml
