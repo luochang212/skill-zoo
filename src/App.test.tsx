@@ -126,7 +126,7 @@ describe("App local skill detail navigation", () => {
     await user.click(await screen.findByRole("button", { name: "Skill 0" }));
     await screen.findByText("Skill content");
 
-    await user.click(screen.getByTitle("Update from git"));
+    await user.click(screen.getByTitle("Update from Git"));
     expect(screen.getByTitle("Updating...")).toBeInTheDocument();
 
     await user.click(screen.getByTitle("Back"));
@@ -134,6 +134,6 @@ describe("App local skill detail navigation", () => {
 
     expect(await screen.findByRole("heading", { name: "Skill 1" })).toBeInTheDocument();
     expect(screen.queryByTitle("Updating...")).not.toBeInTheDocument();
-    expect(screen.getByTitle("Update from git")).toBeInTheDocument();
+    expect(screen.getByTitle("Update from Git")).toBeInTheDocument();
   });
 });

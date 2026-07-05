@@ -106,7 +106,7 @@ describe("SkillDetail", () => {
       />,
     );
 
-    await userEvent.click(screen.getByTitle("Update from git"));
+    await userEvent.click(screen.getByTitle("Update from Git"));
     expect(screen.queryByTitle("Updated")).not.toBeInTheDocument();
 
     resolveUpdate({ updated: true });
@@ -127,7 +127,7 @@ describe("SkillDetail", () => {
       />,
     );
 
-    await userEvent.click(screen.getByTitle("Update from git"));
+    await userEvent.click(screen.getByTitle("Update from Git"));
     expect(await screen.findByTitle("Updated")).toBeInTheDocument();
 
     rerender(
@@ -151,7 +151,7 @@ describe("SkillDetail", () => {
     );
 
     expect(screen.queryByTitle("Updated")).not.toBeInTheDocument();
-    expect(screen.getByTitle("Update from git")).toBeInTheDocument();
+    expect(screen.getByTitle("Update from Git")).toBeInTheDocument();
   });
 
   it("clears up-to-date status when switching skills", async () => {
@@ -167,7 +167,7 @@ describe("SkillDetail", () => {
       />,
     );
 
-    await userEvent.click(screen.getByTitle("Update from git"));
+    await userEvent.click(screen.getByTitle("Update from Git"));
     expect(await screen.findByTitle("Already up to date")).toBeInTheDocument();
 
     rerender(
@@ -191,7 +191,7 @@ describe("SkillDetail", () => {
     );
 
     expect(screen.queryByTitle("Already up to date")).not.toBeInTheDocument();
-    expect(screen.getByTitle("Update from git")).toBeInTheDocument();
+    expect(screen.getByTitle("Update from Git")).toBeInTheDocument();
   });
 
   it("ignores stale update results after switching skills", async () => {
@@ -213,7 +213,7 @@ describe("SkillDetail", () => {
       />,
     );
 
-    await userEvent.click(screen.getByTitle("Update from git"));
+    await userEvent.click(screen.getByTitle("Update from Git"));
 
     rerender(
       <QueryClientProvider client={queryClient}>
@@ -240,7 +240,7 @@ describe("SkillDetail", () => {
     });
 
     expect(screen.queryByTitle("Updated")).not.toBeInTheDocument();
-    expect(screen.getByTitle("Update from git")).toBeInTheDocument();
+    expect(screen.getByTitle("Update from Git")).toBeInTheDocument();
   });
 
   it("does not show update success when the update fails", async () => {
@@ -257,7 +257,7 @@ describe("SkillDetail", () => {
       />,
     );
 
-    await userEvent.click(screen.getByTitle("Update from git"));
+    await userEvent.click(screen.getByTitle("Update from Git"));
 
     await waitFor(() => expect(onUpdate).toHaveBeenCalledOnce());
     expect(screen.queryByTitle("Updated")).not.toBeInTheDocument();
