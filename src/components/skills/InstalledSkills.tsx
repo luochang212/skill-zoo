@@ -897,7 +897,7 @@ export const InstalledSkills = memo(function InstalledSkills({
           onOpenChange={(open) => setBatchAction(open ? "remove" : null)}
           title={t("removeDialog.title")}
           description={
-            allExternalInSelection
+            hasExternalInSelection
               ? t("removeDialog.batchDescription", { count: visibleSelectedIds.length })
               : `${t("removeDialog.batchDescription", { count: visibleSelectedIds.length })} ${t(
                   "removeDialog.warning",
@@ -908,7 +908,13 @@ export const InstalledSkills = memo(function InstalledSkills({
           confirmVariant="destructive"
           confirmPending={removeSkillsMutation.isPending}
           onConfirm={handleBatchRemove}
-          hint={hasExternalInSelection ? t("removeDialog.externalImportNote") : undefined}
+          hint={
+            allExternalInSelection
+              ? t("removeDialog.externalImportNote")
+              : hasExternalInSelection
+                ? t("removeDialog.mixedImportNote")
+                : undefined
+          }
         />
       </div>
     </div>

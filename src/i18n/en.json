@@ -165,7 +165,8 @@
     "warning": "Coding agent links and local files will also be removed.",
     "batchDescription": "Remove {{count}} skills?",
     "batchPartialFailed": "{{count}} skill(s) could not be removed.",
-    "externalImportNote": "Imported skills will only be unregistered; their source files will not be deleted."
+    "externalImportNote": "Imported skills will only be unregistered; their source files will not be deleted.",
+    "mixedImportNote": "Imported skills will only be unregistered. Other skills will have agent links and local files removed."
   },
   "archiveDialog": {
     "title": "Archive Skill",
