@@ -1546,12 +1546,10 @@ fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String>
         .ok_or_else(|| "Skill has no physical home path, cannot archive".to_string())?;
     let home = std::path::PathBuf::from(&home_path);
 
-    if !is_external {
-        if !home.exists() || is_symlink_or_junction(&home) {
-            return Err(format!(
-                "Skill home path is not an archiveable directory: {home_path}"
-            ));
-        }
+    if !is_external && (!home.exists() || is_symlink_or_junction(&home)) {
+        return Err(format!(
+            "Skill home path is not an archiveable directory: {home_path}"
+        ));
     }
 
     let archive_id = ArchiveManifest::make_archive_id(&skill.id, &skill.directory);
