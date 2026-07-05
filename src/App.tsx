@@ -112,9 +112,11 @@ export default function App() {
   useLayoutEffect(() => {
     const theme = (localStorage.getItem("theme") as string | null) ?? "system";
     applyTheme(theme as "light" | "dark" | "system");
-    getCurrentWindow().show().catch((error) => {
-      console.error("Failed to show main window", error);
-    });
+    getCurrentWindow()
+      .show()
+      .catch((error) => {
+        console.error("Failed to show main window", error);
+      });
   }, []);
 
   useEffect(() => {
