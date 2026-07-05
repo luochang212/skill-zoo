@@ -341,7 +341,7 @@
       "importFolder": "Import Folder",
       "cleanAll": "Clean Stale Links",
       "candidates": "Found Skills",
-      "managed": "Managed Imports",
+      "managed": "Imported",
       "empty": "No local imports yet",
       "noCandidates": "No skills found in the selected folder",
       "importSelected": "Import {{count}}",

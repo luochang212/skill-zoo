@@ -341,7 +341,7 @@
       "importFolder": "导入文件夹",
       "cleanAll": "清理失效链接",
       "candidates": "发现的技能",
-      "managed": "已管理的导入",
+      "managed": "已导入",
       "empty": "还没有本地导入",
       "noCandidates": "所选文件夹中没有发现技能",
       "importSelected": "导入 {{count}} 个",
