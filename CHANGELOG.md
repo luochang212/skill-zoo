@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.18] — 2026-07-06
+
+### Fixed
+- White flash on startup in dark mode by setting the theme before the first paint.
+
 ## [0.3.17] — 2026-07-06
 
 ### Changed
