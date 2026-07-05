@@ -147,22 +147,26 @@ fn canonical_paths_eq(a: &std::path::Path, b: &std::path::Path) -> bool {
 ///
 /// Resolves relative targets against the symlink's parent directory. Falls back
 /// to canonicalized path comparison when `read_link` fails (Windows junctions).
+fn resolve_link_target(
+    link_path: &std::path::Path,
+    target: std::path::PathBuf,
+) -> std::path::PathBuf {
+    if target.is_relative() {
+        link_path
+            .parent()
+            .unwrap_or(std::path::Path::new("."))
+            .join(&target)
+    } else {
+        target
+    }
+}
+
 pub(crate) fn symlink_target_matches(
     link_path: &std::path::Path,
     expected_target: &std::path::Path,
 ) -> bool {
     match std::fs::read_link(link_path) {
-        Ok(target) => {
-            let resolved = if target.is_relative() {
-                link_path
-                    .parent()
-                    .unwrap_or(std::path::Path::new("."))
-                    .join(&target)
-            } else {
-                target
-            };
-            canonical_paths_eq(&resolved, expected_target)
-        }
+        Ok(target) => canonical_paths_eq(&resolve_link_target(link_path, target), expected_target),
         Err(_) => canonical_paths_eq(link_path, expected_target),
     }
 }
@@ -174,15 +178,7 @@ pub(crate) fn raw_symlink_target_matches(
     let Ok(target) = std::fs::read_link(link_path) else {
         return false;
     };
-    let resolved = if target.is_relative() {
-        link_path
-            .parent()
-            .unwrap_or(std::path::Path::new("."))
-            .join(&target)
-    } else {
-        target
-    };
-    resolved == expected_target
+    resolve_link_target(link_path, target) == expected_target
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -198,14 +194,7 @@ fn symlink_target_state(
 ) -> LinkTargetState {
     match std::fs::read_link(link_path) {
         Ok(target) => {
-            let resolved = if target.is_relative() {
-                link_path
-                    .parent()
-                    .unwrap_or(std::path::Path::new("."))
-                    .join(&target)
-            } else {
-                target
-            };
+            let resolved = resolve_link_target(link_path, target);
             if canonical_paths_eq(&resolved, expected_target) {
                 LinkTargetState::Matches
             } else if resolved.exists() || expected_target.exists() {

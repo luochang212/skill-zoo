@@ -121,7 +121,7 @@ impl CliService {
 
         for (skill_name, _description, skill_path) in &to_install {
             let dest_dir = ssot_dir.join(skill_name);
-            let tmp = Self::create_install_temp_dir(&ssot_dir, skill_name)?;
+            let tmp = Self::create_temp_dir(&ssot_dir, skill_name, "install")?;
             let tmp_dir = tmp.path().to_path_buf();
 
             match Self::copy_dir_contents(skill_path, &tmp_dir) {
@@ -242,17 +242,18 @@ impl CliService {
         }
     }
 
-    fn create_install_temp_dir(
-        ssot_dir: &std::path::Path,
-        skill_name: &str,
+    fn create_temp_dir(
+        parent: &std::path::Path,
+        name: &str,
+        action: &str,
     ) -> Result<tempfile::TempDir, AppError> {
-        let leaf = Path::new(skill_name)
+        let leaf = Path::new(name)
             .file_name()
             .and_then(|name| name.to_str())
             .unwrap_or("skill");
         tempfile::Builder::new()
-            .prefix(&format!(".{leaf}.install."))
-            .tempdir_in(ssot_dir)
+            .prefix(&format!(".{leaf}.{action}."))
+            .tempdir_in(parent)
             .map_err(AppError::Io)
     }
 
@@ -946,7 +947,10 @@ impl CliService {
 
         let ssot_dir = config::get_agents_skills_dir();
         let dest = ssot_dir.join(name);
-        let tmp = Self::create_update_temp_dir(&dest, name)?;
+        let parent = dest.parent().ok_or_else(|| {
+            AppError::BadRequest(format!("Invalid skill path: {}", dest.display()))
+        })?;
+        let tmp = Self::create_temp_dir(parent, name, "update")?;
         let tmp_path = tmp.path().to_path_buf();
 
         Self::copy_dir_contents(skill_path, &tmp_path)?;
@@ -976,20 +980,6 @@ impl CliService {
             .iter()
             .find(|(discovered_name, _, _)| discovered_name == name)
             .map(|(_, _, path)| path)
-    }
-
-    fn create_update_temp_dir(dest: &Path, name: &str) -> Result<tempfile::TempDir, AppError> {
-        let parent = dest.parent().ok_or_else(|| {
-            AppError::BadRequest(format!("Invalid skill path: {}", dest.display()))
-        })?;
-        let leaf = Path::new(name)
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("skill");
-        tempfile::Builder::new()
-            .prefix(&format!(".{leaf}.update."))
-            .tempdir_in(parent)
-            .map_err(AppError::Io)
     }
 
     fn replace_skill_dir_with_rollback(dest: &Path, tmp: &Path) -> Result<(), AppError> {
@@ -1105,8 +1095,8 @@ mod tests {
         let ssot = root.path().join("ssot");
         std::fs::create_dir_all(&ssot).unwrap();
 
-        let first = CliService::create_install_temp_dir(&ssot, "demo").unwrap();
-        let second = CliService::create_install_temp_dir(&ssot, "demo").unwrap();
+        let first = CliService::create_temp_dir(&ssot, "demo", "install").unwrap();
+        let second = CliService::create_temp_dir(&ssot, "demo", "install").unwrap();
 
         assert_ne!(first.path(), second.path());
         assert!(first.path().exists());
@@ -1120,7 +1110,7 @@ mod tests {
         std::fs::create_dir_all(&ssot).unwrap();
         let dest = ssot.join("demo");
 
-        let tmp = CliService::create_install_temp_dir(&ssot, "demo").unwrap();
+        let tmp = CliService::create_temp_dir(&ssot, "demo", "install").unwrap();
         std::fs::write(tmp.path().join("SKILL.md"), "# Demo").unwrap();
         std::fs::rename(tmp.path(), &dest).unwrap();
         let _ = tmp.keep();
@@ -1397,10 +1387,9 @@ mod tests {
     #[test]
     fn create_update_temp_dir_uses_unique_paths_for_same_skill() {
         let root = tempfile::tempdir().unwrap();
-        let dest = root.path().join("demo");
 
-        let first = CliService::create_update_temp_dir(&dest, "demo").unwrap();
-        let second = CliService::create_update_temp_dir(&dest, "demo").unwrap();
+        let first = CliService::create_temp_dir(root.path(), "demo", "update").unwrap();
+        let second = CliService::create_temp_dir(root.path(), "demo", "update").unwrap();
 
         assert_ne!(first.path(), second.path());
         assert!(first.path().exists());
