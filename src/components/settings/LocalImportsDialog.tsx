@@ -175,10 +175,15 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
           </div>
         </div>
 
-        <ScrollArea className="flex-1">
+        <div className="flex-1 min-h-0 flex flex-col">
           {tab === "import" ? (
-            <div className="space-y-5 p-4">
-              <Button size="sm" className="gap-1.5" onClick={chooseFolder} disabled={scanning}>
+            <div className="flex-1 min-h-0 flex flex-col gap-5 p-4">
+              <Button
+                size="sm"
+                className="gap-1.5 self-start"
+                onClick={chooseFolder}
+                disabled={scanning}
+              >
                 {scanning ? (
                   <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                 ) : (
@@ -188,12 +193,12 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
               </Button>
 
               {candidates.length > 0 && (
-                <div className="rounded-lg border border-border">
-                  <div className="border-b border-border px-3 py-2">
+                <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-border">
+                  <div className="shrink-0 border-b border-border px-3 py-2">
                     <p className="text-sm font-medium">{t("settings.localImports.candidates")}</p>
                   </div>
-                  <div className="grid gap-4 p-3 md:grid-cols-[1fr_220px]">
-                    <ScrollArea className="max-h-[220px] pr-3">
+                  <div className="grid gap-4 p-3 md:grid-cols-[1fr_220px] flex-1 min-h-0">
+                    <ScrollArea className="h-full pr-3">
                       <div className="space-y-1">
                         {candidates.map((candidate) => (
                           <label
@@ -219,29 +224,31 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
                         ))}
                       </div>
                     </ScrollArea>
-                    <div className="space-y-2">
+                    <div className="flex min-h-0 flex-col gap-3">
                       <p className="text-xs font-medium text-muted-foreground">
                         {t("installDialog.agents")}
                       </p>
-                      <div className="space-y-1">
-                        {visibleAgentOrder.map((agent) => (
-                          <div
-                            key={agent}
-                            className="flex items-center justify-between rounded-md px-2 py-1.5"
-                          >
-                            <span className="text-sm">
-                              {getAgentLabel(agent, agentConfigs ?? [])}
-                            </span>
-                            <Switch
-                              checked={agents.has(agent)}
-                              onCheckedChange={() => toggleAgent(agent)}
-                            />
-                          </div>
-                        ))}
-                      </div>
+                      <ScrollArea className="flex-1 min-h-0">
+                        <div className="space-y-1 pr-2">
+                          {visibleAgentOrder.map((agent) => (
+                            <div
+                              key={agent}
+                              className="flex items-center justify-between rounded-md px-2 py-1.5"
+                            >
+                              <span className="text-sm">
+                                {getAgentLabel(agent, agentConfigs ?? [])}
+                              </span>
+                              <Switch
+                                checked={agents.has(agent)}
+                                onCheckedChange={() => toggleAgent(agent)}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
                       <Button
                         size="sm"
-                        className="w-full"
+                        className="w-full shrink-0"
                         onClick={importSelected}
                         disabled={
                           selectedCandidates.length === 0 ||
@@ -259,99 +266,101 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
               )}
             </div>
           ) : (
-            <div className="p-4">
-              <div className="rounded-lg border border-border">
-                <div className="border-b border-border px-3 py-2">
+            <div className="flex-1 min-h-0 flex flex-col p-4">
+              <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-border">
+                <div className="shrink-0 border-b border-border px-3 py-2">
                   <p className="text-sm font-medium">{t("settings.localImports.managed")}</p>
                 </div>
-                {isLoading ? (
-                  <div className="p-6 text-center text-sm text-muted-foreground">
-                    {t("configureDialog.loading")}
-                  </div>
-                ) : !imports || imports.length === 0 ? (
-                  <div className="p-6 text-center text-sm text-muted-foreground">
-                    {t("settings.localImports.empty")}
-                  </div>
-                ) : (
-                  <div className="divide-y divide-border">
-                    {imports.map((entry) => (
-                      <div key={entry.id} className="flex items-start justify-between gap-3 p-3">
-                        <div className="min-w-0 space-y-1">
-                          <div className="flex items-center gap-2">
-                            {entry.status === "valid" ? (
-                              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                            ) : (
-                              <AlertTriangle className="h-4 w-4 text-amber-500" />
-                            )}
-                            <p className="truncate text-sm font-medium">{entry.name}</p>
-                            <Badge
-                              variant={statusVariant(entry.status)}
-                              className="h-5 text-[10px]"
-                            >
-                              {t(`settings.localImports.status.${entry.status}`)}
-                            </Badge>
+                <ScrollArea className="flex-1">
+                  {isLoading ? (
+                    <div className="p-6 text-center text-sm text-muted-foreground">
+                      {t("configureDialog.loading")}
+                    </div>
+                  ) : !imports || imports.length === 0 ? (
+                    <div className="p-6 text-center text-sm text-muted-foreground">
+                      {t("settings.localImports.empty")}
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-border">
+                      {imports.map((entry) => (
+                        <div key={entry.id} className="flex items-start justify-between gap-3 p-3">
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex items-center gap-2">
+                              {entry.status === "valid" ? (
+                                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                              ) : (
+                                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                              )}
+                              <p className="truncate text-sm font-medium">{entry.name}</p>
+                              <Badge
+                                variant={statusVariant(entry.status)}
+                                className="h-5 text-[10px]"
+                              >
+                                {t(`settings.localImports.status.${entry.status}`)}
+                              </Badge>
+                            </div>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {entry.sourcePath}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {t("settings.localImports.linkedAgents", {
+                                agents:
+                                  entry.linkedAgents.length > 0
+                                    ? entry.linkedAgents
+                                        .map((agent) => getAgentLabel(agent, agentConfigs ?? []))
+                                        .join(", ")
+                                    : t("settings.localImports.none"),
+                              })}
+                            </p>
                           </div>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {entry.sourcePath}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {t("settings.localImports.linkedAgents", {
-                              agents:
-                                entry.linkedAgents.length > 0
-                                  ? entry.linkedAgents
-                                      .map((agent) => getAgentLabel(agent, agentConfigs ?? []))
-                                      .join(", ")
-                                  : t("settings.localImports.none"),
-                            })}
-                          </p>
-                        </div>
-                        <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 px-2"
-                            onClick={() => skillsApi.openSkillPath(entry.sourcePath)}
-                            disabled={entry.status === "sourceMissing"}
-                          >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </Button>
-                          {entry.status !== "valid" && (
+                          <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2"
+                              onClick={() => skillsApi.openSkillPath(entry.sourcePath)}
+                              disabled={entry.status === "sourceMissing"}
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </Button>
+                            {entry.status !== "valid" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2"
+                                onClick={() =>
+                                  cleanMutation.mutate(entry.id, { onSuccess: () => refetch() })
+                                }
+                              >
+                                <Link2Off className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                             <Button
                               size="sm"
                               variant="outline"
                               className="h-7 px-2"
                               onClick={() =>
-                                cleanMutation.mutate(entry.id, { onSuccess: () => refetch() })
+                                removeMutation.mutate(entry.id, {
+                                  onSuccess: () => {
+                                    toast.success(t("settings.localImports.removeSuccess"));
+                                    refetch();
+                                  },
+                                  onError: (error) => toast.error(formatApiError(error)),
+                                })
                               }
                             >
-                              <Link2Off className="h-3.5 w-3.5" />
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 px-2"
-                            onClick={() =>
-                              removeMutation.mutate(entry.id, {
-                                onSuccess: () => {
-                                  toast.success(t("settings.localImports.removeSuccess"));
-                                  refetch();
-                                },
-                                onError: (error) => toast.error(formatApiError(error)),
-                              })
-                            }
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
               </div>
             </div>
           )}
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );
