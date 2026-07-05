@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.3.16] — 2026-07-05
+
+### Added
+- Archive support for external imports: archived external import content is read from the source path.
+- Import filter in the sidebar below the starred section.
+- Import count displayed on the manage tab in the local imports dialog.
+- Hint when batch-deleting imported skills in the remove dialog.
+
+### Changed
+- Removed the manual rescan skills button from settings.
+
+### Fixed
+- Remove dialog no longer shows scary warnings for external imports when deleting only imports.
+- External import hints merged into the description text for clearer messaging.
+- Resolved contradictory warning display in mixed batch delete scenarios.
+- External import symlinks now properly recognized during filesystem scan.
+- External imports handled correctly in duplicate group detection.
+- Nested if collapsed to satisfy clippy lints.
+- Improved font stack for Windows rendering on the docs page.
+
 ## [0.3.15] — 2026-07-05
 
 ### Added
