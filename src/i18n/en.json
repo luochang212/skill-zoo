@@ -340,6 +340,7 @@
       "title": "Local Imports",
       "description": "Imported skills stay in their original folders. Skill Zoo only manages agent links.",
       "importFolder": "Import Folder",
+      "scanHint": "Select a folder to scan for skills",
       "cleanAll": "Clean Stale Links",
       "candidates": "Found Skills",
       "managed": "Imported",

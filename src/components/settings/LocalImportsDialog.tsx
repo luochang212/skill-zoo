@@ -236,11 +236,15 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
                 )}
               </div>
 
-              {candidates.length > 0 && (
-                <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-border">
-                  <div className="shrink-0 border-b border-border px-3 py-2">
-                    <p className="text-sm font-medium">{t("settings.localImports.candidates")}</p>
+              <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-border">
+                <div className="shrink-0 border-b border-border px-3 py-2">
+                  <p className="text-sm font-medium">{t("settings.localImports.candidates")}</p>
+                </div>
+                {candidates.length === 0 ? (
+                  <div className="flex items-center justify-center flex-1 p-6 text-sm text-muted-foreground">
+                    {t("settings.localImports.scanHint")}
                   </div>
+                ) : (
                   <div className="grid gap-4 p-3 md:grid-cols-[1fr_220px] flex-1 min-h-0">
                     <ScrollArea className="h-full pr-3">
                       <label className="flex items-center gap-1.5 px-2 py-2 text-xs text-muted-foreground cursor-pointer rounded-md hover:bg-accent/50 pt-0 pb-1">
@@ -300,8 +304,8 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
                       </ScrollArea>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           ) : (
             <div className="flex-1 min-h-0 flex flex-col p-4">
