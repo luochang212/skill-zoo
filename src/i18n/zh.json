@@ -317,9 +317,6 @@
         "selected": "所选技能",
         "all": "全部技能"
       },
-      "rescan": "重新扫描技能",
-      "rescanDesc": "重新扫描文件系统以发现新增或移除的技能",
-      "rescanning": "扫描中…",
       "rescanBtn": "重新扫描",
       "hideNonSsot": "隐藏非 SSOT 技能",
       "hideNonSsotDesc": "仅显示 Skill Zoo 管理的技能，隐藏用户放在编程工具目录中的技能",

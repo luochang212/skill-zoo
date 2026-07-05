@@ -317,9 +317,6 @@
         "selected": "Selected skills",
         "all": "All skills"
       },
-      "rescan": "Rescan Skills",
-      "rescanDesc": "Re-scan filesystem to discover new or removed skills",
-      "rescanning": "Scanning…",
       "rescanBtn": "Rescan",
       "hideNonSsot": "Hide non-SSOT skills",
       "hideNonSsotDesc": "Only show skills managed by Skill Zoo, hide user-placed skills in coding agent directories",

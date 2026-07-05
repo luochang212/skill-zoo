@@ -57,23 +57,6 @@ export function useSkillsWatcher() {
   }, [qc]);
 }
 
-export function useRescanSkills() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async () => {
-      const start = Date.now();
-      const result = await skillsApi.getInstalledSkills(true);
-      // Ensure a minimum animation duration so the user can see feedback
-      const elapsed = Date.now() - start;
-      if (elapsed < 800) {
-        await new Promise((r) => setTimeout(r, 800 - elapsed));
-      }
-      return result;
-    },
-    onSuccess: () => invalidateFor(qc, "rescanSkills"),
-  });
-}
-
 export function useSymlinkStatus() {
   return useQuery({
     queryKey: ["skills", "symlinks"],
