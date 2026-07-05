@@ -1524,22 +1524,20 @@ fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String>
         .find(|s| s.id == skill_id)
         .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
 
-    if skill.origin == "external" {
-        return Err(
-            "External imports cannot be archived because their source folders are owned by the user."
-                .to_string(),
-        );
-    }
+    let is_external = skill.origin == "external";
 
     let home_path = skill
         .home_path
         .clone()
         .ok_or_else(|| "Skill has no physical home path, cannot archive".to_string())?;
     let home = std::path::PathBuf::from(&home_path);
-    if !home.exists() || is_symlink_or_junction(&home) {
-        return Err(format!(
-            "Skill home path is not an archiveable directory: {home_path}"
-        ));
+
+    if !is_external {
+        if !home.exists() || is_symlink_or_junction(&home) {
+            return Err(format!(
+                "Skill home path is not an archiveable directory: {home_path}"
+            ));
+        }
     }
 
     let archive_id = ArchiveManifest::make_archive_id(&skill.id, &skill.directory);
@@ -1585,7 +1583,15 @@ fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String>
         .insert(archive_id.clone(), archived_skill.clone());
     manifest.save().map_err(|e| e.to_string())?;
 
-    if let Some(parent) = archive_dir.parent() {
+    if is_external {
+        std::fs::create_dir_all(&archive_dir).map_err(|e| {
+            format_archive_io_error(
+                "Create archive directory for external import",
+                &archive_dir,
+                &e,
+            )
+        })?;
+    } else if let Some(parent) = archive_dir.parent() {
         if let Err(e) = std::fs::create_dir_all(parent) {
             if let Err(restore_error) = old_manifest.save() {
                 log_archive_rollback_error(
@@ -1603,7 +1609,7 @@ fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String>
 
     let mut removed_agents: Vec<String> = Vec::new();
     let rollback = |message: String, removed_agents: &[String]| -> String {
-        if archive_dir.exists() && !home.exists() {
+        if !is_external && archive_dir.exists() && !home.exists() {
             if let Some(parent) = home.parent() {
                 if let Err(e) = std::fs::create_dir_all(parent) {
                     log_archive_rollback_error("recreate skill parent", e);
@@ -1655,11 +1661,13 @@ fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String>
         }
     }
 
-    if let Err(e) = std::fs::rename(&home, &archive_dir) {
-        return Err(rollback(
-            format_archive_io_error("Move skill into archive", &archive_dir, &e),
-            &removed_agents,
-        ));
+    if !is_external {
+        if let Err(e) = std::fs::rename(&home, &archive_dir) {
+            return Err(rollback(
+                format_archive_io_error("Move skill into archive", &archive_dir, &e),
+                &removed_agents,
+            ));
+        }
     }
 
     {
@@ -1684,11 +1692,13 @@ fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String>
         }
     }
 
-    if let Some(key) = lock_key {
-        let mut lock = old_lock.clone();
-        lock.skills.remove(&key);
-        if let Err(e) = lock.write() {
-            return Err(rollback(e.to_string(), &removed_agents));
+    if !is_external {
+        if let Some(key) = lock_key {
+            let mut lock = old_lock.clone();
+            lock.skills.remove(&key);
+            if let Err(e) = lock.write() {
+                return Err(rollback(e.to_string(), &removed_agents));
+            }
         }
     }
 
@@ -1762,31 +1772,55 @@ fn restore_archived_skill_inner(state: &AppState, archive_id: String) -> Result<
         .cloned()
         .ok_or_else(|| format!("Archived skill not found: {archive_id}"))?;
 
+    let is_external = archived_skill.origin == "external";
+
     let archive_dir = ArchiveManifest::archive_skill_dir(&archive_id);
-    if !archive_dir.exists() {
+    if !is_external && !archive_dir.exists() {
         return Err(format!(
             "Archived directory is missing: {}. The archive entry exists, but its files may have been moved or deleted outside Skill Zoo.",
             archive_dir.display()
         ));
     }
 
-    let restore_path = archived_skill
-        .home_path
-        .as_ref()
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| {
-            if archived_skill.origin == "ssot" {
-                config::get_agents_skills_dir().join(&archived_skill.directory)
-            } else {
-                archived_skill
-                    .home_agent
-                    .as_deref()
-                    .and_then(config::get_agent_skills_dir)
-                    .unwrap_or_else(config::get_agents_skills_dir)
-                    .join(&archived_skill.directory)
-            }
-        });
-    if restore_path.exists() {
+    let restore_path = if is_external {
+        archived_skill
+            .home_path
+            .as_ref()
+            .map(std::path::PathBuf::from)
+            .ok_or_else(|| {
+                "Cannot restore external import: source path not recorded in archive".to_string()
+            })?
+    } else {
+        archived_skill
+            .home_path
+            .as_ref()
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| {
+                if archived_skill.origin == "ssot" {
+                    config::get_agents_skills_dir().join(&archived_skill.directory)
+                } else {
+                    archived_skill
+                        .home_agent
+                        .as_deref()
+                        .and_then(config::get_agent_skills_dir)
+                        .unwrap_or_else(config::get_agents_skills_dir)
+                        .join(&archived_skill.directory)
+                }
+            })
+    };
+
+    if is_external {
+        if !restore_path.exists() || !restore_path.join("SKILL.md").exists() {
+            return Err(format!(
+                "Cannot restore: external import source no longer exists at {}",
+                restore_path.display()
+            ));
+        }
+        // Remove the empty archive placeholder directory.
+        if archive_dir.exists() {
+            let _ = std::fs::remove_dir_all(&archive_dir);
+        }
+    } else if restore_path.exists() {
         return Err(format!(
             "Cannot restore: destination already exists at {}. Move, rename, archive, or remove the existing skill folder before restoring this archived skill.",
             restore_path.display()
@@ -1798,12 +1832,14 @@ fn restore_archived_skill_inner(state: &AppState, archive_id: String) -> Result<
     let old_lock = SkillLock::read().map_err(|e| e.to_string())?;
     assert_writable_schema(&old_lock, &old_manifest)?;
 
-    if let Some(parent) = restore_path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format_archive_io_error("Create restore directory", parent, &e))?;
+    if !is_external {
+        if let Some(parent) = restore_path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format_archive_io_error("Create restore directory", parent, &e))?;
+        }
+        std::fs::rename(&archive_dir, &restore_path)
+            .map_err(|e| format_archive_io_error("Move archived skill back", &restore_path, &e))?;
     }
-    std::fs::rename(&archive_dir, &restore_path)
-        .map_err(|e| format_archive_io_error("Move archived skill back", &restore_path, &e))?;
 
     let mut restored_agents: Vec<String> = Vec::new();
     let rollback = |message: String, restored_agents: &[String]| -> String {
@@ -1820,7 +1856,7 @@ fn restore_archived_skill_inner(state: &AppState, archive_id: String) -> Result<
                 );
             }
         }
-        if restore_path.exists() && !archive_dir.exists() {
+        if !is_external && restore_path.exists() && !archive_dir.exists() {
             if let Some(parent) = archive_dir.parent() {
                 if let Err(e) = std::fs::create_dir_all(parent) {
                     log_archive_rollback_error("recreate archive parent", e);
@@ -1851,15 +1887,17 @@ fn restore_archived_skill_inner(state: &AppState, archive_id: String) -> Result<
         message
     };
 
-    if let Some(lock_entry) = archived_skill.lock_entry.clone() {
-        let mut lock = old_lock.clone();
-        let key = archived_skill
-            .lock_key
-            .clone()
-            .unwrap_or_else(|| archived_skill.directory.clone());
-        lock.skills.insert(key, lock_entry);
-        if let Err(e) = lock.write() {
-            return Err(rollback(e.to_string(), &restored_agents));
+    if !is_external {
+        if let Some(lock_entry) = archived_skill.lock_entry.clone() {
+            let mut lock = old_lock.clone();
+            let key = archived_skill
+                .lock_key
+                .clone()
+                .unwrap_or_else(|| archived_skill.directory.clone());
+            lock.skills.insert(key, lock_entry);
+            if let Err(e) = lock.write() {
+                return Err(rollback(e.to_string(), &restored_agents));
+            }
         }
     }
 
@@ -1931,8 +1969,36 @@ fn restore_archived_skill_inner(state: &AppState, archive_id: String) -> Result<
     }
 
     // Scan after symlinks are created so detect_agents finds the restored links.
-    let entry = SkillService::scan_single_skill(&archived_skill.directory)
-        .map_err(|e| rollback(e.to_string(), &restored_agents))?;
+    // External imports use the import registry to preserve origin = "external".
+    let entry = if is_external {
+        let imports = ExternalImports::load().map_err(|e| {
+            rollback(
+                format!("Failed to load import registry: {e}"),
+                &restored_agents,
+            )
+        })?;
+        let import = imports
+            .imports
+            .get(&archived_skill.original_skill_id)
+            .ok_or_else(|| {
+                rollback(
+                    format!(
+                        "Cannot restore: import registry entry not found for {}",
+                        archived_skill.name
+                    ),
+                    &restored_agents,
+                )
+            })?;
+        SkillService::scan_external_import(import).map_err(|e| {
+            rollback(
+                format!("Failed to scan external import: {e}"),
+                &restored_agents,
+            )
+        })?
+    } else {
+        SkillService::scan_single_skill(&archived_skill.directory)
+            .map_err(|e| rollback(e.to_string(), &restored_agents))?
+    };
     let restored_id = entry.id.clone();
     if let Err(e) = SkillService::upsert_cache_entry(&state.skill_cache, entry) {
         return Err(rollback(e.to_string(), &restored_agents));
