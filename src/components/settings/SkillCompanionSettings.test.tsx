@@ -227,7 +227,7 @@ describe("SkillCompanionSettings", () => {
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Past week" })).toBeInTheDocument();
-    expect(screen.getByText("Period calls")).toBeInTheDocument();
+    expect(screen.getByText("Total calls")).toBeInTheDocument();
     expect(screen.getByText("4")).toBeInTheDocument();
     expect(screen.getByText("Active skills")).toBeInTheDocument();
     expect(screen.getByText("Top skill share")).toBeInTheDocument();
