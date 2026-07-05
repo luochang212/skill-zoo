@@ -123,7 +123,6 @@ pub fn run() {
             commands::skill::scan_external_import_folder,
             commands::skill::import_external_skills,
             commands::skill::remove_external_import,
-            commands::skill::relink_external_import,
             commands::skill::clean_external_import_links,
             commands::skill::get_installed_skills,
             commands::skill::update_skill,

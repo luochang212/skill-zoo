@@ -1620,7 +1620,7 @@ impl SkillService {
 
         if entries.iter().any(|entry| entry.origin == "external") {
             return Err(AppError::BadRequest(format!(
-                "Cannot merge: '{skill_name}' includes an external import. Remove or relink the external import instead."
+                "Cannot merge: '{skill_name}' includes an external import. Remove the external import instead."
             )));
         }
 

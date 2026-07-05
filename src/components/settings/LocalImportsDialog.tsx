@@ -16,7 +16,6 @@ import {
   useExternalImports,
   useImportExternalSkills,
   useRemoveExternalImport,
-  useRelinkExternalImport,
 } from "@/hooks/useSkills";
 import { useVisibleAgentOrder } from "@/hooks/useSettings";
 import { getAgentLabel, useAgentConfigs } from "@/lib/agents";
@@ -35,11 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
-import type {
-  ExternalImportCandidate,
-  ExternalImportInfo,
-  ExternalImportStatus,
-} from "@/types/skills";
+import type { ExternalImportCandidate, ExternalImportStatus } from "@/types/skills";
 
 interface LocalImportsDialogProps {
   open: boolean;
@@ -58,7 +53,6 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
   const visibleAgentKey = visibleAgentOrder.join("\0");
   const importMutation = useImportExternalSkills();
   const removeMutation = useRemoveExternalImport();
-  const relinkMutation = useRelinkExternalImport();
   const cleanMutation = useCleanExternalImportLinks();
 
   const [candidates, setCandidates] = useState<ExternalImportCandidate[]>([]);
@@ -119,18 +113,6 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
           setSelectedSources(new Set());
           refetch();
         },
-        onError: (error) => toast.error(formatApiError(error)),
-      },
-    );
-  };
-
-  const relink = async (entry: ExternalImportInfo) => {
-    const selected = await openDialog({ directory: true, multiple: false });
-    if (typeof selected !== "string") return;
-    relinkMutation.mutate(
-      { importId: entry.id, sourcePath: selected },
-      {
-        onSuccess: () => toast.success(t("settings.localImports.relinkSuccess")),
         onError: (error) => toast.error(formatApiError(error)),
       },
     );
@@ -303,14 +285,6 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
                           disabled={entry.status === "sourceMissing"}
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 px-2"
-                          onClick={() => relink(entry)}
-                        >
-                          <RefreshCw className="h-3.5 w-3.5" />
                         </Button>
                         <Button
                           size="sm"

@@ -27,9 +27,6 @@ export const skillsApi = {
 
   removeExternalImport: (importId: string) => invoke<void>("remove_external_import", { importId }),
 
-  relinkExternalImport: (importId: string, sourcePath: string) =>
-    invoke<ExternalImportInfo>("relink_external_import", { importId, sourcePath }),
-
   cleanExternalImportLinks: (importId?: string | null) =>
     invoke<number>("clean_external_import_links", { importId: importId ?? null }),
 

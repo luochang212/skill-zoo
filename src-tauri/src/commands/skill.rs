@@ -480,33 +480,6 @@ fn ensure_external_import_link_available(
     Ok(())
 }
 
-fn ensure_external_relink_available(
-    directory: &str,
-    old_source: &Path,
-    new_source: &Path,
-    agent: &str,
-) -> Result<(), String> {
-    let link_path = external_import_link_path(directory, agent)?;
-    if is_symlink_or_junction(&link_path) {
-        if link_points_to_import_source(&link_path, old_source)
-            || link_points_to_import_source(&link_path, new_source)
-        {
-            return Ok(());
-        }
-        return Err(format!(
-            "Cannot relink {directory} for {agent}: {} already points to a different target.",
-            link_path.display()
-        ));
-    }
-    if link_path.exists() {
-        return Err(format!(
-            "Cannot relink {directory} for {agent}: {} already exists.",
-            link_path.display()
-        ));
-    }
-    Ok(())
-}
-
 fn assert_external_source_path(source_path: &Path) -> Result<(), String> {
     if is_path_under_roots(source_path, &known_skill_roots(), true) {
         return Err(
@@ -744,80 +717,6 @@ pub fn clean_external_import_links(
         }
     }
     Ok(removed)
-}
-
-#[tauri::command]
-pub fn relink_external_import(
-    state: State<'_, AppState>,
-    import_id: String,
-    source_path: String,
-) -> Result<ExternalImportInfo, String> {
-    let mut imports = ExternalImports::load().map_err(|e| e.to_string())?;
-    let import = imports
-        .imports
-        .get(&import_id)
-        .cloned()
-        .ok_or_else(|| format!("External import not found: {import_id}"))?;
-    let new_source = PathBuf::from(&source_path)
-        .canonicalize()
-        .map_err(|e| format!("Invalid source path {source_path}: {e}"))?;
-    if !new_source.join("SKILL.md").exists() {
-        return Err(format!("SKILL.md not found: {}", new_source.display()));
-    }
-    assert_external_source_path(&new_source)?;
-
-    let linked_agents = linked_external_import_agents(&import);
-    if linked_agents.is_empty() {
-        return Err("No existing agent links found to relink for this import.".to_string());
-    }
-    let old_source = PathBuf::from(&import.source_path);
-    for agent in &linked_agents {
-        ensure_external_relink_available(&import.directory, &old_source, &new_source, agent)?;
-    }
-
-    let _ = SkillService::remove_agent_links_for_target(&import.directory, &old_source);
-    let mut relinked_agents: Vec<String> = Vec::new();
-    for agent in &linked_agents {
-        if let Err(e) = SkillService::toggle_symlink(
-            &import.directory,
-            &new_source.to_string_lossy(),
-            agent,
-            true,
-        ) {
-            for agent in &relinked_agents {
-                let _ = SkillService::toggle_symlink(
-                    &import.directory,
-                    &new_source.to_string_lossy(),
-                    agent,
-                    false,
-                );
-            }
-            for agent in &linked_agents {
-                let _ = SkillService::toggle_symlink(
-                    &import.directory,
-                    &old_source.to_string_lossy(),
-                    agent,
-                    true,
-                );
-            }
-            return Err(e.to_string());
-        }
-        relinked_agents.push(agent.clone());
-    }
-
-    let mut updated = import.clone();
-    updated.source_path = new_source.display().to_string();
-    updated.updated_at = chrono::Utc::now().timestamp();
-    imports.imports.insert(import_id.clone(), updated.clone());
-    imports.save().map_err(|e| e.to_string())?;
-
-    if let Ok(entry) = SkillService::scan_external_import(&updated) {
-        let _ = SkillService::upsert_cache_entry(&state.skill_cache, entry);
-    } else {
-        let _ = SkillService::remove_cache_entry(&state.skill_cache, &import_id);
-    }
-
-    Ok(external_import_info(&updated))
 }
 
 #[tauri::command]

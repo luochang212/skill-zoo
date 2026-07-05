@@ -104,15 +104,6 @@ export function useRemoveExternalImport() {
   });
 }
 
-export function useRelinkExternalImport() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (vars: { importId: string; sourcePath: string }) =>
-      skillsApi.relinkExternalImport(vars.importId, vars.sourcePath),
-    onSuccess: () => invalidateFor(qc, "externalImports"),
-  });
-}
-
 export function useCleanExternalImportLinks() {
   const qc = useQueryClient();
   return useMutation({

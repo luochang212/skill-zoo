@@ -345,7 +345,6 @@
       "importSelected": "Import {{count}}",
       "importSuccess": "Imported {{count}} skill(s)",
       "removeSuccess": "Import removed",
-      "relinkSuccess": "Source folder updated",
       "linkedAgents": "Linked: {{agents}}",
       "none": "None",
       "status": {
