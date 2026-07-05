@@ -173,18 +173,6 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
               {t("settings.localImports.tabManage")}
             </button>
           </div>
-          {tab === "manage" && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 shrink-0 gap-1.5 text-xs"
-              onClick={() => cleanMutation.mutate(null, { onSuccess: () => refetch() })}
-              disabled={cleanMutation.isPending}
-            >
-              <Link2Off className="h-3.5 w-3.5" />
-              {t("settings.localImports.cleanAll")}
-            </Button>
-          )}
         </div>
 
         <ScrollArea className="flex-1">
@@ -327,16 +315,18 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
                           >
                             <ExternalLink className="h-3.5 w-3.5" />
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 px-2"
-                            onClick={() =>
-                              cleanMutation.mutate(entry.id, { onSuccess: () => refetch() })
-                            }
-                          >
-                            <Link2Off className="h-3.5 w-3.5" />
-                          </Button>
+                          {entry.status !== "valid" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2"
+                              onClick={() =>
+                                cleanMutation.mutate(entry.id, { onSuccess: () => refetch() })
+                              }
+                            >
+                              <Link2Off className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="outline"

@@ -339,7 +339,7 @@
       "title": "本地导入",
       "description": "导入的技能会保留在原始目录中，Skill Zoo 只管理编程工具链接。",
       "importFolder": "导入文件夹",
-      "cleanAll": "清理全部链接",
+      "cleanAll": "清理失效链接",
       "candidates": "发现的技能",
       "managed": "已管理的导入",
       "empty": "还没有本地导入",
