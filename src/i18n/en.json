@@ -334,6 +334,8 @@
       "cardTitle": "Local Imports",
       "cardDesc": "Import and manage skills from local folders or private repositories",
       "manage": "Manage Imports",
+      "tabImport": "Import",
+      "tabManage": "Manage",
       "title": "Local Imports",
       "description": "Imported skills stay in their original folders. Skill Zoo only manages agent links.",
       "importFolder": "Import Folder",

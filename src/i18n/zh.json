@@ -334,6 +334,8 @@
       "cardTitle": "本地导入",
       "cardDesc": "从本地文件夹或私有仓库导入并管理技能",
       "manage": "管理导入",
+      "tabImport": "导入",
+      "tabManage": "管理",
       "title": "本地导入",
       "description": "导入的技能会保留在原始目录中，Skill Zoo 只管理编程工具链接。",
       "importFolder": "导入文件夹",
