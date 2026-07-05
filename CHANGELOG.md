@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.17] — 2026-07-06
+
+### Changed
+- Import filter moved between star and my skills in the sidebar for better grouping.
+
+### Fixed
+- Lock file read-modify-write operations now use a process-wide mutex to prevent lost updates from concurrent writes.
+
 ## [0.3.16] — 2026-07-05
 
 ### Added
