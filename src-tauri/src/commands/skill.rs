@@ -1502,10 +1502,24 @@ pub fn get_archived_skills() -> Result<Vec<ArchivedSkill>, String> {
 pub fn read_archived_skill_md(archive_id: String) -> Result<String, String> {
     validate_archive_id(&archive_id)?;
     let manifest = ArchiveManifest::load().map_err(|e| e.to_string())?;
-    if !manifest.skills.contains_key(&archive_id) {
-        return Err(format!("Archived skill not found: {archive_id}"));
-    }
-    let skill_md = ArchiveManifest::archive_skill_dir(&archive_id).join("SKILL.md");
+    let archived_skill = manifest
+        .skills
+        .get(&archive_id)
+        .cloned()
+        .ok_or_else(|| format!("Archived skill not found: {archive_id}"))?;
+
+    // External imports keep source files at their original location.
+    let skill_md = if archived_skill.origin == "external" {
+        archived_skill
+            .home_path
+            .as_ref()
+            .map(std::path::PathBuf::from)
+            .ok_or_else(|| "Archived external import has no source path recorded".to_string())?
+            .join("SKILL.md")
+    } else {
+        ArchiveManifest::archive_skill_dir(&archive_id).join("SKILL.md")
+    };
+
     if !skill_md.exists() {
         return Err(format!(
             "Archived SKILL.md is missing for {archive_id}: {}. The archive entry exists, but its files may have been moved or deleted outside Skill Zoo.",
