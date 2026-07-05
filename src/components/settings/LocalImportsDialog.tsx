@@ -219,17 +219,17 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
                   )}
                   {t("settings.localImports.importFolder")}
                 </Button>
-                {selectedCandidates.length > 0 && (
-                  <Button
-                    size="sm"
-                    onClick={importSelected}
-                    disabled={agents.size === 0 || importMutation.isPending}
-                  >
-                    {t("settings.localImports.importSelected", {
-                      count: selectedCandidates.length,
-                    })}
-                  </Button>
-                )}
+                <Button
+                  size="sm"
+                  onClick={importSelected}
+                  disabled={
+                    selectedCandidates.length === 0 || agents.size === 0 || importMutation.isPending
+                  }
+                >
+                  {t("settings.localImports.importSelected", {
+                    count: selectedCandidates.length,
+                  })}
+                </Button>
               </div>
 
               {candidates.length > 0 && (
