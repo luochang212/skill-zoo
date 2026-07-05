@@ -114,6 +114,7 @@ function BatchConfirmDialog({
   confirmVariant = "default",
   confirmPending,
   onConfirm,
+  hint,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -124,6 +125,7 @@ function BatchConfirmDialog({
   confirmVariant?: "default" | "destructive";
   confirmPending?: boolean;
   onConfirm: () => void;
+  hint?: string;
 }) {
   const { t } = useTranslation();
 
@@ -146,6 +148,7 @@ function BatchConfirmDialog({
             ))}
           </div>
         </ScrollArea>
+        {hint && <p className="text-xs text-muted-foreground px-1">{hint}</p>}
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
             {t("common.cancel")}
@@ -521,6 +524,11 @@ export const InstalledSkills = memo(function InstalledSkills({
     [visibleSelectedSkills],
   );
 
+  const hasExternalInSelection = useMemo(
+    () => visibleSelectedSkills.some((s) => s.origin === "external"),
+    [visibleSelectedSkills],
+  );
+
   if (isLoading || (category.type === "archived" && archivedLoading)) {
     return (
       <InstalledSkillsSkeleton
@@ -890,6 +898,7 @@ export const InstalledSkills = memo(function InstalledSkills({
           confirmVariant="destructive"
           confirmPending={removeSkillsMutation.isPending}
           onConfirm={handleBatchRemove}
+          hint={hasExternalInSelection ? t("removeDialog.externalImportNote") : undefined}
         />
       </div>
     </div>

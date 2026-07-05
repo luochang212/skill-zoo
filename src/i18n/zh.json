@@ -164,7 +164,8 @@
     "description": "确定要删除",
     "warning": "编程工具关联和本地文件将同步移除。",
     "batchDescription": "确认删除以下 {{count}} 个技能？",
-    "batchPartialFailed": "{{count}} 个技能删除失败。"
+    "batchPartialFailed": "{{count}} 个技能删除失败。",
+    "externalImportNote": "已选中的导入技能仅会移除注册记录，源文件不会被删除。"
   },
   "archiveDialog": {
     "title": "归档技能",
