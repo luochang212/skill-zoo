@@ -348,6 +348,7 @@
       "importSelected": "Import {{count}}",
       "importSuccess": "Imported {{count}} skill(s)",
       "removeSuccess": "Import removed",
+      "cleanSuccess": "Stale links cleaned",
       "linkedAgents": "Linked: {{agents}}",
       "none": "None",
       "status": {

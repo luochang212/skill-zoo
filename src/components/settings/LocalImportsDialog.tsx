@@ -343,15 +343,16 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
                             </p>
                           </div>
                           <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 px-2"
-                              onClick={() => skillsApi.openSkillPath(entry.sourcePath)}
-                              disabled={entry.status === "sourceMissing"}
-                            >
-                              <ExternalLink className="h-3.5 w-3.5" />
-                            </Button>
+                            {entry.status !== "sourceMissing" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2"
+                                onClick={() => skillsApi.openSkillPath(entry.sourcePath)}
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                             {entry.status !== "valid" && (
                               <Button
                                 size="sm"

@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
+import i18n from "@/i18n";
+import { formatApiError } from "@/lib/api/errors";
 import { toast } from "sonner";
 import {
   skillsApi,
@@ -109,7 +111,11 @@ export function useCleanExternalImportLinks() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (importId?: string | null) => skillsApi.cleanExternalImportLinks(importId),
-    onSuccess: () => invalidateFor(qc, "externalImports"),
+    onSuccess: () => {
+      invalidateFor(qc, "externalImports");
+      toast.success(i18n.t("settings.localImports.cleanSuccess"));
+    },
+    onError: (error) => toast.error(formatApiError(error)),
   });
 }
 

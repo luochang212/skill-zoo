@@ -348,6 +348,7 @@
       "importSelected": "导入 {{count}} 个",
       "importSuccess": "已导入 {{count}} 个技能",
       "removeSuccess": "导入已移除",
+      "cleanSuccess": "已清理失效链接",
       "linkedAgents": "已链接：{{agents}}",
       "none": "无",
       "status": {
