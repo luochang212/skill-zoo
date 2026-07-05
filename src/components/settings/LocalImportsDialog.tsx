@@ -272,7 +272,10 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
                             />
                             <span className="min-w-0 flex-1">
                               <span className="block truncate font-medium">{candidate.name}</span>
-                              <span className="block truncate text-xs text-muted-foreground">
+                              <span
+                                className="block truncate text-xs text-muted-foreground"
+                                title={candidate.sourcePath}
+                              >
                                 {candidate.sourcePath}
                               </span>
                             </span>
@@ -349,7 +352,10 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
                                 {t(`settings.localImports.status.${entry.status}`)}
                               </Badge>
                             </div>
-                            <p className="truncate text-xs text-muted-foreground">
+                            <p
+                              className="truncate text-xs text-muted-foreground"
+                              title={entry.sourcePath}
+                            >
                               {entry.sourcePath}
                             </p>
                             <p className="text-xs text-muted-foreground">
