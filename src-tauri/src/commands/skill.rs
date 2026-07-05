@@ -658,6 +658,15 @@ pub async fn import_external_skills(
     let mut created_links: Vec<(String, PathBuf, String)> = Vec::new();
     for (selection, source_path) in &prepared {
         for agent in &agents {
+            // Distinguish links we actually create from ones that already point at
+            // this source (toggle_symlink is a no-op for the latter). Only the former
+            // go into created_links, so rollback never removes a pre-existing link.
+            let preexisting = external_import_link_path(&selection.directory, agent)
+                .ok()
+                .map(|link| {
+                    is_symlink_or_junction(&link) && link_points_to_import_source(&link, source_path)
+                })
+                .unwrap_or(false);
             if let Err(e) = SkillService::toggle_symlink(
                 &selection.directory,
                 &source_path.to_string_lossy(),
@@ -681,11 +690,13 @@ pub async fn import_external_skills(
                 let _ = imports.save();
                 return Err(e.to_string());
             }
-            created_links.push((
-                selection.directory.clone(),
-                source_path.clone(),
-                agent.clone(),
-            ));
+            if !preexisting {
+                created_links.push((
+                    selection.directory.clone(),
+                    source_path.clone(),
+                    agent.clone(),
+                ));
+            }
         }
     }
 
