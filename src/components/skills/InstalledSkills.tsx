@@ -528,6 +528,12 @@ export const InstalledSkills = memo(function InstalledSkills({
     () => visibleSelectedSkills.some((s) => s.origin === "external"),
     [visibleSelectedSkills],
   );
+  const allExternalInSelection = useMemo(
+    () =>
+      visibleSelectedSkills.length > 0 &&
+      visibleSelectedSkills.every((s) => s.origin === "external"),
+    [visibleSelectedSkills],
+  );
 
   if (isLoading || (category.type === "archived" && archivedLoading)) {
     return (
@@ -890,9 +896,13 @@ export const InstalledSkills = memo(function InstalledSkills({
           open={batchAction === "remove"}
           onOpenChange={(open) => setBatchAction(open ? "remove" : null)}
           title={t("removeDialog.title")}
-          description={`${t("removeDialog.batchDescription", { count: visibleSelectedIds.length })} ${t(
-            "removeDialog.warning",
-          )}`}
+          description={
+            allExternalInSelection
+              ? t("removeDialog.batchDescription", { count: visibleSelectedIds.length })
+              : `${t("removeDialog.batchDescription", { count: visibleSelectedIds.length })} ${t(
+                  "removeDialog.warning",
+                )}`
+          }
           items={batchDialogItems}
           confirmLabel={t("common.remove")}
           confirmVariant="destructive"
