@@ -323,7 +323,7 @@ export async function importExternalSkills(
         const importId = resolvedToId.get(absSource) ?? generateImportId(absSource);
         const directory = path.basename(absSource);
 
-        for (const { id: agentId, dir: agentDir } of allAgentDirs) {
+        for (const { dir: agentDir } of allAgentDirs) {
           const linkPath = path.join(agentDir, agentLinkName(directory));
           changes.push({ action: "create-link", path: linkPath, target: absSource });
         }
@@ -367,7 +367,7 @@ export async function importExternalSkills(
         existingImports.imports[importId] = entry;
         newImportIds.push(importId);
 
-        for (const { id: agentId, dir: agentDir } of allAgentDirs) {
+        for (const { dir: agentDir } of allAgentDirs) {
           const linkPath = path.join(agentDir, agentLinkName(directory));
           await createAgentLink(linkPath, absSource);
           createdLinks.push(linkPath);
@@ -398,7 +398,7 @@ export async function importExternalSkills(
   for (const id of added) {
     const entry = existingImports.imports[id];
     if (!entry) continue;
-    for (const { id: agentId, dir: agentDir } of allAgentDirs) {
+    for (const { dir: agentDir } of allAgentDirs) {
       const linkPath = path.join(agentDir, agentLinkName(entry.directory));
       changes.push({ action: "create-link", path: linkPath, target: entry.sourcePath });
     }
