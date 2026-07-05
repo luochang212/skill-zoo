@@ -82,6 +82,10 @@ export function formatApiError(error: unknown): string {
     return translateError("error.repoTooLarge", repo);
   }
 
+  if (raw && raw !== String(error) && !raw.startsWith("{")) {
+    return i18n.t("error.badRequest", { message: raw });
+  }
+
   return i18n.t("error.generic");
 }
 
@@ -107,9 +111,7 @@ function asApiError(error: unknown): ApiError | null {
   if (error instanceof Error) return asApiError(error.message);
   if (typeof error === "string") {
     const trimmed = error.trim();
-    if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
-      return { code: "badRequest", message: trimmed };
-    }
+    if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return null;
     try {
       return asApiError(JSON.parse(trimmed));
     } catch {
