@@ -671,6 +671,18 @@ pub async fn import_external_skills(
             }
         }
     }
+
+    // Start watching external source directories so file changes
+    // trigger incremental cache refreshes automatically.
+    {
+        let mut seen = std::collections::HashSet::new();
+        for (_, source_path) in &prepared {
+            if seen.insert(source_path) {
+                crate::services::watcher::watch_external_path(&state, source_path);
+            }
+        }
+    }
+
     SkillService::read_all_skills(&state.skill_cache, &state.metadata).map_err(|e| e.to_string())
 }
 
@@ -684,6 +696,8 @@ pub fn remove_external_import(state: State<'_, AppState>, import_id: String) -> 
     imports.save().map_err(|e| e.to_string())?;
 
     let source_path = PathBuf::from(&import.source_path);
+    crate::services::watcher::unwatch_external_path(&state, &source_path);
+
     let _ = SkillService::remove_agent_links_for_target(&import.directory, &source_path);
     let _ = SkillService::remove_cache_entry(&state.skill_cache, &import_id);
     if let Ok(mut metadata) = state.metadata.write() {

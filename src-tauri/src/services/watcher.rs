@@ -15,6 +15,7 @@ enum WatchRootKind {
     Ssot,
     Agent(String),
     Archive,
+    External,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,6 +75,23 @@ fn collect_watch_dirs() -> Vec<PathBuf> {
         .collect()
 }
 
+fn collect_external_watch_roots() -> Vec<WatchRoot> {
+    let Ok(imports) = crate::persistence::ExternalImports::load() else {
+        return Vec::new();
+    };
+    imports
+        .imports
+        .values()
+        .filter_map(|import| {
+            let path = PathBuf::from(&import.source_path);
+            path.exists().then_some(WatchRoot {
+                path,
+                kind: WatchRootKind::External,
+            })
+        })
+        .collect()
+}
+
 pub fn start_skill_watcher(
     app_handle: tauri::AppHandle,
 ) -> Result<
@@ -83,7 +101,11 @@ pub fn start_skill_watcher(
     ),
     Box<dyn std::error::Error>,
 > {
-    let watch_dirs = collect_watch_dirs();
+    let mut watch_dirs = collect_watch_dirs();
+    let external_roots = collect_external_watch_roots();
+    for root in &external_roots {
+        watch_dirs.push(root.path.clone());
+    }
     if watch_dirs.is_empty() {
         return Err("No skill directories exist to watch".into());
     }
@@ -201,12 +223,16 @@ fn classify_events(events: &[Event], roots: &[WatchRoot]) -> RefreshPlan {
                 continue;
             }
 
+            if matches!(root.kind, WatchRootKind::External) {
+                return RefreshPlan::FullRebuild;
+            }
+
             if let Some(skill_root) = nearest_skill_root(path, &root.path) {
                 let item = SkillRoot {
                     skill_root,
                     scan_root: root.path.clone(),
                     agent_id: match &root.kind {
-                        WatchRootKind::Ssot => None,
+                        WatchRootKind::Ssot | WatchRootKind::External => None,
                         WatchRootKind::Agent(agent) => Some(agent.clone()),
                         WatchRootKind::Archive => None,
                     },
@@ -262,7 +288,8 @@ fn nearest_skill_root(path: &Path, scan_root: &Path) -> Option<PathBuf> {
 }
 
 async fn trigger_refresh(app_handle: &tauri::AppHandle, events: Vec<Event>) {
-    let roots = collect_watch_roots();
+    let mut roots = collect_watch_roots();
+    roots.extend(collect_external_watch_roots());
     let plan = classify_events(&events, &roots);
     let started = Instant::now();
 
@@ -350,6 +377,29 @@ async fn trigger_rebuild(app_handle: &tauri::AppHandle, event_count: usize, star
         }
         Err(e) => {
             eprintln!("Watcher rebuild failed: {e}");
+        }
+    }
+}
+
+pub fn watch_external_path(state: &AppState, source_path: &Path) {
+    if let Ok(mut guard) = state.fs_watcher.lock() {
+        if let Some(watcher) = guard.as_mut() {
+            if let Err(e) = watcher.watch(source_path, RecursiveMode::Recursive) {
+                eprintln!("Failed to watch external import path {}: {e}", source_path.display());
+            }
+        }
+    }
+}
+
+pub fn unwatch_external_path(state: &AppState, source_path: &Path) {
+    if let Ok(mut guard) = state.fs_watcher.lock() {
+        if let Some(watcher) = guard.as_mut() {
+            if let Err(e) = watcher.unwatch(source_path) {
+                eprintln!(
+                    "Failed to unwatch external import path {}: {e}",
+                    source_path.display()
+                );
+            }
         }
     }
 }

@@ -46,6 +46,7 @@ export function useSkillsWatcher() {
     (async () => {
       unlisten = await listen("skills-changed", () => {
         invalidateFor(qc, "rescanSkills");
+        invalidateFor(qc, "externalImports");
       });
     })();
     return () => {
