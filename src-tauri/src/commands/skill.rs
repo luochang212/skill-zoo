@@ -221,11 +221,12 @@ fn is_writable_path_under_cached_skill(cache: &SkillCache, path: &Path) -> bool 
         return false;
     };
     cache.iter().any(|skill| {
-        skill
-            .home_path
-            .as_deref()
-            .and_then(|home| Path::new(home).canonicalize().ok())
-            .is_some_and(|home| real_path == home || real_path.starts_with(home))
+        skill.origin != "external"
+            && skill
+                .home_path
+                .as_deref()
+                .and_then(|home| Path::new(home).canonicalize().ok())
+                .is_some_and(|home| real_path == home || real_path.starts_with(home))
     })
 }
 
@@ -341,18 +342,6 @@ fn external_import_status(import: &ExternalImportEntry) -> ExternalImportStatus 
     if !source_path.join("SKILL.md").exists() {
         return ExternalImportStatus::SkillMissing;
     }
-    for agent in config::AGENTS {
-        let Ok(link_path) = external_import_link_path(&import.directory, agent.id) else {
-            continue;
-        };
-        if is_symlink_or_junction(&link_path) {
-            if !link_points_to_import_source(&link_path, &source_path) {
-                return ExternalImportStatus::LinkConflict;
-            }
-        } else if link_path.exists() && !canonical_paths_eq_for_imports(&link_path, &source_path) {
-            return ExternalImportStatus::LinkConflict;
-        }
-    }
     ExternalImportStatus::Valid
 }
 
@@ -402,18 +391,23 @@ fn collect_external_import_candidates(
     existing_sources: &HashSet<PathBuf>,
     candidates: &mut Vec<ExternalImportCandidate>,
 ) -> Result<(), String> {
+    let managed_roots = known_skill_roots();
     let entries = std::fs::read_dir(dir).map_err(|e| e.to_string())?;
     for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_dir() || is_symlink_or_junction(&path) {
+        let raw_path = entry.path();
+        if !raw_path.is_dir() {
             continue;
         }
-        let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        let path = raw_path.canonicalize().unwrap_or(raw_path.clone());
+        let file_name = raw_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
         if config::SKIP_DIRS.contains(&file_name) {
             continue;
         }
+        if is_path_under_roots(&path, &managed_roots, true) {
+            continue;
+        }
         if path.join("SKILL.md").exists() {
-            let directory = path
+            let directory = raw_path
                 .strip_prefix(root)
                 .ok()
                 .and_then(|relative| {
@@ -436,6 +430,8 @@ fn collect_external_import_candidates(
                 description,
                 already_imported: existing_sources.contains(&source_path),
             });
+        } else if is_symlink_or_junction(&raw_path) {
+            continue;
         } else {
             collect_external_import_candidates(root, &path, existing_sources, candidates)?;
         }
@@ -498,6 +494,43 @@ fn ensure_external_import_link_available(
     Ok(())
 }
 
+fn ensure_external_relink_available(
+    directory: &str,
+    old_source: &Path,
+    new_source: &Path,
+    agent: &str,
+) -> Result<(), String> {
+    let link_path = external_import_link_path(directory, agent)?;
+    if is_symlink_or_junction(&link_path) {
+        if link_points_to_import_source(&link_path, old_source)
+            || link_points_to_import_source(&link_path, new_source)
+        {
+            return Ok(());
+        }
+        return Err(format!(
+            "Cannot relink {directory} for {agent}: {} already points to a different target.",
+            link_path.display()
+        ));
+    }
+    if link_path.exists() {
+        return Err(format!(
+            "Cannot relink {directory} for {agent}: {} already exists.",
+            link_path.display()
+        ));
+    }
+    Ok(())
+}
+
+fn assert_external_source_path(source_path: &Path) -> Result<(), String> {
+    if is_path_under_roots(source_path, &known_skill_roots(), true) {
+        return Err(
+            "External imports must be outside Skill Zoo and registered agent skill directories."
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn list_external_imports() -> Result<Vec<ExternalImportInfo>, String> {
     let imports = ExternalImports::load().map_err(|e| e.to_string())?;
@@ -511,6 +544,7 @@ pub fn scan_external_import_folder(path: String) -> Result<Vec<ExternalImportCan
         return Err(format!("Import folder does not exist: {}", root.display()));
     }
     let root = root.canonicalize().map_err(|e| e.to_string())?;
+    assert_external_source_path(&root)?;
     let imports = ExternalImports::load().map_err(|e| e.to_string())?;
     let existing_sources: HashSet<PathBuf> = imports
         .imports
@@ -558,57 +592,108 @@ pub async fn import_external_skills(
     }
 
     let now = chrono::Utc::now().timestamp();
-    let mut imported_ids = Vec::new();
+    let mut prepared = Vec::new();
     for selection in &selections {
         validate_skill_directory(&selection.directory)?;
         let source_path = PathBuf::from(&selection.source_path)
             .canonicalize()
             .map_err(|e| format!("Invalid source path {}: {e}", selection.source_path))?;
+        assert_external_source_path(&source_path)?;
         if !source_path.join("SKILL.md").exists() {
             return Err(format!("SKILL.md not found: {}", source_path.display()));
         }
         for agent in &agents {
             ensure_external_import_link_available(&selection.directory, &source_path, agent)?;
         }
+        prepared.push((selection.clone(), source_path));
     }
 
-    for selection in selections {
-        let source_path = PathBuf::from(&selection.source_path)
-            .canonicalize()
-            .map_err(|e| format!("Invalid source path {}: {e}", selection.source_path))?;
+    let mut imported_ids = Vec::new();
+    let mut new_import_ids = Vec::new();
+    let mut updated_imports: Vec<ExternalImportEntry> = Vec::new();
+    let mut renamed_imports: Vec<(String, String)> = Vec::new();
+    for (selection, source_path) in &prepared {
         let existing_id = imports.imports.values().find_map(|import| {
             PathBuf::from(&import.source_path)
                 .canonicalize()
                 .ok()
-                .filter(|path| path == &source_path)
+                .filter(|path| path == source_path)
                 .map(|_| import.id.clone())
         });
         let import_id =
-            existing_id.unwrap_or_else(|| make_external_import_id(&source_path, &imports));
-        imports
-            .imports
-            .entry(import_id.clone())
-            .or_insert_with(|| ExternalImportEntry {
-                id: import_id.clone(),
-                source_path: source_path.display().to_string(),
-                directory: selection.directory.clone(),
-                imported_at: now,
-                updated_at: now,
-            });
-
-        for agent in &agents {
-            SkillService::toggle_symlink(
-                &selection.directory,
-                &source_path.to_string_lossy(),
-                agent,
-                true,
-            )
-            .map_err(|e| e.to_string())?;
+            existing_id.unwrap_or_else(|| make_external_import_id(source_path, &imports));
+        match imports.imports.get_mut(&import_id) {
+            Some(import) => {
+                let original_import = import.clone();
+                if import.directory != selection.directory {
+                    renamed_imports.push((
+                        original_import.directory.clone(),
+                        original_import.source_path.clone(),
+                    ));
+                }
+                updated_imports.push(original_import);
+                import.source_path = source_path.display().to_string();
+                import.directory = selection.directory.clone();
+                import.updated_at = now;
+            }
+            None => {
+                imports.imports.insert(
+                    import_id.clone(),
+                    ExternalImportEntry {
+                        id: import_id.clone(),
+                        source_path: source_path.display().to_string(),
+                        directory: selection.directory.clone(),
+                        imported_at: now,
+                        updated_at: now,
+                    },
+                );
+                new_import_ids.push(import_id.clone());
+            }
         }
         imported_ids.push(import_id);
     }
 
     imports.save().map_err(|e| e.to_string())?;
+
+    let mut created_links: Vec<(String, PathBuf, String)> = Vec::new();
+    for (selection, source_path) in &prepared {
+        for agent in &agents {
+            if let Err(e) = SkillService::toggle_symlink(
+                &selection.directory,
+                &source_path.to_string_lossy(),
+                agent,
+                true,
+            ) {
+                for (directory, source_path, agent) in created_links.iter().rev() {
+                    let _ = SkillService::toggle_symlink(
+                        directory,
+                        &source_path.to_string_lossy(),
+                        agent,
+                        false,
+                    );
+                }
+                for import_id in &new_import_ids {
+                    imports.imports.remove(import_id);
+                }
+                for import in &updated_imports {
+                    imports.imports.insert(import.id.clone(), import.clone());
+                }
+                let _ = imports.save();
+                return Err(e.to_string());
+            }
+            created_links.push((
+                selection.directory.clone(),
+                source_path.clone(),
+                agent.clone(),
+            ));
+        }
+    }
+
+    for (old_directory, old_source) in &renamed_imports {
+        let _ =
+            SkillService::remove_agent_links_for_target(old_directory, &PathBuf::from(old_source));
+    }
+
     for import_id in &imported_ids {
         if let Some(import) = imports.imports.get(import_id) {
             if let Ok(entry) = SkillService::scan_external_import(import) {
@@ -639,7 +724,10 @@ pub fn remove_external_import(state: State<'_, AppState>, import_id: String) -> 
 }
 
 #[tauri::command]
-pub fn clean_external_import_links(import_id: Option<String>) -> Result<usize, String> {
+pub fn clean_external_import_links(
+    state: State<'_, AppState>,
+    import_id: Option<String>,
+) -> Result<usize, String> {
     let imports = ExternalImports::load().map_err(|e| e.to_string())?;
     let mut removed = 0;
     for import in imports.imports.values() {
@@ -652,6 +740,11 @@ pub fn clean_external_import_links(import_id: Option<String>) -> Result<usize, S
         let source_path = PathBuf::from(&import.source_path);
         removed += SkillService::remove_agent_links_for_target(&import.directory, &source_path)
             .map_err(|e| e.to_string())?;
+        if let Ok(entry) = SkillService::scan_external_import(import) {
+            let _ = SkillService::upsert_cache_entry(&state.skill_cache, entry);
+        } else {
+            let _ = SkillService::remove_cache_entry(&state.skill_cache, &import.id);
+        }
     }
     Ok(removed)
 }
@@ -674,22 +767,45 @@ pub fn relink_external_import(
     if !new_source.join("SKILL.md").exists() {
         return Err(format!("SKILL.md not found: {}", new_source.display()));
     }
+    assert_external_source_path(&new_source)?;
 
     let linked_agents = linked_external_import_agents(&import);
+    if linked_agents.is_empty() {
+        return Err("No existing agent links found to relink for this import.".to_string());
+    }
+    let old_source = PathBuf::from(&import.source_path);
     for agent in &linked_agents {
-        ensure_external_import_link_available(&import.directory, &new_source, agent)?;
+        ensure_external_relink_available(&import.directory, &old_source, &new_source, agent)?;
     }
 
-    let old_source = PathBuf::from(&import.source_path);
     let _ = SkillService::remove_agent_links_for_target(&import.directory, &old_source);
+    let mut relinked_agents: Vec<String> = Vec::new();
     for agent in &linked_agents {
-        SkillService::toggle_symlink(
+        if let Err(e) = SkillService::toggle_symlink(
             &import.directory,
             &new_source.to_string_lossy(),
             agent,
             true,
-        )
-        .map_err(|e| e.to_string())?;
+        ) {
+            for agent in &relinked_agents {
+                let _ = SkillService::toggle_symlink(
+                    &import.directory,
+                    &new_source.to_string_lossy(),
+                    agent,
+                    false,
+                );
+            }
+            for agent in &linked_agents {
+                let _ = SkillService::toggle_symlink(
+                    &import.directory,
+                    &old_source.to_string_lossy(),
+                    agent,
+                    true,
+                );
+            }
+            return Err(e.to_string());
+        }
+        relinked_agents.push(agent.clone());
     }
 
     let mut updated = import.clone();
@@ -1166,6 +1282,35 @@ fn resolve_skill_home_dir_from_cache(
     }
 
     resolve_skill_home_dir_by_directory(directory)
+}
+
+fn assert_skill_editable(
+    cache: &SkillCache,
+    skill_id: Option<&str>,
+    directory: &str,
+) -> Result<(), String> {
+    if let Some(skill_id) = skill_id {
+        let skill = cache
+            .find_by_id(skill_id)
+            .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
+        if skill.directory != directory {
+            return Err(format!(
+                "Skill id does not match requested directory: {skill_id}"
+            ));
+        }
+        if skill.origin == "external" {
+            return Err("External imported skills are read-only in Skill Zoo.".to_string());
+        }
+        return Ok(());
+    }
+
+    if cache
+        .iter()
+        .any(|skill| skill.directory == directory && skill.origin == "external")
+    {
+        return Err("External imported skills are read-only in Skill Zoo.".to_string());
+    }
+    Ok(())
 }
 
 fn resolve_skill_home_dir_by_directory(directory: &str) -> Result<PathBuf, String> {
@@ -1917,6 +2062,7 @@ pub fn write_skill_md(
 ) -> Result<(), String> {
     let skill_dir = {
         let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
+        assert_skill_editable(&cache, skill_id.as_deref(), &directory)?;
         resolve_skill_home_dir_from_cache(&cache, skill_id.as_deref(), &directory)?
     };
     let skill_md = skill_dir.join("SKILL.md");
@@ -1929,10 +2075,24 @@ pub fn write_skill_md(
     atomic_write(&skill_md, &content).map_err(|e| e.to_string())?;
 
     // Update lock file timestamp so resolve_timestamps reflects the edit.
-    if let Ok(mut lock) = crate::services::lock::SkillLock::read() {
-        if let Some(entry) = lock.skills.get_mut(&directory) {
-            entry.updated_at = Some(chrono::Utc::now().to_rfc3339());
-            let _ = lock.write();
+    {
+        let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
+        let should_update_lock = skill_id
+            .as_deref()
+            .and_then(|id| cache.find_by_id(id))
+            .map(|skill| skill.origin == "ssot")
+            .unwrap_or_else(|| {
+                cache
+                    .iter()
+                    .any(|skill| skill.directory == directory && skill.origin == "ssot")
+            });
+        if should_update_lock {
+            if let Ok(mut lock) = crate::services::lock::SkillLock::read() {
+                if let Some(entry) = lock.skills.get_mut(&directory) {
+                    entry.updated_at = Some(chrono::Utc::now().to_rfc3339());
+                    let _ = lock.write();
+                }
+            }
         }
     }
 
@@ -2163,10 +2323,12 @@ pub fn write_skill_file_path(
 
     if let Some(skill) = cached_skill {
         // Update lock file timestamp
-        if let Ok(mut lock) = crate::services::lock::SkillLock::read() {
-            if let Some(entry) = lock.skills.get_mut(&skill.directory) {
-                entry.updated_at = Some(chrono::Utc::now().to_rfc3339());
-                let _ = lock.write();
+        if skill.origin == "ssot" {
+            if let Ok(mut lock) = crate::services::lock::SkillLock::read() {
+                if let Some(entry) = lock.skills.get_mut(&skill.directory) {
+                    entry.updated_at = Some(chrono::Utc::now().to_rfc3339());
+                    let _ = lock.write();
+                }
             }
         }
         // Refresh cache so updatedAt is reflected in the frontend
@@ -3394,6 +3556,54 @@ mod tests {
 
         assert!(ssot_home.exists());
         assert!(!agent_home.exists());
+    }
+
+    #[test]
+    fn external_import_status_ignores_unmanaged_agent_conflicts() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let source = root.path().join("demo");
+        std::fs::create_dir_all(&source).expect("create source");
+        std::fs::write(source.join("SKILL.md"), "# Demo").expect("write skill");
+        let import = ExternalImportEntry {
+            id: "external:demo".to_string(),
+            source_path: source.to_string_lossy().to_string(),
+            directory: "demo".to_string(),
+            imported_at: 1,
+            updated_at: 1,
+        };
+
+        assert!(matches!(
+            external_import_status(&import),
+            ExternalImportStatus::Valid
+        ));
+    }
+
+    #[test]
+    fn external_cached_paths_are_not_writable() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let source = root.path().join("demo");
+        std::fs::create_dir_all(&source).expect("create source");
+        let note = source.join("notes.md");
+        let cache = crate::persistence::SkillCache::from_entries(vec![test_cache_entry_with_home(
+            "external:demo",
+            "demo",
+            "external",
+            Some(source.to_string_lossy().to_string()),
+        )]);
+
+        assert!(!is_writable_path_under_cached_skill(&cache, &note));
+        assert!(assert_skill_editable(&cache, Some("external:demo"), "demo").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn dangling_external_import_symlink_still_matches_raw_target() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let link = root.path().join("demo-link");
+        let missing_target = root.path().join("missing").join("demo");
+        std::os::unix::fs::symlink(&missing_target, &link).expect("create dangling symlink");
+
+        assert!(link_points_to_import_source(&link, &missing_target));
     }
 
     fn test_cache_entry(

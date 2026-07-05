@@ -221,6 +221,20 @@ fn symlink_target_state(
     }
 }
 
+fn external_source_under_known_skill_root(source_path: &Path) -> bool {
+    let Ok(source_path) = source_path.canonicalize() else {
+        return false;
+    };
+    std::iter::once(config::get_agents_skills_dir())
+        .chain(
+            config::AGENTS
+                .iter()
+                .filter_map(|agent| config::get_agent_skills_dir(agent.id)),
+        )
+        .filter_map(|root| root.canonicalize().ok())
+        .any(|root| source_path == root || source_path.starts_with(root))
+}
+
 pub struct SkillService;
 
 impl SkillService {
@@ -624,6 +638,9 @@ impl SkillService {
         };
         let mut seen_ids: HashSet<String> = entries.iter().map(|entry| entry.id.clone()).collect();
         for import in imports.imports.values() {
+            if external_source_under_known_skill_root(Path::new(&import.source_path)) {
+                continue;
+            }
             let Ok(entry) = Self::scan_external_import_with_cache(import, hash_cache) else {
                 continue;
             };
@@ -1131,6 +1148,11 @@ impl SkillService {
         hash_cache: &mut HashMap<String, (i64, String)>,
     ) -> Result<SkillCacheEntry, AppError> {
         let skill_root = PathBuf::from(&import.source_path);
+        if external_source_under_known_skill_root(&skill_root) {
+            return Err(AppError::BadRequest(
+                "External import source is inside a Skill Zoo-managed skill directory.".to_string(),
+            ));
+        }
         let skill_md = skill_root.join("SKILL.md");
         if !skill_md.exists() {
             return Err(AppError::NotFound(format!(
