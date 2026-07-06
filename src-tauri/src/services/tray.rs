@@ -6,13 +6,15 @@ use std::collections::HashSet;
 use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::TrayIconBuilder;
-use tauri::{App, AppHandle, Manager, Wry};
+use tauri::{App, AppHandle, Emitter, Manager, Wry};
 
 pub const SKILL_COMPANION_ITEMS_SETTING: &str = "skill_companion_items";
 
 const TRAY_ID: &str = "skill-zoo-tray";
 const MENU_OPEN: &str = "tray-open";
+const MENU_SETTINGS: &str = "tray-settings";
 const MENU_QUIT: &str = "tray-quit";
+const NAVIGATE_EVENT: &str = "navigate";
 const MENU_COMPANION_COPY_HINT: &str = "skill-companion-copy-hint";
 const MENU_COMPANION_EMPTY: &str = "skill-companion-empty";
 const COMPANION_MENU_ID: &str = "skill-companion-menu";
@@ -33,6 +35,7 @@ pub struct SkillCompanionItem {
 pub struct TrayState {
     root_menu: Mutex<Option<Menu<Wry>>>,
     open_item: Mutex<Option<MenuItem<Wry>>>,
+    settings_item: Mutex<Option<MenuItem<Wry>>>,
     quit_item: Mutex<Option<MenuItem<Wry>>>,
     companion_menu: Mutex<Option<Submenu<Wry>>>,
     recent_menu: Mutex<Option<Submenu<Wry>>>,
@@ -49,6 +52,7 @@ enum TrayLanguage {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TrayLabels {
     open_main_window: &'static str,
+    settings: &'static str,
     skill_companion: &'static str,
     recent_skills: &'static str,
     copy_hint: &'static str,
@@ -70,6 +74,7 @@ impl TrayLanguage {
         match self {
             Self::En => TrayLabels {
                 open_main_window: "Open main window",
+                settings: "Settings",
                 skill_companion: "Common Commands",
                 recent_skills: "Recently Used",
                 copy_hint: "Click an item to copy",
@@ -79,6 +84,7 @@ impl TrayLanguage {
             },
             Self::Zh => TrayLabels {
                 open_main_window: "打开主界面",
+                settings: "设置",
                 skill_companion: "常用指令",
                 recent_skills: "最近使用",
                 copy_hint: "点击条目即可复制",
@@ -135,6 +141,13 @@ pub fn setup_tray(app: &mut App) -> tauri::Result<()> {
         true,
         None::<&str>,
     )?;
+    let settings = MenuItem::with_id(
+        &app_handle,
+        MENU_SETTINGS,
+        labels.settings,
+        true,
+        None::<&str>,
+    )?;
     let quit = MenuItem::with_id(&app_handle, MENU_QUIT, labels.quit, true, None::<&str>)?;
     let menu = Menu::with_items(
         &app_handle,
@@ -143,6 +156,8 @@ pub fn setup_tray(app: &mut App) -> tauri::Result<()> {
             &PredefinedMenuItem::separator(&app_handle)?,
             &companion_menu,
             &recent_menu,
+            &PredefinedMenuItem::separator(&app_handle)?,
+            &settings,
             &PredefinedMenuItem::separator(&app_handle)?,
             &quit,
         ],
@@ -168,6 +183,7 @@ pub fn setup_tray(app: &mut App) -> tauri::Result<()> {
     let state = app.state::<TrayState>();
     state.root_menu.lock().unwrap().replace(menu);
     state.open_item.lock().unwrap().replace(open);
+    state.settings_item.lock().unwrap().replace(settings);
     state.quit_item.lock().unwrap().replace(quit);
     state.companion_menu.lock().unwrap().replace(companion_menu);
     state.recent_menu.lock().unwrap().replace(recent_menu);
@@ -193,6 +209,16 @@ pub fn set_tray_language(app: &AppHandle, language: &str) -> Result<(), String> 
     {
         open_item
             .set_text(labels.open_main_window)
+            .map_err(|e| e.to_string())?;
+    }
+    if let Some(settings_item) = tray_state
+        .settings_item
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+    {
+        settings_item
+            .set_text(labels.settings)
             .map_err(|e| e.to_string())?;
     }
     if let Some(quit_item) = tray_state
@@ -364,19 +390,25 @@ fn replace_recent_menu_items(
 fn recent_skill_items(app: &AppHandle) -> Vec<RecentSkillUsage> {
     let state = app.state::<AppState>();
     let (whitelist, installed_skill_count) = match state.skill_cache.read() {
-        Ok(cache) => skill_usage::claude_skill_whitelist(&cache),
+        Ok(cache) => skill_usage::skill_whitelist(&cache, "claude-code"),
         Err(error) => {
             eprintln!("Failed to read skill cache for recent skills: {error}");
             return Vec::new();
         }
     };
-    skill_usage::discover_claude_skill_usage(whitelist, installed_skill_count).recent
+    skill_usage::discover_skill_usage("claude-code", whitelist, installed_skill_count).recent
 }
 
 fn handle_tray_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
     let id = event.id().as_ref();
     match id {
         MENU_OPEN => show_main_window(app),
+        MENU_SETTINGS => {
+            show_main_window(app);
+            if let Err(error) = app.emit(NAVIGATE_EVENT, "settings") {
+                eprintln!("Failed to emit navigate event: {error}");
+            }
+        }
         MENU_QUIT => app.exit(0),
         _ => {
             if let Some(item_id) = companion_item_id_from_menu_id(id) {
@@ -531,6 +563,7 @@ mod tests {
     fn maps_tray_labels_by_language() {
         let english = TrayLanguage::from_code("en-US").labels();
         assert_eq!(english.open_main_window, "Open main window");
+        assert_eq!(english.settings, "Settings");
         assert_eq!(english.skill_companion, "Common Commands");
         assert_eq!(english.recent_skills, "Recently Used");
         assert_eq!(english.copy_hint, "Click an item to copy");
@@ -540,6 +573,7 @@ mod tests {
 
         let chinese = TrayLanguage::from_code("zh-CN").labels();
         assert_eq!(chinese.open_main_window, "打开主界面");
+        assert_eq!(chinese.settings, "设置");
         assert_eq!(chinese.skill_companion, "常用指令");
         assert_eq!(chinese.recent_skills, "最近使用");
         assert_eq!(chinese.copy_hint, "点击条目即可复制");

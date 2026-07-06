@@ -10,6 +10,7 @@ import {
 
 import { motion, AnimatePresence } from "framer-motion";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { listen } from "@tauri-apps/api/event";
 import { useTranslation } from "react-i18next";
 import { Header } from "@/components/layout/Header";
 import { BrowseSkills } from "@/components/skills/BrowseSkills";
@@ -84,6 +85,21 @@ class ErrorBoundary extends Component<EBProps, EBState> {
   }
 }
 
+// Module-scope handler: it captures no component state, so it doesn't need to
+// live inside App (and be recreated every render). Starts a window drag unless
+// the pointer is over an interactive element; double-click toggles maximize.
+async function handleDragMouseDown(e: React.MouseEvent) {
+  if (e.buttons !== 1) return;
+  const target = e.target as HTMLElement;
+  if (target.closest('button, a, input, select, textarea, [role="button"]')) return;
+  const win = getCurrentWindow();
+  if (e.detail === 2) {
+    await win.toggleMaximize();
+    return;
+  }
+  await win.startDragging();
+}
+
 export default function App() {
   const { i18n, t } = useTranslation();
   const [view, setView] = useState<View>("local");
@@ -120,6 +136,22 @@ export default function App() {
     });
   }, [i18n.language]);
 
+  // Listen for navigation requests from the tray menu (e.g. "设置" → settings view).
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    (async () => {
+      unlisten = await listen<string>("navigate", (event) => {
+        const target = event.payload;
+        if (target === "settings") {
+          setView("settings");
+        }
+      });
+    })();
+    return () => {
+      unlisten?.();
+    };
+  }, []);
+
   const hasLocalDetail = view === "local" && !showCreateSkill && (editor.open || !!archivedEditor);
 
   useLayoutEffect(() => {
@@ -127,20 +159,6 @@ export default function App() {
       detailOverlayRef.current?.focus();
     }
   }, [hasLocalDetail, editor.skillId, archivedEditor?.archiveId]);
-
-  const handleDragMouseDown = async (e: React.MouseEvent) => {
-    if (e.buttons !== 1) return;
-    // Don't start window drag on interactive elements — it would consume
-    // the click event and prevent buttons/links from working.
-    const target = e.target as HTMLElement;
-    if (target.closest('button, a, input, select, textarea, [role="button"]')) return;
-    const win = getCurrentWindow();
-    if (e.detail === 2) {
-      await win.toggleMaximize();
-      return;
-    }
-    await win.startDragging();
-  };
 
   const handleUpdate = async () => {
     if (!editor.skillId) return Promise.resolve(null);

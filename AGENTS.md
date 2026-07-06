@@ -15,3 +15,13 @@ Protocol-impacting work includes changes to desktop-owned local state shape, pat
 
 The fixtures under `fixtures/local-protocol/` represent the desktop app's current protocol. If a CLI fixture test fails, fix the CLI to follow the desktop protocol unless the desktop protocol itself intentionally changed.
 
+## Dev Server
+
+The frontend dev server runs under Bun (`bun run dev` → `bunx --bun vite`). Vite caches pre-bundled dependencies in `node_modules/.vite`.
+
+When `package.json` changes — a dependency added or removed, or `bun install` / `bun remove` run — that cache can go stale. The tell-tale symptom is `[vite:import-analysis] Failed to resolve import "<dep>"` for a dependency that is clearly installed in `node_modules`. Clear the cache and restart:
+
+	rm -rf node_modules/.vite && bun run dev
+
+Or force a one-time re-bundle with `bunx --bun vite --force`. Note that `bun install` fixes `node_modules` but does not touch the Vite cache, and a running dev server holds the stale optimizer state in memory — a full restart is required.
+
