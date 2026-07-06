@@ -549,7 +549,7 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
 
     // Randomize repo order for fairness when rate-limited
     let mut repos: Vec<(String, String, Option<String>)> = skills_by_repo.keys().cloned().collect();
-    repos.shuffle(&mut rand::thread_rng());
+    repos.shuffle(&mut rand::rng());
 
     for (owner, repo, branch) in repos {
         if rate_limited {

@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 use tauri_plugin_opener::OpenerExt;
 
-use rand::Rng;
+use rand::distr::{Alphanumeric, SampleString};
 use regex::Regex;
 use tauri::{Manager, State};
 
@@ -443,11 +443,8 @@ fn make_external_import_id(source_path: &Path, imports: &ExternalImports) -> Str
         .to_string();
     let slug = if slug.is_empty() { "skill" } else { &slug };
     loop {
-        let suffix: String = rand::thread_rng()
-            .sample_iter(&rand::distributions::Alphanumeric)
-            .take(8)
-            .map(char::from)
-            .collect::<String>()
+        let suffix = Alphanumeric
+            .sample_string(&mut rand::rng(), 8)
             .to_ascii_lowercase();
         let id = format!("external:{slug}-{suffix}");
         if !imports.imports.contains_key(&id) {
