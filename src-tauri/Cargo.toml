@@ -37,7 +37,7 @@ thiserror = "2.0"
 
 serde_yaml = "0.9"
 url = "2.5"
-regex = "1.10"
+regex = "1.12"
 tempfile = "3"
 zip = "8.6"
 sha2 = "0.11"
