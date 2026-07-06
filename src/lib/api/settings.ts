@@ -1,8 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AgentPreferences,
-  ClaudeSkillUsage,
   SkillCompanionItem,
+  SkillUsage,
   VisibleAgents,
 } from "@/types/skills";
 
@@ -18,7 +18,7 @@ export const settingsApi = {
 
   setTrayLanguage: (language: string) => invoke<void>("set_tray_language", { language }),
 
-  getClaudeSkillUsage: () => invoke<ClaudeSkillUsage>("get_claude_skill_usage"),
+  getSkillUsage: (agent: string) => invoke<SkillUsage>("get_skill_usage", { agentId: agent }),
 
   saveSkillUsageScreenshot: (dataUrl: string) =>
     invoke<string>("save_skill_usage_screenshot", { dataUrl }),

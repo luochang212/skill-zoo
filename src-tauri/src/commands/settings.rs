@@ -1,6 +1,6 @@
 use crate::services::cli::CliService;
 use crate::services::lock::{SkillLock, SkillLockEntry};
-use crate::services::skill_usage::ClaudeSkillUsage;
+use crate::services::skill_usage::SkillUsage;
 use crate::services::tray::{
     validate_skill_companion_items, SkillCompanionItem, SKILL_COMPANION_ITEMS_SETTING,
 };
@@ -154,18 +154,23 @@ pub fn set_tray_language(app_handle: tauri::AppHandle, language: String) -> Resu
 }
 
 #[tauri::command]
-pub async fn get_claude_skill_usage(
+pub async fn get_skill_usage(
     state: State<'_, AppState>,
-) -> Result<ClaudeSkillUsage, String> {
+    agent_id: String,
+) -> Result<SkillUsage, String> {
     let (whitelist, installed_skill_count) = {
         let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-        crate::services::skill_usage::claude_skill_whitelist(&cache)
+        crate::services::skill_usage::skill_whitelist(&cache, &agent_id)
     };
     tokio::task::spawn_blocking(move || {
-        crate::services::skill_usage::discover_claude_skill_usage(whitelist, installed_skill_count)
+        crate::services::skill_usage::discover_skill_usage(
+            &agent_id,
+            whitelist,
+            installed_skill_count,
+        )
     })
     .await
-    .map_err(|e| format!("Claude skill usage scan failed: {e}"))
+    .map_err(|e| format!("Skill usage scan failed: {e}"))
 }
 
 #[tauri::command]

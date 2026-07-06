@@ -10,7 +10,7 @@ const VISIBLE_AGENTS_KEY = ["settings", "visibleAgents"] as const;
 const HIDE_NON_SSOT_KEY = ["settings", "hideNonSsot"] as const;
 const AGENT_ORDER_KEY = ["settings", "agentOrder"] as const;
 export const SKILL_COMPANION_ITEMS_KEY = ["settings", "skillCompanionItems"] as const;
-export const CLAUDE_SKILL_USAGE_KEY = ["settings", "claudeSkillUsage"] as const;
+export const skillUsageKey = (agent: string) => ["settings", "skillUsage", agent] as const;
 const AGENT_ORDER_SETTING = "agent_order";
 
 export function useVisibleAgents() {
@@ -63,10 +63,10 @@ export function useSaveSkillCompanionItems() {
   });
 }
 
-export function useClaudeSkillUsage({ enabled = true }: { enabled?: boolean } = {}) {
+export function useSkillUsage(agent: string, { enabled = true }: { enabled?: boolean } = {}) {
   return useQuery({
-    queryKey: CLAUDE_SKILL_USAGE_KEY,
-    queryFn: () => settingsApi.getClaudeSkillUsage(),
+    queryKey: skillUsageKey(agent),
+    queryFn: () => settingsApi.getSkillUsage(agent),
     staleTime: 30_000,
     enabled,
   });

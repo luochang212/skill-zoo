@@ -7,7 +7,7 @@ import { domToPng } from "modern-screenshot";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import i18n from "@/i18n";
-import type { ClaudeSkillUsage, SkillCompanionItem } from "@/types/skills";
+import type { SkillUsage, SkillCompanionItem } from "@/types/skills";
 import { SkillCompanionSettings } from "./SkillCompanionSettings";
 
 vi.mock("sonner", () => ({
@@ -36,7 +36,7 @@ function renderSettings() {
   );
 }
 
-const usage: ClaudeSkillUsage = {
+const usage: SkillUsage = {
   installedSkillCount: 2,
   totalCalls: 4,
   week: {
@@ -73,7 +73,7 @@ function mockItems(
     switch (command) {
       case "get_skill_companion_items":
         return Promise.resolve(items);
-      case "get_claude_skill_usage":
+      case "get_skill_usage":
         return Promise.resolve(usage);
       case "save_skill_companion_items":
         if (options.rejectSave) return Promise.reject(new Error("save failed"));

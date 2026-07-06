@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, memo } from "react";
-import yaml from "js-yaml";
+import { load as yamlLoad } from "js-yaml";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
@@ -70,7 +70,7 @@ function parseFrontmatter(raw: string): ParsedSkillMd {
   const body = trimmed.slice(firstClose + 3).trimStart();
 
   try {
-    const parsed = yaml.load(yamlStr);
+    const parsed = yamlLoad(yamlStr);
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
       return { frontmatter: parsed as Record<string, unknown>, body };
     }

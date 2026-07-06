@@ -25,13 +25,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  useClaudeSkillUsage,
   useSaveSkillCompanionItems,
   useSkillCompanionItems,
+  useSkillUsage,
 } from "@/hooks/useSettings";
 import { settingsApi } from "@/lib/api/settings";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { DailyCount, SkillCompanionItem, SkillUsagePeriod } from "@/types/skills";
 
 function createItemId() {
@@ -60,6 +66,13 @@ function normalizePreview(content: string) {
 type UsageRange = "week" | "month";
 
 const USAGE_RANGES: UsageRange[] = ["week", "month"];
+
+type UsageAgent = "claude-code" | "codex";
+const USAGE_AGENTS: UsageAgent[] = ["claude-code", "codex"];
+const AGENT_DISPLAY_NAME: Record<UsageAgent, string> = {
+  "claude-code": "Claude Code",
+  codex: "Codex",
+};
 
 function formatUsageShare(count: number, total: number) {
   if (total <= 0) return "0.0%";
@@ -138,9 +151,11 @@ function DailyChart({ breakdown }: { breakdown: DailyCount[] }) {
 function SkillUsageBars({
   period,
   compact = false,
+  agentDisplayName,
 }: {
   period: SkillUsagePeriod | undefined;
   compact?: boolean;
+  agentDisplayName: string;
 }) {
   const { t } = useTranslation();
   const skills = period?.skills ?? [];
@@ -150,7 +165,9 @@ function SkillUsageBars({
 
   if (shown.length === 0) {
     return (
-      <p className="text-xs text-muted-foreground">{t("settings.skillCompanion.usageEmpty")}</p>
+      <p className="text-xs text-muted-foreground">
+        {t("settings.skillCompanion.usageEmpty", { agent: agentDisplayName })}
+      </p>
     );
   }
 
@@ -185,10 +202,12 @@ function SkillUsageSummaryTiles({
   period,
   installedSkillCount,
   rangeLabel,
+  agentDisplayName,
 }: {
   period: SkillUsagePeriod | undefined;
   installedSkillCount: number;
   rangeLabel: string;
+  agentDisplayName: string;
 }) {
   const { t } = useTranslation();
   const totalCalls = period?.totalCalls ?? 0;
@@ -209,8 +228,9 @@ function SkillUsageSummaryTiles({
           {installedSkillCount > 0
             ? t("settings.skillCompanion.usageStats.installed", {
                 count: installedSkillCount,
+                agent: agentDisplayName,
               })
-            : t("settings.skillCompanion.usageStats.noInstalled")}
+            : t("settings.skillCompanion.usageStats.noInstalled", { agent: agentDisplayName })}
         </p>
       </div>
       <div className="min-w-0 rounded-lg border border-border bg-muted/30 px-3.5 py-3">
@@ -249,7 +269,9 @@ function SkillUsageDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useTranslation();
-  const { data: usage, isLoading } = useClaudeSkillUsage({ enabled: open });
+  const [agent, setAgent] = useState<UsageAgent>("claude-code");
+  const agentDisplayName = AGENT_DISPLAY_NAME[agent];
+  const { data: usage, isLoading } = useSkillUsage(agent, { enabled: open });
   const captureRef = useRef<HTMLDivElement>(null);
   const [range, setRange] = useState<UsageRange>("week");
   const [isCapturing, setIsCapturing] = useState(false);
@@ -298,7 +320,9 @@ function SkillUsageDialog({
       >
         <DialogHeader className="shrink-0 border-b border-border/50 px-4 py-4 text-left">
           <DialogTitle>{t("settings.skillCompanion.usageTitle")}</DialogTitle>
-          <DialogDescription>{t("settings.skillCompanion.usageDescription")}</DialogDescription>
+          <DialogDescription>
+            {t("settings.skillCompanion.usageDescription", { agent: agentDisplayName })}
+          </DialogDescription>
         </DialogHeader>
         <div className="flex shrink-0 items-center gap-3 border-b border-border/40 px-4 py-3">
           <div className="flex min-w-0 flex-1 items-center gap-1 rounded-md bg-muted/60 p-1">
@@ -318,6 +342,31 @@ function SkillUsageDialog({
               </button>
             ))}
           </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                className="h-8 w-8 shrink-0"
+                aria-label={t("settings.skillCompanion.usageAgentSelect")}
+                title={t("settings.skillCompanion.usageAgentSelect")}
+                data-screenshot-exclude
+              >
+                <Settings className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {USAGE_AGENTS.map((id) => (
+                <DropdownMenuItem key={id} onSelect={() => setAgent(id)}>
+                  <Check
+                    className={cn("h-3.5 w-3.5", agent === id ? "opacity-100" : "opacity-0")}
+                  />
+                  {AGENT_DISPLAY_NAME[id]}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             type="button"
             size="icon"
@@ -371,6 +420,7 @@ function SkillUsageDialog({
                 period={period}
                 installedSkillCount={usage?.installedSkillCount ?? 0}
                 rangeLabel={rangeLabel}
+                agentDisplayName={agentDisplayName}
               />
               {period && period.dailyBreakdown.length > 0 && (
                 <>
@@ -381,7 +431,7 @@ function SkillUsageDialog({
                   </p>
                 </>
               )}
-              <SkillUsageBars period={period} />
+              <SkillUsageBars period={period} agentDisplayName={agentDisplayName} />
               <p className="border-t border-border/30 pt-3 text-[11px] leading-5 text-muted-foreground">
                 {/* Intentional non-i18n metadata label for a compact product signature. */}
                 {`▸ Skill preferences · ${activeSkillCount} skills · ${dateRange.start} ~ ${dateRange.end}`}

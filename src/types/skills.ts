@@ -137,7 +137,7 @@ export interface RecentSkillUsage {
   lastUsedAt: number;
 }
 
-export interface ClaudeSkillUsage {
+export interface SkillUsage {
   installedSkillCount: number;
   totalCalls: number;
   week: SkillUsagePeriod;
