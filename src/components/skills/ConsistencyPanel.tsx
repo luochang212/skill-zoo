@@ -15,9 +15,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { skillsApi } from "@/lib/api/skills";
 import type { InstalledSkill } from "@/types/skills";
-import type { DuplicateGroup, NameMismatch } from "@/hooks/useSkillIssues";
-
-type ConsistencyTab = "duplicates" | "conflicts" | "mismatches";
+import type { DuplicateGroup, NameMismatch, ConsistencyTab } from "@/hooks/useSkillIssues";
 
 function TabContent({
   hint,
@@ -49,7 +47,7 @@ function DuplicateGroupCard({ group, onMerge }: { group: DuplicateGroup; onMerge
   const [expanded, setExpanded] = useState(true);
 
   return (
-    <div className="rounded-xl border bg-card overflow-hidden">
+    <div className="rounded-xl border bg-card overflow-hidden" data-dup-group={group.name}>
       <button
         onClick={() => setExpanded((v) => !v)}
         className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-accent/30 transition-colors"
@@ -129,7 +127,7 @@ function MismatchEntry({ mismatch }: { mismatch: NameMismatch }) {
   const { t } = useTranslation();
 
   return (
-    <div className="rounded-xl border bg-card overflow-hidden">
+    <div className="rounded-xl border bg-card overflow-hidden" data-mismatch-id={mismatch.skillId}>
       <div className="px-4 py-3 flex items-center gap-3">
         <PenLine className="h-4 w-4 shrink-0 text-sky-500 dark:text-sky-400" />
         <div className="flex-1 min-w-0">
@@ -217,13 +215,21 @@ function MergeConfirmDialog({
   );
 }
 
+interface ConsistencyPanelProps {
+  duplicateGroups: DuplicateGroup[];
+  nameMismatches: NameMismatch[];
+  /** When set, opens this tab and scrolls to the target element */
+  initialTab?: ConsistencyTab;
+  /** The group name (duplicates/conflicts) or skill ID (mismatches) to scroll to */
+  scrollToId?: string;
+}
+
 export function ConsistencyPanel({
   duplicateGroups: allGroups,
   nameMismatches,
-}: {
-  duplicateGroups: DuplicateGroup[];
-  nameMismatches: NameMismatch[];
-}) {
+  initialTab,
+  scrollToId,
+}: ConsistencyPanelProps) {
   const { t } = useTranslation();
   const mergeMutation = useMergeDuplicates();
   const [confirmMerge, setConfirmMerge] = useState<string | null>(null);
@@ -253,6 +259,24 @@ export function ConsistencyPanel({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [menuOpen]);
+
+  // Navigate to a specific tab + scroll to target when triggered from a badge click
+  useEffect(() => {
+    if (!initialTab || !scrollToId) return;
+    setTab(initialTab);
+    const raf = requestAnimationFrame(() => {
+      const isMismatch = initialTab === "mismatches";
+      const escaped = scrollToId.replace(/"/g, '\\"');
+      const selector = isMismatch
+        ? `[data-mismatch-id="${escaped}"]`
+        : `[data-dup-group="${escaped}"]`;
+      const el = document.querySelector(selector);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [initialTab, scrollToId]);
 
   const duplicateGroups = allGroups.filter((g) => g.sameContent);
   const mergeableGroups = duplicateGroups.filter(

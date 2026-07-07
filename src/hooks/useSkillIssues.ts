@@ -1,10 +1,16 @@
 import { useMemo } from "react";
 import type { InstalledSkill } from "@/types/skills";
 
+export type ConsistencyTab = "duplicates" | "conflicts" | "mismatches";
+
 export interface SkillIssues {
   isDuplicate?: boolean;
   hasConflict?: boolean;
   isMismatch?: boolean;
+  /** For duplicate/conflict: the group name (= skill name) to scroll to in ConsistencyPanel */
+  duplicateGroupName?: string;
+  /** For mismatch: the skill ID to scroll to in ConsistencyPanel */
+  mismatchSkillId?: string;
 }
 
 export interface DuplicateGroup {
@@ -45,6 +51,7 @@ export function useConsistencyCheck(skills: InstalledSkill[]) {
         const e = issuesMap.get(s.id) ?? {};
         if (sameContent) e.isDuplicate = true;
         else e.hasConflict = true;
+        e.duplicateGroupName = name;
         issuesMap.set(s.id, e);
       }
     }
@@ -60,6 +67,7 @@ export function useConsistencyCheck(skills: InstalledSkill[]) {
         });
         const e = issuesMap.get(s.id) ?? {};
         e.isMismatch = true;
+        e.mismatchSkillId = s.id;
         issuesMap.set(s.id, e);
       }
     }

@@ -6,7 +6,7 @@ import { StarButton } from "@/components/skills/StarButton";
 import { SkillBadges } from "@/components/skills/SkillBadges";
 import { formatRelativeDate } from "@/lib/date";
 import type { DiscoverableSkill, InstalledSkill } from "@/types/skills";
-import type { SkillIssues } from "@/hooks/useSkillIssues";
+import type { SkillIssues, ConsistencyTab } from "@/hooks/useSkillIssues";
 
 interface SkillCardRowProps {
   skill: DiscoverableSkill | InstalledSkill;
@@ -18,6 +18,7 @@ interface SkillCardRowProps {
   issues?: SkillIssues;
   selected?: boolean;
   onToggleSelect?: () => void;
+  onNavigateConsistency?: (tab: ConsistencyTab, targetId: string) => void;
 }
 
 export function SkillCardRow({
@@ -30,6 +31,7 @@ export function SkillCardRow({
   issues,
   selected,
   onToggleSelect,
+  onNavigateConsistency,
 }: SkillCardRowProps) {
   const { t } = useTranslation();
   const installedSkill = isInstalled ? (skill as InstalledSkill) : null;
@@ -68,7 +70,7 @@ export function SkillCardRow({
             {t("skill.mine")}
           </Badge>
         )}
-        <SkillBadges issues={issues} />
+        <SkillBadges issues={issues} onNavigate={onNavigateConsistency} />
       </div>
 
       {/* Repo — flex-1 aligned with header, hidden when panel takes space */}

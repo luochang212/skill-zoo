@@ -6,7 +6,7 @@ import { StarButton } from "@/components/skills/StarButton";
 import { SkillBadges } from "@/components/skills/SkillBadges";
 import { Archive } from "lucide-react";
 import type { DiscoverableSkill, InstalledSkill } from "@/types/skills";
-import type { SkillIssues } from "@/hooks/useSkillIssues";
+import type { SkillIssues, ConsistencyTab } from "@/hooks/useSkillIssues";
 
 interface SkillCardProps {
   skill: DiscoverableSkill | InstalledSkill;
@@ -16,6 +16,7 @@ interface SkillCardProps {
   onToggleStar?: () => void;
   starred?: boolean;
   issues?: SkillIssues;
+  onNavigateConsistency?: (tab: ConsistencyTab, targetId: string) => void;
 }
 
 export function SkillCard({
@@ -26,6 +27,7 @@ export function SkillCard({
   onToggleStar,
   starred,
   issues,
+  onNavigateConsistency,
 }: SkillCardProps) {
   const { t } = useTranslation();
   const installedSkill = isInstalled ? (skill as InstalledSkill) : null;
@@ -60,7 +62,7 @@ export function SkillCard({
                 {t("skill.mine")}
               </Badge>
             )}
-            <SkillBadges issues={issues} />
+            <SkillBadges issues={issues} onNavigate={onNavigateConsistency} />
           </div>
           <div className="flex items-center gap-1 shrink-0">
             {isArchived && <Archive className="h-4 w-4 text-foreground/35" />}

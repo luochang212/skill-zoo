@@ -10,7 +10,7 @@ import {
   useUnstarSkill,
 } from "@/hooks/useSkills";
 import { toast } from "sonner";
-import { useConsistencyCheck, type SkillIssues } from "@/hooks/useSkillIssues";
+import { useConsistencyCheck, type SkillIssues, type ConsistencyTab } from "@/hooks/useSkillIssues";
 import { useConsistencyLabelSettings } from "@/hooks/useConsistencyLabelSettings";
 import { useVisibleAgentOrder, useHideNonSsot } from "@/hooks/useSettings";
 import { useAgentConfigs } from "@/lib/agents";
@@ -395,6 +395,10 @@ export const InstalledSkills = memo(function InstalledSkills({
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchAction, setBatchAction] = useState<BatchAction | null>(null);
+  const [consistencyNavTarget, setConsistencyNavTarget] = useState<{
+    tab: ConsistencyTab;
+    targetId: string;
+  } | null>(null);
 
   const handleToggleStar = (skill: InstalledSkill) => {
     if (skill.starred) {
@@ -403,6 +407,18 @@ export const InstalledSkills = memo(function InstalledSkills({
       starMutation.mutate(skill.id);
     }
   };
+
+  const handleNavigateToConsistency = (tab: ConsistencyTab, targetId: string) => {
+    setConsistencyNavTarget({ tab, targetId });
+    onSelectCategory({ type: "consistency" });
+  };
+
+  // Clear nav target when leaving consistency view so sidebar-click returns don't re-scroll
+  useEffect(() => {
+    if (category.type !== "consistency") {
+      setConsistencyNavTarget(null);
+    }
+  }, [category.type]);
 
   useEffect(() => {
     setSelectedIds(new Set());
@@ -775,7 +791,12 @@ export const InstalledSkills = memo(function InstalledSkills({
 
           {/* Consistency category — show ConsistencyPanel instead of cards */}
           {category.type === "consistency" ? (
-            <ConsistencyPanel duplicateGroups={duplicateGroups} nameMismatches={nameMismatches} />
+            <ConsistencyPanel
+              duplicateGroups={duplicateGroups}
+              nameMismatches={nameMismatches}
+              initialTab={consistencyNavTarget?.tab}
+              scrollToId={consistencyNavTarget?.targetId}
+            />
           ) : (
             <div className="flex-1 min-h-0 flex gap-0 relative">
               {filtered.length === 0 ? (
@@ -803,6 +824,7 @@ export const InstalledSkills = memo(function InstalledSkills({
                           onToggleStar={isArchiveView ? undefined : () => handleToggleStar(skill)}
                           starred={skill.starred}
                           issues={isArchiveView ? undefined : filteredIssuesMap.get(skill.id)}
+                          onNavigateConsistency={handleNavigateToConsistency}
                         />
                       ))}
                     </div>
@@ -836,6 +858,7 @@ export const InstalledSkills = memo(function InstalledSkills({
                           issues={isArchiveView ? undefined : filteredIssuesMap.get(skill.id)}
                           selected={selectedIds.has(skill.id)}
                           onToggleSelect={() => handleToggleSelect(skill.id)}
+                          onNavigateConsistency={handleNavigateToConsistency}
                         />
                       ))}
                     </div>
