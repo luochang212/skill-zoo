@@ -139,9 +139,9 @@ impl ArchiveManifest {
         hasher.update(skill_id.as_bytes());
         let hash = hasher.finalize();
         let short_hash: String = hash[..8].iter().map(|b| format!("{:02x}", b)).collect();
-        let safe_name: String = directory
-            .rsplit('/')
-            .next()
+        let safe_name: String = std::path::Path::new(directory)
+            .file_name()
+            .and_then(|n| n.to_str())
             .unwrap_or(directory)
             .chars()
             .map(|c| {

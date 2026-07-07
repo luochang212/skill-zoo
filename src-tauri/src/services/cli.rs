@@ -610,7 +610,14 @@ impl CliService {
     }
 
     fn normalize_skill_path(path: &str) -> String {
-        path.trim_end_matches("/SKILL.md")
+        // Normalize OS-native separators to forward slashes so selectors and
+        // locked paths are comparable across Windows/macOS/Linux. On macOS and
+        // Linux MAIN_SEPARATOR is already '/', so the replace is a no-op; on
+        // Windows this is the fix for backslash-laden selectors produced by
+        // `scan_for_skills`/`to_string_lossy`.
+        path.replace(std::path::MAIN_SEPARATOR, "/")
+            .replace('\\', "/")
+            .trim_end_matches("/SKILL.md")
             .trim_end_matches("SKILL.md")
             .trim_end_matches('/')
             .to_string()
@@ -1245,6 +1252,61 @@ mod tests {
 
         assert_eq!(selected.len(), 1);
         assert_eq!(&selected[0].2, &codex);
+    }
+
+    #[test]
+    fn normalize_skill_path_converts_windows_backslashes_to_forward_slashes() {
+        // Cross-platform contract: regardless of the host OS, a selector or
+        // path passed through `normalize_skill_path` must end up with forward
+        // slashes so it is comparable to `lock_skill_path` output (which always
+        // uses '/'). This is the heart of the Windows install regression fix.
+        assert_eq!(CliService::normalize_skill_path("skills\\self-learning"), "skills/self-learning");
+        assert_eq!(
+            CliService::normalize_skill_path("skills\\self-learning\\SKILL.md"),
+            "skills/self-learning"
+        );
+        assert_eq!(CliService::normalize_skill_path("skills/self-learning"), "skills/self-learning");
+        // Mixed separators should also collapse cleanly.
+        assert_eq!(
+            CliService::normalize_skill_path("skills\\sub\\dir/self-learning\\SKILL.md"),
+            "skills/sub/dir/self-learning"
+        );
+        // Root-level skill stays empty.
+        assert_eq!(CliService::normalize_skill_path("SKILL.md"), "");
+        assert_eq!(CliService::normalize_skill_path(""), "");
+    }
+
+    #[test]
+    fn install_selection_matches_windows_backslash_selector_for_nested_skill() {
+        // Reproduces the original Windows-only bug: `scan_for_skills` produced a
+        // key with OS-native separators (backslashes on Windows), and that key
+        // was echoed back to `install_skills` as the selector. `lock_skill_path`
+        // always emits forward slashes, so the comparison failed and the user
+        // got "No matching skills found. Available: self-learning".
+        // This test feeds a backslash selector directly to ensure the matching
+        // layer tolerates it on every platform.
+        let repo = tempfile::tempdir().unwrap();
+        let nested = repo.path().join("skills").join("self-learning");
+        std::fs::create_dir_all(&nested).unwrap();
+
+        let discovered = vec![(
+            "self-learning".to_string(),
+            String::new(),
+            nested.clone(),
+        )];
+        let requested = vec!["skills\\self-learning".to_string()];
+
+        let selected =
+            CliService::select_discovered_skills(repo.path(), &discovered, &requested, false);
+
+        assert_eq!(selected.len(), 1, "backslash selector must match nested skill");
+        assert_eq!(&selected[0].2, &nested);
+
+        // Sanity: forward-slash selector still matches (the non-Windows path).
+        let requested_fwd = vec!["skills/self-learning".to_string()];
+        let selected_fwd =
+            CliService::select_discovered_skills(repo.path(), &discovered, &requested_fwd, false);
+        assert_eq!(selected_fwd.len(), 1);
     }
 
     #[test]

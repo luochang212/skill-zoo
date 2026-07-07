@@ -57,6 +57,13 @@ jobs:
       - name: Rust lint
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --features test-helpers -- -D warnings
 
+      - name: Check no rsplit('/') on path variables (cross-platform regression guard)
+        run: |
+          if grep -r 'rsplit('\''/'\'')' src-tauri/src --include '*.rs' -l; then
+            echo "ERROR: rsplit('/') found — use std::path::Path::file_name() instead for cross-platform safety"
+            exit 1
+          fi
+
       - name: Run Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --features test-helpers
 

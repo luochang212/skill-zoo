@@ -944,7 +944,15 @@ impl SkillService {
             let (_, description) =
                 Self::parse_skill_md(&skill_md).unwrap_or((dir_name.to_string(), None));
             let rel = dir.strip_prefix(base_path).unwrap_or(dir);
-            let key = rel.to_string_lossy().to_string();
+            // Normalize OS-native separators to forward slashes so the key is
+            // identical on Windows/macOS/Linux. Without this, `to_string_lossy`
+            // on Windows produces backslashes (e.g. "skills\self-learning"),
+            // which then fail to match against forward-slash-locked paths in
+            // `CliService::lock_skill_path`.
+            let key = rel
+                .to_string_lossy()
+                .replace(std::path::MAIN_SEPARATOR, "/")
+                .replace('\\', "/");
             skills.push(DiscoverableSkill {
                 key,
                 name: dir_name.to_string(),
@@ -1093,9 +1101,11 @@ impl SkillService {
 
         let (parsed_name, description) =
             Self::parse_skill_md(&skill_md).unwrap_or((skill_dir.to_string(), None));
-        let name = skill_dir
-            .rsplit('/')
-            .next()
+        // Use Path::file_name for platform-agnostic leaf extraction
+        // (backslashes on Windows would defeat a simple rsplit('/')).
+        let name = std::path::Path::new(skill_dir)
+            .file_name()
+            .and_then(|n| n.to_str())
             .unwrap_or(skill_dir)
             .to_string();
         let yaml_name = if parsed_name == name {
@@ -1264,6 +1274,11 @@ impl SkillService {
                 AppError::Parse(format!("Invalid skill path: {}", skill_root.display()))
             })?
             .to_string();
+        // Normalize to forward slashes so the directory field is identical
+        // on Windows/macOS/Linux (skill roots come from the filesystem).
+        let relative_dir = relative_dir
+            .replace(std::path::MAIN_SEPARATOR, "/")
+            .replace('\\', "/");
 
         let lock_data: Option<SkillLock> = SkillLock::read().ok();
         let lock_entry = lock_data.as_ref().and_then(|lock| {

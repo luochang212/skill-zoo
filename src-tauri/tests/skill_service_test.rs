@@ -310,3 +310,21 @@ fn test_scan_skill_root_for_test_scans_agent_origin_without_ssot_fallback() {
     assert!(entry.apps.contains_key("codex"));
     assert!(entry.content_hash.is_some());
 }
+
+#[test]
+fn test_scan_skill_root_normalizes_nested_directory_to_forward_slashes() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let scan_root = dir.path().join("skills");
+    // Depth-2 directory so relative_dir needs a separator
+    let skill_dir = scan_root.join("category").join("nested-demo");
+    std::fs::create_dir_all(&skill_dir).expect("create skill dir");
+    std::fs::write(skill_dir.join("SKILL.md"), "# Nested").expect("write skill");
+
+    let entry =
+        SkillService::scan_skill_root_for_test(&skill_dir, &scan_root, None).expect("scan root");
+
+    // directory field must always use forward slashes on all platforms
+    assert_eq!(entry.directory, "category/nested-demo");
+    // id is built from directory — must also use forward slashes
+    assert_eq!(entry.id, "ssot:category/nested-demo");
+}
