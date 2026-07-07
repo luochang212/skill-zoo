@@ -372,10 +372,12 @@ fn external_import_info(import: &ExternalImportEntry) -> ExternalImportInfo {
 }
 
 /// Strip the Windows verbatim path prefix (`\\?\`) inserted by
-/// `Path::canonicalize()`. On non-Windows this is a no-op.
+/// `Path::canonicalize()`. Also handles the UNC variant `\\?\UNC\`
+/// by restoring it to `\\`. On non-Windows this is a no-op.
 fn strip_verbatim_prefix(path: String) -> String {
-    path.strip_prefix("\\\\?\\")
-        .map(str::to_string)
+    path.strip_prefix("\\\\?\\UNC\\")
+        .map(|rest| format!("\\\\{}", rest))
+        .or_else(|| path.strip_prefix("\\\\?\\").map(str::to_string))
         .unwrap_or(path)
 }
 
@@ -596,7 +598,7 @@ pub async fn import_external_skills(
                     ));
                 }
                 updated_imports.push(original_import);
-                import.source_path = source_path.display().to_string();
+                import.source_path = strip_verbatim_prefix(source_path.display().to_string());
                 import.directory = selection.directory.clone();
                 import.updated_at = now;
             }
@@ -605,7 +607,7 @@ pub async fn import_external_skills(
                     import_id.clone(),
                     ExternalImportEntry {
                         id: import_id.clone(),
-                        source_path: source_path.display().to_string(),
+                        source_path: strip_verbatim_prefix(source_path.display().to_string()),
                         directory: selection.directory.clone(),
                         imported_at: now,
                         updated_at: now,
@@ -3664,5 +3666,36 @@ mod tests {
             updated_at: None,
             commit_sha: Some(commit_sha.to_string()),
         }
+    }
+
+    #[test]
+    fn strip_verbatim_prefix_no_prefix_passthrough() {
+        // Paths without the verbatim prefix are returned unchanged.
+        assert_eq!(
+            strip_verbatim_prefix("/home/user/skills".into()),
+            "/home/user/skills"
+        );
+        assert_eq!(
+            strip_verbatim_prefix("C:\\Users\\demo".into()),
+            "C:\\Users\\demo"
+        );
+    }
+
+    #[test]
+    fn strip_verbatim_prefix_local_verbatim() {
+        // Local verbatim: \\?\C:\... → C:\...
+        assert_eq!(
+            strip_verbatim_prefix("\\\\?\\C:\\Users\\demo\\.claude\\skills".into()),
+            "C:\\Users\\demo\\.claude\\skills"
+        );
+    }
+
+    #[test]
+    fn strip_verbatim_prefix_unc_verbatim() {
+        // UNC verbatim: \\?\UNC\server\share\... → \\server\share\...
+        assert_eq!(
+            strip_verbatim_prefix("\\\\?\\UNC\\server\\share\\skills\\demo".into()),
+            "\\\\server\\share\\skills\\demo"
+        );
     }
 }

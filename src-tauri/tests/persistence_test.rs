@@ -204,3 +204,28 @@ fn test_skill_cache_upsert_normalizes_home_path_to_forward_slashes() {
         "home_path must be normalized to forward slashes"
     );
 }
+
+#[test]
+fn test_skill_cache_from_entries_normalizes_home_path() {
+    // When cache is loaded from disk, old entries may contain backslash
+    // home_path values from pre-normalization versions. from_entries must
+    // normalize them so upsert's stale-dedup string comparison works.
+    let entry = SkillCacheEntry {
+        id: "ssot:demo".to_string(),
+        name: "demo".to_string(),
+        directory: "demo".to_string(),
+        home_path: Some("C:\\Users\\demo\\.claude\\skills\\demo".to_string()),
+        installed_at: 1000,
+        updated_at: 2000,
+        ..make_cache_entry("ssot:demo", "demo", "demo")
+    };
+    let cache = SkillCache::from_entries(vec![entry]);
+
+    assert_eq!(cache.skills().len(), 1);
+    let stored = cache.find_by_id("ssot:demo").expect("entry");
+    assert_eq!(
+        stored.home_path.as_deref(),
+        Some("C:/Users/demo/.claude/skills/demo"),
+        "from_entries must normalize home_path to forward slashes"
+    );
+}

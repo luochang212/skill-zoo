@@ -450,12 +450,14 @@ export const InstalledSkills = memo(function InstalledSkills({
   const filteredIssuesMap = useMemo(() => {
     const result = new Map<string, SkillIssues>();
     for (const [skillId, issues] of issuesMap) {
-      const activeFlags: Record<string, boolean> = {};
+      const activeFlags: SkillIssues = {};
       if (showConflict && issues.hasConflict) activeFlags.hasConflict = true;
       if (showMismatch && issues.isMismatch) activeFlags.isMismatch = true;
       if (showDuplicate && issues.isDuplicate) activeFlags.isDuplicate = true;
       if (Object.keys(activeFlags).length > 0) {
-        result.set(skillId, activeFlags as typeof issues);
+        activeFlags.duplicateGroupName = issues.duplicateGroupName;
+        activeFlags.mismatchSkillId = issues.mismatchSkillId;
+        result.set(skillId, activeFlags);
       }
     }
     return result;

@@ -71,7 +71,18 @@ impl SkillCache {
 
     pub fn from_entries(skills: Vec<SkillCacheEntry>) -> Self {
         let mut cache = Self {
-            skills,
+            skills: skills
+                .into_iter()
+                .map(|mut e| {
+                    if let Some(ref home) = e.home_path {
+                        let normalized = normalize_path_separators(home);
+                        if normalized != *home {
+                            e.home_path = Some(normalized);
+                        }
+                    }
+                    e
+                })
+                .collect(),
             by_id: HashMap::new(),
         };
         cache.rebuild_index();
