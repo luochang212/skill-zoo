@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
-pub const MAX_DOWNLOAD_BYTES: u64 = 500 * 1024 * 1024;
+pub const MAX_DOWNLOAD_BYTES: u64 = 5 * 1024 * 1024 * 1024;
 
 /// Directories to skip when scanning for skills.
 /// Matches the upstream `npx skills` CLI: <https://github.com/vercel-labs/skills>
