@@ -67,7 +67,7 @@ const usage: SkillUsage = {
 
 function mockItems(
   items: SkillCompanionItem[],
-  options: { rejectSave?: boolean; rejectScreenshot?: boolean } = {},
+  options: { rejectSave?: boolean; rejectScreenshot?: boolean; skillUsageAgent?: string } = {},
 ) {
   vi.mocked(invoke).mockImplementation((command, args) => {
     switch (command) {
@@ -81,6 +81,12 @@ function mockItems(
       case "save_skill_usage_screenshot":
         if (options.rejectScreenshot) return Promise.reject(new Error("save screenshot failed"));
         return Promise.resolve("/Users/demo/Desktop/Skill Zoo Skill Preferences.png");
+      case "get_settings":
+        return Promise.resolve(
+          options.skillUsageAgent ? { skill_usage_agent: options.skillUsageAgent } : {},
+        );
+      case "update_setting":
+        return Promise.resolve();
       default:
         return Promise.reject(new Error(`Unexpected command: ${command}`));
     }
@@ -292,5 +298,46 @@ describe("SkillCompanionSettings", () => {
     await user.click(await screen.findByRole("button", { name: "Save screenshot to Desktop" }));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Could not save screenshot"));
+  });
+
+  it("persists the selected agent when switching from Claude Code to Codex", async () => {
+    const user = userEvent.setup();
+    mockItems([]);
+
+    renderSettings();
+
+    await user.click(await screen.findByRole("button", { name: "View" }));
+
+    // Default agent is Claude Code — the usage description mentions it
+    expect(
+      await screen.findByText("Statistics on skill usage from Claude Code"),
+    ).toBeInTheDocument();
+
+    // Open the agent dropdown and select Codex
+    await user.click(screen.getByRole("button", { name: "Select agent" }));
+    await user.click(screen.getByRole("menuitem", { name: /Codex/ }));
+
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("update_setting", {
+        key: "skill_usage_agent",
+        value: "codex",
+      }),
+    );
+  });
+
+  it("restores the previously selected agent from persisted settings", async () => {
+    const user = userEvent.setup();
+    mockItems([], { skillUsageAgent: "codex" });
+
+    renderSettings();
+
+    await user.click(await screen.findByRole("button", { name: "View" }));
+
+    // The persisted agent is Codex — the usage description should mention it
+    expect(await screen.findByText("Statistics on skill usage from Codex")).toBeInTheDocument();
+    // Codex's usage data should be requested
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("get_skill_usage", { agentId: "codex" }),
+    );
   });
 });

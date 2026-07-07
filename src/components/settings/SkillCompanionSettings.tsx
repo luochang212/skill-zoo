@@ -13,7 +13,7 @@ import {
   Settings,
   Trash2,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,8 @@ import {
   useSaveSkillCompanionItems,
   useSkillCompanionItems,
   useSkillUsage,
+  useSkillUsageAgent,
+  useUpdateSkillUsageAgent,
 } from "@/hooks/useSettings";
 import { settingsApi } from "@/lib/api/settings";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -269,12 +271,49 @@ function SkillUsageDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useTranslation();
-  const [agent, setAgent] = useState<UsageAgent>("claude-code");
+  const { data: persistedAgent } = useSkillUsageAgent();
+  const updateAgent = useUpdateSkillUsageAgent();
+  const agent: UsageAgent = persistedAgent === "codex" ? "codex" : "claude-code";
   const agentDisplayName = AGENT_DISPLAY_NAME[agent];
   const { data: usage, isLoading } = useSkillUsage(agent, { enabled: open });
   const captureRef = useRef<HTMLDivElement>(null);
   const [range, setRange] = useState<UsageRange>("week");
   const [isCapturing, setIsCapturing] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownOpenRef = useRef(false);
+  // Tracks whether the dropdown was open at the moment of the last pointerdown.
+  // The Dialog defers its outside-click detection to the `click` event
+  // (deferPointerDownOutside), but the DropdownMenu closes immediately on
+  // `pointerdown`. By the time the Dialog checks, the dropdown is already
+  // closed, so we capture the state here to bridge that timing gap.
+  const dropdownOpenAtPointerDownRef = useRef(false);
+
+  const handleDropdownOpenChange = useCallback((nextOpen: boolean) => {
+    dropdownOpenRef.current = nextOpen;
+    setDropdownOpen(nextOpen);
+  }, []);
+
+  // Capture-phase listener fires before any DismissableLayer bubble-phase
+  // handlers, so we record the dropdown state before it gets cleared.
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = () => {
+      dropdownOpenAtPointerDownRef.current = dropdownOpenRef.current;
+    };
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    return () => document.removeEventListener("pointerdown", handlePointerDown, true);
+  }, [open]);
+
+  const handleDialogOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen && dropdownOpenAtPointerDownRef.current) {
+        dropdownOpenAtPointerDownRef.current = false;
+        return;
+      }
+      onOpenChange(nextOpen);
+    },
+    [onOpenChange],
+  );
   const period = usage?.[range];
   const rangeLabel = t(`settings.skillCompanion.usageRanges.${range}`);
   const activeSkillCount = period?.skills.length ?? 0;
@@ -312,11 +351,20 @@ function SkillUsageDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent
         ref={captureRef}
         className="flex h-[min(640px,calc(100vh-6rem))] w-[calc(100vw-2rem)] max-w-[560px] flex-col gap-0 overflow-hidden p-0 sm:rounded-xl"
         data-selectable
+        onPointerDownOutside={(event) => {
+          if (dropdownOpenAtPointerDownRef.current) {
+            event.preventDefault();
+            dropdownOpenAtPointerDownRef.current = false;
+          }
+        }}
+        onEscapeKeyDown={(event) => {
+          if (dropdownOpen) event.preventDefault();
+        }}
       >
         <DialogHeader className="shrink-0 border-b border-border/50 px-4 py-4 text-left">
           <DialogTitle>{t("settings.skillCompanion.usageTitle")}</DialogTitle>
@@ -342,7 +390,7 @@ function SkillUsageDialog({
               </button>
             ))}
           </div>
-          <DropdownMenu>
+          <DropdownMenu open={dropdownOpen} onOpenChange={handleDropdownOpenChange}>
             <DropdownMenuTrigger asChild>
               <Button
                 type="button"
@@ -358,7 +406,7 @@ function SkillUsageDialog({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {USAGE_AGENTS.map((id) => (
-                <DropdownMenuItem key={id} onSelect={() => setAgent(id)}>
+                <DropdownMenuItem key={id} onSelect={() => updateAgent.mutate(id)}>
                   <Check
                     className={cn("h-3.5 w-3.5", agent === id ? "opacity-100" : "opacity-0")}
                   />

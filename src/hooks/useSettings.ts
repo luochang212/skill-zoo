@@ -9,6 +9,8 @@ import type { AgentPreferences, SkillCompanionItem, VisibleAgents } from "@/type
 const VISIBLE_AGENTS_KEY = ["settings", "visibleAgents"] as const;
 const HIDE_NON_SSOT_KEY = ["settings", "hideNonSsot"] as const;
 const AGENT_ORDER_KEY = ["settings", "agentOrder"] as const;
+const SKILL_USAGE_AGENT_KEY = ["settings", "skillUsageAgent"] as const;
+const SKILL_USAGE_AGENT_SETTING = "skill_usage_agent";
 export const SKILL_COMPANION_ITEMS_KEY = ["settings", "skillCompanionItems"] as const;
 export const skillUsageKey = (agent: string) => ["settings", "skillUsage", agent] as const;
 const AGENT_ORDER_SETTING = "agent_order";
@@ -40,6 +42,31 @@ export function useUpdateHideNonSsot() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: HIDE_NON_SSOT_KEY });
       qc.invalidateQueries({ queryKey: ["skills", "installed"] });
+    },
+  });
+}
+
+const VALID_SKILL_USAGE_AGENTS = new Set(["claude-code", "codex"]);
+
+export function useSkillUsageAgent() {
+  return useQuery({
+    queryKey: SKILL_USAGE_AGENT_KEY,
+    queryFn: async () => {
+      const settings = await settingsApi.getSettings();
+      const raw = settings[SKILL_USAGE_AGENT_SETTING];
+      return VALID_SKILL_USAGE_AGENTS.has(raw) ? raw : "claude-code";
+    },
+    staleTime: 0,
+  });
+}
+
+export function useUpdateSkillUsageAgent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (agent: string) => settingsApi.updateSetting(SKILL_USAGE_AGENT_SETTING, agent),
+    onSuccess: (_data, agent) => {
+      qc.setQueryData(SKILL_USAGE_AGENT_KEY, agent);
+      qc.invalidateQueries({ queryKey: SKILL_USAGE_AGENT_KEY });
     },
   });
 }
