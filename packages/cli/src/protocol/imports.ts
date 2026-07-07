@@ -6,6 +6,7 @@ import {
   createAgentLink,
   isSymlinkOrJunction,
   lstatSafe,
+  normalizePath,
   pathExists,
   pathsEqual,
   pathStartsWith,
@@ -358,7 +359,7 @@ export async function importExternalSkills(
 
         const entry: ExternalImportEntry = {
           id: importId,
-          sourcePath: absSource,
+          sourcePath: normalizePath(absSource),
           directory,
           importedAt: now,
           updatedAt: now,

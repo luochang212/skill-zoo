@@ -28,6 +28,7 @@ import {
   ensureDir,
   isSymlinkOrJunction,
   movePath,
+  normalizePath,
   pathExists,
   pathsEqual,
   removeAgentLink,
@@ -316,7 +317,7 @@ async function restoreOne(home: string | undefined, archiveId: string): Promise<
     await movePath(archiveDir, restorePath);
 
     if (archived.lockEntry) {
-      lock.skills[archived.lockKey ?? archived.directory] = archived.lockEntry;
+      lock.skills[normalizePath(archived.lockKey ?? archived.directory)] = archived.lockEntry;
       await writeLock(home, lock);
     }
 

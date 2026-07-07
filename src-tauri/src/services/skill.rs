@@ -958,9 +958,7 @@ impl SkillService {
             // on Windows produces backslashes (e.g. "skills\self-learning"),
             // which then fail to match against forward-slash-locked paths in
             // `CliService::lock_skill_path`.
-            let key = rel
-                .to_string_lossy()
-                .replace('\\', "/");
+            let key = rel.to_string_lossy().replace('\\', "/");
             skills.push(DiscoverableSkill {
                 key,
                 name: dir_name.to_string(),

@@ -11,6 +11,7 @@ import {
   scanExternalImportFolder,
 } from "../src/protocol/imports.js";
 import { readExternalImports } from "../src/protocol/store.js";
+import { normalizePath } from "../src/lib/io.js";
 import { createDirLink, makeTempHome, writeJson, writeSkill } from "./helpers.js";
 
 class CaptureStream extends Writable {
@@ -298,7 +299,7 @@ describe("importExternalSkills", () => {
     const imports = await readExternalImports(home);
     expect(Object.keys(imports.imports)).toHaveLength(1);
     const entry = Object.values(imports.imports)[0];
-    expect(entry.sourcePath).toBe(sourcePath);
+    expect(entry.sourcePath).toBe(normalizePath(sourcePath));
     expect(entry.directory).toBe("utils");
     expect(entry.id).toMatch(/^external:utils-[a-f0-9]{8}$/);
 

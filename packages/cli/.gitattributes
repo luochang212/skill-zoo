@@ -1,0 +1,7 @@
+# Enforce LF for all text files (overrides core.autocrlf on any platform)
+*         text=auto eol=lf
+
+# Package-lock / binary files
+*.lock    -text
+*.png     -text
+*.ico     -text

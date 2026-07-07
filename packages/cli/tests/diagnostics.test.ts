@@ -6,7 +6,7 @@ import { fixDoctor, runDoctor } from "../src/protocol/diagnostics.js";
 import { getPaths } from "../src/protocol/paths.js";
 import { rebuildCache } from "../src/protocol/scan.js";
 import { readArchiveManifest, readCache } from "../src/protocol/store.js";
-import { isSymlinkOrJunction, pathsEqual } from "../src/lib/io.js";
+import { isSymlinkOrJunction, normalizePath, pathsEqual } from "../src/lib/io.js";
 import { createDirLink, makeTempHome, writeSkill } from "./helpers.js";
 
 describe("runDoctor", () => {
@@ -101,7 +101,7 @@ describe("runDoctor", () => {
         status: "error",
         message: "Agent link points at the wrong target: ssot:demo -> codex",
         path: codexLink,
-        expected: skillDir,
+        expected: normalizePath(skillDir),
       }),
     );
   });
@@ -192,7 +192,7 @@ describe("fixDoctor", () => {
         kind: "replace-link",
         status: "applied",
         path: codexLink,
-        target: skillDir,
+        target: normalizePath(skillDir),
       }),
     );
     expect(await isSymlinkOrJunction(codexLink)).toBe(true);

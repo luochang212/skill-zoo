@@ -1253,12 +1253,18 @@ mod tests {
         // path passed through `normalize_skill_path` must end up with forward
         // slashes so it is comparable to `lock_skill_path` output (which always
         // uses '/'). This is the heart of the Windows install regression fix.
-        assert_eq!(CliService::normalize_skill_path("skills\\self-learning"), "skills/self-learning");
+        assert_eq!(
+            CliService::normalize_skill_path("skills\\self-learning"),
+            "skills/self-learning"
+        );
         assert_eq!(
             CliService::normalize_skill_path("skills\\self-learning\\SKILL.md"),
             "skills/self-learning"
         );
-        assert_eq!(CliService::normalize_skill_path("skills/self-learning"), "skills/self-learning");
+        assert_eq!(
+            CliService::normalize_skill_path("skills/self-learning"),
+            "skills/self-learning"
+        );
         // Mixed separators should also collapse cleanly.
         assert_eq!(
             CliService::normalize_skill_path("skills\\sub\\dir/self-learning\\SKILL.md"),
@@ -1282,17 +1288,17 @@ mod tests {
         let nested = repo.path().join("skills").join("self-learning");
         std::fs::create_dir_all(&nested).unwrap();
 
-        let discovered = vec![(
-            "self-learning".to_string(),
-            String::new(),
-            nested.clone(),
-        )];
+        let discovered = vec![("self-learning".to_string(), String::new(), nested.clone())];
         let requested = vec!["skills\\self-learning".to_string()];
 
         let selected =
             CliService::select_discovered_skills(repo.path(), &discovered, &requested, false);
 
-        assert_eq!(selected.len(), 1, "backslash selector must match nested skill");
+        assert_eq!(
+            selected.len(),
+            1,
+            "backslash selector must match nested skill"
+        );
         assert_eq!(&selected[0].2, &nested);
 
         // Sanity: forward-slash selector still matches (the non-Windows path).

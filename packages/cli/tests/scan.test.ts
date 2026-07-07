@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { getPaths } from "../src/protocol/paths.js";
 import { rebuildCache, scanInstalledSkills } from "../src/protocol/scan.js";
 import { readCache } from "../src/protocol/store.js";
+import { normalizePath } from "../src/lib/io.js";
 import { createDirLink, makeTempHome, writeJson, writeSkill } from "./helpers.js";
 
 describe("scanInstalledSkills", () => {
@@ -41,7 +42,7 @@ describe("scanInstalledSkills", () => {
       repoName: "repo",
       sourceUrl: "https://github.com/owner/repo",
       origin: "ssot",
-      homePath: skillDir,
+      homePath: normalizePath(skillDir),
       installedAt: 1767323045,
       updatedAt: 1767409445,
     });
@@ -77,7 +78,7 @@ describe("scanInstalledSkills", () => {
     expect(skills).toHaveLength(1);
     expect(skills[0]).toMatchObject({
       name: "openai-docs",
-      directory: path.join(".system", "openai-docs"),
+      directory: normalizePath(path.join(".system", "openai-docs")),
       origin: "ssot",
     });
     expect(skills[0].apps.opencode).toBe(true);
@@ -117,7 +118,7 @@ describe("scanInstalledSkills", () => {
       yamlName: "External Demo",
       directory: "skills/demo",
       origin: "external",
-      homePath: sourceDir,
+      homePath: normalizePath(sourceDir),
       homeAgent: null,
       installedAt: 100,
       updatedAt: 200,

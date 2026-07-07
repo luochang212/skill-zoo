@@ -100,10 +100,8 @@ fn test_archive_id_handles_windows_backslash_directory() {
     // On Windows, `directory` fields could contain backslashes before the
     // normalization fix. `make_archive_id` must extract the leaf name via
     // Path::file_name() regardless of separator style.
-    let id = ArchiveManifest::make_archive_id(
-        "repo:owner/repo:nested-skill",
-        "skills\\nested-skill",
-    );
+    let id =
+        ArchiveManifest::make_archive_id("repo:owner/repo:nested-skill", "skills\\nested-skill");
     // Should extract "nested-skill" from the backslash path
     assert!(
         id.starts_with("nested-skill-"),

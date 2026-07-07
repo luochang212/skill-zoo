@@ -17,6 +17,7 @@ import type {
 import {
   isSymlinkOrJunction,
   lstatSafe,
+  normalizePath,
   pathExists,
   pathStartsWith,
   pathsEqual,
@@ -121,7 +122,7 @@ async function scanExternalImports(
       repoName: null,
       sourceUrl: null,
       origin: "external",
-      homePath: entry.sourcePath,
+      homePath: normalizePath(entry.sourcePath),
       contentHash: await computeContentHash(entry.sourcePath),
       homeAgent: null,
       apps: await detectAgents(home, entry.directory, entry.sourcePath),
@@ -163,7 +164,7 @@ async function scanDirRecursive(
 
     const skillMd = path.join(entryPath, "SKILL.md");
     if (await pathExists(skillMd)) {
-      const relativeDir = path.relative(scanRoot, entryPath) || entryName;
+      const relativeDir = normalizePath(path.relative(scanRoot, entryPath) || entryName);
       const lockEntry = lock?.skills[relativeDir] ?? lock?.skills[entryName];
       const { repoOwner, repoName, sourceUrl } = repoInfoFromLock(lockEntry);
       const parsed = await parseSkillMd(skillMd, entryName);
@@ -178,7 +179,7 @@ async function scanDirRecursive(
       }
       seenIds.add(id);
 
-      const homePath = isSsot ? path.join(getPaths(home).agentsSkillsDir, relativeDir) : entryPath;
+      const homePath = normalizePath(isSsot ? path.join(getPaths(home).agentsSkillsDir, relativeDir) : entryPath);
       const now = Math.floor(Date.now() / 1000);
       const [installedAt, updatedAt] = await resolveTimestamps(lockEntry, homePath, now);
       const apps = await detectAgents(home, relativeDir, homePath);
@@ -276,7 +277,7 @@ async function collectFiles(dir: string, root: string, files: string[]): Promise
     if (stat.isSymbolicLink()) {
       const targetStat = await fs.stat(entryPath).catch(() => undefined);
       if (targetStat?.isFile()) {
-        files.push(path.relative(root, entryPath));
+        files.push(normalizePath(path.relative(root, entryPath)));
       }
       continue;
     }
@@ -287,7 +288,7 @@ async function collectFiles(dir: string, root: string, files: string[]): Promise
       }
       await collectFiles(entryPath, root, files);
     } else if (stat.isFile()) {
-      files.push(path.relative(root, entryPath));
+      files.push(normalizePath(path.relative(root, entryPath)));
     }
   }
 }

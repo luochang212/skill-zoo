@@ -5,7 +5,7 @@ import { archiveSkillRefs, makeArchiveId, restoreArchiveIds } from "../src/proto
 import { getPaths } from "../src/protocol/paths.js";
 import { rebuildCache } from "../src/protocol/scan.js";
 import { readArchiveManifest, readCache, readLock, readMetadata } from "../src/protocol/store.js";
-import { isSymlinkOrJunction, pathExists } from "../src/lib/io.js";
+import { isSymlinkOrJunction, normalizePath, pathExists } from "../src/lib/io.js";
 import { CLI_VERSION } from "../src/version.js";
 import { createDirLink, makeTempHome, writeJson, writeSkill } from "./helpers.js";
 
@@ -93,12 +93,12 @@ describe("archive and restore", () => {
     expect(restoreResult.changes).toContainEqual({
       action: "create-link",
       path: claudeLink,
-      target: skillDir,
+      target: normalizePath(skillDir),
     });
     expect(restoreResult.changes).not.toContainEqual({
       action: "create-link",
       path: skillDir,
-      target: skillDir,
+      target: normalizePath(skillDir),
     });
   });
 
@@ -154,7 +154,7 @@ describe("archive and restore", () => {
     expect(restoreResult.changes).toContainEqual({
       action: "create-link",
       path: linkPath,
-      target: skillDir,
+      target: normalizePath(skillDir),
     });
   });
 });

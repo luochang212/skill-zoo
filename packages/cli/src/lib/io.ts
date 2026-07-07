@@ -120,6 +120,12 @@ export async function createAgentLink(linkPath: string, targetPath: string): Pro
   await fs.symlink(targetPath, linkPath, process.platform === "win32" ? "junction" : "dir");
 }
 
+/** Normalize path separators to forward slashes for cross-platform consistency
+ *  with the Rust/Tauri desktop app (`normalize_path_separators`). */
+export function normalizePath(filePath: string): string {
+  return filePath.replace(/\\/g, "/");
+}
+
 export async function removeAgentLink(linkPath: string): Promise<boolean> {
   if (!(await isSymlinkOrJunction(linkPath))) {
     return false;
