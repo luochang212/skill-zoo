@@ -1108,7 +1108,7 @@ impl SkillService {
         let (parsed_name, description) =
             Self::parse_skill_md(&skill_md).unwrap_or((skill_dir.to_string(), None));
         // Use Path::file_name for platform-agnostic leaf extraction
-        // (backslashes on Windows would defeat a simple rsplit('/')).
+        // (backslashes on Windows would defeat a simple rsplit on '/').
         let name = std::path::Path::new(skill_dir)
             .file_name()
             .and_then(|n| n.to_str())

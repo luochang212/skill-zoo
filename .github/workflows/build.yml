@@ -59,7 +59,7 @@ jobs:
 
       - name: Check no rsplit('/') on path variables (cross-platform regression guard)
         run: |
-          if grep -r 'rsplit('\''/'\'')' src-tauri/src --include '*.rs' -l; then
+          if grep -r 'rsplit('\''/'\'')' src-tauri/src --include '*.rs' -l | xargs grep -n 'rsplit('\''/'\'')' | grep -v '^\s*//' | grep .; then
             echo "ERROR: rsplit('/') found — use std::path::Path::file_name() instead for cross-platform safety"
             exit 1
           fi
