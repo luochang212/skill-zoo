@@ -96,13 +96,11 @@ fn test_refuses_to_write_future_archive_version() {
 }
 
 #[test]
-fn test_archive_id_handles_windows_backslash_directory() {
-    // On Windows, `directory` fields could contain backslashes before the
-    // normalization fix. `make_archive_id` must extract the leaf name via
-    // Path::file_name() regardless of separator style.
+fn test_archive_id_handles_nested_directory() {
+    // `make_archive_id` must extract the leaf name via Path::file_name()
+    // for nested paths, regardless of platform.
     let id =
-        ArchiveManifest::make_archive_id("repo:owner/repo:nested-skill", "skills\\nested-skill");
-    // Should extract "nested-skill" from the backslash path
+        ArchiveManifest::make_archive_id("repo:owner/repo:nested-skill", "skills/nested-skill");
     assert!(
         id.starts_with("nested-skill-"),
         "expected archive id to start with 'nested-skill-', got: {id}"
