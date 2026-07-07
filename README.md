@@ -25,7 +25,6 @@ Local Agent Skills Manager: Discover, install, and manage skills for AI coding t
 | State | TanStack React Query |
 | Animation | Framer Motion |
 | i18n | i18next |
-| Editor | CodeMirror 6 |
 | Lint | oxlint + clippy |
 | Format | oxfmt + cargo fmt |
 | Testing | Vitest + Rust tests |

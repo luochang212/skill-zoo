@@ -25,7 +25,6 @@
 | 状态 | TanStack React Query |
 | 动画 | Framer Motion |
 | 国际化 | i18next |
-| 编辑器 | CodeMirror 6 |
 | 代码检查 | oxlint + clippy |
 | 格式化 | oxfmt + cargo fmt |
 | 测试 | Vitest + Rust tests |
