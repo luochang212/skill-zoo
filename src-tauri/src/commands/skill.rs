@@ -360,7 +360,7 @@ fn external_import_info(import: &ExternalImportEntry) -> ExternalImportInfo {
         SkillService::parse_skill_md(&skill_md).unwrap_or((dir_name.clone(), None));
     ExternalImportInfo {
         id: import.id.clone(),
-        source_path: import.source_path.clone(),
+        source_path: strip_verbatim_prefix(import.source_path.clone()),
         directory: import.directory.clone(),
         name: parsed_name,
         description,
@@ -369,6 +369,14 @@ fn external_import_info(import: &ExternalImportEntry) -> ExternalImportInfo {
         imported_at: import.imported_at,
         updated_at: import.updated_at,
     }
+}
+
+/// Strip the Windows verbatim path prefix (`\\?\`) inserted by
+/// `Path::canonicalize()`. On non-Windows this is a no-op.
+fn strip_verbatim_prefix(path: String) -> String {
+    path.strip_prefix("\\\\?\\")
+        .map(str::to_string)
+        .unwrap_or(path)
 }
 
 fn collect_external_import_candidates(
@@ -410,7 +418,7 @@ fn collect_external_import_candidates(
                 .unwrap_or((file_name.into(), None));
             let source_path = path.canonicalize().unwrap_or(path);
             candidates.push(ExternalImportCandidate {
-                source_path: source_path.display().to_string(),
+                source_path: strip_verbatim_prefix(source_path.display().to_string()),
                 directory,
                 name,
                 description,
@@ -513,7 +521,7 @@ pub fn scan_external_import_folder(path: String) -> Result<Vec<ExternalImportCan
         let (name, description) = SkillService::parse_skill_md(&root.join("SKILL.md"))
             .unwrap_or((file_name.into(), None));
         candidates.push(ExternalImportCandidate {
-            source_path: root.display().to_string(),
+            source_path: strip_verbatim_prefix(root.display().to_string()),
             directory: file_name.to_string(),
             name,
             description,
