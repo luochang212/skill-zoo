@@ -1,3 +1,9 @@
+// Portable builds must use the custom protocol to serve embedded frontend assets.
+// When `custom-protocol` is missing, Tauri sets `cfg(dev)` which causes the app to
+// connect to the dev server (localhost:3000) instead — breaking portable builds.
+#[cfg(all(feature = "portable", dev))]
+compile_error!("portable builds require tauri/custom-protocol; check Cargo.toml [features]");
+
 #[cfg(feature = "test-helpers")]
 pub mod commands;
 #[cfg(feature = "test-helpers")]

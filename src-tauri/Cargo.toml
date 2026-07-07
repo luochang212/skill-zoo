@@ -1,6 +1,6 @@
 [package]
 name = "skill-zoo"
-version = "0.3.18"
+version = "0.3.19"
 description = "Local GUI tool for managing Agent Skills"
 authors = ["luochang212"]
 license = "MIT"
@@ -14,7 +14,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [features]
 default = []
 test-helpers = []
-portable = []
+portable = ["tauri/custom-protocol"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

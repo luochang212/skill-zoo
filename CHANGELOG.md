@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.3.19] — 2026-07-08
+
+### Added
+- Click inconsistency badges on skill cards to jump directly to the ConsistencyPanel tab with auto-scroll to the target skill.
+- Persist the last selected agent in the skill usage dialog across sessions.
+- Codex skill usage statistics in the usage habits dialog.
+
+### Changed
+- LF line endings enforced across all platforms via `.editorconfig`, `rustfmt.toml`, and `.gitattributes`.
+- Upgraded rand crate from 0.8 to 0.10, regex from 1.10 to 1.12, and JavaScript dependencies to latest stable with tray settings menu.
+- Project guide consolidated into AGENTS.md as the single entry point.
+- Top navigation bar width tightened for better balance across screen sizes.
+- Landing page improved with better i18n accessibility and wide-screen layout.
+- Added Chinese mirror registry setup documentation.
+- Removed CodeMirror 6 from README tech stack.
+
+### Fixed
+- Path separators normalized to forward slashes across all platforms for cross-platform consistency (CLI, homePath, display paths, archive tests).
+- Windows verbatim path prefix (`\\?\`) stripped from external import display paths.
+- HomePath dedup added to cache upsert; silent symlink failures now logged.
+- Race condition when loading file tree directory children resolved.
+- Skeleton grid increased from 8 to 12 cards for better first-screen coverage on large displays.
+- Three bugs from code review: filteredIssuesMap navigation fields, upsert stale-dedup, and verbatim UNC prefix handling.
+- CI guard no longer triggered by `rsplit('/')` in comments.
+- Replaced `sort_by` with `sort_by_key` to satisfy clippy lint.
+- Portable build missing `custom-protocol` feature, causing `ERR_CONNECTION_REFUSED` on startup.
+
 ## [0.3.18] — 2026-07-06
 
 ### Fixed
