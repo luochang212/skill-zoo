@@ -179,6 +179,11 @@ export const SkillContentPane = memo(function SkillContentPane({
   const [nodes, setNodes] = useState<SkillFileNode[]>([]);
   const [loadingDirPaths, setLoadingDirPaths] = useState<Set<string>>(() => new Set());
   const [errorDirPaths, setErrorDirPaths] = useState<Set<string>>(() => new Set());
+  // Ref mirror of loadingDirPaths for synchronous dedup checks — avoids
+  // relying on React's eager state computation, which may be skipped when
+  // pending updates are queued (causing the second directory load to be
+  // silently dropped).
+  const loadingDirPathsRef = useRef<Set<string>>(new Set());
 
   // ── File tree root query (default-open sidebar, lazy contents) ──
   const {
@@ -197,6 +202,7 @@ export const SkillContentPane = memo(function SkillContentPane({
   useEffect(() => {
     setNodes([]);
     setSelectedFilePath(null);
+    loadingDirPathsRef.current = new Set();
     setLoadingDirPaths(new Set());
     setErrorDirPaths(new Set());
     setSidebarOpen(!readOnly && !hideFileTree);
@@ -276,16 +282,10 @@ export const SkillContentPane = memo(function SkillContentPane({
   const handleLoadChildren = useCallback(
     async (node: SkillFileNode) => {
       if (!directory || readOnly || !node.isDir || node.children) return;
+      if (loadingDirPathsRef.current.has(node.path)) return;
 
-      let shouldLoad = false;
-      setLoadingDirPaths((current) => {
-        if (current.has(node.path)) return current;
-        shouldLoad = true;
-        const next = new Set(current);
-        next.add(node.path);
-        return next;
-      });
-      if (!shouldLoad) return;
+      loadingDirPathsRef.current = new Set(loadingDirPathsRef.current).add(node.path);
+      setLoadingDirPaths(loadingDirPathsRef.current);
 
       setErrorDirPaths((current) => {
         const next = new Set(current);
@@ -308,11 +308,10 @@ export const SkillContentPane = memo(function SkillContentPane({
       } catch {
         setErrorDirPaths((current) => new Set(current).add(node.path));
       } finally {
-        setLoadingDirPaths((current) => {
-          const next = new Set(current);
-          next.delete(node.path);
-          return next;
-        });
+        const next = new Set(loadingDirPathsRef.current);
+        next.delete(node.path);
+        loadingDirPathsRef.current = next;
+        setLoadingDirPaths(next);
       }
     },
     [directory, skillId, queryClient, readOnly],

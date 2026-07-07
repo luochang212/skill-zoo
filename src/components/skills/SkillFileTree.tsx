@@ -120,19 +120,17 @@ function FileTreeNode({
 
   const handleClick = useCallback(() => {
     if (node.isDir) {
-      setExpanded((v) => {
-        const next = !v;
-        if (next && !node.children && !isLoading) {
-          onLoadChildren?.(node);
-        }
-        return next;
-      });
+      const next = !expanded;
+      if (next && !node.children && !isLoading) {
+        onLoadChildren?.(node);
+      }
+      setExpanded(next);
     } else if (onSelectFile) {
       onSelectFile(node);
     } else {
       skillsApi.openSkillPath(node.path).catch(() => {});
     }
-  }, [isLoading, node, onLoadChildren, onSelectFile]);
+  }, [expanded, isLoading, node, onLoadChildren, onSelectFile]);
 
   const isSelected = !node.isDir && node.path === selectedPath;
   const Icon = node.isDir ? Folder : getFileIcon(node.name, node.isSkillMd);
