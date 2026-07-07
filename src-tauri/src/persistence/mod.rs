@@ -27,6 +27,14 @@ pub(crate) fn atomic_write(path: &Path, data: impl AsRef<[u8]>) -> std::io::Resu
     std::fs::rename(&tmp_path, path)
 }
 
+/// Normalize a path string to forward slashes for cross-platform consistency.
+/// The backslash separator (native on Windows) is converted to '/'; on Unix
+/// this is a no-op. This ensures String-based comparisons behave identically
+/// on all platforms.
+pub fn normalize_path_separators(path: &str) -> String {
+    path.replace('\\', "/")
+}
+
 /// A single entry in the skills cache — filesystem scan result without user metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -102,6 +110,16 @@ impl SkillCache {
     }
 
     pub fn upsert(&mut self, entry: SkillCacheEntry) {
+        // Normalize home_path to forward slashes so String-based dedup is
+        // reliable across platforms. Old entries with native separators are
+        // cleaned up on the next full rebuild (app restart).
+        let mut entry = entry;
+        if let Some(ref home) = entry.home_path {
+            let normalized = normalize_path_separators(home);
+            if normalized != *home {
+                entry.home_path = Some(normalized);
+            }
+        }
         if let Some(index) = self.by_id.get(&entry.id).copied() {
             let installed_at = self.skills[index].installed_at;
             self.skills[index] = entry;

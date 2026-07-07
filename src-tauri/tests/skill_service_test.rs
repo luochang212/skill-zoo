@@ -285,7 +285,10 @@ fn test_scan_skill_root_for_test_scans_ssot_root_without_directory_guessing() {
     assert_eq!(entry.description.as_deref(), Some("Precise scan"));
     assert_eq!(entry.directory, "exact-scan-ssot-test");
     assert_eq!(entry.origin, "ssot");
-    assert_eq!(entry.home_path.as_deref(), skill_dir.to_str());
+    assert_eq!(
+        entry.home_path.as_deref(),
+        skill_dir.to_str().map(skill_zoo_lib::persistence::normalize_path_separators).as_deref()
+    );
     assert_eq!(entry.home_agent, None);
     assert!(entry.content_hash.is_some());
 }
@@ -305,7 +308,10 @@ fn test_scan_skill_root_for_test_scans_agent_origin_without_ssot_fallback() {
     assert_eq!(entry.name, "dupe-skill");
     assert_eq!(entry.directory, "dupe-skill");
     assert_eq!(entry.origin, "agent");
-    assert_eq!(entry.home_path.as_deref(), skill_dir.to_str());
+    assert_eq!(
+        entry.home_path.as_deref(),
+        skill_dir.to_str().map(skill_zoo_lib::persistence::normalize_path_separators).as_deref()
+    );
     assert_eq!(entry.home_agent.as_deref(), Some("codex"));
     assert!(entry.apps.contains_key("codex"));
     assert!(entry.content_hash.is_some());

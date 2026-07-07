@@ -610,13 +610,8 @@ impl CliService {
     }
 
     fn normalize_skill_path(path: &str) -> String {
-        // Normalize OS-native separators to forward slashes so selectors and
-        // locked paths are comparable across Windows/macOS/Linux. On macOS and
-        // Linux MAIN_SEPARATOR is already '/', so the replace is a no-op; on
-        // Windows this is the fix for backslash-laden selectors produced by
-        // `scan_for_skills`/`to_string_lossy`.
-        path.replace(std::path::MAIN_SEPARATOR, "/")
-            .replace('\\', "/")
+        // Normalize to forward slashes for cross-platform comparability.
+        path.replace('\\', "/")
             .trim_end_matches("/SKILL.md")
             .trim_end_matches("SKILL.md")
             .trim_end_matches('/')
@@ -625,9 +620,7 @@ impl CliService {
 
     fn lock_skill_path(repo_root: &Path, skill_path: &Path) -> Option<String> {
         let relative = skill_path.strip_prefix(repo_root).ok()?;
-        let path = relative
-            .to_string_lossy()
-            .replace(std::path::MAIN_SEPARATOR, "/");
+        let path = relative.to_string_lossy().replace('\\', "/");
         Some(Self::normalize_skill_path(&path))
     }
 

@@ -314,20 +314,26 @@ impl SkillService {
         if origin == "ssot" {
             let ssot_path = agents_dir.join(skill_dir);
             if ssot_path.is_dir() && !is_symlink_or_junction(&ssot_path) {
-                return Some(ssot_path.to_str()?.to_string());
+                return Some(crate::persistence::normalize_path_separators(
+                    ssot_path.to_str()?,
+                ));
             }
         }
         for agent in config::AGENTS {
             if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
                 let path = agent_dir.join(skill_dir);
                 if path.exists() && !is_symlink_or_junction(&path) {
-                    return Some(path.to_str()?.to_string());
+                    return Some(crate::persistence::normalize_path_separators(
+                        path.to_str()?,
+                    ));
                 }
             }
         }
         let ssot_path = agents_dir.join(skill_dir);
         if ssot_path.exists() {
-            return Some(ssot_path.to_str()?.to_string());
+            return Some(crate::persistence::normalize_path_separators(
+                ssot_path.to_str()?,
+            ));
         }
         None
     }
@@ -493,13 +499,16 @@ impl SkillService {
         cache: &mut HashMap<String, (i64, String)>,
     ) -> Option<String> {
         let current_mtime = Self::get_dir_latest_mtime(home_path)?;
-        if let Some((cached_mtime, cached_hash)) = cache.get(home_path) {
+        // Normalize to forward slashes so the cache key is consistent across
+        // platforms even when the path was produced by different code paths.
+        let key = crate::persistence::normalize_path_separators(home_path);
+        if let Some((cached_mtime, cached_hash)) = cache.get(&key) {
             if current_mtime == *cached_mtime {
                 return Some(cached_hash.clone());
             }
         }
         let new_hash = Self::compute_content_hash(home_path)?;
-        cache.insert(home_path.to_string(), (current_mtime, new_hash.clone()));
+        cache.insert(key, (current_mtime, new_hash.clone()));
         Some(new_hash)
     }
 
@@ -951,7 +960,6 @@ impl SkillService {
             // `CliService::lock_skill_path`.
             let key = rel
                 .to_string_lossy()
-                .replace(std::path::MAIN_SEPARATOR, "/")
                 .replace('\\', "/");
             skills.push(DiscoverableSkill {
                 key,
@@ -1274,11 +1282,8 @@ impl SkillService {
                 AppError::Parse(format!("Invalid skill path: {}", skill_root.display()))
             })?
             .to_string();
-        // Normalize to forward slashes so the directory field is identical
-        // on Windows/macOS/Linux (skill roots come from the filesystem).
-        let relative_dir = relative_dir
-            .replace(std::path::MAIN_SEPARATOR, "/")
-            .replace('\\', "/");
+        // Normalize to forward slashes for cross-platform consistency.
+        let relative_dir = relative_dir.replace('\\', "/");
 
         let lock_data: Option<SkillLock> = SkillLock::read().ok();
         let lock_entry = lock_data.as_ref().and_then(|lock| {
@@ -1301,7 +1306,9 @@ impl SkillService {
 
         let origin = if agent_id.is_some() { "agent" } else { "ssot" };
         let id = Self::make_skill_id(origin, &relative_dir, &repo_owner, &repo_name, agent_id);
-        let home_path = skill_root.to_str().map(|s| s.to_string());
+        let home_path = skill_root
+            .to_str()
+            .map(crate::persistence::normalize_path_separators);
         let content_hash = home_path
             .as_ref()
             .and_then(|p| Self::compute_content_hash_cached(p, hash_cache));

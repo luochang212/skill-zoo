@@ -179,3 +179,28 @@ fn test_skill_cache_upsert_dedup_by_directory_fallback() {
 
     assert_eq!(cache.skills().len(), 1, "directory fallback must dedup");
 }
+
+#[test]
+fn test_skill_cache_upsert_normalizes_home_path_to_forward_slashes() {
+    // On Windows the incoming home_path may have native backslash separators.
+    // upsert() must normalize it to forward slashes before storing in cache.
+    let entry = SkillCacheEntry {
+        id: "ssot:demo".to_string(),
+        name: "demo".to_string(),
+        directory: "demo".to_string(),
+        home_path: Some("C:\\Users\\demo\\.claude\\skills\\demo".to_string()),
+        installed_at: 1000,
+        updated_at: 2000,
+        ..make_cache_entry("ssot:demo", "demo", "demo")
+    };
+    let mut cache = SkillCache::from_entries(vec![]);
+    cache.upsert(entry);
+
+    assert_eq!(cache.skills().len(), 1);
+    let stored = cache.find_by_id("ssot:demo").expect("entry");
+    assert_eq!(
+        stored.home_path.as_deref(),
+        Some("C:/Users/demo/.claude/skills/demo"),
+        "home_path must be normalized to forward slashes"
+    );
+}
