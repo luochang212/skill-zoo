@@ -207,7 +207,7 @@ fn build_usage(
     mut events: Vec<SkillUsageEvent>,
     now: DateTime<Local>,
 ) -> SkillUsage {
-    events.sort_by(|a, b| b.ts_ms.cmp(&a.ts_ms));
+    events.sort_by_key(|b| std::cmp::Reverse(b.ts_ms));
     let total_calls = events.len() as u64;
     let week = period_report(&events, Period::Week, now);
     let month = period_report(&events, Period::Month, now);
