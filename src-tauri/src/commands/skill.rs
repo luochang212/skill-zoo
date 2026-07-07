@@ -750,8 +750,17 @@ pub async fn install_skills(
     for skill_dir in &installed_dirs {
         let home_path = config::get_agents_skills_dir().join(skill_dir);
         for agent in &agents {
-            let _ =
-                SkillService::toggle_symlink(skill_dir, &home_path.to_string_lossy(), agent, true);
+            if let Err(e) = SkillService::toggle_symlink(
+                skill_dir,
+                &home_path.to_string_lossy(),
+                agent,
+                true,
+            ) {
+                eprintln!(
+                    "Failed to create symlink for installed skill '{}' (agent {}): {e}",
+                    skill_dir, agent
+                );
+            }
         }
     }
 
@@ -3225,7 +3234,14 @@ pub async fn create_skill(
 
     for agent in &agents {
         if let Some(_agent_dir) = config::get_agent_skills_dir(agent) {
-            let _ = SkillService::toggle_symlink(&name, &skill_dir.to_string_lossy(), agent, true);
+            if let Err(e) =
+                SkillService::toggle_symlink(&name, &skill_dir.to_string_lossy(), agent, true)
+            {
+                eprintln!(
+                    "Failed to create symlink for new skill '{}' (agent {}): {e}",
+                    name, agent
+                );
+            }
         }
     }
 

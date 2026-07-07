@@ -1,6 +1,6 @@
 mod common;
 
-use common::{make_cache_entry, MetadataStore, SkillCache, SkillLock};
+use common::{make_cache_entry, MetadataStore, SkillCache, SkillCacheEntry, SkillLock};
 
 #[test]
 fn test_metadata_load_returns_valid_store_when_no_file() {
@@ -119,4 +119,63 @@ fn test_skill_cache_duplicate_id_index_points_to_last_entry() {
             .map(|entry| entry.name.as_str()),
         Some("second")
     );
+}
+
+#[test]
+fn test_skill_cache_upsert_dedup_by_home_path() {
+    let entry_a = SkillCacheEntry {
+        id: "ssot:demo".to_string(),
+        name: "demo".to_string(),
+        directory: "demo".to_string(),
+        home_path: Some("/tmp/demo".to_string()),
+        installed_at: 1000,
+        updated_at: 2000,
+        ..make_cache_entry("ssot:demo", "demo", "demo")
+    };
+    let mut cache = SkillCache::from_entries(vec![entry_a]);
+
+    let entry_b = SkillCacheEntry {
+        id: "repo:owner/demo:demo".to_string(),
+        name: "demo".to_string(),
+        directory: "demo".to_string(),
+        repo_owner: Some("owner".to_string()),
+        repo_name: Some("demo".to_string()),
+        home_path: Some("/tmp/demo".to_string()),
+        installed_at: 9999,
+        updated_at: 3000,
+        ..make_cache_entry("repo:owner/demo:demo", "demo", "demo")
+    };
+    cache.upsert(entry_b);
+
+    assert_eq!(cache.skills().len(), 1);
+    let entry = cache.find_by_id("repo:owner/demo:demo").expect("entry");
+    assert_eq!(entry.name, "demo");
+    // installed_at preserved from stale entry
+    assert_eq!(entry.installed_at, 1000);
+    assert_eq!(entry.updated_at, 3000);
+    // stale id should no longer be in the index
+    assert!(cache.find_by_id("ssot:demo").is_none());
+}
+
+#[test]
+fn test_skill_cache_upsert_dedup_by_directory_fallback() {
+    let entry_a = SkillCacheEntry {
+        id: "ssot:demo".to_string(),
+        name: "demo".to_string(),
+        directory: "demo".to_string(),
+        home_path: None,
+        ..make_cache_entry("ssot:demo", "demo", "demo")
+    };
+    let mut cache = SkillCache::from_entries(vec![entry_a]);
+
+    let entry_b = SkillCacheEntry {
+        id: "repo:owner/demo:demo".to_string(),
+        name: "demo".to_string(),
+        directory: "demo".to_string(),
+        home_path: None,
+        ..make_cache_entry("repo:owner/demo:demo", "demo", "demo")
+    };
+    cache.upsert(entry_b);
+
+    assert_eq!(cache.skills().len(), 1, "directory fallback must dedup");
 }

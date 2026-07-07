@@ -1732,12 +1732,17 @@ impl SkillService {
             if let Some(agent_dir) = config::get_agent_skills_dir(agent_id) {
                 let symlink_path = agent_dir.join(skill_name);
                 if agent_dir.exists() && !symlink_path.exists() {
-                    let _ = Self::toggle_symlink(
+                    if let Err(e) = Self::toggle_symlink(
                         skill_name,
                         &dest_dir.to_string_lossy(),
                         agent_id,
                         true,
-                    );
+                    ) {
+                        eprintln!(
+                            "Failed to create symlink after merging '{}' (agent {}): {e}",
+                            skill_name, agent_id
+                        );
+                    }
                 }
             }
         }

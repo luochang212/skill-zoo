@@ -108,6 +108,25 @@ impl SkillCache {
             self.skills[index].installed_at = installed_at;
             return;
         }
+        // When the same skill is re-scanned under different conditions
+        // (e.g. lock file temporarily unavailable), its computed ID can
+        // change. Remove any stale entry that represents the same physical
+        // skill directory so the cache doesn't accumulate duplicates.
+        let stale_index = if let Some(ref home) = entry.home_path {
+            self.skills
+                .iter()
+                .position(|e| e.home_path.as_ref() == Some(home))
+        } else {
+            let dir = &entry.directory;
+            self.skills.iter().position(|e| &e.directory == dir)
+        };
+        if let Some(idx) = stale_index {
+            let installed_at = self.skills[idx].installed_at;
+            self.skills[idx] = entry;
+            self.skills[idx].installed_at = installed_at;
+            self.rebuild_index();
+            return;
+        }
         let index = self.skills.len();
         self.by_id.insert(entry.id.clone(), index);
         self.skills.push(entry);
