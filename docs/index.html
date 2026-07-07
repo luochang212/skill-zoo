@@ -1940,6 +1940,13 @@
         background: rgba(10, 10, 11, 0.88);
         border-bottom-color: rgba(255, 255, 255, 0.03);
       }
+      @media (min-width: 1600px) {
+        .top-nav-inner {
+          width: 80vw;
+          min-width: 1100px;
+          max-width: 1600px;
+        }
+      }
       /* Hamburger */
       .top-nav-toggle {
         display: none;
@@ -3655,7 +3662,7 @@
               <p data-i18n="d3-desc">
                 前端零文件系统访问、零 GitHub API 调用、零 git
                 执行。所有外部交互通过 33 个类型化 Rust Tauri
-                命令完成。路径遍历严格验证，拒绝绝对路径与 <code>..</code>。
+                命令完成。路径遍历严格验证，拒绝绝对路径与父目录引用。
               </p>
               <div style="margin-top: 8px">
                 <span class="tag">33 Tauri 命令</span>
@@ -4373,8 +4380,8 @@
           en: "Tauri IPC is the only bridge",
         },
         "d3-desc": {
-          zh: "前端零文件系统访问、零 GitHub API 调用、零 git 执行。所有外部交互通过 54 个类型化 Rust Tauri 命令完成。路径遍历严格验证，拒绝绝对路径与 ..。",
-          en: "Zero filesystem access, zero GitHub API calls, zero git execution from the frontend. All external interaction goes through 54 typed Rust Tauri commands. Path traversal is strictly validated — absolute paths and .. are rejected.",
+          zh: "前端零文件系统访问、零 GitHub API 调用、零 git 执行。所有外部交互通过 54 个类型化 Rust Tauri 命令完成。路径遍历严格验证，拒绝绝对路径与父目录引用。",
+          en: "Zero filesystem access, zero GitHub API calls, zero git execution from the frontend. All external interaction goes through 54 typed Rust Tauri commands. Path traversal is strictly validated — absolute paths and parent directory references are rejected.",
         },
         // UX
         "ux-eyebrow": { zh: "用户体验", en: "User Experience" },
@@ -4517,7 +4524,7 @@
         },
       };
 
-      const HTML_KEYS = new Set(["footer"]);
+      const HTML_KEYS = new Set(["footer", "d3-desc"]);
 
       function detectLang() {
         const params = new URLSearchParams(location.search);
@@ -4541,8 +4548,11 @@
 
         document.querySelectorAll("[data-i18n]").forEach((el) => {
           const key = el.dataset.i18n;
-          if (HTML_KEYS.has(key)) return;
-          if (T[key] && T[key][lang]) el.textContent = T[key][lang];
+          if (!HTML_KEYS.has(key)) {
+            if (T[key] && T[key][lang]) el.textContent = T[key][lang];
+          } else {
+            if (T[key] && T[key][lang]) el.innerHTML = T[key][lang];
+          }
         });
 
         // Footer (mixed HTML)
