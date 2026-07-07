@@ -288,7 +288,7 @@ function SkeletonToolbar({ viewMode, agentCount }: { viewMode: ViewMode; agentCo
 function SkeletonGrid() {
   return (
     <div className="grid grid-cols-1 max-w-[780px] @md/main:grid-cols-2 @md/main:max-w-none @3col/main:grid-cols-3 @4col/main:grid-cols-4 gap-4 pt-1 pb-3">
-      {Array.from({ length: 8 }).map((_, i) => (
+      {Array.from({ length: 12 }).map((_, i) => (
         <div key={i} className="rounded-xl border bg-card p-4 space-y-3">
           <div className="flex items-center justify-between gap-2">
             <Skeleton className="h-4 w-3/4" />
