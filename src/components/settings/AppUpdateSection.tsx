@@ -1,13 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
-import { check } from "@tauri-apps/plugin-updater";
-import type { Update } from "@tauri-apps/plugin-updater";
-import { relaunch } from "@tauri-apps/plugin-process";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Download, Globe, RefreshCw, Rocket } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useAppUpdater, type AppUpdateStatus } from "@/hooks/useAppUpdater";
 
 const GITHUB_URL = "https://github.com/luochang212/skill-zoo";
 const OFFICIAL_SITE_URL = "https://www.luochang.ink/skill-zoo/";
@@ -61,28 +56,24 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-type UpdateStatus = "idle" | "checking" | "available" | "downloading" | "ready-to-restart";
-
 function StatusLabel({
   status,
-  update,
+  version,
   downloaded,
 }: {
-  status: UpdateStatus;
-  update: Update | null;
+  status: AppUpdateStatus;
+  version: string | null;
   downloaded: number;
 }) {
   const { t } = useTranslation();
 
   switch (status) {
-    case "available":
-      return update ? (
-        <span className="text-xs text-muted-foreground">v{update.version}</span>
-      ) : null;
+    case "error":
+      return version ? <span className="text-xs text-muted-foreground">v{version}</span> : null;
     case "downloading":
       return (
         <span className="text-xs text-muted-foreground">
-          {update ? `v${update.version} ` : ""}
+          {version ? `v${version} ` : ""}
           {t("settings.updater.downloading")}
           {downloaded > 0 ? ` (${formatBytes(downloaded)})` : ""}
         </span>
@@ -98,7 +89,7 @@ function UpdateButton({
   onDownload,
   onRestart,
 }: {
-  status: UpdateStatus;
+  status: AppUpdateStatus;
   onCheck: () => void;
   onDownload: () => void;
   onRestart: () => void;
@@ -120,7 +111,7 @@ function UpdateButton({
           {t("settings.updater.checking")}
         </Button>
       );
-    case "available":
+    case "error":
       return (
         <Button size="sm" className="h-8 text-xs gap-1.5" onClick={onDownload}>
           <Download className="h-3.5 w-3.5" />
@@ -134,7 +125,7 @@ function UpdateButton({
           {t("settings.updater.downloading")}
         </Button>
       );
-    case "ready-to-restart":
+    case "readyToRestart":
       return (
         <Button size="sm" className="h-8 text-xs gap-1.5" onClick={onRestart}>
           <Rocket className="h-3.5 w-3.5" />
@@ -147,83 +138,11 @@ function UpdateButton({
 }
 
 export function AppUpdateSection() {
-  const { t } = useTranslation();
-  const [isPortable, setIsPortable] = useState<boolean | null>(null);
-  const [status, setStatus] = useState<UpdateStatus>("idle");
-  const [update, setUpdate] = useState<Update | null>(null);
-  const [downloaded, setDownloaded] = useState(0);
-  const updateRef = useRef<Update | null>(null);
-  const checkingRef = useRef(false);
+  const updater = useAppUpdater();
 
-  useEffect(() => {
-    invoke<boolean>("is_portable_build")
-      .then(setIsPortable)
-      .catch(() => setIsPortable(true));
-  }, []);
+  if (updater.status === "loading") return null;
 
-  const downloadUpdate = useCallback(
-    async (current: Update) => {
-      setStatus("downloading");
-      setDownloaded(0);
-      try {
-        await current.downloadAndInstall((event) => {
-          switch (event.event) {
-            case "Progress":
-              setDownloaded((prev) => prev + event.data.chunkLength);
-              break;
-            case "Finished":
-              setStatus("ready-to-restart");
-              break;
-          }
-        });
-        setStatus("ready-to-restart");
-      } catch {
-        toast.error(t("settings.updater.downloadFailed"));
-        setStatus("available");
-      }
-    },
-    [t],
-  );
-
-  const handleCheck = useCallback(async () => {
-    if (checkingRef.current) return;
-    checkingRef.current = true;
-    setStatus("checking");
-    try {
-      const result = await check();
-      if (result) {
-        setUpdate(result);
-        updateRef.current = result;
-        await downloadUpdate(result);
-      } else {
-        toast.success(t("settings.updater.upToDate"));
-        setStatus("idle");
-      }
-    } catch {
-      toast.error(t("settings.updater.checkFailed"));
-      setStatus("idle");
-    } finally {
-      checkingRef.current = false;
-    }
-  }, [downloadUpdate, t]);
-
-  const handleDownload = useCallback(async () => {
-    const current = updateRef.current;
-    if (!current) return;
-    await downloadUpdate(current);
-  }, [downloadUpdate]);
-
-  const handleRestart = useCallback(async () => {
-    try {
-      await relaunch();
-    } catch {
-      toast.error(t("settings.updater.restartFailed"));
-    }
-  }, [t]);
-
-  if (isPortable === null) return null;
-
-  if (isPortable) {
+  if (updater.status === "unsupported") {
     return (
       <div className="flex items-center gap-2 shrink-0">
         <WebsiteButton />
@@ -234,14 +153,18 @@ export function AppUpdateSection() {
 
   return (
     <div className="flex items-center gap-2 shrink-0">
-      <StatusLabel status={status} update={update} downloaded={downloaded} />
+      <StatusLabel
+        status={updater.status}
+        version={updater.version}
+        downloaded={updater.downloadedBytes}
+      />
       <WebsiteButton />
       <GithubButton />
       <UpdateButton
-        status={status}
-        onCheck={handleCheck}
-        onDownload={handleDownload}
-        onRestart={handleRestart}
+        status={updater.status}
+        onCheck={updater.checkAndDownload}
+        onDownload={updater.retryDownload}
+        onRestart={updater.restart}
       />
     </div>
   );

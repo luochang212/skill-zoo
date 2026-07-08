@@ -6,6 +6,7 @@ import "@/i18n";
 import App from "./App";
 import "./index.css";
 import { formatApiError } from "@/lib/api/errors";
+import { AppUpdaterProvider } from "@/hooks/useAppUpdater";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,7 +23,9 @@ const queryClient = new QueryClient({
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <AppUpdaterProvider>
+        <App />
+      </AppUpdaterProvider>
       <Toaster position="bottom-right" />
     </QueryClientProvider>
   </React.StrictMode>,

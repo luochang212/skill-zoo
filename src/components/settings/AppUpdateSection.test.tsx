@@ -1,4 +1,5 @@
 import "@/i18n";
+import { useState } from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@tauri-apps/api/core";
@@ -8,6 +9,7 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "@/i18n";
+import { AppUpdaterProvider } from "@/hooks/useAppUpdater";
 import { AppUpdateSection } from "./AppUpdateSection";
 
 vi.mock("@tauri-apps/plugin-updater", () => ({
@@ -51,6 +53,25 @@ function createDeferred() {
   return { promise, resolve, reject };
 }
 
+function renderAppUpdateSection() {
+  return render(
+    <AppUpdaterProvider>
+      <AppUpdateSection />
+    </AppUpdaterProvider>,
+  );
+}
+
+function ToggleableAppUpdateSection() {
+  const [show, setShow] = useState(true);
+
+  return (
+    <AppUpdaterProvider>
+      <button onClick={() => setShow((value) => !value)}>toggle updater</button>
+      {show && <AppUpdateSection />}
+    </AppUpdaterProvider>
+  );
+}
+
 describe("AppUpdateSection", () => {
   beforeEach(async () => {
     vi.mocked(invoke).mockReset();
@@ -69,7 +90,7 @@ describe("AppUpdateSection", () => {
     });
     vi.mocked(check).mockResolvedValue(createUpdate(downloadAndInstall));
 
-    render(<AppUpdateSection />);
+    renderAppUpdateSection();
 
     await user.click(await screen.findByRole("button", { name: /check for updates/i }));
 
@@ -85,7 +106,7 @@ describe("AppUpdateSection", () => {
     vi.mocked(check).mockResolvedValue(createUpdate(downloadAndInstall));
     vi.mocked(relaunch).mockRejectedValue(new Error("restart failed"));
 
-    render(<AppUpdateSection />);
+    renderAppUpdateSection();
 
     await user.click(await screen.findByRole("button", { name: /check for updates/i }));
     await user.click(await screen.findByRole("button", { name: /restart now/i }));
@@ -104,7 +125,7 @@ describe("AppUpdateSection", () => {
     });
     vi.mocked(check).mockResolvedValue(createUpdate(downloadAndInstall));
 
-    render(<AppUpdateSection />);
+    renderAppUpdateSection();
 
     await user.click(await screen.findByRole("button", { name: /check for updates/i }));
     await waitFor(() => expect(downloadAndInstall).toHaveBeenCalledTimes(1));
@@ -131,11 +152,12 @@ describe("AppUpdateSection", () => {
       .mockResolvedValueOnce(undefined);
     vi.mocked(check).mockResolvedValue(createUpdate(downloadAndInstall));
 
-    render(<AppUpdateSection />);
+    renderAppUpdateSection();
 
     await user.click(await screen.findByRole("button", { name: /check for updates/i }));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Download failed"));
+    expect(screen.getByText("v0.2.9")).toBeInTheDocument();
     await user.click(await screen.findByRole("button", { name: /update now/i }));
 
     await waitFor(() => expect(downloadAndInstall).toHaveBeenCalledTimes(2));
@@ -147,7 +169,7 @@ describe("AppUpdateSection", () => {
     const user = userEvent.setup();
     vi.mocked(check).mockResolvedValue(null);
 
-    render(<AppUpdateSection />);
+    renderAppUpdateSection();
 
     await user.click(await screen.findByRole("button", { name: /check for updates/i }));
 
@@ -159,7 +181,7 @@ describe("AppUpdateSection", () => {
     const user = userEvent.setup();
     vi.mocked(check).mockRejectedValue(new Error("check failed"));
 
-    render(<AppUpdateSection />);
+    renderAppUpdateSection();
 
     await user.click(await screen.findByRole("button", { name: /check for updates/i }));
 
@@ -170,10 +192,38 @@ describe("AppUpdateSection", () => {
   it("hides update controls for portable builds", async () => {
     vi.mocked(invoke).mockResolvedValue(true);
 
-    render(<AppUpdateSection />);
+    renderAppUpdateSection();
 
     expect(await screen.findByRole("button", { name: /official site/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /github/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /check for updates/i })).not.toBeInTheDocument();
+  });
+
+  it("keeps downloading after the settings section unmounts", async () => {
+    const user = userEvent.setup();
+    const deferred = createDeferred();
+    let emitDownloadEvent: DownloadHandler | undefined;
+    const downloadAndInstall = vi.fn<Update["downloadAndInstall"]>((onEvent) => {
+      emitDownloadEvent = onEvent;
+      return deferred.promise;
+    });
+    vi.mocked(check).mockResolvedValue(createUpdate(downloadAndInstall));
+
+    render(<ToggleableAppUpdateSection />);
+
+    await user.click(await screen.findByRole("button", { name: /check for updates/i }));
+    await waitFor(() => expect(downloadAndInstall).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole("button", { name: /toggle updater/i }));
+
+    await act(async () => {
+      emitDownloadEvent?.({ event: "Progress", data: { chunkLength: 1536 } });
+      emitDownloadEvent?.({ event: "Finished" });
+      deferred.resolve();
+      await deferred.promise;
+    });
+
+    await user.click(screen.getByRole("button", { name: /toggle updater/i }));
+
+    expect(await screen.findByRole("button", { name: /restart now/i })).toBeInTheDocument();
   });
 });
