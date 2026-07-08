@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { skillsApi } from "@/lib/api/skills";
+import { cn } from "@/lib/utils";
 import type { InstalledSkill } from "@/types/skills";
 import type { DuplicateGroup, NameMismatch, ConsistencyTab } from "@/hooks/useSkillIssues";
 
@@ -42,12 +43,33 @@ function TabContent({
   );
 }
 
-function DuplicateGroupCard({ group, onMerge }: { group: DuplicateGroup; onMerge?: () => void }) {
+const TARGET_HIGHLIGHT_MS = 520;
+const TARGET_HIGHLIGHT_ANIMATION = "motion-safe:animate-target-flash";
+
+function DuplicateGroupCard({
+  group,
+  onMerge,
+  highlighted = false,
+}: {
+  group: DuplicateGroup;
+  onMerge?: () => void;
+  highlighted?: boolean;
+}) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(true);
+  const highlightClass = group.sameContent
+    ? "bg-amber-50 shadow-[inset_0_0_0_2px_rgba(245,158,11,0.55),0_0_0_4px_rgba(245,158,11,0.10)] dark:bg-amber-950/20 dark:shadow-[inset_0_0_0_2px_rgba(245,158,11,0.45),0_0_0_4px_rgba(245,158,11,0.10)]"
+    : "bg-rose-50 shadow-[inset_0_0_0_2px_rgba(244,63,94,0.55),0_0_0_4px_rgba(244,63,94,0.10)] dark:bg-rose-950/20 dark:shadow-[inset_0_0_0_2px_rgba(244,63,94,0.45),0_0_0_4px_rgba(244,63,94,0.10)]";
 
   return (
-    <div className="rounded-xl border bg-card overflow-hidden" data-dup-group={group.name}>
+    <div
+      className={cn(
+        "rounded-xl border bg-card overflow-hidden transition-[background-color,box-shadow] duration-150",
+        highlighted && `${TARGET_HIGHLIGHT_ANIMATION} duration-75 ${highlightClass}`,
+      )}
+      data-dup-group={group.name}
+      data-highlighted-target={highlighted ? "true" : undefined}
+    >
       <button
         onClick={() => setExpanded((v) => !v)}
         className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-accent/30 transition-colors"
@@ -123,11 +145,25 @@ function SkillEntry({ skill, showHash }: { skill: InstalledSkill; showHash: bool
   );
 }
 
-function MismatchEntry({ mismatch }: { mismatch: NameMismatch }) {
+function MismatchEntry({
+  mismatch,
+  highlighted = false,
+}: {
+  mismatch: NameMismatch;
+  highlighted?: boolean;
+}) {
   const { t } = useTranslation();
 
   return (
-    <div className="rounded-xl border bg-card overflow-hidden" data-mismatch-id={mismatch.skillId}>
+    <div
+      className={cn(
+        "rounded-xl border bg-card overflow-hidden transition-[background-color,box-shadow] duration-150",
+        highlighted &&
+          `${TARGET_HIGHLIGHT_ANIMATION} duration-75 bg-sky-50 shadow-[inset_0_0_0_2px_rgba(14,165,233,0.55),0_0_0_4px_rgba(14,165,233,0.10)] dark:bg-sky-950/20 dark:shadow-[inset_0_0_0_2px_rgba(14,165,233,0.45),0_0_0_4px_rgba(14,165,233,0.10)]`,
+      )}
+      data-mismatch-id={mismatch.skillId}
+      data-highlighted-target={highlighted ? "true" : undefined}
+    >
       <div className="px-4 py-3 flex items-center gap-3">
         <PenLine className="h-4 w-4 shrink-0 text-sky-500 dark:text-sky-400" />
         <div className="flex-1 min-w-0">
@@ -237,6 +273,7 @@ export function ConsistencyPanel({
   const [merging, setMerging] = useState(false);
   const [tab, setTab] = useState<ConsistencyTab | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [highlightedTarget, setHighlightedTarget] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -264,6 +301,7 @@ export function ConsistencyPanel({
   useEffect(() => {
     if (!initialTab || !scrollToId) return;
     setTab(initialTab);
+    let clearHighlight: ReturnType<typeof setTimeout> | undefined;
     const raf = requestAnimationFrame(() => {
       const isMismatch = initialTab === "mismatches";
       const escaped = scrollToId.replace(/"/g, '\\"');
@@ -273,9 +311,16 @@ export function ConsistencyPanel({
       const el = document.querySelector(selector);
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
+        setHighlightedTarget(scrollToId);
+        clearHighlight = setTimeout(() => {
+          setHighlightedTarget((current) => (current === scrollToId ? null : current));
+        }, TARGET_HIGHLIGHT_MS);
       }
     });
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      if (clearHighlight) clearTimeout(clearHighlight);
+    };
   }, [initialTab, scrollToId]);
 
   const duplicateGroups = allGroups.filter((g) => g.sameContent);
@@ -431,6 +476,7 @@ export function ConsistencyPanel({
               <DuplicateGroupCard
                 key={group.name}
                 group={group}
+                highlighted={highlightedTarget === group.name}
                 onMerge={() => setConfirmMerge(group.name)}
               />
             ))}
@@ -443,7 +489,11 @@ export function ConsistencyPanel({
             hasItems={conflictGroups.length > 0}
           >
             {conflictGroups.map((group) => (
-              <DuplicateGroupCard key={group.name} group={group} />
+              <DuplicateGroupCard
+                key={group.name}
+                group={group}
+                highlighted={highlightedTarget === group.name}
+              />
             ))}
           </TabContent>
         )}
@@ -454,7 +504,11 @@ export function ConsistencyPanel({
             hasItems={nameMismatches.length > 0}
           >
             {nameMismatches.map((m) => (
-              <MismatchEntry key={m.skillId} mismatch={m} />
+              <MismatchEntry
+                key={m.skillId}
+                mismatch={m}
+                highlighted={highlightedTarget === m.skillId}
+              />
             ))}
           </TabContent>
         )}

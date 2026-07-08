@@ -266,6 +266,28 @@
   }
 }
 
+/* ── Target highlight: one crisp flash after navigating to an issue ── */
+@keyframes target-flash {
+  0% {
+    filter: brightness(1.1);
+  }
+  18% {
+    filter: brightness(1.1);
+  }
+  58% {
+    filter: brightness(1.04);
+  }
+  100% {
+    filter: brightness(1);
+  }
+}
+
+@layer utilities {
+  .animate-target-flash {
+    animation: target-flash 520ms cubic-bezier(0.18, 0.9, 0.28, 1) 1;
+  }
+}
+
 /* ── Text selection: disabled globally, enabled for content areas ── */
 * {
   -webkit-user-select: none;
