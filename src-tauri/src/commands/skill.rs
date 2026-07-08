@@ -2841,8 +2841,52 @@ fn read_cached_repo_readme_from_zip(
     name: &str,
     branch: Option<&str>,
 ) -> Result<String, ()> {
-    let zip_path = CliService::cache_zip_path(owner, name, branch);
-    read_repo_readme_from_zip_path(&zip_path)
+    read_cached_repo_readme_from_zip_dir(&config::get_repo_zip_cache_dir(), owner, name, branch)
+}
+
+fn read_cached_repo_readme_from_zip_dir(
+    cache_dir: &Path,
+    owner: &str,
+    name: &str,
+    branch: Option<&str>,
+) -> Result<String, ()> {
+    let zip_path = cache_dir.join(CliService::cache_zip_file_name(owner, name, branch));
+    if branch.is_some() {
+        return read_repo_readme_from_zip_path(&zip_path);
+    }
+    if let Ok(content) = read_repo_readme_from_zip_path(&zip_path) {
+        return Ok(content);
+    }
+
+    let prefix = format!("{owner}--{name}--branch--");
+    let mut candidates: Vec<PathBuf> = std::fs::read_dir(cache_dir)
+        .map_err(|_| ())?
+        .filter_map(|entry| {
+            let path = entry.ok()?.path();
+            let file_name = path.file_name()?.to_str()?;
+            if file_name.starts_with(&prefix) && file_name.ends_with(".zip") {
+                Some(path)
+            } else {
+                None
+            }
+        })
+        .collect();
+    candidates.sort_by(|a, b| {
+        let modified = |path: &PathBuf| {
+            path.metadata()
+                .and_then(|metadata| metadata.modified())
+                .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+        };
+        modified(b).cmp(&modified(a)).then_with(|| a.cmp(b))
+    });
+
+    for zip_path in candidates {
+        if let Ok(content) = read_repo_readme_from_zip_path(&zip_path) {
+            return Ok(content);
+        }
+    }
+
+    Err(())
 }
 
 #[tauri::command]
@@ -3331,6 +3375,22 @@ mod tests {
         let result = read_repo_readme_from_zip_path(&dir.path().join("repo.zip"));
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn reads_default_readme_from_cached_branch_zip_when_default_zip_is_missing() {
+        let zip = write_test_zip(&[("repo-main/README.md", "# Branch README")]);
+        let cache = tempfile::tempdir().unwrap();
+        std::fs::copy(
+            zip.path().join("repo.zip"),
+            cache.path().join("owner--repo--branch--main.zip"),
+        )
+        .unwrap();
+
+        let content =
+            read_cached_repo_readme_from_zip_dir(cache.path(), "owner", "repo", None).unwrap();
+
+        assert_eq!(content, "# Branch README");
     }
 
     #[test]

@@ -661,11 +661,12 @@ impl CliService {
         Self::lock_skill_path(repo_root, skill_path).as_deref() == Some(selector.as_str())
     }
 
+    pub fn cache_zip_file_name(owner: &str, repo: &str, branch: Option<&str>) -> String {
+        format!("{owner}--{repo}--{}.zip", Self::cache_ref_key(branch))
+    }
+
     pub fn cache_zip_path(owner: &str, repo: &str, branch: Option<&str>) -> PathBuf {
-        config::get_repo_zip_cache_dir().join(format!(
-            "{owner}--{repo}--{}.zip",
-            Self::cache_ref_key(branch)
-        ))
+        config::get_repo_zip_cache_dir().join(Self::cache_zip_file_name(owner, repo, branch))
     }
 
     pub async fn ensure_cached_zip(
