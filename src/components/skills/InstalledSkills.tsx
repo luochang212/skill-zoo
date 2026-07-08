@@ -378,9 +378,6 @@ export const InstalledSkills = memo(function InstalledSkills({
     error: archivedLoadError,
     refetch: refetchArchived,
   } = useArchivedSkills();
-  const { duplicateGroups, nameMismatches, issuesMap, consistencyCount } = useConsistencyCheck(
-    skills ?? [],
-  );
   const starMutation = useStarSkill();
   const unstarMutation = useUnstarSkill();
   const removeSkillsMutation = useRemoveSkills();
@@ -443,17 +440,20 @@ export const InstalledSkills = memo(function InstalledSkills({
     }
   }, [agentFilter, visibleAgentSet]);
 
+  const agentVisibleSkills = useMemo(
+    () => skillsList.filter((s) => belongsToVisibleAgent(s, visibleAgentSet)),
+    [skillsList, visibleAgentSet],
+  );
   const visibleSkills = useMemo(
-    () =>
-      skillsList.filter(
-        (s) => (!hideNonSsot || s.origin === "ssot") && belongsToVisibleAgent(s, visibleAgentSet),
-      ),
-    [hideNonSsot, skillsList, visibleAgentSet],
+    () => agentVisibleSkills.filter((s) => !hideNonSsot || s.origin === "ssot"),
+    [agentVisibleSkills, hideNonSsot],
   );
   const visibleArchivedSkills = useMemo(
     () => archivedList.filter((s) => belongsToVisibleAgent(s, visibleAgentSet)),
     [archivedList, visibleAgentSet],
   );
+  const { duplicateGroups, nameMismatches, issuesMap, consistencyCount } =
+    useConsistencyCheck(visibleSkills);
 
   const sidebarCountSkills = useMemo(
     () => visibleSkills.filter((s) => matchesToolbarFilters(s, search, agentFilter)),
@@ -519,7 +519,7 @@ export const InstalledSkills = memo(function InstalledSkills({
     search === "" &&
     agentFilter === "all" &&
     skillsList.length > 0 &&
-    visibleSkills.length === 0;
+    agentVisibleSkills.length === 0;
 
   const sorted = useMemo(
     () =>
@@ -617,7 +617,7 @@ export const InstalledSkills = memo(function InstalledSkills({
         <SkillSidebar
           skills={visibleSkills}
           countSkills={sidebarCountSkills}
-          archivedCount={archivedList.length}
+          archivedCount={visibleArchivedSkills.length}
           countArchivedCount={sidebarArchivedCount}
           consistencyCount={consistencyCount}
           category={category}
@@ -727,7 +727,7 @@ export const InstalledSkills = memo(function InstalledSkills({
       <SkillSidebar
         skills={visibleSkills}
         countSkills={sidebarCountSkills}
-        archivedCount={archivedList.length}
+        archivedCount={visibleArchivedSkills.length}
         countArchivedCount={sidebarArchivedCount}
         consistencyCount={consistencyCount}
         category={category}

@@ -46,15 +46,6 @@ vi.mock("@/lib/agents", () => ({
   }),
 }));
 
-vi.mock("@/hooks/useSkillIssues", () => ({
-  useConsistencyCheck: () => ({
-    duplicateGroups: [],
-    nameMismatches: [],
-    issuesMap: new Map(),
-    consistencyCount: 0,
-  }),
-}));
-
 vi.mock("@/hooks/useConsistencyLabelSettings", () => ({
   useConsistencyLabelSettings: () => ({
     showDuplicate: true,
@@ -189,5 +180,53 @@ describe("InstalledSkills visible agent filtering", () => {
     expect(screen.getByRole("button", { name: "Archived Claude" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Archived Codex" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Archive1" })).toBeInTheDocument();
+  });
+
+  it("counts only visible archived skills in the sidebar", () => {
+    mocks.visibleAgentOrder = ["claude-code"];
+    mocks.archivedSkills = [
+      skill({ id: "archived-claude", name: "Archived Claude", apps: { "claude-code": true } }),
+      skill({ id: "archived-codex", name: "Archived Codex", apps: { codex: true } }),
+    ];
+
+    renderInstalledSkills();
+
+    expect(screen.getByRole("button", { name: "Archive1" })).toBeInTheDocument();
+  });
+
+  it("does not surface consistency issues for skills hidden by agent visibility", () => {
+    mocks.visibleAgentOrder = ["claude-code"];
+    mocks.skills = [
+      skill({
+        id: "hidden-mismatch",
+        name: "Hidden Mismatch",
+        yamlName: "Display Name",
+        apps: { codex: true },
+      }),
+    ];
+
+    renderInstalledSkills();
+
+    expect(screen.queryByRole("button", { name: /Consistency/ })).not.toBeInTheDocument();
+  });
+
+  it("does not blame visible agents when hide non-SSOT hides otherwise visible skills", () => {
+    mocks.visibleAgentOrder = ["claude-code"];
+    mocks.hideNonSsot = true;
+    mocks.skills = [
+      skill({
+        id: "agent-skill",
+        name: "Agent Skill",
+        origin: "agent",
+        apps: { "claude-code": true },
+      }),
+    ];
+
+    renderInstalledSkills();
+
+    expect(screen.getByText("No installed skills match your filters.")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/No skills match your visible coding agents/),
+    ).not.toBeInTheDocument();
   });
 });
