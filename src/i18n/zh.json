@@ -138,7 +138,7 @@
     "downloadDns": "DNS 解析失败，无法访问 GitHub。",
     "downloadConnect": "无法连接 GitHub 服务器。",
     "downloadTls": "{{repo}} 的 TLS / 证书验证失败。",
-    "downloadUnavailable": "{{repo}} 暂时无法下载，请稍后重试。",
+    "downloadUnavailable": "{{repo}} 暂时无法访问，请稍后重试。",
     "downloadFailed": "{{repo}} 下载失败，请稍后重试。",
     "cliMissing": "未找到所需工具，请确认已安装 Node.js 和 npx。",
     "permDenied": "权限不足，请检查技能目录是否可访问。",
