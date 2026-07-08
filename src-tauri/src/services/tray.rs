@@ -468,15 +468,22 @@ pub fn companion_menu_title(content: &str) -> Option<String> {
 }
 
 fn truncate_menu_title(title: &str) -> String {
-    const MAX_CHARS: usize = 36;
-    const PREFIX_CHARS: usize = 33;
-    if title.chars().count() <= MAX_CHARS {
+    use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+
+    const MAX_WIDTH: usize = 36;
+    const PREFIX_WIDTH: usize = 33;
+    if UnicodeWidthStr::width(title) <= MAX_WIDTH {
         return title.to_string();
     }
-    format!(
-        "{}...",
-        title.chars().take(PREFIX_CHARS).collect::<String>()
-    )
+    let mut accumulated = 0usize;
+    let prefix: String = title
+        .chars()
+        .take_while(|ch| {
+            accumulated += UnicodeWidthChar::width(*ch).unwrap_or(1);
+            accumulated <= PREFIX_WIDTH
+        })
+        .collect();
+    format!("{prefix}...")
 }
 
 #[cfg(test)]
@@ -553,16 +560,25 @@ mod tests {
             Some("Review this code".to_string())
         );
         assert_eq!(companion_menu_title(" \n\t"), None);
+        // 40 ASCII chars (width 40 > 36), truncated to first 33 (width 33 + 3 = 36)
         assert_eq!(
             companion_menu_title("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN"),
             Some("abcdefghijklmnopqrstuvwxyzABCDEFG...".to_string())
         );
+        // CJK text is double-width, truncated to first 16 chars (width 32 + 3 = 35)
+        assert_eq!(
+            companion_menu_title("这是一些中文测试文本用于验证截断功能是否正确工作"),
+            Some("这是一些中文测试文本用于验证截断...".to_string())
+        );
+        // Short text within width limit is not truncated
+        assert_eq!(companion_menu_title("短文本"), Some("短文本".to_string()));
     }
 
     #[test]
     fn maps_tray_labels_by_language() {
         let english = TrayLanguage::from_code("en-US").labels();
         assert_eq!(english.open_main_window, "Open main window");
+        assert_eq!(english.open_official_website, "Open official website");
         assert_eq!(english.settings, "Settings");
         assert_eq!(english.skill_companion, "Common Commands");
         assert_eq!(english.recent_skills, "Recently Used");
