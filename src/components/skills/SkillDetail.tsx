@@ -78,6 +78,8 @@ export function SkillDetail({
   const [updateUpToDate, setUpdateUpToDate] = useState(false);
   const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentSkillIdRef = useRef(skill?.id);
+  const isExternalImport = skill?.origin === "external";
+  const contentReadOnly = readOnly || isExternalImport;
 
   const clearUpdateTimer = useCallback(() => {
     if (successTimerRef.current) {
@@ -163,7 +165,7 @@ export function SkillDetail({
           onUpdate={onUpdate ? handleUpdate : undefined}
           onConfigure={readOnly ? undefined : () => setConfigureOpen(true)}
           onRemove={onRemove ? handleRemoveClick : undefined}
-          onArchive={onArchive ? () => setArchiveConfirmOpen(true) : undefined}
+          onArchive={onArchive && !isExternalImport ? () => setArchiveConfirmOpen(true) : undefined}
           onRestore={onRestore}
           onToggleStar={onToggleStar}
           onOpenDir={
@@ -241,7 +243,8 @@ export function SkillDetail({
           onSave={onSave}
           savePending={savePending}
           dirty={dirty}
-          readOnly={readOnly}
+          readOnly={contentReadOnly}
+          enableReadOnlyFileTree={isExternalImport && !readOnly}
         />
       )}
 

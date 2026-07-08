@@ -5,6 +5,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InstalledSkills } from "./InstalledSkills";
 import type { InstalledSkill } from "@/types/skills";
 
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
 const mocks = vi.hoisted(() => ({
   skills: [] as InstalledSkill[],
   archivedSkills: [] as InstalledSkill[],
@@ -89,6 +95,7 @@ function renderArchivedSkills() {
 
 describe("InstalledSkills visible agent filtering", () => {
   beforeEach(() => {
+    globalThis.ResizeObserver = ResizeObserverMock;
     mocks.skills = [];
     mocks.archivedSkills = [];
     mocks.visibleAgentOrder = ["claude-code", "codex"];
@@ -228,5 +235,27 @@ describe("InstalledSkills visible agent filtering", () => {
     expect(
       screen.queryByText(/No skills match your visible coding agents/),
     ).not.toBeInTheDocument();
+  });
+
+  it("does not allow batch archiving external imports", async () => {
+    const user = userEvent.setup();
+    mocks.visibleAgentOrder = ["claude-code"];
+    mocks.skills = [
+      skill({
+        id: "external-skill",
+        name: "External Skill",
+        origin: "external",
+        apps: { "claude-code": true },
+      }),
+    ];
+    const view = renderInstalledSkills();
+
+    const toggleViewButton = view.container.querySelector(
+      "button.inline-flex.items-center.bg-muted",
+    ) as HTMLButtonElement;
+    await user.click(toggleViewButton);
+    await user.click(screen.getAllByRole("checkbox")[1]);
+
+    expect(screen.getByRole("button", { name: /Archive selected/ })).toBeDisabled();
   });
 });

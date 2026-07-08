@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import {
   useRepoReadme,
   useRefreshRepoPanel,
+  useRemoveSkill,
   useRestoreArchivedSkill,
   useStarSkill,
   useUnstarSkill,
@@ -212,6 +213,25 @@ describe("useUpdateAllSkills", () => {
     });
 
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["skills", "updateHistory"] });
+  });
+});
+
+describe("useRemoveSkill", () => {
+  beforeEach(() => {
+    vi.mocked(invoke).mockReset();
+  });
+
+  it("invalidates external imports because remove can unregister external skills", async () => {
+    vi.mocked(invoke).mockResolvedValue(undefined);
+    const { wrapper, queryClient } = createQueryWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHook(() => useRemoveSkill(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync("external:demo");
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["skills", "externalImports"] });
   });
 });
 

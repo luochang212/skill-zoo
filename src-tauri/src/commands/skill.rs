@@ -1543,6 +1543,16 @@ pub fn read_archived_skill_md(archive_id: String) -> Result<String, String> {
         .map_err(|e| format_archive_io_error("Read archived SKILL.md", &skill_md, &e))
 }
 
+fn assert_skill_archiveable(skill: &InstalledSkill) -> Result<(), String> {
+    if skill.origin == "external" {
+        return Err(
+            "External imports cannot be archived because their source folders are owned by the user."
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
 fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String> {
     let skills = SkillService::read_all_skills(&state.skill_cache, &state.metadata)
         .map_err(|e| e.to_string())?;
@@ -1550,6 +1560,7 @@ fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String>
         .into_iter()
         .find(|s| s.id == skill_id)
         .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
+    assert_skill_archiveable(&skill)?;
 
     let is_external = skill.origin == "external";
 
@@ -3670,6 +3681,15 @@ mod tests {
         assert!(assert_skill_editable(&cache, Some("external:demo"), "demo").is_err());
     }
 
+    #[test]
+    fn external_imports_are_not_archiveable() {
+        let skill = test_installed_skill("external:demo", "demo", "external");
+
+        let err = assert_skill_archiveable(&skill).expect_err("external import should not archive");
+
+        assert!(err.contains("External imports cannot be archived"));
+    }
+
     #[cfg(unix)]
     #[test]
     fn dangling_external_import_symlink_still_matches_raw_target() {
@@ -3709,6 +3729,28 @@ mod tests {
             content_hash: None,
             home_agent: None,
             apps: std::collections::HashMap::new(),
+            installed_at: 0,
+            updated_at: 0,
+        }
+    }
+
+    fn test_installed_skill(id: &str, directory: &str, origin: &str) -> InstalledSkill {
+        InstalledSkill {
+            id: id.to_string(),
+            name: directory.to_string(),
+            yaml_name: None,
+            description: None,
+            directory: directory.to_string(),
+            repo_owner: None,
+            repo_name: None,
+            source_url: None,
+            apps: std::collections::HashMap::new(),
+            origin: origin.to_string(),
+            home_path: Some(directory.to_string()),
+            content_hash: None,
+            home_agent: None,
+            starred: false,
+            is_mine: false,
             installed_at: 0,
             updated_at: 0,
         }

@@ -927,7 +927,11 @@ export const InstalledSkills = memo(function InstalledSkills({
                     variant="outline"
                     size="sm"
                     className="h-7 text-xs rounded-lg"
-                    disabled={archiveSkillsMutation.isPending || removeSkillsMutation.isPending}
+                    disabled={
+                      archiveSkillsMutation.isPending ||
+                      removeSkillsMutation.isPending ||
+                      hasExternalInSelection
+                    }
                     onClick={() => setBatchAction("archive")}
                   >
                     <Archive className="h-3.5 w-3.5 mr-1.5" />

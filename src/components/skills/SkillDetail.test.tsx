@@ -263,6 +263,25 @@ describe("SkillDetail", () => {
     expect(screen.queryByTitle("Updated")).not.toBeInTheDocument();
   });
 
+  it("shows external imported skills as read-only while keeping agent configuration available", async () => {
+    renderWithQueryClient(
+      <SkillDetail
+        skill={{ ...skill, origin: "external" }}
+        skillName="Skill 1"
+        contentLoading={false}
+        content="# External skill content"
+        onChange={() => {}}
+        onArchive={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("View", { selector: "span" })).toBeInTheDocument();
+    expect(screen.queryByText("Edit", { selector: "span" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Split", { selector: "span" })).not.toBeInTheDocument();
+    expect(screen.getByTitle("Configure coding agents")).toBeInTheDocument();
+    expect(screen.queryByTitle("Archive")).not.toBeInTheDocument();
+  });
+
   it("loads only the root file children when the detail opens", async () => {
     vi.mocked(invoke).mockImplementation((command) => {
       if (command === "list_skill_file_children") {

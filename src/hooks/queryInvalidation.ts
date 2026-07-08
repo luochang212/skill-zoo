@@ -12,6 +12,11 @@ const SKILL_LIST_INVALIDATION = [
   ["skills.sh", "search"],
 ] as const;
 
+const REMOVE_SKILL_INVALIDATION = [
+  ...SKILL_LIST_INVALIDATION,
+  ["skills", "externalImports"],
+] as const;
+
 export const INVALIDATION_MAP = {
   installSkills: [
     ["skills", "installed"],
@@ -29,7 +34,7 @@ export const INVALIDATION_MAP = {
     ["skills", "file"],
     ["skills", "image"],
   ],
-  removeSkill: SKILL_LIST_INVALIDATION,
+  removeSkill: REMOVE_SKILL_INVALIDATION,
   archiveSkill: SKILL_LIST_INVALIDATION,
   archiveSkills: SKILL_LIST_INVALIDATION,
   restoreArchivedSkill: SKILL_LIST_INVALIDATION,

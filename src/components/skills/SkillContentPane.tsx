@@ -36,6 +36,7 @@ interface SkillContentPaneProps {
   savePending?: boolean;
   dirty?: boolean;
   readOnly?: boolean;
+  enableReadOnlyFileTree?: boolean;
   /** Hide the file-tree sidebar entirely (used by the create page, which only produces SKILL.md). */
   hideFileTree?: boolean;
 }
@@ -156,10 +157,12 @@ export const SkillContentPane = memo(function SkillContentPane({
   savePending,
   dirty,
   readOnly = false,
+  enableReadOnlyFileTree = false,
   hideFileTree = false,
 }: SkillContentPaneProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const fileTreeDisabled = hideFileTree || (readOnly && !enableReadOnlyFileTree);
 
   // ── Split pane state (for overview/edit/split) ──
   const [splitPct, setSplitPct] = useState(SPLIT_DEFAULT);
@@ -191,7 +194,7 @@ export const SkillContentPane = memo(function SkillContentPane({
     isLoading: rootLoading,
     isError: rootError,
     refetch: refetchRootNodes,
-  } = useSkillFileChildren(readOnly ? null : (directory ?? null), null, skillId);
+  } = useSkillFileChildren(fileTreeDisabled ? null : (directory ?? null), null, skillId);
 
   // ── Resolve selected node from already loaded nodes ──
   const selectedNode = findNodeByPath(nodes, selectedFilePath);
@@ -205,8 +208,8 @@ export const SkillContentPane = memo(function SkillContentPane({
     loadingDirPathsRef.current = new Set();
     setLoadingDirPaths(new Set());
     setErrorDirPaths(new Set());
-    setSidebarOpen(!readOnly && !hideFileTree);
-  }, [directory, readOnly, hideFileTree]);
+    setSidebarOpen(!fileTreeDisabled);
+  }, [directory, fileTreeDisabled]);
 
   // ── Seed root nodes and auto-select SKILL.md ──
   useEffect(() => {
@@ -217,9 +220,9 @@ export const SkillContentPane = memo(function SkillContentPane({
         const skillMd = findSkillMd(rootNodes);
         return skillMd?.path ?? null;
       });
-      setSidebarOpen(!hideFileTree && hasExtraLoadedFile(rootNodes));
+      setSidebarOpen(!fileTreeDisabled && hasExtraLoadedFile(rootNodes));
     }
-  }, [rootNodes, hideFileTree]);
+  }, [rootNodes, fileTreeDisabled]);
 
   // ── Auto-select SKILL.md if it arrives via a loaded child directory ──
   useEffect(() => {
@@ -281,7 +284,7 @@ export const SkillContentPane = memo(function SkillContentPane({
 
   const handleLoadChildren = useCallback(
     async (node: SkillFileNode) => {
-      if (!directory || readOnly || !node.isDir || node.children) return;
+      if (!directory || fileTreeDisabled || !node.isDir || node.children) return;
       if (loadingDirPathsRef.current.has(node.path)) return;
 
       loadingDirPathsRef.current = new Set(loadingDirPathsRef.current).add(node.path);
@@ -314,7 +317,7 @@ export const SkillContentPane = memo(function SkillContentPane({
         setLoadingDirPaths(next);
       }
     },
-    [directory, skillId, queryClient, readOnly],
+    [directory, skillId, queryClient, fileTreeDisabled],
   );
 
   // ── Tab change: only forward to parent for SKILL.md ──
@@ -411,7 +414,7 @@ export const SkillContentPane = memo(function SkillContentPane({
         role="tablist"
       >
         {/* Sidebar toggle */}
-        {!readOnly && !hideFileTree && (
+        {!fileTreeDisabled && (
           <button
             onClick={() => setSidebarOpen((v) => !v)}
             title={sidebarOpen ? t("skillFiles.hideSidebar") : t("skillFiles.showSidebar")}
