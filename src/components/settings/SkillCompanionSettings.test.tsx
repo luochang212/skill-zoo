@@ -71,6 +71,18 @@ function mockItems(
 ) {
   vi.mocked(invoke).mockImplementation((command, args) => {
     switch (command) {
+      case "get_agent_configs":
+        return Promise.resolve([
+          {
+            id: "claude-code",
+            label: "Claude Code",
+            skillsSubdir: ".claude",
+            hasUsageTracking: true,
+          },
+          { id: "codex", label: "Codex", skillsSubdir: ".codex", hasUsageTracking: true },
+          { id: "opencode", label: "OpenCode", skillsSubdir: ".opencode", hasUsageTracking: true },
+          { id: "gemini", label: "Gemini", skillsSubdir: ".gemini", hasUsageTracking: false },
+        ]);
       case "get_skill_companion_items":
         return Promise.resolve(items);
       case "get_skill_usage":
