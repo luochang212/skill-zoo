@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check } from "@tauri-apps/plugin-updater";
@@ -26,6 +27,46 @@ export type AppUpdateStatus =
   | "error";
 
 type AppUpdateError = "checkFailed" | "downloadFailed" | "restartFailed" | null;
+
+const LAST_KNOWN_UPDATE_VERSION_KEY = "skill-zoo.lastKnownUpdateVersion";
+
+function compareVersions(left: string, right: string) {
+  const leftParts = left.replace(/^v/i, "").split(/[.-]/).map(Number);
+  const rightParts = right.replace(/^v/i, "").split(/[.-]/).map(Number);
+  const length = Math.max(leftParts.length, rightParts.length);
+
+  for (let index = 0; index < length; index += 1) {
+    const leftPart = Number.isFinite(leftParts[index]) ? leftParts[index] : 0;
+    const rightPart = Number.isFinite(rightParts[index]) ? rightParts[index] : 0;
+    if (leftPart !== rightPart) return leftPart - rightPart;
+  }
+
+  return 0;
+}
+
+function readLastKnownUpdateVersion() {
+  try {
+    return localStorage.getItem(LAST_KNOWN_UPDATE_VERSION_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeLastKnownUpdateVersion(version: string) {
+  try {
+    localStorage.setItem(LAST_KNOWN_UPDATE_VERSION_KEY, version);
+  } catch {
+    // Cache failure should not block the update flow.
+  }
+}
+
+function clearLastKnownUpdateVersion() {
+  try {
+    localStorage.removeItem(LAST_KNOWN_UPDATE_VERSION_KEY);
+  } catch {
+    // Cache failure should not block the update flow.
+  }
+}
 
 interface AppUpdaterState {
   status: AppUpdateStatus;
@@ -53,8 +94,54 @@ export function AppUpdaterProvider({ children }: { children: ReactNode }) {
     let mounted = true;
 
     invoke<boolean>("is_portable_build")
-      .then((isPortable) => {
-        if (mounted) setStatus(isPortable ? "unsupported" : "idle");
+      .then(async (isPortable) => {
+        if (!mounted) return;
+
+        if (isPortable) {
+          setStatus("unsupported");
+          return;
+        }
+
+        let currentVersion: string | null = null;
+        try {
+          currentVersion = await getVersion();
+        } catch {
+          setStatus("idle");
+          return;
+        }
+
+        if (!mounted) return;
+
+        const cachedVersion = readLastKnownUpdateVersion();
+        if (cachedVersion && compareVersions(cachedVersion, currentVersion) > 0) {
+          setVersion(cachedVersion);
+          setStatus("available");
+
+          check()
+            .then((result) => {
+              if (!mounted) return;
+              if (result) {
+                updateRef.current = result;
+                writeLastKnownUpdateVersion(result.version);
+                setVersion(result.version);
+                setDownloadedBytes(0);
+                setStatus("available");
+              } else {
+                updateRef.current = null;
+                clearLastKnownUpdateVersion();
+                setVersion(null);
+                setDownloadedBytes(0);
+                setStatus("idle");
+              }
+            })
+            .catch(() => {
+              // Keep the cached update visible when the network is unavailable.
+            });
+          return;
+        }
+
+        if (cachedVersion) clearLastKnownUpdateVersion();
+        setStatus("idle");
       })
       .catch(() => {
         if (mounted) setStatus("unsupported");
@@ -103,11 +190,13 @@ export function AppUpdaterProvider({ children }: { children: ReactNode }) {
         const result = await check();
         if (result) {
           updateRef.current = result;
+          writeLastKnownUpdateVersion(result.version);
           setVersion(result.version);
           setDownloadedBytes(0);
           setStatus("available");
         } else {
           updateRef.current = null;
+          clearLastKnownUpdateVersion();
           setVersion(null);
           setDownloadedBytes(0);
           setStatus("idle");
@@ -145,10 +234,12 @@ export function AppUpdaterProvider({ children }: { children: ReactNode }) {
       const result = await check();
       if (result) {
         updateRef.current = result;
+        writeLastKnownUpdateVersion(result.version);
         setVersion(result.version);
         await downloadUpdate(result);
       } else {
         updateRef.current = null;
+        clearLastKnownUpdateVersion();
         setVersion(null);
         setDownloadedBytes(0);
         setStatus("idle");
@@ -166,7 +257,10 @@ export function AppUpdaterProvider({ children }: { children: ReactNode }) {
   const retryDownload = useCallback(async () => {
     if (busyRef.current) return;
     const current = updateRef.current;
-    if (!current) return;
+    if (!current) {
+      await checkAndDownload();
+      return;
+    }
 
     busyRef.current = true;
     try {
@@ -174,7 +268,7 @@ export function AppUpdaterProvider({ children }: { children: ReactNode }) {
     } finally {
       busyRef.current = false;
     }
-  }, [downloadUpdate]);
+  }, [checkAndDownload, downloadUpdate]);
 
   const restart = useCallback(async () => {
     try {

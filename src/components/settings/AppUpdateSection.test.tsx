@@ -2,6 +2,7 @@ import "@/i18n";
 import { useState } from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { check } from "@tauri-apps/plugin-updater";
 import type { DownloadEvent, Update } from "@tauri-apps/plugin-updater";
@@ -15,6 +16,10 @@ import { AppUpdateSection } from "./AppUpdateSection";
 
 vi.mock("@tauri-apps/plugin-updater", () => ({
   check: vi.fn(),
+}));
+
+vi.mock("@tauri-apps/api/app", () => ({
+  getVersion: vi.fn(),
 }));
 
 vi.mock("@tauri-apps/plugin-process", () => ({
@@ -86,11 +91,14 @@ describe("AppUpdateSection", () => {
   beforeEach(async () => {
     vi.mocked(invoke).mockReset();
     vi.mocked(invoke).mockResolvedValue(false);
+    vi.mocked(getVersion).mockReset();
+    vi.mocked(getVersion).mockResolvedValue("0.2.8");
     vi.mocked(check).mockReset();
     vi.mocked(relaunch).mockReset();
     vi.mocked(toast.success).mockReset();
     vi.mocked(toast.error).mockReset();
     Element.prototype.scrollIntoView = vi.fn();
+    localStorage.clear();
     await i18n.changeLanguage("en");
   });
 
