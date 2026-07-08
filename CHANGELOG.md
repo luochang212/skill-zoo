@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.22] — 2026-07-09
+
+### Added
+- External imports are now protected from destructive operations — delete and overwrite actions treat them as read-only references, preventing accidental data loss.
+- Target highlight animation when navigating to consistency issues from skill card badges.
+
+### Fixed
+- Skill install dialog controls are now locked while installation is pending, preventing double-clicks from queuing duplicate installs.
+- External import symlinks no longer incorrectly target the SSOT store.
+- External import links in the SSOT store are properly excluded from duplicate detection.
+- Repo skills cache is now invalidated on rescan, ensuring the UI reflects the latest filesystem state after manual refresh.
+- SkillHero linked agents now filter by the user's configured visible agent order.
+- Consistency check issue counts and sidebar counts are now limited to visible skills only, matching the filtered card view.
+
 ## [0.3.21] — 2026-07-09
 
 ### Added
