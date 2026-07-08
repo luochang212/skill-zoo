@@ -59,6 +59,7 @@ export function SkillInstallDialog({
   }, [visibleAgentKey]);
 
   const toggleAgent = (agent: string) => {
+    if (isPending) return;
     setAgents((prev) => {
       const next = new Set(prev);
       if (next.has(agent)) next.delete(agent);
@@ -68,11 +69,17 @@ export function SkillInstallDialog({
   };
 
   const handleInstall = () => {
+    if (isPending || agents.size === 0) return;
     onInstall(skillNames, Array.from(agents));
   };
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (isPending && !nextOpen) return;
+    onOpenChange(nextOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[420px]" data-selectable>
         <DialogHeader>
           <DialogTitle>{t("installDialog.title")}</DialogTitle>
@@ -94,6 +101,7 @@ export function SkillInstallDialog({
                   </label>
                   <Switch
                     checked={agents.has(agent)}
+                    disabled={isPending}
                     onCheckedChange={() => toggleAgent(agent)}
                     aria-label={`Toggle ${getAgentLabel(agent, agentConfigs ?? [])}`}
                   />
@@ -103,7 +111,12 @@ export function SkillInstallDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={isPending}
+            onClick={() => handleOpenChange(false)}
+          >
             {t("common.cancel")}
           </Button>
           <Button size="sm" onClick={handleInstall} disabled={agents.size === 0 || isPending}>
