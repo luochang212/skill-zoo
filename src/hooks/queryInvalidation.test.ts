@@ -33,6 +33,7 @@ describe("invalidateFor", () => {
     expect(INVALIDATION_MAP.rescanSkills).toEqual(
       expect.arrayContaining([
         ["skills", "content"],
+        ["repos", "skills"],
         ["skills", "files"],
         ["skills", "fileChildren"],
         ["skills", "file"],
