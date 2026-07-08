@@ -283,7 +283,9 @@ describe("SkillCompanionSettings", () => {
     expect(saveButton).toBeDisabled();
     const screenshotTarget = vi.mocked(domToPng).mock.calls[0]?.[0];
     expect(screenshotTarget).toBeInstanceOf(HTMLElement);
-    expect((screenshotTarget as HTMLElement).hasAttribute("data-screenshot-content")).toBe(true);
+    expect(
+      (screenshotTarget as unknown as HTMLElement).hasAttribute("data-screenshot-content"),
+    ).toBe(true);
     expect(domToPng).toHaveBeenCalledWith(
       expect.any(HTMLElement),
       expect.objectContaining({
