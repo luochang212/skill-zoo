@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import { useConsistencyCheck } from "./useSkillIssues";
 import type { InstalledSkill } from "@/types/skills";
 
-function makeSkill(id: string, contentHash?: string, origin = "ssot"): InstalledSkill {
+import type { SkillOrigin } from "@/types/skills";
+
+function makeSkill(id: string, contentHash?: string, origin: SkillOrigin = "ssot"): InstalledSkill {
   return {
     id,
     name: "duplicate",

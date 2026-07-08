@@ -257,9 +257,38 @@ fn link_points_to_import_source(link_path: &Path, source_path: &Path) -> bool {
 }
 
 fn external_import_link_path(directory: &str, agent: &str) -> Result<PathBuf, String> {
+    if !config::AGENTS.iter().any(|config| config.id == agent) {
+        return Err(format!("Unknown agent: {agent}"));
+    }
     let agent_dir =
         config::get_agent_skills_dir(agent).ok_or_else(|| format!("Unknown agent: {agent}"))?;
     Ok(agent_dir.join(SkillService::agent_link_name(directory)))
+}
+
+fn remove_external_import_store_link_for_target(
+    directory: &str,
+    source_path: &Path,
+    store_dir: &Path,
+) -> Result<usize, crate::error::AppError> {
+    let link_path = store_dir.join(SkillService::agent_link_name(directory));
+    if is_symlink_or_junction(&link_path) && link_points_to_import_source(&link_path, source_path) {
+        SkillService::safe_remove(&link_path)?;
+        return Ok(1);
+    }
+    Ok(0)
+}
+
+fn remove_external_import_links_for_target(
+    directory: &str,
+    source_path: &Path,
+) -> Result<usize, crate::error::AppError> {
+    let mut removed = SkillService::remove_agent_links_for_target(directory, source_path)?;
+    removed += remove_external_import_store_link_for_target(
+        directory,
+        source_path,
+        &config::get_agents_skills_dir(),
+    )?;
+    Ok(removed)
 }
 
 #[cfg(feature = "test-helpers")]
@@ -668,8 +697,15 @@ pub async fn import_external_skills(
     }
 
     for (old_directory, old_source) in &renamed_imports {
-        let _ =
-            SkillService::remove_agent_links_for_target(old_directory, &PathBuf::from(old_source));
+        let _ = remove_external_import_links_for_target(old_directory, &PathBuf::from(old_source));
+    }
+
+    for (selection, source_path) in &prepared {
+        let _ = remove_external_import_store_link_for_target(
+            &selection.directory,
+            source_path,
+            &config::get_agents_skills_dir(),
+        );
     }
 
     for import_id in &imported_ids {
@@ -706,7 +742,7 @@ pub fn remove_external_import(state: State<'_, AppState>, import_id: String) -> 
     let source_path = PathBuf::from(&import.source_path);
     crate::services::watcher::unwatch_external_path(&state, &source_path);
 
-    let _ = SkillService::remove_agent_links_for_target(&import.directory, &source_path);
+    let _ = remove_external_import_links_for_target(&import.directory, &source_path);
     let _ = SkillService::remove_cache_entry(&state.skill_cache, &import_id);
     if let Ok(mut metadata) = state.metadata.write() {
         metadata.remove(&import_id);
@@ -730,7 +766,7 @@ pub fn clean_external_import_links(
             continue;
         }
         let source_path = PathBuf::from(&import.source_path);
-        removed += SkillService::remove_agent_links_for_target(&import.directory, &source_path)
+        removed += remove_external_import_links_for_target(&import.directory, &source_path)
             .map_err(|e| e.to_string())?;
         if let Ok(entry) = SkillService::scan_external_import(import) {
             let _ = SkillService::upsert_cache_entry(&state.skill_cache, entry);
@@ -1278,7 +1314,7 @@ fn remove_cached_skill_from_disk(skill: &SkillCacheEntry) -> Result<(), String> 
             .remove(&skill.id)
             .ok_or_else(|| format!("External import not found: {}", skill.id))?;
         imports.save().map_err(|e| e.to_string())?;
-        let _ = SkillService::remove_agent_links_for_target(
+        let _ = remove_external_import_links_for_target(
             &import.directory,
             &PathBuf::from(&import.source_path),
         );
@@ -3662,6 +3698,37 @@ mod tests {
             external_import_status(&import),
             ExternalImportStatus::Valid
         ));
+    }
+
+    #[test]
+    fn external_import_links_reject_ssot_store() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let source = root.path().join("demo");
+        std::fs::create_dir_all(&source).expect("create source");
+
+        let err = ensure_external_import_link_available("demo", &source, "ssot")
+            .expect_err("external imports must not link into the SSOT store");
+
+        assert!(err.contains("Unknown agent: ssot"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn removes_historical_external_import_link_from_ssot_store() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let store = root.path().join(".agents").join("skills");
+        let source = root.path().join("external").join("demo");
+        std::fs::create_dir_all(&store).expect("create store");
+        std::fs::create_dir_all(&source).expect("create source");
+        let link = store.join("demo");
+        std::os::unix::fs::symlink(&source, &link).expect("create bad ssot link");
+
+        let removed =
+            remove_external_import_store_link_for_target("demo", &source, &store).expect("cleanup");
+
+        assert_eq!(removed, 1);
+        assert!(!link.exists());
+        assert!(source.exists());
     }
 
     #[test]
