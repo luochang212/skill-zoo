@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.20] — 2026-07-08
+
+### Added
+- OpenCode skill usage tracking with extensible agent registry. The `skill_usage` collector now uses a registry pattern — adding a new agent requires only one collector function and one registry entry.
+- OpenCode slash-command skill invocations detected from injected SKILL.md text in user messages.
+- Codex `$skill-name` prefix invocations detected alongside legacy `exec_command` SKILL.md reads.
+- Pre-push git hook to run full CI checks (typecheck, tests, clippy, build) locally before pushing.
+
+### Changed
+- Skill usage whitelist broadened to all installed skills regardless of agent association. Previously skills had to be explicitly installed for the selected agent to appear.
+- Agent selector in the usage habits dialog now dynamically derived from agent configs instead of hardcoded types.
+- MAX_DOWNLOAD_BYTES raised from 500 MB to 5 GB.
+
 ## [0.3.19] — 2026-07-08
 
 ### Added
