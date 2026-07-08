@@ -329,10 +329,14 @@ function SkillUsageDialog({
       toast.error(t("settings.skillCompanion.screenshotFailed"));
       return;
     }
-    // Capture the scroll region's full content (scrollHeight), not the dialog's
+    // Capture the inner content wrapper (natural auto-height), not the dialog's
     // fixed viewport — the dialog shell is overflow:hidden at 640px, so skills
-    // past the fold would otherwise be clipped. Mirrors tokenscope's approach.
-    const target = dialog.querySelector<HTMLElement>("[data-screenshot-scroll]") ?? dialog;
+    // past the fold would otherwise be clipped. Using the inner wrapper avoids
+    // flex-inflated scrollHeight when content is shorter than the dialog.
+    const target =
+      dialog.querySelector<HTMLElement>("[data-screenshot-content]") ??
+      dialog.querySelector<HTMLElement>("[data-screenshot-scroll]") ??
+      dialog;
     setIsCapturing(true);
     try {
       const dataUrl = await domToPng(target, {
@@ -435,59 +439,58 @@ function SkillUsageDialog({
             )}
           </Button>
         </div>
-        <div
-          data-screenshot-scroll
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-4"
-        >
-          {isLoading ? (
-            <>
-              <div className="grid grid-cols-3 gap-2.5">
-                <Skeleton className="h-24 rounded-lg" />
-                <Skeleton className="h-24 rounded-lg" />
-                <Skeleton className="h-24 rounded-lg" />
-              </div>
-              <Skeleton className="h-32 w-full rounded-lg" />
-              <div className="h-px bg-border/20 mx-0 my-2.5" />
-              <Skeleton className="h-3 w-20 rounded" />
-              <div className="space-y-3 py-1">
-                {[82, 60, 45, 32, 18].map((width, i) => (
-                  <div
-                    key={i}
-                    className="grid grid-cols-[minmax(0,9rem)_1fr_3ch_5ch] items-center gap-3"
-                  >
-                    <Skeleton className="h-3 w-20 rounded" />
-                    <Skeleton className="h-3 rounded-full" style={{ width: `${width}%` }} />
-                    <Skeleton className="h-3 rounded" />
-                    <Skeleton className="h-3 rounded" />
-                  </div>
-                ))}
-              </div>
-              <Skeleton className="h-3 w-2/3 rounded" />
-            </>
-          ) : (
-            <>
-              <SkillUsageSummaryTiles
-                period={period}
-                installedSkillCount={usage?.installedSkillCount ?? 0}
-                rangeLabel={rangeLabel}
-                agentDisplayName={agentDisplayName}
-              />
-              {period && period.dailyBreakdown.length > 0 && (
-                <>
-                  <DailyChart breakdown={period.dailyBreakdown} />
-                  <div className="h-px bg-border/20 mx-0 my-2.5" />
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-                    {t("settings.skillCompanion.usageRanking")}
-                  </p>
-                </>
-              )}
-              <SkillUsageBars period={period} agentDisplayName={agentDisplayName} />
-              <p className="border-t border-border/30 pt-3 text-[11px] leading-5 text-muted-foreground">
-                {/* Intentional non-i18n metadata label for a compact product signature. */}
-                {`▸ Skill preferences · ${activeSkillCount} skills · ${dateRange.start} ~ ${dateRange.end}`}
-              </p>
-            </>
-          )}
+        <div data-screenshot-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div data-screenshot-content className="p-4 space-y-4">
+            {isLoading ? (
+              <>
+                <div className="grid grid-cols-3 gap-2.5">
+                  <Skeleton className="h-24 rounded-lg" />
+                  <Skeleton className="h-24 rounded-lg" />
+                  <Skeleton className="h-24 rounded-lg" />
+                </div>
+                <Skeleton className="h-32 w-full rounded-lg" />
+                <div className="h-px bg-border/20 mx-0 my-2.5" />
+                <Skeleton className="h-3 w-20 rounded" />
+                <div className="space-y-3 py-1">
+                  {[82, 60, 45, 32, 18].map((width, i) => (
+                    <div
+                      key={i}
+                      className="grid grid-cols-[minmax(0,9rem)_1fr_3ch_5ch] items-center gap-3"
+                    >
+                      <Skeleton className="h-3 w-20 rounded" />
+                      <Skeleton className="h-3 rounded-full" style={{ width: `${width}%` }} />
+                      <Skeleton className="h-3 rounded" />
+                      <Skeleton className="h-3 rounded" />
+                    </div>
+                  ))}
+                </div>
+                <Skeleton className="h-3 w-2/3 rounded" />
+              </>
+            ) : (
+              <>
+                <SkillUsageSummaryTiles
+                  period={period}
+                  installedSkillCount={usage?.installedSkillCount ?? 0}
+                  rangeLabel={rangeLabel}
+                  agentDisplayName={agentDisplayName}
+                />
+                {period && period.dailyBreakdown.length > 0 && (
+                  <>
+                    <DailyChart breakdown={period.dailyBreakdown} />
+                    <div className="h-px bg-border/20 mx-0 my-2.5" />
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                      {t("settings.skillCompanion.usageRanking")}
+                    </p>
+                  </>
+                )}
+                <SkillUsageBars period={period} agentDisplayName={agentDisplayName} />
+                <p className="border-t border-border/30 pt-3 text-[11px] leading-5 text-muted-foreground">
+                  {/* Intentional non-i18n metadata label for a compact product signature. */}
+                  {`▸ Skill preferences · ${activeSkillCount} skills · ${dateRange.start} ~ ${dateRange.end}`}
+                </p>
+              </>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>
