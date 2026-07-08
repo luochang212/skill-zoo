@@ -117,17 +117,29 @@ export interface SkillCompanionItem {
 export interface SkillUsageRank {
   name: string;
   count: number;
+  userCalls: number;
+  agentCalls: number;
   lastUsedAt: number;
 }
+
+export interface SkillUsageSourceCounts {
+  user: number;
+  agent: number;
+}
+
+export type SkillUsageSource = "user" | "agent";
 
 export interface DailyCount {
   label: string;
   date: string;
   count: number;
+  userCalls: number;
+  agentCalls: number;
 }
 
 export interface SkillUsagePeriod {
   totalCalls: number;
+  sourceCounts: SkillUsageSourceCounts;
   skills: SkillUsageRank[];
   dailyBreakdown: DailyCount[];
 }
@@ -135,12 +147,14 @@ export interface SkillUsagePeriod {
 export interface RecentSkillUsage {
   name: string;
   command: string;
+  source: SkillUsageSource;
   lastUsedAt: number;
 }
 
 export interface SkillUsage {
   installedSkillCount: number;
   totalCalls: number;
+  sourceCounts: SkillUsageSourceCounts;
   week: SkillUsagePeriod;
   month: SkillUsagePeriod;
   recent: RecentSkillUsage[];

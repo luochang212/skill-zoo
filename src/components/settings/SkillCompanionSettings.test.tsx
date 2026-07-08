@@ -39,29 +39,32 @@ function renderSettings() {
 const usage: SkillUsage = {
   installedSkillCount: 2,
   totalCalls: 4,
+  sourceCounts: { user: 1, agent: 3 },
   week: {
     totalCalls: 4,
+    sourceCounts: { user: 1, agent: 3 },
     skills: [
-      { name: "code-review", count: 3, lastUsedAt: 4 },
-      { name: "translate", count: 1, lastUsedAt: 1 },
+      { name: "code-review", count: 3, userCalls: 1, agentCalls: 2, lastUsedAt: 4 },
+      { name: "translate", count: 1, userCalls: 0, agentCalls: 1, lastUsedAt: 1 },
     ],
     dailyBreakdown: [
-      { label: "Tue", date: "07-01", count: 2 },
-      { label: "Wed", date: "07-02", count: 1 },
-      { label: "Thu", date: "07-03", count: 1 },
+      { label: "Tue", date: "07-01", count: 2, userCalls: 1, agentCalls: 1 },
+      { label: "Wed", date: "07-02", count: 1, userCalls: 0, agentCalls: 1 },
+      { label: "Thu", date: "07-03", count: 1, userCalls: 0, agentCalls: 1 },
     ],
   },
   month: {
     totalCalls: 4,
+    sourceCounts: { user: 1, agent: 3 },
     skills: [
-      { name: "code-review", count: 3, lastUsedAt: 4 },
-      { name: "translate", count: 1, lastUsedAt: 1 },
+      { name: "code-review", count: 3, userCalls: 1, agentCalls: 2, lastUsedAt: 4 },
+      { name: "translate", count: 1, userCalls: 0, agentCalls: 1, lastUsedAt: 1 },
     ],
     dailyBreakdown: [],
   },
   recent: [
-    { name: "code-review", command: "code-review", lastUsedAt: 4 },
-    { name: "translate", command: "translate", lastUsedAt: 1 },
+    { name: "code-review", command: "code-review", source: "agent", lastUsedAt: 4 },
+    { name: "translate", command: "translate", source: "user", lastUsedAt: 1 },
   ],
 };
 

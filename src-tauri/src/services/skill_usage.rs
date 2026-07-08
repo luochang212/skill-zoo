@@ -11,13 +11,23 @@ const RECENT_LIMIT: usize = 5;
 pub struct SkillUsageRank {
     pub name: String,
     pub count: u64,
+    pub user_calls: u64,
+    pub agent_calls: u64,
     pub last_used_at: i64,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillUsageSourceCounts {
+    pub user: u64,
+    pub agent: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillUsagePeriod {
     pub total_calls: u64,
+    pub source_counts: SkillUsageSourceCounts,
     pub skills: Vec<SkillUsageRank>,
     pub daily_breakdown: Vec<DailyCount>,
 }
@@ -28,6 +38,8 @@ pub struct DailyCount {
     pub label: String,
     pub date: String,
     pub count: u64,
+    pub user_calls: u64,
+    pub agent_calls: u64,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -35,6 +47,7 @@ pub struct DailyCount {
 pub struct RecentSkillUsage {
     pub name: String,
     pub command: String,
+    pub source: SkillUsageSource,
     pub last_used_at: i64,
 }
 
@@ -43,21 +56,31 @@ pub struct RecentSkillUsage {
 pub struct SkillUsage {
     pub installed_skill_count: usize,
     pub total_calls: u64,
+    pub source_counts: SkillUsageSourceCounts,
     pub week: SkillUsagePeriod,
     pub month: SkillUsagePeriod,
     pub recent: Vec<RecentSkillUsage>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "camelCase")]
+pub enum SkillUsageSource {
+    User,
+    Agent,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SkillUsageEvent {
     name: String,
     ts_ms: i64,
+    source: SkillUsageSource,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ParsedSkillLine {
     id: Option<String>,
     ts_ms: i64,
+    source: SkillUsageSource,
     skills: Vec<String>,
 }
 
@@ -235,6 +258,7 @@ fn aggregate_events(
                 events.push(SkillUsageEvent {
                     name,
                     ts_ms: parsed.ts_ms,
+                    source: parsed.source,
                 });
             }
         }
@@ -249,6 +273,7 @@ fn build_usage(
 ) -> SkillUsage {
     events.sort_by_key(|b| std::cmp::Reverse(b.ts_ms));
     let total_calls = events.len() as u64;
+    let source_counts = source_counts(&events);
     let week = period_report(&events, Period::Week, now);
     let month = period_report(&events, Period::Month, now);
     let recent = recent_skills(&events);
@@ -256,10 +281,19 @@ fn build_usage(
     SkillUsage {
         installed_skill_count,
         total_calls,
+        source_counts,
         week,
         month,
         recent,
     }
+}
+
+fn source_counts(events: &[SkillUsageEvent]) -> SkillUsageSourceCounts {
+    let mut counts = SkillUsageSourceCounts::default();
+    for event in events {
+        counts.add(event.source);
+    }
+    counts
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -279,9 +313,10 @@ fn period_report(
         Period::Month => today - Duration::days(29),
     };
 
-    let mut counts: HashMap<String, (u64, i64)> = HashMap::new();
-    let mut daily: HashMap<NaiveDate, u64> = HashMap::new();
+    let mut counts: HashMap<String, SkillUsageRankCounts> = HashMap::new();
+    let mut daily: HashMap<NaiveDate, SkillUsageSourceCounts> = HashMap::new();
     let mut total_calls = 0;
+    let mut source_counts = SkillUsageSourceCounts::default();
     for event in events {
         let Some(ts) = Local.timestamp_millis_opt(event.ts_ms).single() else {
             continue;
@@ -291,10 +326,12 @@ fn period_report(
             continue;
         }
         total_calls += 1;
+        source_counts.add(event.source);
         let entry = counts.entry(event.name.clone()).or_default();
-        entry.0 += 1;
-        entry.1 = entry.1.max(event.ts_ms);
-        *daily.entry(date).or_default() += 1;
+        entry.count += 1;
+        entry.source_counts.add(event.source);
+        entry.last_used_at = entry.last_used_at.max(event.ts_ms);
+        daily.entry(date).or_default().add(event.source);
     }
 
     let days = match period {
@@ -317,25 +354,50 @@ fn period_report(
             DailyCount {
                 label,
                 date: date.format("%m-%d").to_string(),
-                count: daily.get(&date).copied().unwrap_or(0),
+                count: daily.get(&date).copied().unwrap_or_default().total(),
+                user_calls: daily.get(&date).copied().unwrap_or_default().user,
+                agent_calls: daily.get(&date).copied().unwrap_or_default().agent,
             }
         })
         .collect();
 
     SkillUsagePeriod {
         total_calls,
+        source_counts,
         skills: ranked_counts(counts),
         daily_breakdown,
     }
 }
 
-fn ranked_counts(counts: HashMap<String, (u64, i64)>) -> Vec<SkillUsageRank> {
+#[derive(Debug, Clone, Copy, Default)]
+struct SkillUsageRankCounts {
+    count: u64,
+    source_counts: SkillUsageSourceCounts,
+    last_used_at: i64,
+}
+
+impl SkillUsageSourceCounts {
+    fn add(&mut self, source: SkillUsageSource) {
+        match source {
+            SkillUsageSource::User => self.user += 1,
+            SkillUsageSource::Agent => self.agent += 1,
+        }
+    }
+
+    fn total(self) -> u64 {
+        self.user + self.agent
+    }
+}
+
+fn ranked_counts(counts: HashMap<String, SkillUsageRankCounts>) -> Vec<SkillUsageRank> {
     let mut ranks: Vec<_> = counts
         .into_iter()
-        .map(|(name, (count, last_used_at))| SkillUsageRank {
+        .map(|(name, counts)| SkillUsageRank {
             name,
-            count,
-            last_used_at,
+            count: counts.count,
+            user_calls: counts.source_counts.user,
+            agent_calls: counts.source_counts.agent,
+            last_used_at: counts.last_used_at,
         })
         .collect();
     ranks.sort_by(|a, b| {
@@ -357,6 +419,7 @@ fn recent_skills(events: &[SkillUsageEvent]) -> Vec<RecentSkillUsage> {
         recent.push(RecentSkillUsage {
             name: event.name.clone(),
             command: event.name.clone(),
+            source: event.source,
             last_used_at: event.ts_ms,
         });
         if recent.len() == RECENT_LIMIT {
@@ -405,6 +468,7 @@ fn parse_codex_exec_command(value: &serde_json::Value) -> Option<ParsedSkillLine
     Some(ParsedSkillLine {
         id: None,
         ts_ms,
+        source: SkillUsageSource::Agent,
         skills: vec![name],
     })
 }
@@ -427,6 +491,7 @@ fn parse_codex_user_message(value: &serde_json::Value) -> Option<ParsedSkillLine
     Some(ParsedSkillLine {
         id,
         ts_ms,
+        source: SkillUsageSource::User,
         skills: vec![name],
     })
 }
@@ -507,6 +572,7 @@ fn query_opencode_skill_events(
                 events.push(SkillUsageEvent {
                     name: normalized,
                     ts_ms,
+                    source: SkillUsageSource::Agent,
                 });
             }
         }
@@ -544,7 +610,11 @@ fn query_opencode_skill_events(
                 if !seen.insert((session_id, name.clone())) {
                     continue;
                 }
-                events.push(SkillUsageEvent { name, ts_ms });
+                events.push(SkillUsageEvent {
+                    name,
+                    ts_ms,
+                    source: SkillUsageSource::User,
+                });
             }
         }
     }
@@ -617,7 +687,12 @@ fn parse_assistant_skill_line(value: &serde_json::Value) -> Option<ParsedSkillLi
     if skills.is_empty() {
         return None;
     }
-    Some(ParsedSkillLine { id, ts_ms, skills })
+    Some(ParsedSkillLine {
+        id,
+        ts_ms,
+        source: SkillUsageSource::Agent,
+        skills,
+    })
 }
 
 fn parse_user_command_line(value: &serde_json::Value) -> Option<ParsedSkillLine> {
@@ -639,6 +714,7 @@ fn parse_user_command_line(value: &serde_json::Value) -> Option<ParsedSkillLine>
     Some(ParsedSkillLine {
         id,
         ts_ms,
+        source: SkillUsageSource::User,
         skills: vec![skill.to_string()],
     })
 }
@@ -732,7 +808,7 @@ mod tests {
     use super::{
         build_usage, discover_skill_usage_from_home, extract_dollar_skill, extract_heading,
         heading_to_kebab, match_heading_to_whitelist, normalize_skill_name,
-        parse_claude_skill_line, parse_codex_skill_line, SkillUsageEvent,
+        parse_claude_skill_line, parse_codex_skill_line, SkillUsageEvent, SkillUsageSource,
     };
     use chrono::{Local, TimeZone};
     use std::collections::HashSet;
@@ -742,6 +818,7 @@ mod tests {
         let line = r#"{"type":"assistant","timestamp":"2026-07-02T10:00:00Z","message":{"id":"msg_1","content":[{"type":"tool_use","name":"Skill","input":{"skill":"plugin:code-review"}}]}}"#;
         let parsed = parse_claude_skill_line(line).unwrap();
         assert_eq!(parsed.id.as_deref(), Some("msg_1"));
+        assert_eq!(parsed.source, SkillUsageSource::Agent);
         assert_eq!(parsed.skills, vec!["plugin:code-review"]);
     }
 
@@ -750,6 +827,7 @@ mod tests {
         let line = r#"{"type":"user","timestamp":"2026-07-02T10:00:00Z","uuid":"u1","message":{"content":"<command-name>/translate</command-name>hello"}}"#;
         let parsed = parse_claude_skill_line(line).unwrap();
         assert_eq!(parsed.id.as_deref(), Some("u1"));
+        assert_eq!(parsed.source, SkillUsageSource::User);
         assert_eq!(parsed.skills, vec!["translate"]);
     }
 
@@ -772,19 +850,26 @@ mod tests {
             SkillUsageEvent {
                 name: "code-review".to_string(),
                 ts_ms: now.timestamp_millis(),
+                source: SkillUsageSource::Agent,
             },
             SkillUsageEvent {
                 name: "translate".to_string(),
                 ts_ms: (now - chrono::Duration::hours(1)).timestamp_millis(),
+                source: SkillUsageSource::User,
             },
             SkillUsageEvent {
                 name: "code-review".to_string(),
                 ts_ms: (now - chrono::Duration::days(1)).timestamp_millis(),
+                source: SkillUsageSource::User,
             },
         ];
         let usage = build_usage(2, events, now);
         assert_eq!(usage.total_calls, 3);
+        assert_eq!(usage.source_counts.user, 2);
+        assert_eq!(usage.source_counts.agent, 1);
         assert_eq!(usage.week.total_calls, 3);
+        assert_eq!(usage.week.source_counts.user, 2);
+        assert_eq!(usage.week.source_counts.agent, 1);
         assert_eq!(
             usage
                 .week
@@ -797,8 +882,12 @@ mod tests {
         );
         assert_eq!(usage.week.skills[0].name, "code-review");
         assert_eq!(usage.week.skills[0].count, 2);
+        assert_eq!(usage.week.skills[0].user_calls, 1);
+        assert_eq!(usage.week.skills[0].agent_calls, 1);
         assert_eq!(usage.recent[0].command, "code-review");
+        assert_eq!(usage.recent[0].source, SkillUsageSource::Agent);
         assert_eq!(usage.recent[1].command, "translate");
+        assert_eq!(usage.recent[1].source, SkillUsageSource::User);
     }
 
     #[test]
@@ -819,8 +908,11 @@ mod tests {
         let now = Local.with_ymd_and_hms(2026, 7, 2, 12, 0, 0).unwrap();
         let usage = discover_skill_usage_from_home("claude-code", temp.path(), whitelist, 1, now);
         assert_eq!(usage.total_calls, 1);
+        assert_eq!(usage.source_counts.user, 1);
+        assert_eq!(usage.source_counts.agent, 0);
         assert_eq!(usage.installed_skill_count, 1);
         assert_eq!(usage.recent[0].name, "code-review");
+        assert_eq!(usage.recent[0].source, SkillUsageSource::User);
     }
 
     #[test]
@@ -842,6 +934,7 @@ mod tests {
         .to_string();
         let parsed = parse_codex_skill_line(&line).unwrap();
         assert_eq!(parsed.skills, vec!["coding-philosophy-cce"]);
+        assert_eq!(parsed.source, SkillUsageSource::Agent);
         assert_eq!(parsed.id, None);
     }
 
@@ -892,8 +985,11 @@ mod tests {
         let now = Local.with_ymd_and_hms(2026, 7, 2, 12, 0, 0).unwrap();
         let usage = discover_skill_usage_from_home("codex", temp.path(), whitelist, 1, now);
         assert_eq!(usage.total_calls, 1);
+        assert_eq!(usage.source_counts.user, 0);
+        assert_eq!(usage.source_counts.agent, 1);
         assert_eq!(usage.installed_skill_count, 1);
         assert_eq!(usage.recent[0].name, "coding-philosophy-cce");
+        assert_eq!(usage.recent[0].source, SkillUsageSource::Agent);
     }
 
     #[test]
@@ -923,6 +1019,7 @@ mod tests {
         .to_string();
         let parsed = parse_codex_skill_line(&line).unwrap();
         assert_eq!(parsed.skills, vec!["github-research-assistant"]);
+        assert_eq!(parsed.source, SkillUsageSource::User);
     }
 
     #[test]
@@ -967,6 +1064,8 @@ mod tests {
             usage.total_calls, 2,
             "should detect both old and new mechanisms"
         );
+        assert_eq!(usage.source_counts.user, 1);
+        assert_eq!(usage.source_counts.agent, 1);
     }
 
     #[test]
@@ -986,6 +1085,7 @@ mod tests {
         assert_eq!(events.len(), 2);
         assert_eq!(events[0].name, "code-audit");
         assert_eq!(events[0].ts_ms, 1779562587114);
+        assert_eq!(events[0].source, SkillUsageSource::Agent);
     }
 
     #[test]
@@ -1129,9 +1229,16 @@ mod tests {
             .collect();
         let events = super::query_opencode_skill_events(&db_path, &whitelist);
         assert_eq!(events.len(), 2);
-        let names: Vec<&str> = events.iter().map(|e| e.name.as_str()).collect();
-        assert!(names.contains(&"github-research-assistant"));
-        assert!(names.contains(&"code-audit"));
+        let user_event = events
+            .iter()
+            .find(|event| event.name == "github-research-assistant")
+            .unwrap();
+        let agent_event = events
+            .iter()
+            .find(|event| event.name == "code-audit")
+            .unwrap();
+        assert_eq!(user_event.source, SkillUsageSource::User);
+        assert_eq!(agent_event.source, SkillUsageSource::Agent);
     }
 
     #[test]
