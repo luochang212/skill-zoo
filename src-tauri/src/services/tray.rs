@@ -7,13 +7,16 @@ use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::TrayIconBuilder;
 use tauri::{App, AppHandle, Emitter, Manager, Wry};
+use tauri_plugin_opener::OpenerExt;
 
 pub const SKILL_COMPANION_ITEMS_SETTING: &str = "skill_companion_items";
 
 const TRAY_ID: &str = "skill-zoo-tray";
 const MENU_OPEN: &str = "tray-open";
+const MENU_WEBSITE: &str = "tray-website";
 const MENU_SETTINGS: &str = "tray-settings";
 const MENU_QUIT: &str = "tray-quit";
+const OFFICIAL_WEBSITE_URL: &str = "https://www.luochang.ink/skill-zoo/";
 const NAVIGATE_EVENT: &str = "navigate";
 const MENU_COMPANION_COPY_HINT: &str = "skill-companion-copy-hint";
 const MENU_COMPANION_EMPTY: &str = "skill-companion-empty";
@@ -35,6 +38,7 @@ pub struct SkillCompanionItem {
 pub struct TrayState {
     root_menu: Mutex<Option<Menu<Wry>>>,
     open_item: Mutex<Option<MenuItem<Wry>>>,
+    website_item: Mutex<Option<MenuItem<Wry>>>,
     settings_item: Mutex<Option<MenuItem<Wry>>>,
     quit_item: Mutex<Option<MenuItem<Wry>>>,
     companion_menu: Mutex<Option<Submenu<Wry>>>,
@@ -52,6 +56,7 @@ enum TrayLanguage {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TrayLabels {
     open_main_window: &'static str,
+    open_official_website: &'static str,
     settings: &'static str,
     skill_companion: &'static str,
     recent_skills: &'static str,
@@ -74,6 +79,7 @@ impl TrayLanguage {
         match self {
             Self::En => TrayLabels {
                 open_main_window: "Open main window",
+                open_official_website: "Open official website",
                 settings: "Settings",
                 skill_companion: "Common Commands",
                 recent_skills: "Recently Used",
@@ -84,6 +90,7 @@ impl TrayLanguage {
             },
             Self::Zh => TrayLabels {
                 open_main_window: "打开主界面",
+                open_official_website: "打开官方网站",
                 settings: "设置",
                 skill_companion: "常用指令",
                 recent_skills: "最近使用",
@@ -141,6 +148,13 @@ pub fn setup_tray(app: &mut App) -> tauri::Result<()> {
         true,
         None::<&str>,
     )?;
+    let website = MenuItem::with_id(
+        &app_handle,
+        MENU_WEBSITE,
+        labels.open_official_website,
+        true,
+        None::<&str>,
+    )?;
     let settings = MenuItem::with_id(
         &app_handle,
         MENU_SETTINGS,
@@ -153,6 +167,7 @@ pub fn setup_tray(app: &mut App) -> tauri::Result<()> {
         &app_handle,
         &[
             &open,
+            &website,
             &PredefinedMenuItem::separator(&app_handle)?,
             &companion_menu,
             &recent_menu,
@@ -183,6 +198,7 @@ pub fn setup_tray(app: &mut App) -> tauri::Result<()> {
     let state = app.state::<TrayState>();
     state.root_menu.lock().unwrap().replace(menu);
     state.open_item.lock().unwrap().replace(open);
+    state.website_item.lock().unwrap().replace(website);
     state.settings_item.lock().unwrap().replace(settings);
     state.quit_item.lock().unwrap().replace(quit);
     state.companion_menu.lock().unwrap().replace(companion_menu);
@@ -209,6 +225,16 @@ pub fn set_tray_language(app: &AppHandle, language: &str) -> Result<(), String> 
     {
         open_item
             .set_text(labels.open_main_window)
+            .map_err(|e| e.to_string())?;
+    }
+    if let Some(website_item) = tray_state
+        .website_item
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+    {
+        website_item
+            .set_text(labels.open_official_website)
             .map_err(|e| e.to_string())?;
     }
     if let Some(settings_item) = tray_state
@@ -403,6 +429,11 @@ fn handle_tray_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
     let id = event.id().as_ref();
     match id {
         MENU_OPEN => show_main_window(app),
+        MENU_WEBSITE => {
+            if let Err(error) = app.opener().open_url(OFFICIAL_WEBSITE_URL, None::<&str>) {
+                eprintln!("Failed to open official website: {error}");
+            }
+        }
         MENU_SETTINGS => {
             show_main_window(app);
             if let Err(error) = app.emit(NAVIGATE_EVENT, "settings") {
@@ -589,6 +620,7 @@ mod tests {
 
         let chinese = TrayLanguage::from_code("zh-CN").labels();
         assert_eq!(chinese.open_main_window, "打开主界面");
+        assert_eq!(chinese.open_official_website, "打开官方网站");
         assert_eq!(chinese.settings, "设置");
         assert_eq!(chinese.skill_companion, "常用指令");
         assert_eq!(chinese.recent_skills, "最近使用");
