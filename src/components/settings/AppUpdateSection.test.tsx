@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "@/i18n";
 import { AppUpdaterProvider } from "@/hooks/useAppUpdater";
+import { APP_UPDATE_SECTION_ID, AppUpdateShortcut } from "./AppUpdateShortcut";
 import { AppUpdateSection } from "./AppUpdateSection";
 
 vi.mock("@tauri-apps/plugin-updater", () => ({
@@ -61,6 +62,15 @@ function renderAppUpdateSection() {
   );
 }
 
+function renderAppUpdateShortcut() {
+  return render(
+    <AppUpdaterProvider>
+      <div id={APP_UPDATE_SECTION_ID}>update target</div>
+      <AppUpdateShortcut />
+    </AppUpdaterProvider>,
+  );
+}
+
 function ToggleableAppUpdateSection() {
   const [show, setShow] = useState(true);
 
@@ -80,7 +90,26 @@ describe("AppUpdateSection", () => {
     vi.mocked(relaunch).mockReset();
     vi.mocked(toast.success).mockReset();
     vi.mocked(toast.error).mockReset();
+    Element.prototype.scrollIntoView = vi.fn();
     await i18n.changeLanguage("en");
+  });
+
+  it("shows the settings shortcut only after an update is found", async () => {
+    const user = userEvent.setup();
+    const downloadAndInstall = vi.fn<Update["downloadAndInstall"]>().mockResolvedValue(undefined);
+    vi.mocked(check).mockResolvedValue(createUpdate(downloadAndInstall));
+
+    renderAppUpdateShortcut();
+
+    expect(screen.queryByRole("button", { name: /^update$/i })).not.toBeInTheDocument();
+    await waitFor(() => expect(check).toHaveBeenCalledTimes(1));
+    await user.click(await screen.findByRole("button", { name: /^update$/i }));
+
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({
+      behavior: "smooth",
+      block: "center",
+    });
+    await waitFor(() => expect(downloadAndInstall).toHaveBeenCalledTimes(1));
   });
 
   it("automatically downloads a discovered update and waits for restart confirmation", async () => {

@@ -69,6 +69,7 @@ function StatusLabel({
 
   switch (status) {
     case "error":
+    case "available":
       return version ? <span className="text-xs text-muted-foreground">v{version}</span> : null;
     case "downloading":
       return (
@@ -112,6 +113,7 @@ function UpdateButton({
         </Button>
       );
     case "error":
+    case "available":
       return (
         <Button size="sm" className="h-8 text-xs gap-1.5" onClick={onDownload}>
           <Download className="h-3.5 w-3.5" />

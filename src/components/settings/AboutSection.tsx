@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Button } from "@/components/ui/button";
 import { AppUpdateSection } from "@/components/settings/AppUpdateSection";
+import { APP_UPDATE_SECTION_ID } from "@/components/settings/AppUpdateShortcut";
 import logoUrl from "@/assets/logo.png";
 
 const GITHUB_REPO = "luochang212/skill-zoo";
@@ -59,7 +60,9 @@ export function AboutSection() {
             </div>
             <p className="text-xs text-muted-foreground">{t("settings.about.description")}</p>
           </div>
-          <AppUpdateSection />
+          <div id={APP_UPDATE_SECTION_ID} className="scroll-mt-6">
+            <AppUpdateSection />
+          </div>
         </div>
       </div>
 

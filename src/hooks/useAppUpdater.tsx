@@ -20,6 +20,7 @@ export type AppUpdateStatus =
   | "unsupported"
   | "idle"
   | "checking"
+  | "available"
   | "downloading"
   | "readyToRestart"
   | "error";
@@ -31,6 +32,7 @@ interface AppUpdaterState {
   version: string | null;
   downloadedBytes: number;
   error: AppUpdateError;
+  checkForUpdate: (options?: { notifyUpToDate?: boolean; notifyError?: boolean }) => Promise<void>;
   checkAndDownload: () => Promise<void>;
   retryDownload: () => Promise<void>;
   restart: () => Promise<void>;
@@ -90,8 +92,51 @@ export function AppUpdaterProvider({ children }: { children: ReactNode }) {
     [t],
   );
 
+  const checkForUpdate = useCallback(
+    async ({ notifyUpToDate = true, notifyError = true } = {}) => {
+      if (busyRef.current || status === "unsupported" || status === "loading") return;
+      busyRef.current = true;
+      setStatus("checking");
+      setError(null);
+
+      try {
+        const result = await check();
+        if (result) {
+          updateRef.current = result;
+          setVersion(result.version);
+          setDownloadedBytes(0);
+          setStatus("available");
+        } else {
+          updateRef.current = null;
+          setVersion(null);
+          setDownloadedBytes(0);
+          setStatus("idle");
+          if (notifyUpToDate) toast.success(t("settings.updater.upToDate"));
+        }
+      } catch {
+        setStatus("idle");
+        setError("checkFailed");
+        if (notifyError) toast.error(t("settings.updater.checkFailed"));
+      } finally {
+        busyRef.current = false;
+      }
+    },
+    [status, t],
+  );
+
   const checkAndDownload = useCallback(async () => {
     if (busyRef.current || status === "unsupported" || status === "loading") return;
+
+    if (updateRef.current) {
+      busyRef.current = true;
+      try {
+        await downloadUpdate(updateRef.current);
+      } finally {
+        busyRef.current = false;
+      }
+      return;
+    }
+
     busyRef.current = true;
     setStatus("checking");
     setError(null);
@@ -146,11 +191,21 @@ export function AppUpdaterProvider({ children }: { children: ReactNode }) {
       version,
       downloadedBytes,
       error,
+      checkForUpdate,
       checkAndDownload,
       retryDownload,
       restart,
     }),
-    [checkAndDownload, downloadedBytes, error, restart, retryDownload, status, version],
+    [
+      checkAndDownload,
+      checkForUpdate,
+      downloadedBytes,
+      error,
+      restart,
+      retryDownload,
+      status,
+      version,
+    ],
   );
 
   return <AppUpdaterContext.Provider value={value}>{children}</AppUpdaterContext.Provider>;
