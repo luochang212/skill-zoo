@@ -435,7 +435,12 @@ fn query_opencode_skill_events(
         Ok(c) => c,
         Err(_) => return Vec::new(),
     };
-    let mut stmt = match conn.prepare(
+
+    let mut events = Vec::new();
+    let mut seen: HashSet<(String, String)> = HashSet::new();
+
+    // 1. Explicit `skill` tool calls (AI-initiated).
+    if let Ok(mut stmt) = conn.prepare(
         "SELECT json_extract(data, '$.state.input.name'),
                 json_extract(data, '$.state.time.start'),
                 json_extract(data, '$.callID')
@@ -443,43 +448,111 @@ fn query_opencode_skill_events(
          WHERE json_extract(data, '$.tool') = 'skill'
            AND json_extract(data, '$.state.status') = 'completed'",
     ) {
-        Ok(s) => s,
-        Err(_) => return Vec::new(),
-    };
-
-    let mut events = Vec::new();
-    let mut seen: HashSet<(String, String)> = HashSet::new();
-
-    let rows = stmt.query_map([], |row| {
-        let name: Option<String> = row.get(0)?;
-        let ts_ms: Option<i64> = row.get(1)?;
-        let call_id: Option<String> = row.get(2)?;
-        Ok((name, ts_ms, call_id))
-    });
-
-    if let Ok(rows) = rows {
-        for row in rows.flatten() {
-            let (Some(name), Some(ts_ms), call_id) = row else {
-                continue;
-            };
-            let Some(normalized) = normalize_skill_name(&name) else {
-                continue;
-            };
-            if !whitelist.contains(&normalized) {
-                continue;
-            }
-            if let Some(call_id) = call_id {
-                if !seen.insert((call_id, normalized.clone())) {
+        let rows = stmt.query_map([], |row| {
+            let name: Option<String> = row.get(0)?;
+            let ts_ms: Option<i64> = row.get(1)?;
+            let call_id: Option<String> = row.get(2)?;
+            Ok((name, ts_ms, call_id))
+        });
+        if let Ok(rows) = rows {
+            for row in rows.flatten() {
+                let (Some(name), Some(ts_ms), call_id) = row else {
+                    continue;
+                };
+                let Some(normalized) = normalize_skill_name(&name) else {
+                    continue;
+                };
+                if !whitelist.contains(&normalized) {
                     continue;
                 }
+                if let Some(ref call_id) = call_id {
+                    if !seen.insert((call_id.clone(), normalized.clone())) {
+                        continue;
+                    }
+                }
+                events.push(SkillUsageEvent {
+                    name: normalized,
+                    ts_ms,
+                });
             }
-            events.push(SkillUsageEvent {
-                name: normalized,
-                ts_ms,
-            });
         }
     }
+
+    // 2. Slash-command skill injections: SKILL.md content injected as
+    //    a text part in a user message (starts with "# <skill title>").
+    if let Ok(mut stmt) = conn.prepare(
+        "SELECT m.session_id,
+                json_extract(p.data, '$.text'),
+                p.time_created
+         FROM part p
+         JOIN message m ON p.message_id = m.id
+         WHERE json_extract(p.data, '$.type') = 'text'
+           AND json_extract(m.data, '$.role') = 'user'
+           AND json_extract(p.data, '$.text') LIKE '# %'",
+    ) {
+        let rows = stmt.query_map([], |row| {
+            let session_id: Option<String> = row.get(0)?;
+            let text: Option<String> = row.get(1)?;
+            let ts_ms: Option<i64> = row.get(2)?;
+            Ok((session_id, text, ts_ms))
+        });
+        if let Ok(rows) = rows {
+            for row in rows.flatten() {
+                let (Some(session_id), Some(text), Some(ts_ms)) = row else {
+                    continue;
+                };
+                let Some(heading) = extract_heading(&text) else {
+                    continue;
+                };
+                let Some(name) = match_heading_to_whitelist(&heading, whitelist) else {
+                    continue;
+                };
+                if !seen.insert((session_id, name.clone())) {
+                    continue;
+                }
+                events.push(SkillUsageEvent { name, ts_ms });
+            }
+        }
+    }
+
     events
+}
+
+/// Extract the first `# <title>` heading line from SKILL.md content.
+fn extract_heading(text: &str) -> Option<String> {
+    let line = text.lines().next()?;
+    let stripped = line.strip_prefix("# ")?.trim();
+    if stripped.is_empty() {
+        return None;
+    }
+    Some(stripped.to_string())
+}
+
+/// Try to match a heading (e.g. "GitHub Research Assistant") to a whitelist
+/// entry (e.g. "github-research-assistant"). Uses kebab-case normalisation.
+fn match_heading_to_whitelist(heading: &str, whitelist: &HashSet<String>) -> Option<String> {
+    let kebab = heading_to_kebab(heading);
+    if whitelist.contains(&kebab) {
+        return Some(kebab);
+    }
+    // Also try without conversion — the heading might already be kebab-case
+    // (e.g. "code-audit" matches directory name exactly).
+    if whitelist.contains(heading) {
+        return Some(heading.to_string());
+    }
+    None
+}
+
+fn heading_to_kebab(heading: &str) -> String {
+    heading
+        .to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '-' })
+        .collect::<String>()
+        .split('-')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
 }
 
 fn parse_assistant_skill_line(value: &serde_json::Value) -> Option<ParsedSkillLine> {
@@ -623,7 +696,8 @@ fn collect_jsonl_files(dir: &Path, files: &mut Vec<PathBuf>) {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_usage, discover_skill_usage_from_home, normalize_skill_name, parse_claude_skill_line,
+        build_usage, discover_skill_usage_from_home, extract_heading, heading_to_kebab,
+        match_heading_to_whitelist, normalize_skill_name, parse_claude_skill_line,
         parse_codex_skill_line, SkillUsageEvent,
     };
     use chrono::{Local, TimeZone};
@@ -865,5 +939,133 @@ mod tests {
         );
         assert_eq!(usage.total_calls, 0);
         assert_eq!(usage.installed_skill_count, 3);
+    }
+
+    #[test]
+    fn extract_heading_from_skill_md_text() {
+        assert_eq!(
+            extract_heading("# GitHub Research Assistant\n\nYou are a professional..."),
+            Some("GitHub Research Assistant".to_string())
+        );
+        assert_eq!(extract_heading("plain text"), None);
+        assert_eq!(extract_heading("# "), None);
+    }
+
+    #[test]
+    fn heading_to_kebab_normalizes_titles() {
+        assert_eq!(
+            heading_to_kebab("GitHub Research Assistant"),
+            "github-research-assistant"
+        );
+        assert_eq!(heading_to_kebab("code-audit"), "code-audit");
+        assert_eq!(
+            heading_to_kebab("Coding Philosophy  (CCE)"),
+            "coding-philosophy-cce"
+        );
+    }
+
+    #[test]
+    fn match_heading_finds_whitelist_entry() {
+        let whitelist: HashSet<String> = ["github-research-assistant", "code-audit"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        assert_eq!(
+            match_heading_to_whitelist("GitHub Research Assistant", &whitelist),
+            Some("github-research-assistant".to_string())
+        );
+        assert_eq!(
+            match_heading_to_whitelist("code-audit", &whitelist),
+            Some("code-audit".to_string())
+        );
+        assert_eq!(
+            match_heading_to_whitelist("Unknown Skill", &whitelist),
+            None
+        );
+    }
+
+    #[test]
+    fn opencode_detects_injected_skill_from_text_part() {
+        let temp = tempfile::tempdir().unwrap();
+        let db_path = temp.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        // Simulate a session with an injected SKILL.md in the user message
+        // plus an explicit skill tool call for a different skill.
+        conn.execute_batch(
+            "CREATE TABLE part (
+                id INTEGER PRIMARY KEY,
+                message_id TEXT,
+                session_id TEXT,
+                data TEXT,
+                time_created INTEGER
+             );
+             CREATE TABLE message (
+                id TEXT PRIMARY KEY,
+                session_id TEXT,
+                data TEXT,
+                time_created INTEGER
+             );
+             CREATE TABLE session (id TEXT PRIMARY KEY);
+             INSERT INTO session VALUES ('ses_a');
+             INSERT INTO message VALUES ('msg_u1', 'ses_a', '{\"role\":\"user\"}', 1000000);
+             INSERT INTO message VALUES ('msg_a1', 'ses_a', '{\"role\":\"assistant\"}', 2000000);
+             -- Injected SKILL.md content in user message
+             INSERT INTO part VALUES (1, 'msg_u1', 'ses_a', '{\"type\":\"text\",\"text\":\"# GitHub Research Assistant\\n\\nYou are a professional GitHub research assistant...\"}', 1000000);
+             -- Explicit skill tool call for code-audit
+             INSERT INTO part VALUES (2, 'msg_a1', 'ses_a', '{\"type\":\"tool\",\"tool\":\"skill\",\"callID\":\"call_1\",\"state\":{\"status\":\"completed\",\"input\":{\"name\":\"code-audit\"},\"time\":{\"start\":2000000}}}', 2000000);",
+        )
+        .unwrap();
+
+        let whitelist: HashSet<String> = ["github-research-assistant", "code-audit"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        let events = super::query_opencode_skill_events(&db_path, &whitelist);
+        assert_eq!(events.len(), 2);
+        let names: Vec<&str> = events.iter().map(|e| e.name.as_str()).collect();
+        assert!(names.contains(&"github-research-assistant"));
+        assert!(names.contains(&"code-audit"));
+    }
+
+    #[test]
+    fn opencode_injected_skill_dedup_with_tool_call() {
+        let temp = tempfile::tempdir().unwrap();
+        let db_path = temp.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        // Same skill appears as both injected text AND explicit tool call —
+        // should be deduplicated.
+        conn.execute_batch(
+            "CREATE TABLE part (
+                id INTEGER PRIMARY KEY,
+                message_id TEXT,
+                session_id TEXT,
+                data TEXT,
+                time_created INTEGER
+             );
+             CREATE TABLE message (
+                id TEXT PRIMARY KEY,
+                session_id TEXT,
+                data TEXT,
+                time_created INTEGER
+             );
+             CREATE TABLE session (id TEXT PRIMARY KEY);
+             INSERT INTO session VALUES ('ses_a');
+             INSERT INTO message VALUES ('msg_u1', 'ses_a', '{\"role\":\"user\"}', 1000000);
+             INSERT INTO message VALUES ('msg_a1', 'ses_a', '{\"role\":\"assistant\"}', 2000000);
+             INSERT INTO part VALUES (1, 'msg_u1', 'ses_a', '{\"type\":\"text\",\"text\":\"# GitHub Research Assistant\\n\\nYou are a professional...\"}', 1000000);
+             INSERT INTO part VALUES (2, 'msg_a1', 'ses_a', '{\"type\":\"tool\",\"tool\":\"skill\",\"callID\":\"call_1\",\"state\":{\"status\":\"completed\",\"input\":{\"name\":\"GitHub Research Assistant\"},\"time\":{\"start\":2000000}}}', 2000000);",
+        )
+        .unwrap();
+
+        let whitelist: HashSet<String> = ["github-research-assistant"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        let events = super::query_opencode_skill_events(&db_path, &whitelist);
+        assert_eq!(
+            events.len(),
+            1,
+            "same skill in same session should be deduped"
+        );
     }
 }
