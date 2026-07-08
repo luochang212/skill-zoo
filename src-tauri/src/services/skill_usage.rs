@@ -107,41 +107,87 @@ fn discover_skill_usage_from_home(
     installed_skill_count: usize,
     now: DateTime<Local>,
 ) -> SkillUsage {
-    match agent_id {
-        "claude-code" => {
-            discover_claude_usage_from_home(home, whitelist, installed_skill_count, now)
-        }
-        "codex" => discover_codex_usage_from_home(home, whitelist, installed_skill_count, now),
-        _ => build_usage(installed_skill_count, Vec::new(), now),
-    }
+    let (events, count) = USAGE_COLLECTORS
+        .iter()
+        .find(|c| c.agent_id == agent_id)
+        .map(|c| (c.collect)(home, whitelist, installed_skill_count))
+        .unwrap_or((Vec::new(), installed_skill_count));
+    build_usage(count, events, now)
 }
 
-fn discover_claude_usage_from_home(
+// ---------------------------------------------------------------------------
+// Registry: add a new agent by adding one entry here + one collector function.
+// ---------------------------------------------------------------------------
+
+type EventCollector = fn(
     home: &Path,
     whitelist: HashSet<String>,
     installed_skill_count: usize,
-    now: DateTime<Local>,
-) -> SkillUsage {
-    let (whitelist, installed_skill_count) =
+) -> (Vec<SkillUsageEvent>, usize);
+
+struct UsageCollectorEntry {
+    agent_id: &'static str,
+    collect: EventCollector,
+}
+
+static USAGE_COLLECTORS: &[UsageCollectorEntry] = &[
+    UsageCollectorEntry {
+        agent_id: "claude-code",
+        collect: collect_claude_events,
+    },
+    UsageCollectorEntry {
+        agent_id: "codex",
+        collect: collect_codex_events,
+    },
+    UsageCollectorEntry {
+        agent_id: "opencode",
+        collect: collect_opencode_events,
+    },
+];
+
+// ---------------------------------------------------------------------------
+// Per-agent event collectors
+// ---------------------------------------------------------------------------
+
+fn collect_claude_events(
+    home: &Path,
+    whitelist: HashSet<String>,
+    installed_skill_count: usize,
+) -> (Vec<SkillUsageEvent>, usize) {
+    let (whitelist, count) =
         effective_whitelist(home, "claude-code", whitelist, installed_skill_count);
     let mut files = Vec::new();
     collect_jsonl_files(&home.join(".claude").join("projects"), &mut files);
     let events = aggregate_events(&files, parse_claude_skill_line, &whitelist);
-    build_usage(installed_skill_count, events, now)
+    (events, count)
 }
 
-fn discover_codex_usage_from_home(
+fn collect_codex_events(
     home: &Path,
     whitelist: HashSet<String>,
     installed_skill_count: usize,
-    now: DateTime<Local>,
-) -> SkillUsage {
-    let (whitelist, installed_skill_count) =
-        effective_whitelist(home, "codex", whitelist, installed_skill_count);
+) -> (Vec<SkillUsageEvent>, usize) {
+    let (whitelist, count) = effective_whitelist(home, "codex", whitelist, installed_skill_count);
     let mut files = Vec::new();
     collect_jsonl_files(&home.join(".codex").join("sessions"), &mut files);
     let events = aggregate_events(&files, parse_codex_skill_line, &whitelist);
-    build_usage(installed_skill_count, events, now)
+    (events, count)
+}
+
+fn collect_opencode_events(
+    home: &Path,
+    whitelist: HashSet<String>,
+    installed_skill_count: usize,
+) -> (Vec<SkillUsageEvent>, usize) {
+    let (whitelist, count) =
+        effective_whitelist(home, "opencode", whitelist, installed_skill_count);
+    let db_path = home
+        .join(".local")
+        .join("share")
+        .join("opencode")
+        .join("opencode.db");
+    let events = query_opencode_skill_events(&db_path, &whitelist);
+    (events, count)
 }
 
 /// When the in-memory cache yielded no whitelist, fall back to scanning the
@@ -377,6 +423,65 @@ fn extract_skill_name_from_cmd(text: &str) -> Option<String> {
         .map(|m| m.as_str().to_string())
 }
 
+// ---------------------------------------------------------------------------
+// OpenCode collector — queries SQLite directly
+// ---------------------------------------------------------------------------
+
+fn query_opencode_skill_events(
+    db_path: &Path,
+    whitelist: &HashSet<String>,
+) -> Vec<SkillUsageEvent> {
+    let conn = match rusqlite::Connection::open(db_path) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+    let mut stmt = match conn.prepare(
+        "SELECT json_extract(data, '$.state.input.name'),
+                json_extract(data, '$.state.time.start'),
+                json_extract(data, '$.callID')
+         FROM part
+         WHERE json_extract(data, '$.tool') = 'skill'
+           AND json_extract(data, '$.state.status') = 'completed'",
+    ) {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut events = Vec::new();
+    let mut seen: HashSet<(String, String)> = HashSet::new();
+
+    let rows = stmt.query_map([], |row| {
+        let name: Option<String> = row.get(0)?;
+        let ts_ms: Option<i64> = row.get(1)?;
+        let call_id: Option<String> = row.get(2)?;
+        Ok((name, ts_ms, call_id))
+    });
+
+    if let Ok(rows) = rows {
+        for row in rows.flatten() {
+            let (Some(name), Some(ts_ms), call_id) = row else {
+                continue;
+            };
+            let Some(normalized) = normalize_skill_name(&name) else {
+                continue;
+            };
+            if !whitelist.contains(&normalized) {
+                continue;
+            }
+            if let Some(call_id) = call_id {
+                if !seen.insert((call_id, normalized.clone())) {
+                    continue;
+                }
+            }
+            events.push(SkillUsageEvent {
+                name: normalized,
+                ts_ms,
+            });
+        }
+    }
+    events
+}
+
 fn parse_assistant_skill_line(value: &serde_json::Value) -> Option<ParsedSkillLine> {
     let ts_ms = timestamp_ms(value)?;
     let message = value.get("message")?;
@@ -518,8 +623,8 @@ fn collect_jsonl_files(dir: &Path, files: &mut Vec<PathBuf>) {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_usage, discover_claude_usage_from_home, discover_codex_usage_from_home,
-        normalize_skill_name, parse_claude_skill_line, parse_codex_skill_line, SkillUsageEvent,
+        build_usage, discover_skill_usage_from_home, normalize_skill_name, parse_claude_skill_line,
+        parse_codex_skill_line, SkillUsageEvent,
     };
     use chrono::{Local, TimeZone};
     use std::collections::HashSet;
@@ -604,7 +709,7 @@ mod tests {
         .unwrap();
         let whitelist = HashSet::from(["code-review".to_string()]);
         let now = Local.with_ymd_and_hms(2026, 7, 2, 12, 0, 0).unwrap();
-        let usage = discover_claude_usage_from_home(temp.path(), whitelist, 1, now);
+        let usage = discover_skill_usage_from_home("claude-code", temp.path(), whitelist, 1, now);
         assert_eq!(usage.total_calls, 1);
         assert_eq!(usage.installed_skill_count, 1);
         assert_eq!(usage.recent[0].name, "code-review");
@@ -677,9 +782,88 @@ mod tests {
         std::fs::write(session_dir.join("rollout-demo.jsonl"), line).unwrap();
         let whitelist = HashSet::from(["coding-philosophy-cce".to_string()]);
         let now = Local.with_ymd_and_hms(2026, 7, 2, 12, 0, 0).unwrap();
-        let usage = discover_codex_usage_from_home(temp.path(), whitelist, 1, now);
+        let usage = discover_skill_usage_from_home("codex", temp.path(), whitelist, 1, now);
         assert_eq!(usage.total_calls, 1);
         assert_eq!(usage.installed_skill_count, 1);
         assert_eq!(usage.recent[0].name, "coding-philosophy-cce");
+    }
+
+    #[test]
+    fn opencode_extracts_skill_events_from_sqlite() {
+        let temp = tempfile::tempdir().unwrap();
+        let db_path = temp.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE part (data TEXT);
+             INSERT INTO part VALUES ('{\"type\":\"tool\",\"tool\":\"skill\",\"callID\":\"call_1\",\"state\":{\"status\":\"completed\",\"input\":{\"name\":\"code-audit\"},\"time\":{\"start\":1779562587114}}}');
+             INSERT INTO part VALUES ('{\"type\":\"tool\",\"tool\":\"skill\",\"callID\":\"call_2\",\"state\":{\"status\":\"completed\",\"input\":{\"name\":\"code-reviewer\"},\"time\":{\"start\":1779563158835}}}');",
+        )
+        .unwrap();
+
+        let whitelist = HashSet::from(["code-audit".to_string(), "code-reviewer".to_string()]);
+        let events = super::query_opencode_skill_events(&db_path, &whitelist);
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].name, "code-audit");
+        assert_eq!(events[0].ts_ms, 1779562587114);
+    }
+
+    #[test]
+    fn opencode_deduplicates_by_call_id() {
+        let temp = tempfile::tempdir().unwrap();
+        let db_path = temp.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE part (data TEXT);
+             INSERT INTO part VALUES ('{\"type\":\"tool\",\"tool\":\"skill\",\"callID\":\"call_1\",\"state\":{\"status\":\"completed\",\"input\":{\"name\":\"code-audit\"},\"time\":{\"start\":1}}}');
+             INSERT INTO part VALUES ('{\"type\":\"tool\",\"tool\":\"skill\",\"callID\":\"call_1\",\"state\":{\"status\":\"completed\",\"input\":{\"name\":\"code-audit\"},\"time\":{\"start\":2}}}');",
+        )
+        .unwrap();
+
+        let whitelist = HashSet::from(["code-audit".to_string()]);
+        let events = super::query_opencode_skill_events(&db_path, &whitelist);
+        assert_eq!(events.len(), 1, "duplicate callID should be deduped");
+    }
+
+    #[test]
+    fn opencode_filters_by_whitelist() {
+        let temp = tempfile::tempdir().unwrap();
+        let db_path = temp.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE part (data TEXT);
+             INSERT INTO part VALUES ('{\"type\":\"tool\",\"tool\":\"skill\",\"callID\":\"call_1\",\"state\":{\"status\":\"completed\",\"input\":{\"name\":\"code-audit\"},\"time\":{\"start\":1}}}');
+             INSERT INTO part VALUES ('{\"type\":\"tool\",\"tool\":\"skill\",\"callID\":\"call_2\",\"state\":{\"status\":\"completed\",\"input\":{\"name\":\"other-skill\"},\"time\":{\"start\":2}}}');",
+        )
+        .unwrap();
+
+        let whitelist = HashSet::from(["code-audit".to_string()]);
+        let events = super::query_opencode_skill_events(&db_path, &whitelist);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].name, "code-audit");
+    }
+
+    #[test]
+    fn opencode_handles_missing_db() {
+        let whitelist = HashSet::from(["code-audit".to_string()]);
+        let events = super::query_opencode_skill_events(
+            &std::path::PathBuf::from("/nonexistent/db.sqlite"),
+            &whitelist,
+        );
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn registry_unknown_agent_returns_empty() {
+        let temp = tempfile::tempdir().unwrap();
+        let now = chrono::Local::now();
+        let usage = discover_skill_usage_from_home(
+            "nonexistent-agent",
+            temp.path(),
+            HashSet::new(),
+            3,
+            now,
+        );
+        assert_eq!(usage.total_calls, 0);
+        assert_eq!(usage.installed_skill_count, 3);
     }
 }

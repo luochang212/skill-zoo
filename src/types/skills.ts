@@ -97,6 +97,7 @@ export interface AgentConfig {
   id: string;
   label: string;
   skillsSubdir: string;
+  hasUsageTracking: boolean;
 }
 
 export interface VisibleAgents {

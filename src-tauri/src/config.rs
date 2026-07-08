@@ -24,6 +24,7 @@ pub struct AgentConfig {
     pub id: &'static str,
     pub label: &'static str,
     pub skills_subdir: &'static str,
+    pub has_usage_tracking: bool,
 }
 
 pub const AGENTS: &[AgentConfig] = &[
@@ -31,91 +32,109 @@ pub const AGENTS: &[AgentConfig] = &[
         id: "claude-code",
         label: "Claude Code",
         skills_subdir: ".claude",
+        has_usage_tracking: true,
     },
     AgentConfig {
         id: "codex",
         label: "Codex",
         skills_subdir: ".codex",
+        has_usage_tracking: true,
     },
     AgentConfig {
         id: "gemini",
         label: "Gemini",
         skills_subdir: ".gemini",
+        has_usage_tracking: false,
     },
     AgentConfig {
         id: "opencode",
         label: "OpenCode",
         skills_subdir: ".opencode",
+        has_usage_tracking: true,
     },
     AgentConfig {
         id: "cursor",
         label: "Cursor",
         skills_subdir: ".cursor",
+        has_usage_tracking: false,
     },
     AgentConfig {
         id: "trae",
         label: "Trae",
         skills_subdir: ".trae",
+        has_usage_tracking: false,
     },
     AgentConfig {
         id: "trae-cn",
         label: "Trae CN",
         skills_subdir: ".trae-cn",
+        has_usage_tracking: false,
     },
     AgentConfig {
         id: "hermes",
         label: "Hermes",
         skills_subdir: ".hermes",
+        has_usage_tracking: false,
     },
     AgentConfig {
         id: "openclaw",
         label: "OpenClaw",
         skills_subdir: ".openclaw",
+        has_usage_tracking: false,
     },
     AgentConfig {
         id: "workbuddy",
         label: "WorkBuddy",
         skills_subdir: ".workbuddy",
+        has_usage_tracking: false,
     },
     AgentConfig {
         id: "qoder-cn",
         label: "Qoder CN",
         skills_subdir: ".qoder-cn",
+        has_usage_tracking: false,
     },
     AgentConfig {
         id: "qoderworkcn",
         label: "QoderWork CN",
         skills_subdir: ".qoderworkcn",
+        has_usage_tracking: false,
     },
     AgentConfig {
         id: "windsurf",
         label: "Windsurf",
         skills_subdir: ".windsurf",
+        has_usage_tracking: false,
     },
     AgentConfig {
         id: "codebuddy",
         label: "CodeBuddy",
         skills_subdir: ".codebuddy",
+        has_usage_tracking: false,
     },
     AgentConfig {
         id: "qwen-code",
         label: "Qwen Code",
         skills_subdir: ".qwen",
+        has_usage_tracking: false,
     },
     AgentConfig {
         id: "qoder",
         label: "Qoder",
         skills_subdir: ".qoder",
+        has_usage_tracking: false,
     },
     AgentConfig {
         id: "kilo",
         label: "Kilo Code",
         skills_subdir: ".kilocode",
+        has_usage_tracking: false,
     },
     AgentConfig {
         id: "antigravity",
         label: "Antigravity",
         skills_subdir: ".gemini/antigravity",
+        has_usage_tracking: false,
     },
 ];
 

@@ -32,6 +32,7 @@ import {
   useUpdateSkillUsageAgent,
 } from "@/hooks/useSettings";
 import { settingsApi } from "@/lib/api/settings";
+import { useAgentConfigs, getAgentLabel } from "@/lib/agents";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
@@ -68,13 +69,6 @@ function normalizePreview(content: string) {
 type UsageRange = "week" | "month";
 
 const USAGE_RANGES: UsageRange[] = ["week", "month"];
-
-type UsageAgent = "claude-code" | "codex";
-const USAGE_AGENTS: UsageAgent[] = ["claude-code", "codex"];
-const AGENT_DISPLAY_NAME: Record<UsageAgent, string> = {
-  "claude-code": "Claude Code",
-  codex: "Codex",
-};
 
 function formatUsageShare(count: number, total: number) {
   if (total <= 0) return "0.0%";
@@ -273,8 +267,16 @@ function SkillUsageDialog({
   const { t } = useTranslation();
   const { data: persistedAgent } = useSkillUsageAgent();
   const updateAgent = useUpdateSkillUsageAgent();
-  const agent: UsageAgent = persistedAgent === "codex" ? "codex" : "claude-code";
-  const agentDisplayName = AGENT_DISPLAY_NAME[agent];
+  const { data: agentConfigs } = useAgentConfigs();
+  const usageAgents = useMemo(
+    () => (agentConfigs ?? []).filter((a) => a.hasUsageTracking),
+    [agentConfigs],
+  );
+  const agent = useMemo(() => {
+    const match = usageAgents.find((a) => a.id === persistedAgent);
+    return match?.id ?? usageAgents[0]?.id ?? "claude-code";
+  }, [persistedAgent, usageAgents]);
+  const agentDisplayName = getAgentLabel(agent, usageAgents);
   const { data: usage, isLoading } = useSkillUsage(agent, { enabled: open });
   const captureRef = useRef<HTMLDivElement>(null);
   const [range, setRange] = useState<UsageRange>("week");
@@ -405,12 +407,12 @@ function SkillUsageDialog({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {USAGE_AGENTS.map((id) => (
-                <DropdownMenuItem key={id} onSelect={() => updateAgent.mutate(id)}>
+              {usageAgents.map((a) => (
+                <DropdownMenuItem key={a.id} onSelect={() => updateAgent.mutate(a.id)}>
                   <Check
-                    className={cn("h-3.5 w-3.5", agent === id ? "opacity-100" : "opacity-0")}
+                    className={cn("h-3.5 w-3.5", agent === a.id ? "opacity-100" : "opacity-0")}
                   />
-                  {AGENT_DISPLAY_NAME[id]}
+                  {a.label}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>

@@ -46,15 +46,12 @@ export function useUpdateHideNonSsot() {
   });
 }
 
-const VALID_SKILL_USAGE_AGENTS = new Set(["claude-code", "codex"]);
-
 export function useSkillUsageAgent() {
   return useQuery({
     queryKey: SKILL_USAGE_AGENT_KEY,
     queryFn: async () => {
       const settings = await settingsApi.getSettings();
-      const raw = settings[SKILL_USAGE_AGENT_SETTING];
-      return VALID_SKILL_USAGE_AGENTS.has(raw) ? raw : "claude-code";
+      return settings[SKILL_USAGE_AGENT_SETTING] || "claude-code";
     },
     staleTime: 0,
   });
