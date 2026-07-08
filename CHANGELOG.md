@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.3.21] — 2026-07-09
+
+### Added
+- Settings update shortcut — a compact update button in the settings header that appears only when an update is available, with one-click scroll to the update section.
+- Update availability caching across app restarts in localStorage, so the shortcut reappears immediately without waiting for a network check.
+- Skill usage source breakdown showing which agents contributed to usage statistics.
+- Official website link in the system tray menu.
+
+### Changed
+- App update flow now has a distinct "available" state — updates are shown before downloading, giving users visibility into the target version.
+- App updater downloads survive section unmount, so navigating away from settings no longer cancels an in-progress download.
+- Filter installed skill cards by visible coding agents for consistency with the rest of the app.
+- README fallback: when a repo's default branch lacks a README, the app now tries the cached branch zip.
+- Improved Chinese error wording and widened docs navigation width.
+
+### Fixed
+- Tray menu title truncation now uses Unicode display width, correctly handling CJK characters.
+- Skill usage screenshot now captures the inner content wrapper instead of the outer scroll area.
+- Test: cast screenshot target through `unknown` to satisfy TypeScript type checks.
+
 ## [0.3.20] — 2026-07-08
 
 ### Added
