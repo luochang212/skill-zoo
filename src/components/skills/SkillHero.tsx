@@ -7,6 +7,7 @@ import { BackButton } from "@/components/ui/BackButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAgentConfigs, getAgentColor, getAgentLabel } from "@/lib/agents";
+import { useVisibleAgentOrder } from "@/hooks/useSettings";
 import { formatRelativeDate } from "@/lib/date";
 
 import { cn } from "@/lib/utils";
@@ -22,10 +23,8 @@ import {
   CircleEllipsis,
 } from "lucide-react";
 
-function getLinkedAgents(apps: Record<string, boolean>): string[] {
-  return Object.entries(apps)
-    .filter(([, v]) => v)
-    .map(([k]) => k);
+function getVisibleLinkedAgents(apps: Record<string, boolean>, visibleAgentOrder: string[]) {
+  return visibleAgentOrder.filter((agent) => apps[agent]);
 }
 
 function parseSkillName(fullName: string) {
@@ -185,8 +184,9 @@ export function SkillHero({
 }: SkillHeroProps) {
   const { t } = useTranslation();
   const { data: agentConfigs } = useAgentConfigs();
+  const visibleAgentOrder = useVisibleAgentOrder();
   const { namespace, name } = parseSkillName(skill.name);
-  const linkedAgents = getLinkedAgents(skill.apps);
+  const linkedAgents = getVisibleLinkedAgents(skill.apps, visibleAgentOrder);
   const visibleAgents = linkedAgents.slice(0, 3);
   const canUpdate = skill.origin === "ssot" && !!(skill.repoOwner && skill.repoName);
   const canAudit = !!(skill.repoOwner && skill.repoName && skill.directory);
