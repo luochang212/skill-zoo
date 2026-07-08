@@ -76,7 +76,8 @@
     "loadingInstalled": "Loading installed skills...",
     "createSkill": "Create Skill",
     "archiveLoadFailed": "Archive could not be loaded.",
-    "noMatch": "No installed skills match your filters."
+    "noMatch": "No installed skills match your filters.",
+    "noVisibleAgentsMatch": "No skills match your visible coding agents. Show more coding agents in Settings to include them."
   },
   "skill": {
     "mine": "Mine",

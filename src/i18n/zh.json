@@ -76,7 +76,8 @@
     "loadingInstalled": "正在加载已安装的技能...",
     "createSkill": "创建技能",
     "archiveLoadFailed": "归档无法加载。",
-    "noMatch": "没有匹配筛选条件的已安装技能。"
+    "noMatch": "没有匹配筛选条件的已安装技能。",
+    "noVisibleAgentsMatch": "没有匹配当前显示的编程工具的技能。可在设置中显示更多编程工具。"
   },
   "skill": {
     "mine": "我的",

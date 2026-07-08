@@ -68,6 +68,10 @@ function matchesToolbarFilters(skill: InstalledSkill, search: string, agentFilte
   return true;
 }
 
+function belongsToVisibleAgent(skill: InstalledSkill, visibleAgents: Set<string>) {
+  return Object.entries(skill.apps).some(([agent, enabled]) => enabled && visibleAgents.has(agent));
+}
+
 function SortArrow({ active, direction }: { active: boolean; direction: SortDirection }) {
   if (!active) return null;
   return direction === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
@@ -431,10 +435,24 @@ export const InstalledSkills = memo(function InstalledSkills({
   const skillsList = skills ?? EMPTY_SKILLS;
   const archivedList = archivedSkills ?? EMPTY_ARCHIVED_SKILLS;
   const isArchiveView = category.type === "archived";
+  const visibleAgentSet = useMemo(() => new Set(visibleAgentOrder), [visibleAgentOrder]);
+
+  useEffect(() => {
+    if (agentFilter !== "all" && !visibleAgentSet.has(agentFilter)) {
+      setAgentFilter("all");
+    }
+  }, [agentFilter, visibleAgentSet]);
 
   const visibleSkills = useMemo(
-    () => skillsList.filter((s) => !hideNonSsot || s.origin === "ssot"),
-    [hideNonSsot, skillsList],
+    () =>
+      skillsList.filter(
+        (s) => (!hideNonSsot || s.origin === "ssot") && belongsToVisibleAgent(s, visibleAgentSet),
+      ),
+    [hideNonSsot, skillsList, visibleAgentSet],
+  );
+  const visibleArchivedSkills = useMemo(
+    () => archivedList.filter((s) => belongsToVisibleAgent(s, visibleAgentSet)),
+    [archivedList, visibleAgentSet],
   );
 
   const sidebarCountSkills = useMemo(
@@ -443,8 +461,8 @@ export const InstalledSkills = memo(function InstalledSkills({
   );
 
   const sidebarArchivedCount = useMemo(
-    () => archivedList.filter((s) => matchesToolbarFilters(s, search, agentFilter)).length,
-    [agentFilter, archivedList, search],
+    () => visibleArchivedSkills.filter((s) => matchesToolbarFilters(s, search, agentFilter)).length,
+    [agentFilter, search, visibleArchivedSkills],
   );
 
   const filteredIssuesMap = useMemo(() => {
@@ -466,7 +484,7 @@ export const InstalledSkills = memo(function InstalledSkills({
   const categoryFiltered = useMemo(
     () =>
       isArchiveView
-        ? archivedList
+        ? visibleArchivedSkills
         : visibleSkills.filter((s) => {
             switch (category.type) {
               case "starred":
@@ -489,13 +507,19 @@ export const InstalledSkills = memo(function InstalledSkills({
                 return true;
             }
           }),
-    [archivedList, category, isArchiveView, visibleSkills],
+    [category, isArchiveView, visibleArchivedSkills, visibleSkills],
   );
 
   const filtered = useMemo(
     () => categoryFiltered.filter((s) => matchesToolbarFilters(s, search, agentFilter)),
     [agentFilter, categoryFiltered, search],
   );
+  const showVisibleAgentEmpty =
+    !isArchiveView &&
+    search === "" &&
+    agentFilter === "all" &&
+    skillsList.length > 0 &&
+    visibleSkills.length === 0;
 
   const sorted = useMemo(
     () =>
@@ -803,7 +827,11 @@ export const InstalledSkills = memo(function InstalledSkills({
             <div className="flex-1 min-h-0 flex gap-0 relative">
               {filtered.length === 0 ? (
                 <div className="flex-1 flex items-center justify-center">
-                  <p className="text-sm text-muted-foreground">{t("installed.noMatch")}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {showVisibleAgentEmpty
+                      ? t("installed.noVisibleAgentsMatch")
+                      : t("installed.noMatch")}
+                  </p>
                 </div>
               ) : (
                 <ScrollArea className="flex-1 pt-1 @container/main">
