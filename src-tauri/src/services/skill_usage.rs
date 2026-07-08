@@ -61,15 +61,10 @@ struct ParsedSkillLine {
     skills: Vec<String>,
 }
 
-pub fn skill_whitelist(cache: &SkillCache, agent_id: &str) -> (HashSet<String>, usize) {
+pub fn skill_whitelist(cache: &SkillCache, _agent_id: &str) -> (HashSet<String>, usize) {
     let mut whitelist = HashSet::new();
     let mut installed_skill_count = 0;
     for skill in cache.skills() {
-        let belongs_to_agent = skill.apps.get(agent_id).copied().unwrap_or(false)
-            || skill.home_agent.as_deref() == Some(agent_id);
-        if !belongs_to_agent {
-            continue;
-        }
         installed_skill_count += 1;
         insert_skill_alias(&mut whitelist, &skill.name);
         insert_skill_alias(&mut whitelist, &skill.directory);
@@ -78,7 +73,7 @@ pub fn skill_whitelist(cache: &SkillCache, agent_id: &str) -> (HashSet<String>, 
         }
     }
     if whitelist.is_empty() {
-        if let Some(dir) = crate::config::get_agent_skills_dir(agent_id) {
+        if let Some(dir) = crate::config::get_agent_skills_dir(_agent_id) {
             installed_skill_count = scan_skill_dir_names(&dir, &mut whitelist);
         }
     }
@@ -193,8 +188,8 @@ fn collect_opencode_events(
 /// When the in-memory cache yielded no whitelist, fall back to scanning the
 /// agent's installed-skills directory on disk so usage still resolves.
 fn effective_whitelist(
-    home: &Path,
-    agent_id: &str,
+    _home: &Path,
+    _agent_id: &str,
     whitelist: HashSet<String>,
     installed_skill_count: usize,
 ) -> (HashSet<String>, usize) {
@@ -202,8 +197,7 @@ fn effective_whitelist(
         return (whitelist, installed_skill_count);
     }
     let mut effective = HashSet::new();
-    let dir = crate::config::get_agent_skills_dir(agent_id)
-        .unwrap_or_else(|| home.join(".claude").join("skills"));
+    let dir = crate::config::get_agents_skills_dir();
     let count = scan_skill_dir_names(&dir, &mut effective);
     (effective, count)
 }
@@ -381,15 +375,20 @@ fn parse_claude_skill_line(line: &str) -> Option<ParsedSkillLine> {
     }
 }
 
-/// Codex records a skill activation as an `exec_command` tool call that reads
-/// the skill's `SKILL.md` — it has no dedicated Skill tool like Claude Code.
-/// Each such read counts as one usage of that skill.
+/// Codex records skill usage in two ways:
+/// 1. AI-initiated: `exec_command` reading `skills/<name>/SKILL.md` (legacy).
+/// 2. User-initiated: `$skill-name` prefix in user messages.
 fn parse_codex_skill_line(line: &str) -> Option<ParsedSkillLine> {
     let value: serde_json::Value = serde_json::from_str(line).ok()?;
-    let payload = match value.get("type")?.as_str()? {
-        "response_item" => value.get("payload")?,
-        _ => return None,
-    };
+    match value.get("type")?.as_str()? {
+        "response_item" => parse_codex_exec_command(&value),
+        "event_msg" => parse_codex_user_message(&value),
+        _ => None,
+    }
+}
+
+fn parse_codex_exec_command(value: &serde_json::Value) -> Option<ParsedSkillLine> {
+    let payload = value.get("payload")?;
     if payload.get("type").and_then(|t| t.as_str()) != Some("function_call") {
         return None;
     }
@@ -402,12 +401,47 @@ fn parse_codex_skill_line(line: &str) -> Option<ParsedSkillLine> {
     let args_value: serde_json::Value = serde_json::from_str(arguments_str).ok()?;
     let cmd = args_value.get("cmd").and_then(|c| c.as_str())?;
     let name = extract_skill_name_from_cmd(cmd)?;
-    let ts_ms = timestamp_ms(&value)?;
+    let ts_ms = timestamp_ms(value)?;
     Some(ParsedSkillLine {
         id: None,
         ts_ms,
         skills: vec![name],
     })
+}
+
+/// Detect `$skill-name` prefix in user messages.
+/// Example: `"$github-research-assistant 介绍一下当前路径下的仓库"`
+fn parse_codex_user_message(value: &serde_json::Value) -> Option<ParsedSkillLine> {
+    let payload = value.get("payload")?;
+    if payload.get("type").and_then(|t| t.as_str()) != Some("user_message") {
+        return None;
+    }
+    let text = payload.get("message").and_then(|m| m.as_str())?;
+    let name = extract_dollar_skill(text)?;
+    let ts_ms = timestamp_ms(value)?;
+    let id = value
+        .get("session_id")
+        .or_else(|| payload.get("session_id"))
+        .and_then(|id| id.as_str())
+        .map(str::to_string);
+    Some(ParsedSkillLine {
+        id,
+        ts_ms,
+        skills: vec![name],
+    })
+}
+
+/// Extract skill name from `$skill-name ...` prefix in a user message.
+fn extract_dollar_skill(text: &str) -> Option<String> {
+    let rest = text.strip_prefix('$')?;
+    let name = rest
+        .chars()
+        .take_while(|c| c.is_alphanumeric() || *c == '-')
+        .collect::<String>();
+    if name.is_empty() {
+        return None;
+    }
+    Some(name)
 }
 
 /// Pull the skill name out of a command path like `…/skills/<name>/SKILL.md`,
@@ -696,9 +730,9 @@ fn collect_jsonl_files(dir: &Path, files: &mut Vec<PathBuf>) {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_usage, discover_skill_usage_from_home, extract_heading, heading_to_kebab,
-        match_heading_to_whitelist, normalize_skill_name, parse_claude_skill_line,
-        parse_codex_skill_line, SkillUsageEvent,
+        build_usage, discover_skill_usage_from_home, extract_dollar_skill, extract_heading,
+        heading_to_kebab, match_heading_to_whitelist, normalize_skill_name,
+        parse_claude_skill_line, parse_codex_skill_line, SkillUsageEvent,
     };
     use chrono::{Local, TimeZone};
     use std::collections::HashSet;
@@ -860,6 +894,79 @@ mod tests {
         assert_eq!(usage.total_calls, 1);
         assert_eq!(usage.installed_skill_count, 1);
         assert_eq!(usage.recent[0].name, "coding-philosophy-cce");
+    }
+
+    #[test]
+    fn extract_dollar_skill_from_user_message() {
+        assert_eq!(
+            extract_dollar_skill("$github-research-assistant 介绍一下"),
+            Some("github-research-assistant".to_string())
+        );
+        assert_eq!(
+            extract_dollar_skill("$code-review"),
+            Some("code-review".to_string())
+        );
+        assert_eq!(extract_dollar_skill("no prefix"), None);
+        assert_eq!(extract_dollar_skill("$"), None);
+    }
+
+    #[test]
+    fn parses_codex_user_message_skill() {
+        let line = serde_json::json!({
+            "timestamp": "2026-07-08T01:21:38Z",
+            "type": "event_msg",
+            "payload": {
+                "type": "user_message",
+                "message": "$github-research-assistant 介绍一下当前路径下的仓库"
+            }
+        })
+        .to_string();
+        let parsed = parse_codex_skill_line(&line).unwrap();
+        assert_eq!(parsed.skills, vec!["github-research-assistant"]);
+    }
+
+    #[test]
+    fn discovers_codex_dollar_skill_with_whitelist() {
+        let temp = tempfile::tempdir().unwrap();
+        let session_dir = temp.path().join(".codex/sessions/2026/07/08");
+        std::fs::create_dir_all(&session_dir).unwrap();
+        // Mix: old-style exec_command + new-style $skill-name
+        let args = serde_json::json!({
+            "cmd": "sed -n '1,200p' /Users/demo/.agents/skills/coding-philosophy-cce/SKILL.md"
+        });
+        let old_line = serde_json::json!({
+            "timestamp": "2026-07-08T10:00:00Z",
+            "type": "response_item",
+            "payload": {
+                "type": "function_call",
+                "name": "exec_command",
+                "call_id": "call_1",
+                "arguments": args.to_string()
+            }
+        });
+        let new_line = serde_json::json!({
+            "timestamp": "2026-07-08T10:01:00Z",
+            "type": "event_msg",
+            "payload": {
+                "type": "user_message",
+                "message": "$github-research-assistant 分析一下仓库"
+            }
+        });
+        std::fs::write(
+            session_dir.join("session.jsonl"),
+            format!("{}\n{}", old_line, new_line),
+        )
+        .unwrap();
+        let whitelist: HashSet<String> = ["coding-philosophy-cce", "github-research-assistant"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        let now = Local.with_ymd_and_hms(2026, 7, 8, 12, 0, 0).unwrap();
+        let usage = discover_skill_usage_from_home("codex", temp.path(), whitelist, 1, now);
+        assert_eq!(
+            usage.total_calls, 2,
+            "should detect both old and new mechanisms"
+        );
     }
 
     #[test]
