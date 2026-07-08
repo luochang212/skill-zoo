@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Pre-push checks. Bypass with `git push --no-verify`.
+# Mirrors the CI workflow — catches issues before they hit remote.
+set -e
+
+echo "=== Frontend typecheck ==="
+bun run typecheck
+
+echo "=== Frontend tests ==="
+bun run test
+
+echo "=== CLI typecheck ==="
+bun run cli:typecheck
+
+echo "=== CLI tests ==="
+bun run cli:test
+
+echo "=== CLI build ==="
+bun run cli:build
+
+echo "=== Rust clippy ==="
+cargo clippy --manifest-path src-tauri/Cargo.toml --features test-helpers -- -D warnings
+
+echo "=== Rust tests ==="
+cargo test --manifest-path src-tauri/Cargo.toml --features test-helpers
