@@ -3,14 +3,14 @@ import { describe, expect, it } from "vitest";
 import { useConsistencyCheck } from "./useSkillIssues";
 import type { InstalledSkill } from "@/types/skills";
 
-function makeSkill(id: string, contentHash?: string): InstalledSkill {
+function makeSkill(id: string, contentHash?: string, origin = "ssot"): InstalledSkill {
   return {
     id,
     name: "duplicate",
     directory: id,
     contentHash,
     apps: {},
-    origin: "ssot",
+    origin,
     installedAt: 1,
     updatedAt: 1,
   };
@@ -34,5 +34,14 @@ describe("useConsistencyCheck", () => {
     });
 
     expect(result.current.duplicateGroups[0].sameContent).toBe(true);
+  });
+
+  it("does not treat external imports as local duplicates", () => {
+    const { result } = renderHook(() =>
+      useConsistencyCheck([makeSkill("local", "hash"), makeSkill("external", "hash", "external")]),
+    );
+
+    expect(result.current.duplicateGroups).toEqual([]);
+    expect(result.current.issuesMap.size).toBe(0);
   });
 });

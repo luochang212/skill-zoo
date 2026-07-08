@@ -32,6 +32,7 @@ export function useConsistencyCheck(skills: InstalledSkill[]) {
     const nameGroups = new Map<string, InstalledSkill[]>();
 
     for (const s of skills) {
+      if (s.origin === "external") continue;
       const existing = nameGroups.get(s.name);
       if (existing) {
         existing.push(s);
