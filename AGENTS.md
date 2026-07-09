@@ -54,6 +54,19 @@ In both cases, agent directories only ever contain symlinks — never copies. Th
 
 This design respects the user's files and avoids creating divergent copies. If a skill were copied instead of linked, the copy would silently drift from the original — the user edits one version while the other becomes stale. A single source of truth per skill, whether in SSOT or the user's own directory, prevents this.
 
+### Local Visibility and Conflict Scope
+
+The desktop app scans filesystem truth broadly, but user-facing local views and install conflict checks use a narrower **visible local scope**:
+
+- Always include SSOT skills in `~/.agents/skills/`.
+- Include real `origin=agent` skill directories only when their `homeAgent` is currently visible in Settings.
+- Keep `origin=external` imports visible as management objects, even when not linked to any agent.
+- Do not include hidden-agent skills or external imports in same-name conflict/duplicate consistency checks.
+- Discover/repository install conflict checks must use the same scope: SSOT plus visible-agent real directories, excluding external imports.
+- Install preflight must check SSOT plus currently visible agent directories, not every known agent directory.
+
+This prevents hidden agents or external import records from creating conflicts that users cannot find on the Local page, while preserving external imports as manageable entries.
+
 ### Local Protocol Guardrails
 
 The desktop app owns Skill Zoo's local protocol. The CLI is an adjunct control surface that must conform to desktop-owned local state; it must not define an independent schema or change protocol fixtures for its own convenience.
