@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.23] — 2026-07-09
+
+### Changed
+- Local views and install conflict checks now use a narrower visible scope: only SSOT skills and skills whose home agent is currently visible in Settings. Hidden-agent skills and external imports no longer create conflicts users cannot resolve on the Local page.
+- Install preflight only checks visible agent directories, not every known agent directory.
+- Discover page and skills.sh search classify conflicts against visible local skills only.
+- Archived skills are shown without agent visibility filtering.
+- Consistency checks (duplicates, name mismatches) now exclude hidden-agent entity skills and external imports.
+- Settings update shortcut label changed from "Update" to "New Version".
+
+### Fixed
+- External imports no longer trigger false conflict detection in discover and repository views.
+- Repo skills with different source paths but identical install directories now correctly show as conflicts rather than falsely matching as installed.
+
 ## [0.3.22] — 2026-07-09
 
 ### Added
