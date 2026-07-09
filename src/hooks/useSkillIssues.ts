@@ -59,6 +59,7 @@ export function useConsistencyCheck(skills: InstalledSkill[]) {
 
     const nameMismatches: NameMismatch[] = [];
     for (const s of skills) {
+      if (s.origin === "external") continue;
       if (s.yamlName) {
         nameMismatches.push({
           skillId: s.id,

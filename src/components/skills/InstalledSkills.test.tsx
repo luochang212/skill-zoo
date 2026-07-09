@@ -102,27 +102,52 @@ describe("InstalledSkills visible agent filtering", () => {
     mocks.hideNonSsot = false;
   });
 
-  it("shows only skills linked to currently visible coding agents", () => {
+  it("shows SSOT, visible-agent entity, and external skills in All", () => {
     mocks.visibleAgentOrder = ["claude-code"];
     mocks.skills = [
-      skill({ id: "claude-skill", name: "Claude Skill", apps: { "claude-code": true } }),
-      skill({ id: "codex-skill", name: "Codex Skill", apps: { codex: true } }),
+      skill({ id: "ssot-skill", name: "SSOT Skill", origin: "ssot", apps: {} }),
       skill({
-        id: "shared-skill",
-        name: "Shared Skill",
-        apps: { "claude-code": true, codex: true },
+        id: "claude-skill",
+        name: "Claude Skill",
+        origin: "agent",
+        homeAgent: "claude-code",
+        apps: { "claude-code": true },
+      }),
+      skill({
+        id: "external-skill",
+        name: "External Skill",
+        origin: "external",
+        apps: {},
       }),
     ];
 
     renderInstalledSkills();
 
+    expect(screen.getByRole("button", { name: "SSOT Skill" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Claude Skill" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Shared Skill" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Codex Skill" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "All2" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "External Skill" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "All3" })).toBeInTheDocument();
   });
 
-  it("still applies the hide non-SSOT setting after visible-agent filtering", () => {
+  it("hides entity skills whose home agent is not visible", () => {
+    mocks.visibleAgentOrder = ["claude-code"];
+    mocks.skills = [
+      skill({
+        id: "codex-skill",
+        name: "Codex Skill",
+        origin: "agent",
+        homeAgent: "codex",
+        apps: { codex: true },
+      }),
+    ];
+
+    renderInstalledSkills();
+
+    expect(screen.queryByRole("button", { name: "Codex Skill" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "All0" })).toBeInTheDocument();
+  });
+
+  it("still applies the hide non-SSOT setting", () => {
     mocks.visibleAgentOrder = ["claude-code"];
     mocks.hideNonSsot = true;
     mocks.skills = [
@@ -136,7 +161,14 @@ describe("InstalledSkills visible agent filtering", () => {
         id: "agent-skill",
         name: "Agent Skill",
         origin: "agent",
+        homeAgent: "claude-code",
         apps: { "claude-code": true },
+      }),
+      skill({
+        id: "external-skill",
+        name: "External Skill",
+        origin: "external",
+        apps: {},
       }),
     ];
 
@@ -144,14 +176,58 @@ describe("InstalledSkills visible agent filtering", () => {
 
     expect(screen.getByRole("button", { name: "SSOT Skill" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Agent Skill" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "External Skill" })).not.toBeInTheDocument();
+  });
+
+  it("filters cards only when a specific visible agent tab is selected", async () => {
+    const user = userEvent.setup();
+    mocks.visibleAgentOrder = ["claude-code", "codex"];
+    mocks.skills = [
+      skill({
+        id: "claude-skill",
+        name: "Claude Skill",
+        origin: "agent",
+        homeAgent: "claude-code",
+        apps: { "claude-code": true },
+      }),
+      skill({
+        id: "codex-skill",
+        name: "Codex Skill",
+        origin: "agent",
+        homeAgent: "codex",
+        apps: { codex: true },
+      }),
+    ];
+
+    renderInstalledSkills();
+
+    expect(screen.getByRole("button", { name: "Claude Skill" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Codex Skill" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Codex" }));
+
+    expect(screen.getByRole("button", { name: "Codex Skill" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Claude Skill" })).not.toBeInTheDocument();
   });
 
   it("resets a hidden agent toolbar filter back to all", async () => {
     const user = userEvent.setup();
     mocks.visibleAgentOrder = ["claude-code", "codex"];
     mocks.skills = [
-      skill({ id: "claude-skill", name: "Claude Skill", apps: { "claude-code": true } }),
-      skill({ id: "codex-skill", name: "Codex Skill", apps: { codex: true } }),
+      skill({
+        id: "claude-skill",
+        name: "Claude Skill",
+        origin: "agent",
+        homeAgent: "claude-code",
+        apps: { "claude-code": true },
+      }),
+      skill({
+        id: "codex-skill",
+        name: "Codex Skill",
+        origin: "agent",
+        homeAgent: "codex",
+        apps: { codex: true },
+      }),
     ];
     const view = renderInstalledSkills();
 
@@ -175,7 +251,7 @@ describe("InstalledSkills visible agent filtering", () => {
     expect(screen.queryByRole("button", { name: "Codex Skill" })).not.toBeInTheDocument();
   });
 
-  it("filters archived skill cards by visible coding agents", () => {
+  it("shows archived skill cards without visible-agent filtering in All", () => {
     mocks.visibleAgentOrder = ["claude-code"];
     mocks.archivedSkills = [
       skill({ id: "archived-claude", name: "Archived Claude", apps: { "claude-code": true } }),
@@ -185,11 +261,11 @@ describe("InstalledSkills visible agent filtering", () => {
     renderArchivedSkills();
 
     expect(screen.getByRole("button", { name: "Archived Claude" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Archived Codex" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Archive1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Archived Codex" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Archive2" })).toBeInTheDocument();
   });
 
-  it("counts only visible archived skills in the sidebar", () => {
+  it("counts all archived skills in the sidebar", () => {
     mocks.visibleAgentOrder = ["claude-code"];
     mocks.archivedSkills = [
       skill({ id: "archived-claude", name: "Archived Claude", apps: { "claude-code": true } }),
@@ -198,22 +274,60 @@ describe("InstalledSkills visible agent filtering", () => {
 
     renderInstalledSkills();
 
-    expect(screen.getByRole("button", { name: "Archive1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Archive2" })).toBeInTheDocument();
   });
 
-  it("does not surface consistency issues for skills hidden by agent visibility", () => {
+  it("does not surface consistency issues for skills whose home agent is hidden", () => {
     mocks.visibleAgentOrder = ["claude-code"];
     mocks.skills = [
       skill({
         id: "hidden-mismatch",
         name: "Hidden Mismatch",
         yamlName: "Display Name",
+        origin: "agent",
+        homeAgent: "codex",
         apps: { codex: true },
       }),
     ];
 
     renderInstalledSkills();
 
+    expect(screen.queryByRole("button", { name: /Consistency/ })).not.toBeInTheDocument();
+  });
+
+  it("surfaces consistency issues for visible-agent entity skills", () => {
+    mocks.visibleAgentOrder = ["claude-code"];
+    mocks.skills = [
+      skill({
+        id: "visible-mismatch",
+        name: "Visible Mismatch",
+        yamlName: "Display Name",
+        origin: "agent",
+        homeAgent: "claude-code",
+        apps: { "claude-code": true },
+      }),
+    ];
+
+    renderInstalledSkills();
+
+    expect(screen.getByRole("button", { name: /Consistency/ })).toBeInTheDocument();
+  });
+
+  it("does not surface consistency issues for external imports", () => {
+    mocks.visibleAgentOrder = ["claude-code"];
+    mocks.skills = [
+      skill({
+        id: "external-mismatch",
+        name: "External Mismatch",
+        yamlName: "Display Name",
+        origin: "external",
+        apps: {},
+      }),
+    ];
+
+    renderInstalledSkills();
+
+    expect(screen.getByRole("button", { name: "External Mismatch" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Consistency/ })).not.toBeInTheDocument();
   });
 
@@ -225,6 +339,7 @@ describe("InstalledSkills visible agent filtering", () => {
         id: "agent-skill",
         name: "Agent Skill",
         origin: "agent",
+        homeAgent: "claude-code",
         apps: { "claude-code": true },
       }),
     ];

@@ -68,8 +68,14 @@ function matchesToolbarFilters(skill: InstalledSkill, search: string, agentFilte
   return true;
 }
 
-function belongsToVisibleAgent(skill: InstalledSkill, visibleAgents: Set<string>) {
-  return Object.entries(skill.apps).some(([agent, enabled]) => enabled && visibleAgents.has(agent));
+function isInVisibleLocalScope(
+  skill: InstalledSkill,
+  visibleAgents: Set<string>,
+  includeExternal: boolean,
+) {
+  if (skill.origin === "ssot") return true;
+  if (skill.origin === "external") return includeExternal;
+  return !!skill.homeAgent && visibleAgents.has(skill.homeAgent);
 }
 
 function SortArrow({ active, direction }: { active: boolean; direction: SortDirection }) {
@@ -440,20 +446,21 @@ export const InstalledSkills = memo(function InstalledSkills({
     }
   }, [agentFilter, visibleAgentSet]);
 
-  const agentVisibleSkills = useMemo(
-    () => skillsList.filter((s) => belongsToVisibleAgent(s, visibleAgentSet)),
-    [skillsList, visibleAgentSet],
-  );
   const visibleSkills = useMemo(
-    () => agentVisibleSkills.filter((s) => !hideNonSsot || s.origin === "ssot"),
-    [agentVisibleSkills, hideNonSsot],
+    () =>
+      skillsList.filter(
+        (s) =>
+          (!hideNonSsot || s.origin === "ssot") && isInVisibleLocalScope(s, visibleAgentSet, true),
+      ),
+    [hideNonSsot, skillsList, visibleAgentSet],
   );
-  const visibleArchivedSkills = useMemo(
-    () => archivedList.filter((s) => belongsToVisibleAgent(s, visibleAgentSet)),
-    [archivedList, visibleAgentSet],
+  const consistencySkills = useMemo(
+    () => visibleSkills.filter((s) => isInVisibleLocalScope(s, visibleAgentSet, false)),
+    [visibleAgentSet, visibleSkills],
   );
+  const visibleArchivedSkills = archivedList;
   const { duplicateGroups, nameMismatches, issuesMap, consistencyCount } =
-    useConsistencyCheck(visibleSkills);
+    useConsistencyCheck(consistencySkills);
 
   const sidebarCountSkills = useMemo(
     () => visibleSkills.filter((s) => matchesToolbarFilters(s, search, agentFilter)),
@@ -514,13 +521,6 @@ export const InstalledSkills = memo(function InstalledSkills({
     () => categoryFiltered.filter((s) => matchesToolbarFilters(s, search, agentFilter)),
     [agentFilter, categoryFiltered, search],
   );
-  const showVisibleAgentEmpty =
-    !isArchiveView &&
-    search === "" &&
-    agentFilter === "all" &&
-    skillsList.length > 0 &&
-    agentVisibleSkills.length === 0;
-
   const sorted = useMemo(
     () =>
       filtered.toSorted((a, b) => {
@@ -827,11 +827,7 @@ export const InstalledSkills = memo(function InstalledSkills({
             <div className="flex-1 min-h-0 flex gap-0 relative">
               {filtered.length === 0 ? (
                 <div className="flex-1 flex items-center justify-center">
-                  <p className="text-sm text-muted-foreground">
-                    {showVisibleAgentEmpty
-                      ? t("installed.noVisibleAgentsMatch")
-                      : t("installed.noMatch")}
-                  </p>
+                  <p className="text-sm text-muted-foreground">{t("installed.noMatch")}</p>
                 </div>
               ) : (
                 <ScrollArea className="flex-1 pt-1 @container/main">

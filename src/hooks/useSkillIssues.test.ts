@@ -38,12 +38,15 @@ describe("useConsistencyCheck", () => {
     expect(result.current.duplicateGroups[0].sameContent).toBe(true);
   });
 
-  it("does not treat external imports as local duplicates", () => {
+  it("does not treat external imports as local consistency issues", () => {
+    const external = makeSkill("external", "hash", "external");
+    external.yamlName = "External Display Name";
     const { result } = renderHook(() =>
-      useConsistencyCheck([makeSkill("local", "hash"), makeSkill("external", "hash", "external")]),
+      useConsistencyCheck([makeSkill("local", "hash"), external]),
     );
 
     expect(result.current.duplicateGroups).toEqual([]);
+    expect(result.current.nameMismatches).toEqual([]);
     expect(result.current.issuesMap.size).toBe(0);
   });
 });
