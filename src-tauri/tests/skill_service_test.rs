@@ -109,6 +109,7 @@ fn test_classify_discoverable_skill_distinguishes_installed_and_conflict() {
             &cache,
             &lock,
             "demo",
+            "demo",
             "owner",
             "repo",
             Some("main"),
@@ -122,6 +123,7 @@ fn test_classify_discoverable_skill_distinguishes_installed_and_conflict() {
         SkillService::classify_discoverable_skill(
             &cache,
             &lock,
+            "demo",
             "demo",
             "OWNER",
             "REPO",
@@ -137,6 +139,7 @@ fn test_classify_discoverable_skill_distinguishes_installed_and_conflict() {
             &cache,
             &lock,
             "demo",
+            "demo",
             "other",
             "repo",
             Some("main"),
@@ -147,6 +150,7 @@ fn test_classify_discoverable_skill_distinguishes_installed_and_conflict() {
         SkillService::classify_discoverable_skill(
             &cache,
             &lock,
+            "demo",
             "demo",
             "owner",
             "repo",
@@ -169,7 +173,9 @@ fn test_classify_discoverable_skill_treats_multiple_same_directory_entries_as_co
     };
 
     assert_eq!(
-        SkillService::classify_discoverable_skill(&cache, &lock, "demo", "owner", "repo", None,),
+        SkillService::classify_discoverable_skill(
+            &cache, &lock, "demo", "demo", "owner", "repo", None,
+        ),
         (DiscoverableSkillInstallStatus::Conflict, None)
     );
 }
@@ -186,6 +192,7 @@ fn test_classify_discoverable_skill_treats_missing_and_local_entries_conservativ
             &SkillCache::empty(),
             &lock,
             "demo",
+            "demo",
             "owner",
             "repo",
             Some("main"),
@@ -201,6 +208,7 @@ fn test_classify_discoverable_skill_treats_missing_and_local_entries_conservativ
         SkillService::classify_discoverable_skill(
             &SkillCache::from_entries(vec![local]),
             &lock,
+            "demo",
             "demo",
             "owner",
             "repo",

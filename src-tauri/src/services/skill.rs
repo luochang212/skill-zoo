@@ -1018,7 +1018,8 @@ impl SkillService {
     pub fn classify_discoverable_skill(
         cache: &SkillCache,
         lock: &SkillLock,
-        directory: &str,
+        install_directory: &str,
+        repo_skill_path: &str,
         repo_owner: &str,
         repo_name: &str,
         branch: Option<&str>,
@@ -1026,7 +1027,7 @@ impl SkillService {
         let matches: Vec<&SkillCacheEntry> = cache
             .skills()
             .iter()
-            .filter(|entry| entry.directory == directory)
+            .filter(|entry| entry.directory == install_directory && entry.origin != "external")
             .collect();
 
         if matches.is_empty() {
@@ -1037,6 +1038,10 @@ impl SkillService {
         }
 
         let installed = matches[0];
+        let lock_entry = lock
+            .skills
+            .get(&installed.directory)
+            .or_else(|| lock.skills.get(install_directory));
         let same_repo = installed.origin == "ssot"
             && installed
                 .repo_owner
@@ -1047,13 +1052,16 @@ impl SkillService {
                 .as_deref()
                 .is_some_and(|name| name.eq_ignore_ascii_case(repo_name));
         let same_branch = branch.is_none_or(|expected| {
-            lock.skills
-                .get(directory)
-                .and_then(|entry| entry.branch.as_deref())
-                == Some(expected)
+            lock_entry.and_then(|entry| entry.branch.as_deref()) == Some(expected)
         });
+        let same_path = repo_skill_path == install_directory
+            || lock_entry
+                .and_then(|entry| entry.skill_path.as_deref())
+                .map(Self::normalize_repo_skill_path)
+                .as_deref()
+                == Some(Self::normalize_repo_skill_path(repo_skill_path).as_str());
 
-        if same_repo && same_branch {
+        if same_repo && same_branch && same_path {
             (
                 DiscoverableSkillInstallStatus::Installed,
                 Some(installed.id.clone()),
@@ -1061,6 +1069,15 @@ impl SkillService {
         } else {
             (DiscoverableSkillInstallStatus::Conflict, None)
         }
+    }
+
+    fn normalize_repo_skill_path(path: &str) -> String {
+        let normalized = path.replace('\\', "/");
+        normalized
+            .strip_suffix("/SKILL.md")
+            .unwrap_or(&normalized)
+            .trim_matches('/')
+            .to_string()
     }
 
     /// Scan a single skill directory and return a cache entry for it.
@@ -1408,6 +1425,24 @@ impl SkillService {
             }
         }
         map
+    }
+
+    pub fn is_visible_local_skill(
+        skill: &SkillCacheEntry,
+        visible_agents: &HashMap<String, bool>,
+        include_external: bool,
+    ) -> bool {
+        match skill.origin.as_str() {
+            "ssot" => true,
+            "external" => include_external,
+            "agent" => skill.home_agent.as_deref().is_some_and(|agent| {
+                visible_agents
+                    .get(agent)
+                    .copied()
+                    .unwrap_or_else(|| config::default_visibility(agent))
+            }),
+            _ => false,
+        }
     }
 
     // ──────────────────────────────────────────────
@@ -1982,6 +2017,7 @@ impl SkillService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::lock::SUPPORTED_LOCK_VERSION;
 
     #[test]
     fn agent_link_name_uses_directory_leaf() {
@@ -2057,5 +2093,175 @@ mod tests {
         }
 
         assert!(is_symlink_or_junction(&link_path));
+    }
+
+    #[test]
+    fn discoverable_classification_reports_available_when_cache_is_empty() {
+        let cache = SkillCache::empty();
+        let lock = SkillLock {
+            version: SUPPORTED_LOCK_VERSION,
+            skills: Default::default(),
+            dismissed: serde_json::json!({}),
+        };
+
+        let (status, installed_id) = SkillService::classify_discoverable_skill(
+            &cache,
+            &lock,
+            "recap",
+            ".codex/skills/recap",
+            "anthropics",
+            "skills",
+            None,
+        );
+
+        assert_eq!(status, DiscoverableSkillInstallStatus::Available);
+        assert_eq!(installed_id, None);
+    }
+
+    #[test]
+    fn discoverable_classification_uses_repo_path_for_installed_match() {
+        let cache = SkillCache::from_entries(vec![test_cache_entry(
+            "repo:anthropics/skills:recap",
+            "recap",
+            "anthropics",
+            "skills",
+        )]);
+        let mut lock = SkillLock {
+            version: SUPPORTED_LOCK_VERSION,
+            skills: Default::default(),
+            dismissed: serde_json::json!({}),
+        };
+        lock.skills.insert(
+            "recap".to_string(),
+            test_lock_entry("anthropics/skills", ".claude/skills/recap"),
+        );
+
+        let (installed_status, installed_id) = SkillService::classify_discoverable_skill(
+            &cache,
+            &lock,
+            "recap",
+            ".claude/skills/recap",
+            "anthropics",
+            "skills",
+            None,
+        );
+        let (conflict_status, conflict_id) = SkillService::classify_discoverable_skill(
+            &cache,
+            &lock,
+            "recap",
+            ".codex/skills/recap",
+            "anthropics",
+            "skills",
+            None,
+        );
+
+        assert_eq!(installed_status, DiscoverableSkillInstallStatus::Installed);
+        assert_eq!(
+            installed_id.as_deref(),
+            Some("repo:anthropics/skills:recap")
+        );
+        assert_eq!(conflict_status, DiscoverableSkillInstallStatus::Conflict);
+        assert_eq!(conflict_id, None);
+    }
+
+    #[test]
+    fn discoverable_classification_ignores_external_imports() {
+        let mut external = test_cache_entry("external:demo", "demo", "owner", "repo");
+        external.origin = "external".to_string();
+        let cache = SkillCache::from_entries(vec![external]);
+        let lock = SkillLock {
+            version: SUPPORTED_LOCK_VERSION,
+            skills: Default::default(),
+            dismissed: serde_json::json!({}),
+        };
+
+        let (status, installed_id) = SkillService::classify_discoverable_skill(
+            &cache, &lock, "demo", "demo", "owner", "repo", None,
+        );
+
+        assert_eq!(status, DiscoverableSkillInstallStatus::Available);
+        assert_eq!(installed_id, None);
+    }
+
+    #[test]
+    fn visible_local_scope_includes_ssot_external_and_visible_agent_home() {
+        let mut visible_agents = std::collections::HashMap::new();
+        visible_agents.insert("claude-code".to_string(), true);
+        visible_agents.insert("codex".to_string(), false);
+
+        let ssot = test_cache_entry("ssot:demo", "demo", "owner", "repo");
+        let mut visible_agent = test_cache_entry("agent:claude-code:demo", "demo", "owner", "repo");
+        visible_agent.origin = "agent".to_string();
+        visible_agent.home_agent = Some("claude-code".to_string());
+        let mut hidden_agent = test_cache_entry("agent:codex:demo", "demo", "owner", "repo");
+        hidden_agent.origin = "agent".to_string();
+        hidden_agent.home_agent = Some("codex".to_string());
+        let mut external = test_cache_entry("external:demo", "demo", "owner", "repo");
+        external.origin = "external".to_string();
+
+        assert!(SkillService::is_visible_local_skill(
+            &ssot,
+            &visible_agents,
+            false
+        ));
+        assert!(SkillService::is_visible_local_skill(
+            &visible_agent,
+            &visible_agents,
+            false
+        ));
+        assert!(!SkillService::is_visible_local_skill(
+            &hidden_agent,
+            &visible_agents,
+            false
+        ));
+        assert!(!SkillService::is_visible_local_skill(
+            &external,
+            &visible_agents,
+            false
+        ));
+        assert!(SkillService::is_visible_local_skill(
+            &external,
+            &visible_agents,
+            true
+        ));
+    }
+
+    fn test_cache_entry(
+        id: &str,
+        directory: &str,
+        repo_owner: &str,
+        repo_name: &str,
+    ) -> SkillCacheEntry {
+        SkillCacheEntry {
+            id: id.to_string(),
+            name: directory.to_string(),
+            yaml_name: None,
+            description: None,
+            directory: directory.to_string(),
+            repo_owner: Some(repo_owner.to_string()),
+            repo_name: Some(repo_name.to_string()),
+            source_url: Some(format!("https://github.com/{repo_owner}/{repo_name}")),
+            origin: "ssot".to_string(),
+            home_path: None,
+            content_hash: None,
+            home_agent: None,
+            apps: Default::default(),
+            installed_at: 0,
+            updated_at: 0,
+        }
+    }
+
+    fn test_lock_entry(source: &str, skill_path: &str) -> SkillLockEntry {
+        SkillLockEntry {
+            source: Some(source.to_string()),
+            source_type: Some("github".to_string()),
+            source_url: Some(format!("https://github.com/{source}")),
+            branch: None,
+            skill_path: Some(skill_path.to_string()),
+            skill_folder_hash: None,
+            installed_at: None,
+            updated_at: None,
+            commit_sha: None,
+        }
     }
 }
