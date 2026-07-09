@@ -63,7 +63,7 @@ The desktop app scans filesystem truth broadly, but user-facing local views and 
 - Keep `origin=external` imports visible as management objects, even when not linked to any agent.
 - Do not include hidden-agent skills or external imports in same-name conflict/duplicate consistency checks.
 - Discover/repository install conflict checks must use the same scope: SSOT plus visible-agent real directories, excluding external imports.
-- Install preflight must check SSOT plus currently visible agent directories, not every known agent directory.
+- Install preflight must check SSOT plus the agent directories selected for that install operation, not every visible or known agent directory.
 
 This prevents hidden agents or external import records from creating conflicts that users cannot find on the Local page, while preserving external imports as manageable entries.
 

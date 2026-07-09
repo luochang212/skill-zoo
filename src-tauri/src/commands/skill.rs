@@ -291,19 +291,11 @@ fn remove_external_import_links_for_target(
     Ok(removed)
 }
 
-fn visible_agent_skill_dirs(state: &AppState) -> Result<Vec<PathBuf>, String> {
-    let settings = state.settings.lock().map_err(|e| e.to_string())?;
-    let visible_agents = SkillService::get_visible_agents(&settings);
-    Ok(config::AGENTS
+fn selected_agent_skill_dirs(agents: &[String]) -> Vec<PathBuf> {
+    agents
         .iter()
-        .filter(|agent| {
-            visible_agents
-                .get(agent.id)
-                .copied()
-                .unwrap_or_else(|| config::default_visibility(agent.id))
-        })
-        .filter_map(|agent| config::get_agent_skills_dir(agent.id))
-        .collect())
+        .filter_map(|agent| config::get_agent_skills_dir(agent))
+        .collect()
 }
 
 fn visible_discover_conflict_cache(state: &AppState) -> Result<SkillCache, String> {
@@ -814,7 +806,7 @@ pub async fn install_skills(
     skill_names: Vec<String>,
     agents: Vec<String>,
 ) -> Result<Vec<InstalledSkill>, CommandError> {
-    let preflight_agent_dirs = visible_agent_skill_dirs(&state).map_err(CommandError::generic)?;
+    let preflight_agent_dirs = selected_agent_skill_dirs(&agents);
     let installed_dirs = CliService::add_skills(
         &repo_url,
         &skill_names,
@@ -3535,6 +3527,14 @@ mod tests {
         assert_eq!(error.code, "binaryFile");
         assert_eq!(error.message, "File is not UTF-8 text");
         assert_eq!(error.repo, None);
+    }
+
+    #[test]
+    fn install_preflight_uses_selected_agents_not_all_visible_agents() {
+        let dirs = selected_agent_skill_dirs(&["codex".to_string()]);
+
+        assert_eq!(dirs, vec![config::get_agent_skills_dir("codex").unwrap()]);
+        assert!(!dirs.contains(&config::get_agent_skills_dir("hermes").unwrap()));
     }
 
     #[test]
