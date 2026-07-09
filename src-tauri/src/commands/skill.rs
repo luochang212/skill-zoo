@@ -291,6 +291,36 @@ fn remove_external_import_links_for_target(
     Ok(removed)
 }
 
+fn visible_agent_skill_dirs(state: &AppState) -> Result<Vec<PathBuf>, String> {
+    let settings = state.settings.lock().map_err(|e| e.to_string())?;
+    let visible_agents = SkillService::get_visible_agents(&settings);
+    Ok(config::AGENTS
+        .iter()
+        .filter(|agent| {
+            visible_agents
+                .get(agent.id)
+                .copied()
+                .unwrap_or_else(|| config::default_visibility(agent.id))
+        })
+        .filter_map(|agent| config::get_agent_skills_dir(agent.id))
+        .collect())
+}
+
+fn visible_discover_conflict_cache(state: &AppState) -> Result<SkillCache, String> {
+    let visible_agents = {
+        let settings = state.settings.lock().map_err(|e| e.to_string())?;
+        SkillService::get_visible_agents(&settings)
+    };
+    let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
+    Ok(SkillCache::from_entries(
+        cache
+            .iter()
+            .filter(|skill| SkillService::is_visible_local_skill(skill, &visible_agents, false))
+            .cloned()
+            .collect(),
+    ))
+}
+
 #[cfg(feature = "test-helpers")]
 pub fn is_path_under_skill_roots_for_test(
     path: &Path,
@@ -784,10 +814,12 @@ pub async fn install_skills(
     skill_names: Vec<String>,
     agents: Vec<String>,
 ) -> Result<Vec<InstalledSkill>, CommandError> {
+    let preflight_agent_dirs = visible_agent_skill_dirs(&state).map_err(CommandError::generic)?;
     let installed_dirs = CliService::add_skills(
         &repo_url,
         &skill_names,
         &agents.first().cloned().unwrap_or_default(),
+        &preflight_agent_dirs,
     )
     .await
     .map_err(CommandError::from)?;
@@ -3036,10 +3068,11 @@ pub async fn get_repo_skills(
     .await
     .map_err(CommandError::from)?;
 
-    let cache = state
-        .skill_cache
-        .read()
-        .map_err(|e| CommandError::generic(e.to_string()))?;
+    SkillService::rebuild_cache(&state.skill_cache, &state.metadata, &state.sync_in_progress)
+        .await
+        .map_err(CommandError::from)?;
+
+    let cache = visible_discover_conflict_cache(&state).map_err(CommandError::generic)?;
     let lock = SkillLock::read().map_err(CommandError::from)?;
 
     for skill in &mut skills {
@@ -3048,6 +3081,7 @@ pub async fn get_repo_skills(
                 &cache,
                 &lock,
                 &skill.directory,
+                &skill.key,
                 &owner,
                 &name,
                 branch.as_deref(),
@@ -3158,7 +3192,7 @@ pub async fn search_skills_sh(
         .map_err(|e| format!("Failed to parse skills.sh response: {e}"))?;
 
     // Classify against the current filesystem-derived cache.
-    let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
+    let cache = visible_discover_conflict_cache(&state)?;
     let lock = SkillLock::read().map_err(|e| e.to_string())?;
 
     let mut skills = Vec::new();
@@ -3176,8 +3210,9 @@ pub async fn search_skills_sh(
         }
 
         let directory = s.skill_id.clone();
-        let (install_status, installed_skill_id) =
-            SkillService::classify_discoverable_skill(&cache, &lock, &directory, owner, repo, None);
+        let (install_status, installed_skill_id) = SkillService::classify_discoverable_skill(
+            &cache, &lock, &directory, &directory, owner, repo, None,
+        );
         skills.push(DiscoverableSkill {
             key: s.id.clone(),
             name: s.name,

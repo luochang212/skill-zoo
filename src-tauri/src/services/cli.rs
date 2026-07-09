@@ -71,6 +71,7 @@ impl CliService {
         repo_url: &str,
         skills: &[String],
         _agent: &str,
+        preflight_agent_dirs: &[PathBuf],
     ) -> Result<Vec<String>, AppError> {
         let install_all = skills.is_empty() || skills.iter().any(|s| s == "*");
 
@@ -102,17 +103,13 @@ impl CliService {
         }
 
         let ssot_dir = config::get_agents_skills_dir();
-        let agent_dirs: Vec<PathBuf> = config::AGENTS
-            .iter()
-            .filter_map(|agent| config::get_agent_skills_dir(agent.id))
-            .collect();
         Self::ensure_install_destinations_available(
             &to_install
                 .iter()
                 .map(|(name, _, _)| name.as_str())
                 .collect::<Vec<_>>(),
             &ssot_dir,
-            &agent_dirs,
+            preflight_agent_dirs,
         )?;
         std::fs::create_dir_all(&ssot_dir).map_err(AppError::Io)?;
 
@@ -1070,6 +1067,20 @@ mod tests {
 
         let result =
             CliService::ensure_install_destinations_available(&["one", "two"], &ssot, &[agent]);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn install_preflight_ignores_agent_dirs_outside_requested_scope() {
+        let root = tempfile::tempdir().unwrap();
+        let ssot = root.path().join("ssot");
+        let visible_agent = root.path().join("visible-agent");
+        let hidden_agent = root.path().join("hidden-agent");
+        std::fs::create_dir_all(hidden_agent.join("demo")).unwrap();
+
+        let result =
+            CliService::ensure_install_destinations_available(&["demo"], &ssot, &[visible_agent]);
 
         assert!(result.is_ok());
     }
