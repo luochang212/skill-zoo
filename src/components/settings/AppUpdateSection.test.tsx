@@ -109,9 +109,9 @@ describe("AppUpdateSection", () => {
 
     renderAppUpdateShortcut();
 
-    expect(screen.queryByRole("button", { name: /^update$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^new version$/i })).not.toBeInTheDocument();
     await waitFor(() => expect(check).toHaveBeenCalledTimes(1));
-    await user.click(await screen.findByRole("button", { name: /^update$/i }));
+    await user.click(await screen.findByRole("button", { name: /^new version$/i }));
 
     expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({
       behavior: "smooth",
