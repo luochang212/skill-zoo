@@ -43,8 +43,38 @@ function TabContent({
   );
 }
 
-const TARGET_HIGHLIGHT_MS = 520;
-const TARGET_HIGHLIGHT_ANIMATION = "motion-safe:animate-target-flash";
+const TARGET_HIGHLIGHT_MS = 900;
+const TARGET_HIGHLIGHT_ANIMATION = "motion-safe:animate-target-arrival";
+
+function waitForScrollToSettle(element: Element, onSettled: () => void) {
+  let frame: number | undefined;
+  let previousTop: number | undefined;
+  let stableFrames = 0;
+  let frameCount = 0;
+
+  const check = () => {
+    const top = element.getBoundingClientRect().top;
+    stableFrames =
+      previousTop !== undefined && Math.abs(top - previousTop) < 0.5 ? stableFrames + 1 : 0;
+    previousTop = top;
+    frameCount++;
+
+    if (stableFrames >= 2 || frameCount >= 120) {
+      onSettled();
+      return;
+    }
+    frame = requestAnimationFrame(check);
+  };
+
+  // Let smooth scrolling begin before checking whether the target has settled.
+  frame = requestAnimationFrame(() => {
+    frame = requestAnimationFrame(check);
+  });
+
+  return () => {
+    if (frame !== undefined) cancelAnimationFrame(frame);
+  };
+}
 
 function DuplicateGroupCard({
   group,
@@ -58,18 +88,26 @@ function DuplicateGroupCard({
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(true);
   const highlightClass = group.sameContent
-    ? "bg-amber-50 shadow-[inset_0_0_0_2px_rgba(245,158,11,0.55),0_0_0_4px_rgba(245,158,11,0.10)] dark:bg-amber-950/20 dark:shadow-[inset_0_0_0_2px_rgba(245,158,11,0.45),0_0_0_4px_rgba(245,158,11,0.10)]"
-    : "bg-rose-50 shadow-[inset_0_0_0_2px_rgba(244,63,94,0.55),0_0_0_4px_rgba(244,63,94,0.10)] dark:bg-rose-950/20 dark:shadow-[inset_0_0_0_2px_rgba(244,63,94,0.45),0_0_0_4px_rgba(244,63,94,0.10)]";
+    ? "bg-amber-50/60 dark:bg-amber-950/20"
+    : "bg-rose-50/60 dark:bg-rose-950/20";
+  const railClass = group.sameContent ? "bg-amber-500" : "bg-rose-500";
 
   return (
     <div
       className={cn(
-        "rounded-xl border bg-card overflow-hidden transition-[background-color,box-shadow] duration-150",
-        highlighted && `${TARGET_HIGHLIGHT_ANIMATION} duration-75 ${highlightClass}`,
+        "relative rounded-xl border bg-card overflow-hidden transition-colors duration-200",
+        highlighted && `${highlightClass}`,
       )}
       data-dup-group={group.name}
       data-highlighted-target={highlighted ? "true" : undefined}
     >
+      {highlighted && (
+        <span
+          aria-hidden
+          data-target-rail
+          className={`absolute inset-y-3 left-0 w-[3px] rounded-r-full ${railClass} ${TARGET_HIGHLIGHT_ANIMATION}`}
+        />
+      )}
       <button
         onClick={() => setExpanded((v) => !v)}
         className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-accent/30 transition-colors"
@@ -157,13 +195,19 @@ function MismatchEntry({
   return (
     <div
       className={cn(
-        "rounded-xl border bg-card overflow-hidden transition-[background-color,box-shadow] duration-150",
-        highlighted &&
-          `${TARGET_HIGHLIGHT_ANIMATION} duration-75 bg-sky-50 shadow-[inset_0_0_0_2px_rgba(14,165,233,0.55),0_0_0_4px_rgba(14,165,233,0.10)] dark:bg-sky-950/20 dark:shadow-[inset_0_0_0_2px_rgba(14,165,233,0.45),0_0_0_4px_rgba(14,165,233,0.10)]`,
+        "relative rounded-xl border bg-card overflow-hidden transition-colors duration-200",
+        highlighted && "bg-sky-50/60 dark:bg-sky-950/20",
       )}
       data-mismatch-id={mismatch.skillId}
       data-highlighted-target={highlighted ? "true" : undefined}
     >
+      {highlighted && (
+        <span
+          aria-hidden
+          data-target-rail
+          className={`absolute inset-y-3 left-0 w-[3px] rounded-r-full bg-sky-500 ${TARGET_HIGHLIGHT_ANIMATION}`}
+        />
+      )}
       <div className="px-4 py-3 flex items-center gap-3">
         <PenLine className="h-4 w-4 shrink-0 text-sky-500 dark:text-sky-400" />
         <div className="flex-1 min-w-0">
@@ -302,6 +346,7 @@ export function ConsistencyPanel({
     if (!initialTab || !scrollToId) return;
     setTab(initialTab);
     let clearHighlight: ReturnType<typeof setTimeout> | undefined;
+    let cancelSettleCheck: (() => void) | undefined;
     const raf = requestAnimationFrame(() => {
       const isMismatch = initialTab === "mismatches";
       const escaped = scrollToId.replace(/"/g, '\\"');
@@ -311,14 +356,17 @@ export function ConsistencyPanel({
       const el = document.querySelector(selector);
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
-        setHighlightedTarget(scrollToId);
-        clearHighlight = setTimeout(() => {
-          setHighlightedTarget((current) => (current === scrollToId ? null : current));
-        }, TARGET_HIGHLIGHT_MS);
+        cancelSettleCheck = waitForScrollToSettle(el, () => {
+          setHighlightedTarget(scrollToId);
+          clearHighlight = setTimeout(() => {
+            setHighlightedTarget((current) => (current === scrollToId ? null : current));
+          }, TARGET_HIGHLIGHT_MS);
+        });
       }
     });
     return () => {
       cancelAnimationFrame(raf);
+      cancelSettleCheck?.();
       if (clearHighlight) clearTimeout(clearHighlight);
     };
   }, [initialTab, scrollToId]);

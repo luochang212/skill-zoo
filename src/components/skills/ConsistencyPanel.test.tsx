@@ -60,16 +60,18 @@ describe("ConsistencyPanel navigation highlight", () => {
       expect(target).toHaveAttribute("data-highlighted-target", "true");
     });
     expect(target).not.toHaveClass("motion-safe:animate-pulse");
-    expect(target).toHaveClass("motion-safe:animate-target-flash");
-    expect(target).toHaveClass("duration-75");
-    expect(target?.className).toContain("shadow-[inset_0_0_0_2px");
+    expect(target).not.toHaveClass("motion-safe:animate-target-arrival");
+    expect(target?.querySelector("[data-target-rail]")).toHaveClass(
+      "motion-safe:animate-target-arrival",
+    );
+    expect(target?.className).toContain("bg-rose-50/60");
     expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({
       behavior: "smooth",
       block: "center",
     });
   });
 
-  it("keeps the target highlight crisp without lingering", async () => {
+  it("keeps the target highlight visible long enough to confirm the landing", async () => {
     vi.useFakeTimers();
 
     render(
@@ -84,12 +86,12 @@ describe("ConsistencyPanel navigation highlight", () => {
     const target = document.querySelector('[data-dup-group="conflict"]');
 
     await act(async () => {
-      vi.advanceTimersByTime(16);
+      vi.advanceTimersByTime(80);
     });
     expect(target).toHaveAttribute("data-highlighted-target", "true");
 
     await act(async () => {
-      vi.advanceTimersByTime(560);
+      vi.advanceTimersByTime(1000);
     });
     expect(target).not.toHaveAttribute("data-highlighted-target");
   });
