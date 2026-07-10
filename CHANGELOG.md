@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.24] — 2026-07-10
+
+### Added
+- Drag-and-drop for local skills: drag a skill card to the Star sidebar item to star it, or to an agent tab to create a symlink.
+
+### Fixed
+- Install preflight now scopes conflict checks to only the agent directories selected in the install dialog, not all visible agents.
+
 ## [0.3.23] — 2026-07-09
 
 ### Changed
