@@ -138,6 +138,7 @@ pub fn run() {
             commands::skill::write_skill_md,
             commands::skill::get_symlink_status,
             commands::skill::toggle_symlink,
+            commands::skill::batch_unlink_skills,
             commands::skill::merge_duplicates_to_ssot,
             commands::skill::open_skills_dir,
             commands::skill::open_skill_dir,

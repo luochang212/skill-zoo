@@ -1491,6 +1491,21 @@ pub struct RestoreArchivedSkillFailure {
     pub error: String,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchUnlinkSkillsResult {
+    pub unlinked: Vec<String>,
+    pub skipped: Vec<String>,
+    pub failed: Vec<BatchUnlinkSkillFailure>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchUnlinkSkillFailure {
+    pub skill_id: String,
+    pub error: String,
+}
+
 #[tauri::command]
 pub async fn remove_skills(
     state: State<'_, AppState>,
@@ -2250,6 +2265,91 @@ pub fn toggle_symlink(
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub fn batch_unlink_skills(
+    state: State<'_, AppState>,
+    skill_ids: Vec<String>,
+    agent: String,
+) -> Result<BatchUnlinkSkillsResult, String> {
+    if config::get_agent_skills_dir(&agent).is_none() {
+        return Err(format!("Unknown agent: {agent}"));
+    }
+
+    let mut unlinked = Vec::new();
+    let mut skipped = Vec::new();
+    let mut failed = Vec::new();
+    let mut seen = HashSet::new();
+
+    for skill_id in skill_ids {
+        if !seen.insert(skill_id.clone()) {
+            continue;
+        }
+
+        let skill = match SkillService::find_in_cache(&state.skill_cache, &skill_id) {
+            Ok(Some(skill)) => skill,
+            Ok(None) => {
+                failed.push(BatchUnlinkSkillFailure {
+                    skill_id,
+                    error: "Skill not found".to_string(),
+                });
+                continue;
+            }
+            Err(error) => {
+                failed.push(BatchUnlinkSkillFailure {
+                    skill_id,
+                    error: error.to_string(),
+                });
+                continue;
+            }
+        };
+
+        // A native agent directory is the skill's source, never a removable link.
+        if skill.home_agent.as_deref() == Some(agent.as_str())
+            || !skill.apps.get(&agent).copied().unwrap_or(false)
+        {
+            skipped.push(skill_id);
+            continue;
+        }
+
+        let Some(home_path) = skill.home_path.as_ref() else {
+            failed.push(BatchUnlinkSkillFailure {
+                skill_id,
+                error: "Skill has no physical home path".to_string(),
+            });
+            continue;
+        };
+
+        if let Err(error) = validate_skill_directory(&skill.directory) {
+            failed.push(BatchUnlinkSkillFailure { skill_id, error });
+            continue;
+        }
+
+        match SkillService::toggle_symlink(&skill.directory, home_path, &agent, false) {
+            Ok(()) => {
+                let new_apps = SkillService::detect_agents(&skill.directory, &skill.home_path);
+                if let Ok(mut cache) = state.skill_cache.write() {
+                    if let Some(mut entry) = cache.find_by_id(&skill_id).cloned() {
+                        entry.apps = new_apps;
+                        cache.upsert(entry);
+                        let _ = cache.save();
+                    }
+                }
+                unlinked.push(skill_id);
+            }
+            Err(error) => failed.push(BatchUnlinkSkillFailure {
+                skill_id,
+                error: error.to_string(),
+            }),
+        }
+    }
+
+    Ok(BatchUnlinkSkillsResult {
+        unlinked,
+        skipped,
+        failed,
+    })
 }
 
 #[tauri::command]
