@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.25] — 2026-07-10
+
+### Added
+- Batch unlink action for agent skills — remove multiple skill symlinks from an agent directory at once.
+- Guide tray users to common commands when the tray menu is opened.
+
+### Changed
+- Consistency target navigation now provides better visual feedback when jumping to issues.
+- Agent drag indicators simplified for a cleaner drag-and-drop experience.
+
+### Fixed
+- Automatic app update checks are now throttled to avoid excessive network requests.
+- Skill cards now fill the full row height in grid view for uniform appearance.
+
 ## [0.3.24] — 2026-07-10
 
 ### Added
