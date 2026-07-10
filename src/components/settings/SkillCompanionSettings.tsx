@@ -818,11 +818,26 @@ function SkillCompanionManagerDialog({
 
 const EMPTY_ITEMS: SkillCompanionItem[] = [];
 
-export function SkillCompanionSettings() {
+export function SkillCompanionSettings({
+  openManagerRequest = 0,
+  onOpenManagerRequestHandled,
+}: {
+  openManagerRequest?: number;
+  onOpenManagerRequestHandled?: () => void;
+}) {
   const { t } = useTranslation();
   const { data: savedItems = EMPTY_ITEMS, isLoading } = useSkillCompanionItems();
   const [managerOpen, setManagerOpen] = useState(false);
   const managerTriggerRef = useRef<HTMLButtonElement>(null);
+  const handledOpenManagerRequest = useRef(0);
+
+  useEffect(() => {
+    if (openManagerRequest === 0 || openManagerRequest === handledOpenManagerRequest.current)
+      return;
+    handledOpenManagerRequest.current = openManagerRequest;
+    setManagerOpen(true);
+    onOpenManagerRequestHandled?.();
+  }, [onOpenManagerRequestHandled, openManagerRequest]);
 
   return (
     <section className="space-y-3">

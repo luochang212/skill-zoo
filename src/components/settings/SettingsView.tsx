@@ -9,7 +9,13 @@ import { AboutSection } from "@/components/settings/AboutSection";
 import { AppUpdateShortcut } from "@/components/settings/AppUpdateShortcut";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-export function SettingsView() {
+export function SettingsView({
+  skillCompanionOpenRequest = 0,
+  onSkillCompanionOpenHandled,
+}: {
+  skillCompanionOpenRequest?: number;
+  onSkillCompanionOpenHandled?: () => void;
+}) {
   const { t } = useTranslation();
 
   return (
@@ -38,7 +44,10 @@ export function SettingsView() {
             <SkillMaintenanceSettings />
 
             {/* Skill Companion */}
-            <SkillCompanionSettings />
+            <SkillCompanionSettings
+              openManagerRequest={skillCompanionOpenRequest}
+              onOpenManagerRequestHandled={onSkillCompanionOpenHandled}
+            />
 
             {/* Agent Paths */}
             <AgentPathsSettings />

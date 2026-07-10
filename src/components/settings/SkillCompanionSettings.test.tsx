@@ -21,7 +21,7 @@ vi.mock("modern-screenshot", () => ({
   domToPng: vi.fn(),
 }));
 
-function renderSettings() {
+function renderSettings(openManagerRequest = 0) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -31,7 +31,7 @@ function renderSettings() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <SkillCompanionSettings />
+      <SkillCompanionSettings openManagerRequest={openManagerRequest} />
     </QueryClientProvider>,
   );
 }
@@ -142,6 +142,15 @@ describe("SkillCompanionSettings", () => {
 
     expect(screen.getByDisplayValue("Review this code")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Delete skill command 1" })).toBeInTheDocument();
+  });
+
+  it("opens the command manager when requested by tray navigation", async () => {
+    mockItems([]);
+
+    renderSettings(1);
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("No common commands added yet.")).toBeInTheDocument();
   });
 
   it("adds and saves a skill command from its row", async () => {

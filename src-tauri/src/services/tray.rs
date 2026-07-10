@@ -19,7 +19,7 @@ const MENU_QUIT: &str = "tray-quit";
 const OFFICIAL_WEBSITE_URL: &str = "https://www.luochang.ink/skill-zoo/";
 const NAVIGATE_EVENT: &str = "navigate";
 const MENU_COMPANION_COPY_HINT: &str = "skill-companion-copy-hint";
-const MENU_COMPANION_EMPTY: &str = "skill-companion-empty";
+const MENU_COMPANION_ADD: &str = "skill-companion-add";
 const COMPANION_MENU_ID: &str = "skill-companion-menu";
 const COMPANION_MENU_PREFIX: &str = "skill-companion:";
 const MENU_RECENT_COPY_HINT: &str = "skill-recent-copy-hint";
@@ -61,7 +61,7 @@ pub struct TrayLabels {
     skill_companion: &'static str,
     recent_skills: &'static str,
     copy_hint: &'static str,
-    empty_companion: &'static str,
+    add_companion: &'static str,
     empty_recent: &'static str,
     quit: &'static str,
 }
@@ -84,7 +84,7 @@ impl TrayLanguage {
                 skill_companion: "Common Commands",
                 recent_skills: "Recently Used",
                 copy_hint: "Click an item to copy",
-                empty_companion: "No common commands configured",
+                add_companion: "Add common command...",
                 empty_recent: "No recent skills",
                 quit: "Quit",
             },
@@ -95,7 +95,7 @@ impl TrayLanguage {
                 skill_companion: "常用指令",
                 recent_skills: "最近使用",
                 copy_hint: "点击条目即可复制",
-                empty_companion: "还没有添加常用指令",
+                add_companion: "添加常用指令…",
                 empty_recent: "暂无最近使用",
                 quit: "退出",
             },
@@ -329,9 +329,9 @@ fn replace_companion_menu_items(
     if menu_items.is_empty() {
         menu.append(&MenuItem::with_id(
             app,
-            MENU_COMPANION_EMPTY,
-            labels.empty_companion,
-            false,
+            MENU_COMPANION_ADD,
+            labels.add_companion,
+            true,
             None::<&str>,
         )?)?;
         return Ok(());
@@ -438,6 +438,12 @@ fn handle_tray_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
             show_main_window(app);
             if let Err(error) = app.emit(NAVIGATE_EVENT, "settings") {
                 eprintln!("Failed to emit navigate event: {error}");
+            }
+        }
+        MENU_COMPANION_ADD => {
+            show_main_window(app);
+            if let Err(error) = app.emit(NAVIGATE_EVENT, "settings:skill-companion") {
+                eprintln!("Failed to emit companion navigation event: {error}");
             }
         }
         MENU_QUIT => app.exit(0),
@@ -614,7 +620,7 @@ mod tests {
         assert_eq!(english.skill_companion, "Common Commands");
         assert_eq!(english.recent_skills, "Recently Used");
         assert_eq!(english.copy_hint, "Click an item to copy");
-        assert_eq!(english.empty_companion, "No common commands configured");
+        assert_eq!(english.add_companion, "Add common command...");
         assert_eq!(english.empty_recent, "No recent skills");
         assert_eq!(english.quit, "Quit");
 
@@ -625,7 +631,7 @@ mod tests {
         assert_eq!(chinese.skill_companion, "常用指令");
         assert_eq!(chinese.recent_skills, "最近使用");
         assert_eq!(chinese.copy_hint, "点击条目即可复制");
-        assert_eq!(chinese.empty_companion, "还没有添加常用指令");
+        assert_eq!(chinese.add_companion, "添加常用指令…");
         assert_eq!(chinese.empty_recent, "暂无最近使用");
         assert_eq!(chinese.quit, "退出");
     }

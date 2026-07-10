@@ -103,6 +103,8 @@ async function handleDragMouseDown(e: React.MouseEvent) {
 export default function App() {
   const { i18n, t } = useTranslation();
   const [view, setView] = useState<View>("local");
+  const [skillCompanionOpenRequest, setSkillCompanionOpenRequest] = useState(0);
+  const skillCompanionRequestCounter = useRef(0);
   const [showCreateSkill, setShowCreateSkill] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<DiscoverRepo | null>(null);
   const [archivedEditor, setArchivedEditor] = useState<{ archiveId: string; name: string } | null>(
@@ -144,6 +146,10 @@ export default function App() {
         const target = event.payload;
         if (target === "settings") {
           setView("settings");
+        } else if (target === "settings:skill-companion") {
+          setView("settings");
+          skillCompanionRequestCounter.current += 1;
+          setSkillCompanionOpenRequest(skillCompanionRequestCounter.current);
         }
       });
     })();
@@ -299,7 +305,12 @@ export default function App() {
           <BrowseSkills selectedRepo={selectedRepo} onSelectRepo={setSelectedRepo} />
         )}
         {view === "local" && renderLocalSkills()}
-        {view === "settings" && <SettingsView />}
+        {view === "settings" && (
+          <SettingsView
+            skillCompanionOpenRequest={skillCompanionOpenRequest}
+            onSkillCompanionOpenHandled={() => setSkillCompanionOpenRequest(0)}
+          />
+        )}
       </>
     );
   };
