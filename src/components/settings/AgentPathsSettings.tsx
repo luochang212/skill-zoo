@@ -15,6 +15,7 @@ import {
 import { skillsApi } from "@/lib/api/skills";
 import type { AgentPathInfo } from "@/types/skills";
 
+const EMPTY_AGENT_PATHS: AgentPathInfo[] = [];
 const EMPTY_AGENT_ORDER: string[] = [];
 
 function PathDetails({ info }: { info: AgentPathInfo }) {
@@ -115,7 +116,7 @@ export function AgentPathsSettings() {
   const { t } = useTranslation();
   const [managerOpen, setManagerOpen] = useState(false);
   const managerTriggerRef = useRef<HTMLButtonElement>(null);
-  const { data: paths = [] } = useQuery({
+  const { data: paths = EMPTY_AGENT_PATHS } = useQuery({
     queryKey: ["agentPaths"],
     queryFn: () => skillsApi.getAgentPaths(),
   });

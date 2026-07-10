@@ -81,6 +81,22 @@ describe("AgentPathsSettings", () => {
     expect(screen.getByText("Agent 7")).toBeInTheDocument();
   });
 
+  it("keeps loading fallbacks stable while agent settings load", async () => {
+    vi.mocked(invoke).mockImplementation(() => new Promise(() => {}));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      renderSettings();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(consoleError).not.toHaveBeenCalledWith(
+        expect.stringContaining("Maximum update depth exceeded"),
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   it("appends a newly visible agent and disables controls while saving", async () => {
     const user = userEvent.setup();
     const update = createDeferred<AgentPreferences>();

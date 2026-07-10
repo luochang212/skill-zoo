@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createQueryWrapper } from "@/test/utils";
 import {
+  getVisibleAgentsOrDefault,
   mergeAgentOrder,
   normalizeAgentOrder,
   parseAgentOrder,
@@ -47,6 +48,15 @@ describe("agent order settings", () => {
         { "claude-code": true, codex: false, cursor: true, gemini: false },
       ),
     ).toEqual(["cursor", "claude-code", "codex", "gemini"]);
+  });
+
+  it("uses a stable default visible-agent map while data is loading", () => {
+    const first = getVisibleAgentsOrDefault(undefined);
+    const second = getVisibleAgentsOrDefault(undefined);
+
+    expect(first).toBe(second);
+    expect(first["claude-code"]).toBeUndefined();
+    expect(first["claude-code"] !== false).toBe(true);
   });
 
   it("uses saved order before applying visible-agent filtering", async () => {

@@ -14,6 +14,7 @@ const SKILL_USAGE_AGENT_SETTING = "skill_usage_agent";
 export const SKILL_COMPANION_ITEMS_KEY = ["settings", "skillCompanionItems"] as const;
 export const skillUsageKey = (agent: string) => ["settings", "skillUsage", agent] as const;
 const AGENT_ORDER_SETTING = "agent_order";
+const EMPTY_VISIBLE_AGENTS = Object.freeze({}) as VisibleAgents;
 
 export function useVisibleAgents() {
   return useQuery({
@@ -172,7 +173,7 @@ export function useUpdateAgentPreferences() {
 
 /** Helper: get visible agents from query data, with fallback to all visible */
 export function getVisibleAgentsOrDefault(data: VisibleAgents | undefined): VisibleAgents {
-  return data ?? {};
+  return data ?? EMPTY_VISIBLE_AGENTS;
 }
 
 /** Helper: filter an array of agent strings by visibility */
