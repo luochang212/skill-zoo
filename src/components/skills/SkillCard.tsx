@@ -37,7 +37,7 @@ export function SkillCard({
 
   return (
     <Card
-      className="group rounded-xl hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+      className="group h-full rounded-xl hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
       data-selectable={selectable ? "" : undefined}
     >
       <CardHeader className="px-4 pt-4 pb-1">

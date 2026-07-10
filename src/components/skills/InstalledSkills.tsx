@@ -80,10 +80,12 @@ const DRAG_PREVIEW_ANCHOR_Y = 12;
 function SkillDragSource({
   skill,
   disabled,
+  className,
   children,
 }: {
   skill: InstalledSkill;
   disabled: boolean;
+  className?: string;
   children: ReactNode;
 }) {
   const { ref, isDragging } = useDraggable({
@@ -98,6 +100,7 @@ function SkillDragSource({
       role="group"
       aria-label={skill.name}
       className={cn(
+        className,
         !disabled && "cursor-grab active:cursor-grabbing",
         isDragging && "opacity-45 scale-[0.98]",
       )}
@@ -936,7 +939,12 @@ export const InstalledSkills = memo(function InstalledSkills({
                   {viewMode === "grid" ? (
                     <div className="grid grid-cols-1 max-w-[780px] @md/main:grid-cols-2 @md/main:max-w-none @3col/main:grid-cols-3 @4col/main:grid-cols-4 gap-4 pt-1 pb-3">
                       {sorted.map((skill) => (
-                        <SkillDragSource key={skill.id} skill={skill} disabled={isArchiveView}>
+                        <SkillDragSource
+                          key={skill.id}
+                          skill={skill}
+                          disabled={isArchiveView}
+                          className="h-full"
+                        >
                           <SkillCard
                             skill={
                               isArchiveView
