@@ -120,6 +120,27 @@ describe("AppUpdateSection", () => {
     await waitFor(() => expect(downloadAndInstall).toHaveBeenCalledTimes(1));
   });
 
+  it("does not automatically check again within the daily interval", async () => {
+    localStorage.setItem("skill-zoo.lastAutoUpdateCheckAt", String(Date.now()));
+
+    renderAppUpdateShortcut();
+
+    await waitFor(() => expect(getVersion).toHaveBeenCalledTimes(1));
+    expect(check).not.toHaveBeenCalled();
+  });
+
+  it("automatically checks again after the daily interval expires", async () => {
+    localStorage.setItem(
+      "skill-zoo.lastAutoUpdateCheckAt",
+      String(Date.now() - 24 * 60 * 60 * 1000),
+    );
+    vi.mocked(check).mockResolvedValue(null);
+
+    renderAppUpdateShortcut();
+
+    await waitFor(() => expect(check).toHaveBeenCalledTimes(1));
+  });
+
   it("automatically downloads a discovered update and waits for restart confirmation", async () => {
     const user = userEvent.setup();
     const downloadAndInstall = vi.fn<Update["downloadAndInstall"]>(async (onEvent) => {

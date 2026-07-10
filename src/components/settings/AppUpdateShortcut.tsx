@@ -4,6 +4,30 @@ import { Button } from "@/components/ui/button";
 import { useAppUpdater } from "@/hooks/useAppUpdater";
 
 export const APP_UPDATE_SECTION_ID = "settings-app-update";
+const AUTO_UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const LAST_AUTO_UPDATE_CHECK_AT_KEY = "skill-zoo.lastAutoUpdateCheckAt";
+
+function shouldAutoCheckForUpdate() {
+  try {
+    const checkedAt = Number(localStorage.getItem(LAST_AUTO_UPDATE_CHECK_AT_KEY));
+    const now = Date.now();
+    return (
+      !Number.isFinite(checkedAt) ||
+      checkedAt > now ||
+      now - checkedAt >= AUTO_UPDATE_CHECK_INTERVAL_MS
+    );
+  } catch {
+    return true;
+  }
+}
+
+function markAutoUpdateChecked() {
+  try {
+    localStorage.setItem(LAST_AUTO_UPDATE_CHECK_AT_KEY, String(Date.now()));
+  } catch {
+    // Cache failure should not prevent the automatic check.
+  }
+}
 
 function UpdateArrowIcon() {
   return (
@@ -30,6 +54,8 @@ export function AppUpdateShortcut() {
   useEffect(() => {
     if (checkedRef.current || updater.status !== "idle") return;
     checkedRef.current = true;
+    if (!shouldAutoCheckForUpdate()) return;
+    markAutoUpdateChecked();
     void updater.checkForUpdate({ notifyUpToDate: false, notifyError: false });
   }, [updater]);
 
