@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useDroppable } from "@dnd-kit/react";
 import { useTranslation } from "react-i18next";
 import {
   Archive,
@@ -16,6 +17,7 @@ import type { InstalledSkill } from "@/types/skills";
 import type { SidebarCategory } from "@/hooks/useSidebarFilter";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { LOCAL_SKILL_DRAG_TYPE, STAR_SKILL_DROP_ID } from "@/lib/skillDnd";
 
 function CountBadge({ count }: { count: number }) {
   return (
@@ -33,6 +35,7 @@ interface SkillSidebarProps {
   consistencyCount?: number;
   category: SidebarCategory;
   onSelectCategory: (cat: SidebarCategory) => void;
+  draggedSkill?: InstalledSkill | null;
 }
 
 export function SkillSidebar({
@@ -43,9 +46,14 @@ export function SkillSidebar({
   consistencyCount = 0,
   category,
   onSelectCategory,
+  draggedSkill,
 }: SkillSidebarProps) {
   const { t } = useTranslation();
   const [reposExpanded, setReposExpanded] = useState(true);
+  const { ref: starDropRef, isDropTarget: starDropActive } = useDroppable({
+    id: STAR_SKILL_DROP_ID,
+    accept: LOCAL_SKILL_DRAG_TYPE,
+  });
 
   const countSkillIds = useMemo(() => new Set(countSkills.map((s) => s.id)), [countSkills]);
 
@@ -129,6 +137,7 @@ export function SkillSidebar({
   const importCount = isActive({ type: "import" }) ? filteredImportedCount : importedCount;
   const mySkillsCount = isActive({ type: "mine" }) ? filteredMineCount : mineCount;
   const archiveCount = isActive({ type: "archived" }) ? countArchivedCount : archivedCount;
+  const canDropStar = !!draggedSkill && !draggedSkill.starred;
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -160,19 +169,27 @@ export function SkillSidebar({
 
           {/* Star */}
           <button
+            ref={starDropRef}
             onClick={() => onSelectCategory({ type: "starred" })}
             className={cn(
-              "w-full px-4 py-2.5 flex items-center text-[13px] transition-colors",
-              isActive({ type: "starred" })
-                ? "bg-primary/5 text-foreground border-l-2 border-l-primary"
-                : "text-foreground/70 hover:bg-accent/50 hover:text-foreground",
+              "w-full px-4 py-2.5 flex items-center text-[13px] transition-all",
+              draggedSkill
+                ? "bg-primary/5 text-foreground border-l-2 border-l-primary ring-1 ring-inset ring-primary/25"
+                : isActive({ type: "starred" })
+                  ? "bg-primary/5 text-foreground border-l-2 border-l-primary"
+                  : "text-foreground/70 hover:bg-accent/50 hover:text-foreground",
+              starDropActive && canDropStar && "bg-primary/10 ring-primary/60",
             )}
           >
             <span className="flex items-center gap-2.5 min-w-0 flex-1">
-              <Star className="h-4 w-4 shrink-0" />
-              <span>{t("sidebar.star")}</span>
+              <Star className={cn("h-4 w-4 shrink-0", draggedSkill && "fill-current")} />
+              <span>
+                {draggedSkill
+                  ? t(draggedSkill.starred ? "sidebar.alreadyStarred" : "sidebar.dropToStar")
+                  : t("sidebar.star")}
+              </span>
             </span>
-            <CountBadge count={starCount} />
+            {!draggedSkill && <CountBadge count={starCount} />}
           </button>
 
           {/* Import */}

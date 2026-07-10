@@ -32,6 +32,8 @@
     "title": "Skills",
     "all": "All",
     "star": "Star",
+    "dropToStar": "Drop here to star",
+    "alreadyStarred": "Already starred",
     "import": "Import",
     "archive": "Archive",
     "mySkills": "My Skills",
@@ -256,6 +258,11 @@
   "star": {
     "star": "Star",
     "unstar": "Unstar"
+  },
+  "skillDrag": {
+    "linkToAgent": "Drop here to link to {{agent}}",
+    "alreadyLinked": "Already linked to {{agent}}",
+    "linkSuccess": "{{skill}} linked to {{agent}}"
   },
   "settings": {
     "appearance": "Appearance",

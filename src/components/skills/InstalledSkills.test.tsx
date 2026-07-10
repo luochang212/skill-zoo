@@ -1,9 +1,10 @@
 import "@/i18n";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InstalledSkills } from "./InstalledSkills";
 import type { InstalledSkill } from "@/types/skills";
+import type { ReactNode } from "react";
 
 class ResizeObserverMock {
   observe() {}
@@ -16,6 +17,29 @@ const mocks = vi.hoisted(() => ({
   archivedSkills: [] as InstalledSkill[],
   visibleAgentOrder: ["claude-code", "codex"] as string[],
   hideNonSsot: false,
+  starSkill: vi.fn(),
+  toggleSymlink: vi.fn(),
+  onDragStart: undefined as ((event: unknown) => void) | undefined,
+  onDragEnd: undefined as ((event: unknown) => void) | undefined,
+}));
+
+vi.mock("@dnd-kit/react", () => ({
+  DragDropProvider: ({
+    children,
+    onDragStart,
+    onDragEnd,
+  }: {
+    children: ReactNode;
+    onDragStart?: (event: unknown) => void;
+    onDragEnd?: (event: unknown) => void;
+  }) => {
+    mocks.onDragStart = onDragStart;
+    mocks.onDragEnd = onDragEnd;
+    return children;
+  },
+  DragOverlay: ({ children }: { children: ReactNode }) => children,
+  useDraggable: () => ({ ref: vi.fn(), isDragging: false }),
+  useDroppable: () => ({ ref: vi.fn(), isDropTarget: false }),
 }));
 
 vi.mock("@/hooks/useSkills", () => ({
@@ -34,7 +58,8 @@ vi.mock("@/hooks/useSkills", () => ({
   useArchiveSelectedSkills: () => ({ mutate: vi.fn(), isPending: false }),
   useRemoveSkills: () => ({ mutate: vi.fn(), isPending: false }),
   useRestoreArchivedSkills: () => ({ mutate: vi.fn(), isPending: false }),
-  useStarSkill: () => ({ mutate: vi.fn() }),
+  useStarSkill: () => ({ mutate: mocks.starSkill }),
+  useToggleSymlink: () => ({ mutate: mocks.toggleSymlink, isPending: false }),
   useUnstarSkill: () => ({ mutate: vi.fn() }),
 }));
 
@@ -100,6 +125,10 @@ describe("InstalledSkills visible agent filtering", () => {
     mocks.archivedSkills = [];
     mocks.visibleAgentOrder = ["claude-code", "codex"];
     mocks.hideNonSsot = false;
+    mocks.starSkill.mockReset();
+    mocks.toggleSymlink.mockReset();
+    mocks.onDragStart = undefined;
+    mocks.onDragEnd = undefined;
   });
 
   it("shows SSOT, visible-agent entity, and external skills in All", () => {
@@ -127,6 +156,151 @@ describe("InstalledSkills visible agent filtering", () => {
     expect(screen.getByRole("button", { name: "Claude Skill" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "External Skill" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "All3" })).toBeInTheDocument();
+  });
+
+  it("stars an external import when its card is dropped on the Star sidebar item", () => {
+    mocks.skills = [
+      skill({
+        id: "external-skill",
+        name: "External Skill",
+        origin: "external",
+        apps: {},
+      }),
+    ];
+
+    renderInstalledSkills();
+
+    const card = screen.getByRole("group", { name: "External Skill" }).firstElementChild;
+    expect(card).not.toHaveAttribute("data-selectable");
+
+    act(() => {
+      mocks.onDragStart?.({ operation: { source: { id: "skill:external-skill" } } });
+    });
+    expect(screen.getByRole("button", { name: "Drop here to star" })).toBeInTheDocument();
+
+    act(() => {
+      mocks.onDragEnd?.({
+        canceled: false,
+        operation: {
+          source: { id: "skill:external-skill" },
+          target: { id: "star-skill" },
+        },
+      });
+    });
+
+    expect(mocks.starSkill).toHaveBeenCalledWith("external-skill");
+  });
+
+  it("anchors the compact drag preview to the icon under the pointer", () => {
+    mocks.skills = [skill({ id: "drag-skill", name: "Drag Skill" })];
+    renderInstalledSkills();
+
+    act(() => {
+      mocks.onDragStart?.({
+        operation: {
+          source: {
+            id: "skill:drag-skill",
+            element: {
+              getBoundingClientRect: () => ({ left: 100, top: 200, width: 240, height: 120 }),
+            },
+          },
+          position: { initial: { x: 220, y: 260 } },
+        },
+      });
+    });
+
+    expect(screen.getByTestId("skill-drag-preview")).toHaveStyle({
+      left: "100px",
+      top: "48px",
+    });
+    expect(screen.getByTestId("skill-drag-preview")).toHaveClass("h-9", "w-44");
+    expect(screen.getByRole("button", { name: "Drop here to link to Codex" })).toHaveClass("h-9");
+  });
+
+  it("links an external import when it is dropped on an unlinked agent tab", () => {
+    mocks.skills = [
+      skill({
+        id: "external-skill",
+        name: "External Skill",
+        origin: "external",
+        apps: { "claude-code": true },
+      }),
+    ];
+
+    renderInstalledSkills();
+
+    act(() => {
+      mocks.onDragStart?.({ operation: { source: { id: "skill:external-skill" } } });
+    });
+    expect(screen.getByRole("button", { name: "Drop here to link to Codex" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Already linked to Claude Code" }),
+    ).toBeInTheDocument();
+
+    act(() => {
+      mocks.onDragEnd?.({
+        canceled: false,
+        operation: {
+          source: { id: "skill:external-skill" },
+          target: { id: "agent:codex" },
+        },
+      });
+    });
+
+    expect(mocks.toggleSymlink).toHaveBeenCalledWith(
+      { skillId: "external-skill", agent: "codex", enabled: true },
+      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
+    );
+  });
+
+  it("does not link an agent-origin skill back to its home agent", () => {
+    mocks.skills = [
+      skill({
+        id: "claude-skill",
+        name: "Claude Skill",
+        origin: "agent",
+        homeAgent: "claude-code",
+        apps: { "claude-code": true },
+      }),
+    ];
+
+    renderInstalledSkills();
+    act(() => {
+      mocks.onDragStart?.({ operation: { source: { id: "skill:claude-skill" } } });
+      mocks.onDragEnd?.({
+        canceled: false,
+        operation: {
+          source: { id: "skill:claude-skill" },
+          target: { id: "agent:claude-code" },
+        },
+      });
+    });
+
+    expect(mocks.toggleSymlink).not.toHaveBeenCalled();
+  });
+
+  it("does not recreate an existing agent link", () => {
+    mocks.skills = [
+      skill({
+        id: "linked-skill",
+        name: "Linked Skill",
+        apps: { codex: true },
+      }),
+    ];
+
+    renderInstalledSkills();
+    act(() => {
+      mocks.onDragStart?.({ operation: { source: { id: "skill:linked-skill" } } });
+      mocks.onDragEnd?.({
+        canceled: false,
+        operation: {
+          source: { id: "skill:linked-skill" },
+          target: { id: "agent:codex" },
+        },
+      });
+    });
+
+    expect(mocks.toggleSymlink).not.toHaveBeenCalled();
   });
 
   it("hides entity skills whose home agent is not visible", () => {

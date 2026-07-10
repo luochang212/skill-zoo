@@ -17,6 +17,7 @@ interface SkillCardProps {
   starred?: boolean;
   issues?: SkillIssues;
   onNavigateConsistency?: (tab: ConsistencyTab, targetId: string) => void;
+  selectable?: boolean;
 }
 
 export function SkillCard({
@@ -28,6 +29,7 @@ export function SkillCard({
   starred,
   issues,
   onNavigateConsistency,
+  selectable = true,
 }: SkillCardProps) {
   const { t } = useTranslation();
   const installedSkill = isInstalled ? (skill as InstalledSkill) : null;
@@ -36,7 +38,7 @@ export function SkillCard({
   return (
     <Card
       className="group rounded-xl hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
-      data-selectable
+      data-selectable={selectable ? "" : undefined}
     >
       <CardHeader className="px-4 pt-4 pb-1">
         <div className="flex items-center justify-between gap-2">

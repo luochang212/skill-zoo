@@ -32,6 +32,8 @@
     "title": "技能",
     "all": "全部",
     "star": "收藏",
+    "dropToStar": "拖到这里收藏",
+    "alreadyStarred": "已收藏",
     "import": "导入",
     "archive": "归档",
     "mySkills": "我的技能",
@@ -256,6 +258,11 @@
   "star": {
     "star": "收藏",
     "unstar": "取消收藏"
+  },
+  "skillDrag": {
+    "linkToAgent": "拖到此处链接到 {{agent}}",
+    "alreadyLinked": "已链接到 {{agent}}",
+    "linkSuccess": "{{skill}} 已链接到 {{agent}}"
   },
   "settings": {
     "appearance": "外观",

@@ -1,4 +1,5 @@
-import { memo, useMemo, useState, useEffect } from "react";
+import { memo, useMemo, useState, useEffect, type ReactNode } from "react";
+import { DragDropProvider, DragOverlay, useDraggable, useDroppable } from "@dnd-kit/react";
 import { useTranslation } from "react-i18next";
 import {
   useArchivedSkills,
@@ -7,6 +8,7 @@ import {
   useRemoveSkills,
   useRestoreArchivedSkills,
   useStarSkill,
+  useToggleSymlink,
   useUnstarSkill,
 } from "@/hooks/useSkills";
 import { toast } from "sonner";
@@ -40,8 +42,19 @@ import {
   Trash2,
   LayoutGrid,
   List,
+  FileText,
+  Check,
+  Link2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  getAgentFromSkillDropId,
+  getAgentSkillDropId,
+  LOCAL_SKILL_DRAG_TYPE,
+  SKILL_DRAG_ID_PREFIX,
+  STAR_SKILL_DROP_ID,
+} from "@/lib/skillDnd";
+import { formatApiError } from "@/lib/api/errors";
 import type { SidebarCategory } from "@/hooks/useSidebarFilter";
 import type { ArchivedSkill, InstalledSkill } from "@/types/skills";
 
@@ -61,6 +74,94 @@ type BatchAction = "archive" | "remove" | "restore";
 
 const EMPTY_SKILLS: InstalledSkill[] = [];
 const EMPTY_ARCHIVED_SKILLS: ArchivedSkill[] = [];
+const DRAG_PREVIEW_ICON_CENTER_X = 20;
+const DRAG_PREVIEW_ANCHOR_Y = 12;
+
+function SkillDragSource({
+  skill,
+  disabled,
+  children,
+}: {
+  skill: InstalledSkill;
+  disabled: boolean;
+  children: ReactNode;
+}) {
+  const { ref, isDragging } = useDraggable({
+    id: `${SKILL_DRAG_ID_PREFIX}${skill.id}`,
+    type: LOCAL_SKILL_DRAG_TYPE,
+    disabled,
+  });
+
+  return (
+    <div
+      ref={ref}
+      role="group"
+      aria-label={skill.name}
+      className={cn(
+        !disabled && "cursor-grab active:cursor-grabbing",
+        isDragging && "opacity-45 scale-[0.98]",
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+function AgentDropTab({
+  agent,
+  label,
+  active,
+  draggedSkill,
+  onClick,
+}: {
+  agent: string;
+  label: string;
+  active: boolean;
+  draggedSkill: InstalledSkill | null;
+  onClick: () => void;
+}) {
+  const { t } = useTranslation();
+  const { ref, isDropTarget } = useDroppable({
+    id: getAgentSkillDropId(agent),
+    accept: LOCAL_SKILL_DRAG_TYPE,
+  });
+  const linked = !!draggedSkill && (draggedSkill.homeAgent === agent || !!draggedSkill.apps[agent]);
+  const canLink = !!draggedSkill && !linked;
+
+  return (
+    <button
+      ref={ref}
+      type="button"
+      onClick={onClick}
+      aria-label={
+        draggedSkill
+          ? t(linked ? "skillDrag.alreadyLinked" : "skillDrag.linkToAgent", { agent: label })
+          : label
+      }
+      className={cn(
+        "relative h-9 px-2.5 text-xs rounded-lg transition-colors whitespace-nowrap",
+        active
+          ? "bg-primary/10 text-primary font-medium"
+          : "text-muted-foreground hover:text-foreground hover:bg-accent",
+        canLink && "bg-primary/5 text-foreground ring-1 ring-inset ring-primary/25",
+        linked && draggedSkill && "bg-muted text-muted-foreground ring-1 ring-inset ring-border",
+        isDropTarget && canLink && "bg-primary/15 text-primary ring-2 ring-inset ring-primary/60",
+      )}
+    >
+      {label}
+      {draggedSkill && (
+        <span
+          className={cn(
+            "absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full border bg-background shadow-sm",
+            canLink ? "border-primary/40 text-primary" : "border-border text-muted-foreground",
+          )}
+        >
+          {linked ? <Check className="h-2.5 w-2.5" /> : <Link2 className="h-2.5 w-2.5" />}
+        </span>
+      )}
+    </button>
+  );
+}
 
 function matchesToolbarFilters(skill: InstalledSkill, search: string, agentFilter: string) {
   if (search && !skill.name.toLowerCase().includes(search.toLowerCase())) return false;
@@ -386,6 +487,7 @@ export const InstalledSkills = memo(function InstalledSkills({
   } = useArchivedSkills();
   const starMutation = useStarSkill();
   const unstarMutation = useUnstarSkill();
+  const toggleSymlinkMutation = useToggleSymlink();
   const removeSkillsMutation = useRemoveSkills();
   const archiveSkillsMutation = useArchiveSelectedSkills();
   const restoreArchivedSkillsMutation = useRestoreArchivedSkills();
@@ -397,6 +499,8 @@ export const InstalledSkills = memo(function InstalledSkills({
   const [search, setSearch] = useState("");
   const [agentFilter, setAgentFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [draggedSkill, setDraggedSkill] = useState<InstalledSkill | null>(null);
+  const [dragPreviewOffset, setDragPreviewOffset] = useState({ x: 0, y: 0 });
 
   const [sortField, setSortField] = useState<SortField>("updatedAt");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -721,7 +825,7 @@ export const InstalledSkills = memo(function InstalledSkills({
     });
   };
 
-  return (
+  const content = (
     <div className="flex h-full relative">
       {/* Sidebar */}
       <SkillSidebar
@@ -732,6 +836,7 @@ export const InstalledSkills = memo(function InstalledSkills({
         consistencyCount={consistencyCount}
         category={category}
         onSelectCategory={onSelectCategory}
+        draggedSkill={draggedSkill}
       />
 
       {/* Main content */}
@@ -752,7 +857,7 @@ export const InstalledSkills = memo(function InstalledSkills({
               <div className="flex gap-0.5 flex-wrap">
                 <button
                   onClick={() => setAgentFilter("all")}
-                  className={`px-2.5 py-1.5 text-xs rounded-lg transition-colors ${
+                  className={`h-9 px-2.5 text-xs rounded-lg transition-colors ${
                     agentFilter === "all"
                       ? "bg-primary/10 text-primary font-medium"
                       : "text-muted-foreground hover:text-foreground hover:bg-accent"
@@ -761,17 +866,14 @@ export const InstalledSkills = memo(function InstalledSkills({
                   {t("common.all")}
                 </button>
                 {visibleAgentOrder.map((a) => (
-                  <button
+                  <AgentDropTab
                     key={a}
+                    agent={a}
+                    label={agentConfigs?.find((c) => c.id === a)?.label ?? a}
+                    active={agentFilter === a}
+                    draggedSkill={draggedSkill}
                     onClick={() => setAgentFilter(a)}
-                    className={`px-2.5 py-1.5 text-xs rounded-lg transition-colors ${
-                      agentFilter === a
-                        ? "bg-primary/10 text-primary font-medium"
-                        : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                    }`}
-                  >
-                    {agentConfigs?.find((c) => c.id === a)?.label ?? a}
-                  </button>
+                  />
                 ))}
               </div>
               <div className="flex-1" />
@@ -834,24 +936,26 @@ export const InstalledSkills = memo(function InstalledSkills({
                   {viewMode === "grid" ? (
                     <div className="grid grid-cols-1 max-w-[780px] @md/main:grid-cols-2 @md/main:max-w-none @3col/main:grid-cols-3 @4col/main:grid-cols-4 gap-4 pt-1 pb-3">
                       {sorted.map((skill) => (
-                        <SkillCard
-                          key={skill.id}
-                          skill={
-                            isArchiveView
-                              ? { ...skill, updatedAt: (skill as ArchivedSkill).archivedAt }
-                              : skill
-                          }
-                          isInstalled
-                          onOpen={() =>
-                            isArchiveView
-                              ? onViewArchivedSkill(skill.id, skill.name)
-                              : onViewSkill(skill.id, skill.directory, skill.name)
-                          }
-                          onToggleStar={isArchiveView ? undefined : () => handleToggleStar(skill)}
-                          starred={skill.starred}
-                          issues={isArchiveView ? undefined : filteredIssuesMap.get(skill.id)}
-                          onNavigateConsistency={handleNavigateToConsistency}
-                        />
+                        <SkillDragSource key={skill.id} skill={skill} disabled={isArchiveView}>
+                          <SkillCard
+                            skill={
+                              isArchiveView
+                                ? { ...skill, updatedAt: (skill as ArchivedSkill).archivedAt }
+                                : skill
+                            }
+                            isInstalled
+                            onOpen={() =>
+                              isArchiveView
+                                ? onViewArchivedSkill(skill.id, skill.name)
+                                : onViewSkill(skill.id, skill.directory, skill.name)
+                            }
+                            onToggleStar={isArchiveView ? undefined : () => handleToggleStar(skill)}
+                            starred={skill.starred}
+                            issues={isArchiveView ? undefined : filteredIssuesMap.get(skill.id)}
+                            onNavigateConsistency={handleNavigateToConsistency}
+                            selectable={false}
+                          />
+                        </SkillDragSource>
                       ))}
                     </div>
                   ) : (
@@ -866,26 +970,28 @@ export const InstalledSkills = memo(function InstalledSkills({
                         dateLabel={isArchiveView ? t("skill.archived") : t("skill.updated")}
                       />
                       {sorted.map((skill) => (
-                        <SkillCardRow
-                          key={skill.id}
-                          skill={
-                            isArchiveView
-                              ? { ...skill, updatedAt: (skill as ArchivedSkill).archivedAt }
-                              : skill
-                          }
-                          isInstalled
-                          onOpen={() =>
-                            isArchiveView
-                              ? onViewArchivedSkill(skill.id, skill.name)
-                              : onViewSkill(skill.id, skill.directory, skill.name)
-                          }
-                          onToggleStar={isArchiveView ? undefined : () => handleToggleStar(skill)}
-                          starred={skill.starred}
-                          issues={isArchiveView ? undefined : filteredIssuesMap.get(skill.id)}
-                          selected={selectedIds.has(skill.id)}
-                          onToggleSelect={() => handleToggleSelect(skill.id)}
-                          onNavigateConsistency={handleNavigateToConsistency}
-                        />
+                        <SkillDragSource key={skill.id} skill={skill} disabled={isArchiveView}>
+                          <SkillCardRow
+                            skill={
+                              isArchiveView
+                                ? { ...skill, updatedAt: (skill as ArchivedSkill).archivedAt }
+                                : skill
+                            }
+                            isInstalled
+                            onOpen={() =>
+                              isArchiveView
+                                ? onViewArchivedSkill(skill.id, skill.name)
+                                : onViewSkill(skill.id, skill.directory, skill.name)
+                            }
+                            onToggleStar={isArchiveView ? undefined : () => handleToggleStar(skill)}
+                            starred={skill.starred}
+                            issues={isArchiveView ? undefined : filteredIssuesMap.get(skill.id)}
+                            selected={selectedIds.has(skill.id)}
+                            onToggleSelect={() => handleToggleSelect(skill.id)}
+                            onNavigateConsistency={handleNavigateToConsistency}
+                            selectable={false}
+                          />
+                        </SkillDragSource>
                       ))}
                     </div>
                   )}
@@ -1005,5 +1111,78 @@ export const InstalledSkills = memo(function InstalledSkills({
         />
       </div>
     </div>
+  );
+
+  return (
+    <DragDropProvider
+      onDragStart={({ operation }) => {
+        const sourceId = String(operation.source?.id ?? "");
+        const skillId = sourceId.startsWith(SKILL_DRAG_ID_PREFIX)
+          ? sourceId.slice(SKILL_DRAG_ID_PREFIX.length)
+          : null;
+        const sourceBounds = operation.source?.element?.getBoundingClientRect();
+        const initialPosition = operation.position?.initial;
+        if (sourceBounds && initialPosition) {
+          const grabX = initialPosition.x - sourceBounds.left;
+          const grabY = initialPosition.y - sourceBounds.top;
+          setDragPreviewOffset({
+            x: grabX - DRAG_PREVIEW_ICON_CENTER_X,
+            y: grabY - DRAG_PREVIEW_ANCHOR_Y,
+          });
+        } else {
+          setDragPreviewOffset({ x: 0, y: 0 });
+        }
+        setDraggedSkill(skillsList.find((skill) => skill.id === skillId) ?? null);
+      }}
+      onDragEnd={({ canceled, operation }) => {
+        const sourceId = String(operation.source?.id ?? "");
+        const skillId = sourceId.startsWith(SKILL_DRAG_ID_PREFIX)
+          ? sourceId.slice(SKILL_DRAG_ID_PREFIX.length)
+          : null;
+        const droppedSkill = skillsList.find((skill) => skill.id === skillId);
+        const targetId = String(operation.target?.id ?? "");
+        if (!canceled && droppedSkill) {
+          if (targetId === STAR_SKILL_DROP_ID && !droppedSkill.starred) {
+            starMutation.mutate(droppedSkill.id);
+          } else {
+            const agent = getAgentFromSkillDropId(targetId);
+            const alreadyLinked =
+              !!agent && (droppedSkill.homeAgent === agent || !!droppedSkill.apps[agent]);
+            if (agent && !alreadyLinked) {
+              const agentLabel =
+                agentConfigs?.find((config) => config.id === agent)?.label ?? agent;
+              toggleSymlinkMutation.mutate(
+                { skillId: droppedSkill.id, agent, enabled: true },
+                {
+                  onSuccess: () =>
+                    toast.success(
+                      t("skillDrag.linkSuccess", {
+                        skill: droppedSkill.name,
+                        agent: agentLabel,
+                      }),
+                    ),
+                  onError: (error) => toast.error(formatApiError(error)),
+                },
+              );
+            }
+          }
+        }
+        setDraggedSkill(null);
+      }}
+    >
+      {content}
+      <DragOverlay dropAnimation={null} className="pointer-events-none z-[100] overflow-visible">
+        {draggedSkill && (
+          <div
+            data-testid="skill-drag-preview"
+            className="absolute flex h-9 w-44 items-center gap-2.5 overflow-hidden rounded-md border border-border bg-card px-3 text-card-foreground shadow-lg"
+            style={{ left: dragPreviewOffset.x, top: dragPreviewOffset.y }}
+          >
+            <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <p className="min-w-0 truncate text-[13px] font-medium">{draggedSkill.name}</p>
+          </div>
+        )}
+      </DragOverlay>
+    </DragDropProvider>
   );
 });

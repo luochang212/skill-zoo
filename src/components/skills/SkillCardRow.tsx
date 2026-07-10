@@ -19,6 +19,7 @@ interface SkillCardRowProps {
   selected?: boolean;
   onToggleSelect?: () => void;
   onNavigateConsistency?: (tab: ConsistencyTab, targetId: string) => void;
+  selectable?: boolean;
 }
 
 export function SkillCardRow({
@@ -32,6 +33,7 @@ export function SkillCardRow({
   selected,
   onToggleSelect,
   onNavigateConsistency,
+  selectable = true,
 }: SkillCardRowProps) {
   const { t } = useTranslation();
   const installedSkill = isInstalled ? (skill as InstalledSkill) : null;
@@ -41,7 +43,7 @@ export function SkillCardRow({
   return (
     <div
       className="flex items-center gap-4 px-5 py-2 hover:bg-accent/40 transition-colors group last:border-b-0"
-      data-selectable
+      data-selectable={selectable ? "" : undefined}
     >
       {/* Checkbox column */}
       {onToggleSelect !== undefined && (
