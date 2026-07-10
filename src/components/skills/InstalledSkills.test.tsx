@@ -1,5 +1,5 @@
 import "@/i18n";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InstalledSkills } from "./InstalledSkills";
@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   hideNonSsot: false,
   starSkill: vi.fn(),
   toggleSymlink: vi.fn(),
+  batchUnlinkSkills: vi.fn(),
   onDragStart: undefined as ((event: unknown) => void) | undefined,
   onDragEnd: undefined as ((event: unknown) => void) | undefined,
 }));
@@ -56,6 +57,7 @@ vi.mock("@/hooks/useSkills", () => ({
     refetch: vi.fn(),
   }),
   useArchiveSelectedSkills: () => ({ mutate: vi.fn(), isPending: false }),
+  useBatchUnlinkSkills: () => ({ mutate: mocks.batchUnlinkSkills, isPending: false }),
   useRemoveSkills: () => ({ mutate: vi.fn(), isPending: false }),
   useRestoreArchivedSkills: () => ({ mutate: vi.fn(), isPending: false }),
   useStarSkill: () => ({ mutate: mocks.starSkill }),
@@ -127,6 +129,7 @@ describe("InstalledSkills visible agent filtering", () => {
     mocks.hideNonSsot = false;
     mocks.starSkill.mockReset();
     mocks.toggleSymlink.mockReset();
+    mocks.batchUnlinkSkills.mockReset();
     mocks.onDragStart = undefined;
     mocks.onDragEnd = undefined;
   });
@@ -546,5 +549,56 @@ describe("InstalledSkills visible agent filtering", () => {
     await user.click(screen.getAllByRole("checkbox")[1]);
 
     expect(screen.getByRole("button", { name: /Archive selected/ })).toBeDisabled();
+  });
+
+  it("batch unlinks selected skills from the active agent without removing external imports", async () => {
+    const user = userEvent.setup();
+    mocks.skills = [
+      skill({ id: "ssot-skill", name: "SSOT Skill", apps: { codex: true } }),
+      skill({
+        id: "external-skill",
+        name: "External Skill",
+        origin: "external",
+        apps: { codex: true },
+      }),
+    ];
+    const view = renderInstalledSkills();
+
+    await user.click(screen.getByRole("button", { name: "Codex" }));
+    await user.click(
+      view.container.querySelector("button.inline-flex.items-center.bg-muted") as HTMLButtonElement,
+    );
+    await user.click(screen.getAllByRole("checkbox")[0]);
+    await user.click(screen.getByRole("button", { name: "Remove link" }));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Remove link" }),
+    );
+
+    expect(mocks.batchUnlinkSkills).toHaveBeenCalledWith(
+      { skillIds: ["ssot-skill", "external-skill"], agent: "codex" },
+      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
+    );
+  });
+
+  it("does not offer unlinking when the selection only contains an agent's native skills", async () => {
+    const user = userEvent.setup();
+    mocks.skills = [
+      skill({
+        id: "codex-skill",
+        name: "Codex Skill",
+        origin: "agent",
+        homeAgent: "codex",
+        apps: { codex: true },
+      }),
+    ];
+    const view = renderInstalledSkills();
+
+    await user.click(screen.getByRole("button", { name: "Codex" }));
+    await user.click(
+      view.container.querySelector("button.inline-flex.items-center.bg-muted") as HTMLButtonElement,
+    );
+    await user.click(screen.getAllByRole("checkbox")[0]);
+
+    expect(screen.getByRole("button", { name: "Remove link" })).toBeDisabled();
   });
 });

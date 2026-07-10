@@ -195,6 +195,14 @@
     "broken": "已损坏",
     "missing": "未链接"
   },
+  "symlinkBatch": {
+    "unlink": "移除链接",
+    "unlinking": "正在移除链接...",
+    "title": "从 {{agent}} 移除链接",
+    "description": "确认从 {{agent}} 移除 {{count}} 个技能链接？技能文件将保留在原位置。",
+    "homeSkipped": "其中 {{count}} 个技能原本就在 {{agent}} 中，会继续保留。",
+    "partialFailed": "{{count}} 个链接移除失败。"
+  },
   "consistency": {
     "sameContent": "内容相同",
     "differentContent": "内容不同",

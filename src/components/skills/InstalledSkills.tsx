@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import {
   useArchivedSkills,
   useArchiveSelectedSkills,
+  useBatchUnlinkSkills,
   useInstalledSkills,
   useRemoveSkills,
   useRestoreArchivedSkills,
@@ -44,6 +45,7 @@ import {
   List,
   FileText,
   Check,
+  Link2Off,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -69,7 +71,7 @@ interface InstalledSkillsProps {
 
 type SortField = "name" | "repo" | "updatedAt";
 type SortDirection = "asc" | "desc";
-type BatchAction = "archive" | "remove" | "restore";
+type BatchAction = "archive" | "remove" | "restore" | "unlink";
 
 const EMPTY_SKILLS: InstalledSkill[] = [];
 const EMPTY_ARCHIVED_SKILLS: ArchivedSkill[] = [];
@@ -485,6 +487,7 @@ export const InstalledSkills = memo(function InstalledSkills({
   const starMutation = useStarSkill();
   const unstarMutation = useUnstarSkill();
   const toggleSymlinkMutation = useToggleSymlink();
+  const batchUnlinkSkillsMutation = useBatchUnlinkSkills();
   const removeSkillsMutation = useRemoveSkills();
   const archiveSkillsMutation = useArchiveSelectedSkills();
   const restoreArchivedSkillsMutation = useRestoreArchivedSkills();
@@ -687,6 +690,29 @@ export const InstalledSkills = memo(function InstalledSkills({
       visibleSelectedSkills.every((s) => s.origin === "external"),
     [visibleSelectedSkills],
   );
+  const batchUnlinkAgent = !isArchiveView && agentFilter !== "all" ? agentFilter : null;
+  const batchUnlinkSkills = useMemo(
+    () =>
+      batchUnlinkAgent
+        ? visibleSelectedSkills.filter(
+            (skill) => skill.homeAgent !== batchUnlinkAgent && skill.apps[batchUnlinkAgent],
+          )
+        : [],
+    [batchUnlinkAgent, visibleSelectedSkills],
+  );
+  const batchUnlinkItems = useMemo(
+    () => batchUnlinkSkills.map((skill) => ({ id: skill.id, name: skill.name })),
+    [batchUnlinkSkills],
+  );
+  const batchUnlinkHomeCount = useMemo(
+    () =>
+      batchUnlinkAgent
+        ? visibleSelectedSkills.filter((skill) => skill.homeAgent === batchUnlinkAgent).length
+        : 0,
+    [batchUnlinkAgent, visibleSelectedSkills],
+  );
+  const batchUnlinkAgentLabel =
+    agentConfigs?.find((config) => config.id === batchUnlinkAgent)?.label ?? batchUnlinkAgent;
 
   if (isLoading || (category.type === "archived" && archivedLoading)) {
     return (
@@ -820,6 +846,25 @@ export const InstalledSkills = memo(function InstalledSkills({
         }
       },
     });
+  };
+
+  const handleBatchUnlink = () => {
+    if (!batchUnlinkAgent) return;
+
+    const skillIds = batchUnlinkSkills.map((skill) => skill.id);
+    setBatchAction(null);
+    batchUnlinkSkillsMutation.mutate(
+      { skillIds, agent: batchUnlinkAgent },
+      {
+        onSuccess: (result) => {
+          clearSucceededSelection([...result.unlinked, ...result.skipped]);
+          if (result.failed.length > 0) {
+            toast.warning(t("symlinkBatch.partialFailed", { count: result.failed.length }));
+          }
+        },
+        onError: (error) => toast.error(formatApiError(error)),
+      },
+    );
   };
 
   const content = (
@@ -1027,6 +1072,20 @@ export const InstalledSkills = memo(function InstalledSkills({
                 </Button>
               ) : (
                 <>
+                  {batchUnlinkAgent && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs rounded-lg"
+                      disabled={
+                        batchUnlinkSkillsMutation.isPending || batchUnlinkSkills.length === 0
+                      }
+                      onClick={() => setBatchAction("unlink")}
+                    >
+                      <Link2Off className="h-3.5 w-3.5 mr-1.5" />
+                      {t("symlinkBatch.unlink")}
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
@@ -1056,6 +1115,32 @@ export const InstalledSkills = memo(function InstalledSkills({
             </div>
           </div>
         )}
+
+        <BatchConfirmDialog
+          open={batchAction === "unlink"}
+          onOpenChange={(open) => setBatchAction(open ? "unlink" : null)}
+          title={t("symlinkBatch.title", { agent: batchUnlinkAgentLabel })}
+          description={t("symlinkBatch.description", {
+            count: batchUnlinkItems.length,
+            agent: batchUnlinkAgentLabel,
+          })}
+          items={batchUnlinkItems}
+          confirmLabel={
+            batchUnlinkSkillsMutation.isPending
+              ? t("symlinkBatch.unlinking")
+              : t("symlinkBatch.unlink")
+          }
+          confirmPending={batchUnlinkSkillsMutation.isPending}
+          onConfirm={handleBatchUnlink}
+          hint={
+            batchUnlinkHomeCount > 0
+              ? t("symlinkBatch.homeSkipped", {
+                  count: batchUnlinkHomeCount,
+                  agent: batchUnlinkAgentLabel,
+                })
+              : undefined
+          }
+        />
 
         <BatchConfirmDialog
           open={batchAction === "archive"}

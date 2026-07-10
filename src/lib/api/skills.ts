@@ -3,6 +3,7 @@ import type {
   AgentPathInfo,
   AgentConfig,
   ArchivedSkill,
+  BatchUnlinkSkillsResult,
   Banner,
   DiscoverRepo,
   DiscoverableSkill,
@@ -91,6 +92,9 @@ export const skillsApi = {
 
   toggleSymlink: (skillId: string, agent: string, enabled: boolean) =>
     invoke<void>("toggle_symlink", { skillId, agent, enabled }),
+
+  batchUnlinkSkills: (skillIds: string[], agent: string) =>
+    invoke<BatchUnlinkSkillsResult>("batch_unlink_skills", { skillIds, agent }),
 
   openSkillsDir: (agent: string) => invoke<void>("open_skills_dir", { agent }),
 

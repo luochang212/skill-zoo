@@ -13,7 +13,11 @@ import {
   type UpdateAllResult,
 } from "@/lib/api/skills";
 import { invalidateFor } from "@/hooks/queryInvalidation";
-import type { ExternalImportSelection, InstalledSkill } from "@/types/skills";
+import type {
+  BatchUnlinkSkillsResult,
+  ExternalImportSelection,
+  InstalledSkill,
+} from "@/types/skills";
 import { useEffect } from "react";
 
 export function useInstalledSkills() {
@@ -220,6 +224,14 @@ export function useToggleSymlink() {
       enabled: boolean;
     }) => skillsApi.toggleSymlink(skillId, agent, enabled),
     onSuccess: () => invalidateFor(qc, "toggleSymlink"),
+  });
+}
+
+export function useBatchUnlinkSkills() {
+  const qc = useQueryClient();
+  return useMutation<BatchUnlinkSkillsResult, Error, { skillIds: string[]; agent: string }>({
+    mutationFn: ({ skillIds, agent }) => skillsApi.batchUnlinkSkills(skillIds, agent),
+    onSuccess: () => invalidateFor(qc, "batchUnlinkSkills"),
   });
 }
 

@@ -57,6 +57,17 @@ export interface SymlinkStatus {
   isValid: boolean;
 }
 
+export interface BatchUnlinkSkillsResult {
+  unlinked: string[];
+  skipped: string[];
+  failed: BatchUnlinkSkillFailure[];
+}
+
+export interface BatchUnlinkSkillFailure {
+  skillId: string;
+  error: string;
+}
+
 export interface ExternalImportCandidate {
   sourcePath: string;
   directory: string;

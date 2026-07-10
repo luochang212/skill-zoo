@@ -195,6 +195,14 @@
     "broken": "broken",
     "missing": "missing"
   },
+  "symlinkBatch": {
+    "unlink": "Remove link",
+    "unlinking": "Removing links...",
+    "title": "Remove links from {{agent}}",
+    "description": "Remove {{count}} skill link(s) from {{agent}}? Skill files will remain in place.",
+    "homeSkipped": "{{count}} skill(s) originate in {{agent}} and will remain available there.",
+    "partialFailed": "{{count}} link(s) could not be removed."
+  },
   "consistency": {
     "sameContent": "Same content",
     "differentContent": "Different content",

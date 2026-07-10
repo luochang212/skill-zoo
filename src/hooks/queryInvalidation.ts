@@ -43,6 +43,10 @@ export const INVALIDATION_MAP = {
     ["skills", "symlinks"],
     ["skills", "installed"],
   ],
+  batchUnlinkSkills: [
+    ["skills", "symlinks"],
+    ["skills", "installed"],
+  ],
   createSkill: [
     ["skills", "installed"],
     ["skills", "symlinks"],
