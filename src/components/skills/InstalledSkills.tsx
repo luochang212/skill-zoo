@@ -44,7 +44,6 @@ import {
   List,
   FileText,
   Check,
-  Link2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -152,14 +151,9 @@ function AgentDropTab({
       )}
     >
       {label}
-      {draggedSkill && (
-        <span
-          className={cn(
-            "absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full border bg-background shadow-sm",
-            canLink ? "border-primary/40 text-primary" : "border-border text-muted-foreground",
-          )}
-        >
-          {linked ? <Check className="h-2.5 w-2.5" /> : <Link2 className="h-2.5 w-2.5" />}
+      {linked && (
+        <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm">
+          <Check className="h-2.5 w-2.5" />
         </span>
       )}
     </button>
