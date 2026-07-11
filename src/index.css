@@ -197,13 +197,15 @@
   }
 }
 
-/* dnd-kit injects these rules at runtime. Keep the positioning contract in the
-   app stylesheet too so release WebViews do not strand the overlay at (0, 0)
-   when runtime style injection is unavailable. */
+/* Static fallback for @dnd-kit/dom 0.5.0's Feedback styles. Packaged Tauri
+   WebViews do not apply the runtime-injected stylesheet reliably. Keep this in
+   sync when upgrading dnd-kit. */
 [data-dnd-dragging] {
   position: fixed !important;
   pointer-events: none !important;
   touch-action: none;
+  z-index: 2147483647;
+  will-change: translate;
   top: var(--dnd-top, 0px) !important;
   left: var(--dnd-left, 0px) !important;
   right: unset !important;
@@ -212,10 +214,49 @@
   max-width: var(--dnd-width, auto);
   height: var(--dnd-height, auto);
   max-height: var(--dnd-height, auto);
-  translate: var(--dnd-translate, 0px 0px 0px) !important;
   transform: var(--dnd-transform, none) !important;
   transition: var(--dnd-transition) !important;
-  will-change: translate;
+}
+
+[data-dnd-placeholder] {
+  transition: none;
+}
+
+[data-dnd-placeholder="hidden"] {
+  visibility: hidden;
+}
+
+[data-dnd-dragging] * {
+  pointer-events: none !important;
+}
+
+[data-dnd-dragging]:not([data-dnd-dropping]) {
+  translate: var(--dnd-translate, 0px 0px 0px) !important;
+}
+
+[data-dnd-dragging][style*="--dnd-scale"] {
+  scale: var(--dnd-scale) !important;
+  transform-origin: var(--dnd-transform-origin) !important;
+}
+
+:where([data-dnd-dragging][popover]) {
+  overflow: visible;
+  background: unset;
+  border: unset;
+  margin: unset;
+  padding: unset;
+  color: inherit;
+}
+
+:where(input, button)[data-dnd-dragging][popover] {
+  border: revert;
+  background: revert;
+}
+
+[data-dnd-dragging]::backdrop,
+[data-dnd-overlay]:not([data-dnd-dragging]) {
+  display: none;
+  visibility: hidden;
 }
 
 @layer base {
