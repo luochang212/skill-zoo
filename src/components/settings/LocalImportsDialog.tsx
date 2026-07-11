@@ -375,7 +375,7 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
                                 size="sm"
                                 variant="outline"
                                 className="h-7 px-2"
-                                onClick={() => skillsApi.openSkillPath(entry.sourcePath)}
+                                onClick={() => skillsApi.openSkillPath(entry.id)}
                               >
                                 <ExternalLink className="h-3.5 w-3.5" />
                               </Button>

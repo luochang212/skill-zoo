@@ -87,6 +87,89 @@ pub struct SkillFileNode {
     pub children: Option<Vec<SkillFileNode>>,
 }
 
+pub struct ManagedSkill {
+    pub entry: SkillCacheEntry,
+    pub root: PathBuf,
+}
+
+impl ManagedSkill {
+    pub fn resolve(cache: &SkillCache, skill_id: &str, writable: bool) -> Result<Self, AppError> {
+        let entry = cache
+            .find_by_id(skill_id)
+            .cloned()
+            .ok_or_else(|| AppError::NotFound(format!("Skill not found: {skill_id}")))?;
+        if writable && entry.origin == "external" {
+            return Err(AppError::BadRequest(
+                "External imported skills are read-only in Skill Zoo.".into(),
+            ));
+        }
+        let home = PathBuf::from(
+            entry
+                .home_path
+                .as_ref()
+                .ok_or_else(|| AppError::BadRequest("Skill has no physical home path".into()))?,
+        );
+        let root = home.canonicalize().map_err(|e| error::io(&home, e))?;
+        if !root.is_dir() {
+            return Err(AppError::BadRequest(
+                "Skill home path is not a directory".into(),
+            ));
+        }
+        Ok(Self { entry, root })
+    }
+
+    fn relative_path(relative: &str) -> Result<&Path, AppError> {
+        let path = Path::new(relative);
+        if relative.contains('\0')
+            || relative.contains('\\')
+            || path.is_absolute()
+            || path
+                .components()
+                .any(|part| !matches!(part, std::path::Component::Normal(_)))
+        {
+            return Err(AppError::BadRequest("Invalid relative skill path".into()));
+        }
+        Ok(path)
+    }
+
+    pub fn existing_path(&self, relative: &str) -> Result<PathBuf, AppError> {
+        if relative.is_empty() {
+            return Ok(self.root.clone());
+        }
+        let path = self.root.join(Self::relative_path(relative)?);
+        let real = path.canonicalize().map_err(|e| error::io(&path, e))?;
+        if real != self.root && !real.starts_with(&self.root) {
+            return Err(AppError::BadRequest(
+                "Path escapes the requested skill directory".into(),
+            ));
+        }
+        Ok(real)
+    }
+
+    pub fn writable_path(&self, relative: &str) -> Result<PathBuf, AppError> {
+        let relative = Self::relative_path(relative)?;
+        let path = self.root.join(relative);
+        let parent = path
+            .parent()
+            .ok_or_else(|| AppError::BadRequest("Invalid relative skill path".into()))?;
+        let real_parent = parent.canonicalize().map_err(|e| error::io(parent, e))?;
+        if real_parent != self.root && !real_parent.starts_with(&self.root) {
+            return Err(AppError::BadRequest(
+                "Path escapes the requested skill directory".into(),
+            ));
+        }
+        if path.exists() {
+            let real = path.canonicalize().map_err(|e| error::io(&path, e))?;
+            if real != self.root && !real.starts_with(&self.root) {
+                return Err(AppError::BadRequest(
+                    "Path escapes the requested skill directory".into(),
+                ));
+            }
+        }
+        Ok(path)
+    }
+}
+
 impl From<SkillCacheEntry> for InstalledSkill {
     fn from(e: SkillCacheEntry) -> Self {
         InstalledSkill {
@@ -1844,46 +1927,20 @@ impl SkillService {
 
     // ────────────── File tree listing ──────────────
 
-    /// Build a file tree for a concrete skill directory, returning the root nodes.
-    pub fn list_skill_files_at(
-        skill_dir: &std::path::Path,
-    ) -> Result<Vec<SkillFileNode>, AppError> {
-        if skill_dir.is_dir() {
-            let mut nodes = Vec::new();
-            Self::build_file_tree(skill_dir, &mut nodes);
-            Self::sort_nodes(&mut nodes);
-            return Ok(nodes);
-        }
-
-        Err(AppError::NotFound(format!(
-            "Skill directory not found: {}",
-            skill_dir.display()
-        )))
-    }
-
     /// List one directory level for a concrete skill directory.
     pub fn list_skill_file_children_at(
         skill_dir: &std::path::Path,
         parent_path: Option<&str>,
     ) -> Result<Vec<SkillFileNode>, AppError> {
         let target_dir = if let Some(parent_path) = parent_path {
-            if parent_path.is_empty() || parent_path.contains('\0') {
-                return Err(AppError::BadRequest("Invalid path".into()));
-            }
-            let target = std::path::PathBuf::from(parent_path);
-            if !target.is_absolute() {
-                return Err(AppError::BadRequest("Path must be absolute".into()));
-            }
-
-            let skill_root = skill_dir
-                .canonicalize()
-                .map_err(|e| crate::error::io(skill_dir, e))?;
+            let relative = ManagedSkill::relative_path(parent_path)?;
+            let target = skill_dir.join(relative);
             let target_real = target
                 .canonicalize()
                 .map_err(|e| crate::error::io(&target, e))?;
-            if target_real != skill_root && !target_real.starts_with(&skill_root) {
+            if target_real != skill_dir && !target_real.starts_with(skill_dir) {
                 return Err(AppError::BadRequest(
-                    "Path is not under the requested skill directory".into(),
+                    "Path escapes the requested skill directory".into(),
                 ));
             }
             if !target_real.is_dir() || is_symlink_or_junction(&target) {
@@ -1895,12 +1952,13 @@ impl SkillService {
         };
 
         let mut nodes = Vec::new();
-        Self::build_file_tree_level(&target_dir, &mut nodes)?;
+        Self::build_file_tree_level(skill_dir, &target_dir, &mut nodes)?;
         Self::sort_nodes(&mut nodes);
         Ok(nodes)
     }
 
     fn build_file_tree_level(
+        root: &std::path::Path,
         dir: &std::path::Path,
         nodes: &mut Vec<SkillFileNode>,
     ) -> Result<(), AppError> {
@@ -1922,7 +1980,11 @@ impl SkillService {
                         .and_then(|n| n.to_str())
                         .unwrap_or("")
                         .to_string(),
-                    path: path.to_str().unwrap_or("").to_string(),
+                    path: path
+                        .strip_prefix(root)
+                        .unwrap_or(&path)
+                        .to_string_lossy()
+                        .to_string(),
                     is_dir: true,
                     is_skill_md: false,
                     children: None,
@@ -1937,7 +1999,11 @@ impl SkillService {
                 nodes.push(SkillFileNode {
                     is_skill_md: file_name == "SKILL.md",
                     name: file_name,
-                    path: path.to_str().unwrap_or("").to_string(),
+                    path: path
+                        .strip_prefix(root)
+                        .unwrap_or(&path)
+                        .to_string_lossy()
+                        .to_string(),
                     is_dir: false,
                     children: None,
                 });
@@ -1952,57 +2018,9 @@ impl SkillService {
         dir: &std::path::Path,
     ) -> Result<Vec<SkillFileNode>, AppError> {
         let mut nodes = Vec::new();
-        Self::build_file_tree_level(dir, &mut nodes)?;
+        Self::build_file_tree_level(dir, dir, &mut nodes)?;
         Self::sort_nodes(&mut nodes);
         Ok(nodes)
-    }
-
-    fn build_file_tree(dir: &std::path::Path, nodes: &mut Vec<SkillFileNode>) {
-        let Ok(entries) = std::fs::read_dir(dir) else {
-            return;
-        };
-
-        for entry in entries.flatten() {
-            let path = entry.path();
-
-            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                if crate::config::SKIP_DIRS.contains(&name) {
-                    continue;
-                }
-            }
-
-            if path.is_dir() && !is_symlink_or_junction(&path) {
-                let mut children = Vec::new();
-                Self::build_file_tree(&path, &mut children);
-                Self::sort_nodes(&mut children);
-
-                nodes.push(SkillFileNode {
-                    name: path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    path: path.to_str().unwrap_or("").to_string(),
-                    is_dir: true,
-                    is_skill_md: false,
-                    children: Some(children),
-                });
-            } else if path.is_file() || (is_symlink_or_junction(&path) && path.is_file()) {
-                let file_name = path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("")
-                    .to_string();
-
-                nodes.push(SkillFileNode {
-                    is_skill_md: file_name == "SKILL.md",
-                    name: file_name,
-                    path: path.to_str().unwrap_or("").to_string(),
-                    is_dir: false,
-                    children: None,
-                });
-            }
-        }
     }
 
     fn sort_nodes(nodes: &mut [SkillFileNode]) {
@@ -2263,5 +2281,68 @@ mod tests {
             updated_at: None,
             commit_sha: None,
         }
+    }
+
+    fn managed_skill(root: &Path, origin: &str) -> ManagedSkill {
+        let mut entry = test_cache_entry("skill-1", "skill-1", "owner", "repo");
+        entry.origin = origin.to_string();
+        entry.home_path = Some(root.to_string_lossy().to_string());
+        let cache = SkillCache::from_entries(vec![entry]);
+        ManagedSkill::resolve(&cache, "skill-1", false).expect("resolve managed skill")
+    }
+
+    #[test]
+    fn managed_skill_rejects_untrusted_relative_paths() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let skill = managed_skill(dir.path(), "ssot");
+
+        for path in ["../secret", "/tmp/secret", "C:\\secret", "a\\b", "a\0b"] {
+            assert!(skill.existing_path(path).is_err(), "accepted {path:?}");
+        }
+    }
+
+    #[test]
+    fn managed_skill_allows_paths_inside_root() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let nested = dir.path().join("references");
+        std::fs::create_dir(&nested).expect("create nested");
+        std::fs::write(nested.join("guide.md"), "guide").expect("write guide");
+        let skill = managed_skill(dir.path(), "ssot");
+
+        assert_eq!(
+            skill.existing_path("references/guide.md").unwrap(),
+            nested.join("guide.md").canonicalize().unwrap()
+        );
+        assert_eq!(
+            skill.writable_path("references/new.md").unwrap(),
+            dir.path().canonicalize().unwrap().join("references/new.md")
+        );
+    }
+
+    #[test]
+    fn external_managed_skill_is_read_only() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut entry = test_cache_entry("skill-1", "skill-1", "owner", "repo");
+        entry.origin = "external".to_string();
+        entry.home_path = Some(dir.path().to_string_lossy().to_string());
+        let cache = SkillCache::from_entries(vec![entry]);
+
+        assert!(ManagedSkill::resolve(&cache, "skill-1", false).is_ok());
+        assert!(ManagedSkill::resolve(&cache, "skill-1", true).is_err());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn managed_skill_rejects_symlink_escape() {
+        let skill_dir = tempfile::tempdir().expect("skill tempdir");
+        let outside = tempfile::tempdir().expect("outside tempdir");
+        let secret = outside.path().join("secret.txt");
+        std::fs::write(&secret, "secret").expect("write secret");
+        std::os::unix::fs::symlink(&secret, skill_dir.path().join("secret.txt"))
+            .expect("create symlink");
+        let skill = managed_skill(skill_dir.path(), "ssot");
+
+        assert!(skill.existing_path("secret.txt").is_err());
+        assert!(skill.writable_path("secret.txt").is_err());
     }
 }

@@ -284,17 +284,17 @@ describe("SkillDetail", () => {
 
   it("loads only the root file children when the detail opens", async () => {
     vi.mocked(invoke).mockImplementation((command) => {
-      if (command === "list_skill_file_children") {
+      if (command === "list_skill_files") {
         return Promise.resolve([
           {
             name: "SKILL.md",
-            path: "/tmp/skill-1/SKILL.md",
+            path: "SKILL.md",
             isDir: false,
             isSkillMd: true,
           },
           {
             name: "examples",
-            path: "/tmp/skill-1/examples",
+            path: "examples",
             isDir: true,
             isSkillMd: false,
           },
@@ -316,34 +316,32 @@ describe("SkillDetail", () => {
     await screen.findByText("Skill content");
     await screen.findByText("SKILL.md");
 
-    expect(invoke).toHaveBeenCalledWith("list_skill_file_children", {
-      directory: "skill-1",
+    expect(invoke).toHaveBeenCalledWith("list_skill_files", {
       skillId: "skill-1",
       parentPath: null,
     });
-    expect(invoke).not.toHaveBeenCalledWith("list_skill_files", expect.anything());
-    expect(invoke).not.toHaveBeenCalledWith("read_skill_file_path", expect.anything());
+    expect(invoke).not.toHaveBeenCalledWith("read_skill_text", expect.anything());
   });
 
   it("previews image files from the file tree", async () => {
     vi.mocked(invoke).mockImplementation((command) => {
-      if (command === "list_skill_file_children") {
+      if (command === "list_skill_files") {
         return Promise.resolve([
           {
             name: "SKILL.md",
-            path: "/tmp/skill-1/SKILL.md",
+            path: "SKILL.md",
             isDir: false,
             isSkillMd: true,
           },
           {
             name: "logo.png",
-            path: "/tmp/skill-1/logo.png",
+            path: "logo.png",
             isDir: false,
             isSkillMd: false,
           },
         ]);
       }
-      if (command === "read_skill_image_path") {
+      if (command === "read_skill_image") {
         return Promise.resolve("data:image/png;base64,abc123");
       }
       return Promise.resolve(undefined);
@@ -365,11 +363,13 @@ describe("SkillDetail", () => {
       "src",
       "data:image/png;base64,abc123",
     );
-    expect(invoke).toHaveBeenCalledWith("read_skill_image_path", {
-      path: "/tmp/skill-1/logo.png",
+    expect(invoke).toHaveBeenCalledWith("read_skill_image", {
+      skillId: "skill-1",
+      relativePath: "logo.png",
     });
-    expect(invoke).not.toHaveBeenCalledWith("read_skill_file_path", {
-      path: "/tmp/skill-1/logo.png",
+    expect(invoke).not.toHaveBeenCalledWith("read_skill_text", {
+      skillId: "skill-1",
+      relativePath: "logo.png",
     });
     expect(screen.queryByText("Edit")).not.toBeInTheDocument();
     expect(screen.queryByText("Split")).not.toBeInTheDocument();
@@ -377,23 +377,23 @@ describe("SkillDetail", () => {
 
   it("shows binary file notice from structured file errors", async () => {
     vi.mocked(invoke).mockImplementation((command) => {
-      if (command === "list_skill_file_children") {
+      if (command === "list_skill_files") {
         return Promise.resolve([
           {
             name: "SKILL.md",
-            path: "/tmp/skill-1/SKILL.md",
+            path: "SKILL.md",
             isDir: false,
             isSkillMd: true,
           },
           {
             name: "artifact.bin",
-            path: "/tmp/skill-1/artifact.bin",
+            path: "artifact.bin",
             isDir: false,
             isSkillMd: false,
           },
         ]);
       }
-      if (command === "read_skill_file_path") {
+      if (command === "read_skill_text") {
         return Promise.reject({
           code: "binaryFile",
           message: "File is not UTF-8 text",
@@ -422,23 +422,23 @@ describe("SkillDetail", () => {
 
   it("shows image-too-large notice from structured image errors", async () => {
     vi.mocked(invoke).mockImplementation((command) => {
-      if (command === "list_skill_file_children") {
+      if (command === "list_skill_files") {
         return Promise.resolve([
           {
             name: "SKILL.md",
-            path: "/tmp/skill-1/SKILL.md",
+            path: "SKILL.md",
             isDir: false,
             isSkillMd: true,
           },
           {
             name: "large.png",
-            path: "/tmp/skill-1/large.png",
+            path: "large.png",
             isDir: false,
             isSkillMd: false,
           },
         ]);
       }
-      if (command === "read_skill_image_path") {
+      if (command === "read_skill_image") {
         return Promise.reject({
           code: "imageTooLarge",
           message: "Image file is too large",
@@ -476,13 +476,13 @@ describe("SkillDetail", () => {
           return Promise.resolve({});
         case "get_symlink_status":
           return Promise.resolve([]);
-        case "list_skill_file_children": {
+        case "list_skill_files": {
           const parentPath = (args as { parentPath: string | null }).parentPath;
-          if (parentPath === "/tmp/skill-1/examples") {
+          if (parentPath === "examples") {
             return Promise.resolve([
               {
                 name: "nested.md",
-                path: "/tmp/skill-1/examples/nested.md",
+                path: "examples/nested.md",
                 isDir: false,
                 isSkillMd: false,
               },
@@ -491,19 +491,19 @@ describe("SkillDetail", () => {
           return Promise.resolve([
             {
               name: "SKILL.md",
-              path: "/tmp/skill-1/SKILL.md",
+              path: "SKILL.md",
               isDir: false,
               isSkillMd: true,
             },
             {
               name: "examples",
-              path: "/tmp/skill-1/examples",
+              path: "examples",
               isDir: true,
               isSkillMd: false,
             },
           ]);
         }
-        case "read_skill_file_path":
+        case "read_skill_text":
           return Promise.resolve("# nested");
         default:
           return Promise.resolve(undefined);
@@ -541,23 +541,23 @@ describe("SkillDetail", () => {
           return Promise.resolve({});
         case "get_symlink_status":
           return Promise.resolve([]);
-        case "list_skill_file_children": {
+        case "list_skill_files": {
           const parentPath = (args as { parentPath: string | null }).parentPath;
-          if (parentPath === "/tmp/skill-1/examples") {
+          if (parentPath === "examples") {
             return Promise.resolve([
               {
                 name: "example.md",
-                path: "/tmp/skill-1/examples/example.md",
+                path: "examples/example.md",
                 isDir: false,
                 isSkillMd: false,
               },
             ]);
           }
-          if (parentPath === "/tmp/skill-1/scripts") {
+          if (parentPath === "scripts") {
             return Promise.resolve([
               {
                 name: "run.sh",
-                path: "/tmp/skill-1/scripts/run.sh",
+                path: "scripts/run.sh",
                 isDir: false,
                 isSkillMd: false,
               },
@@ -566,19 +566,19 @@ describe("SkillDetail", () => {
           return Promise.resolve([
             {
               name: "SKILL.md",
-              path: "/tmp/skill-1/SKILL.md",
+              path: "SKILL.md",
               isDir: false,
               isSkillMd: true,
             },
             {
               name: "examples",
-              path: "/tmp/skill-1/examples",
+              path: "examples",
               isDir: true,
               isSkillMd: false,
             },
             {
               name: "scripts",
-              path: "/tmp/skill-1/scripts",
+              path: "scripts",
               isDir: true,
               isSkillMd: false,
             },

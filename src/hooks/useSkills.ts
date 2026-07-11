@@ -159,7 +159,10 @@ export function useClearSkillUpdateHistory() {
 export function useRemoveSkill() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (skillId: string) => skillsApi.removeSkill(skillId),
+    mutationFn: async (skillId: string) => {
+      const result = await skillsApi.removeSkills([skillId]);
+      if (!result.removed.length) throw new Error(result.failed[0]?.error ?? "Remove failed");
+    },
     onSuccess: () => invalidateFor(qc, "removeSkill"),
   });
 }
@@ -175,7 +178,10 @@ export function useRemoveSkills() {
 export function useArchiveSkill() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (skillId: string) => skillsApi.archiveSkill(skillId),
+    mutationFn: async (skillId: string) => {
+      const result = await skillsApi.archiveSkills([skillId]);
+      if (!result.archived.length) throw new Error(result.failed[0]?.error ?? "Archive failed");
+    },
     onSuccess: () => invalidateFor(qc, "archiveSkill"),
   });
 }
@@ -191,7 +197,12 @@ export function useArchiveSelectedSkills() {
 export function useRestoreArchivedSkill() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (archiveId: string) => skillsApi.restoreArchivedSkill(archiveId),
+    mutationFn: async (archiveId: string) => {
+      const result = await skillsApi.restoreArchivedSkills([archiveId]);
+      const restored = result.restored[0];
+      if (!restored) throw new Error(result.failed[0]?.error ?? "Restore failed");
+      return restored.skill;
+    },
     onSuccess: (skill) => {
       qc.setQueryData<InstalledSkill[]>(["skills", "installed"], (old) => {
         if (!old) return [skill];
@@ -238,8 +249,8 @@ export function useBatchUnlinkSkills() {
 export function useSkillContent(directory: string | null, skillId?: string | null) {
   return useQuery({
     queryKey: ["skills", "content", skillId, directory],
-    queryFn: () => skillsApi.readSkillMd(directory!, skillId),
-    enabled: !!directory,
+    queryFn: () => skillsApi.readSkillText(skillId!, "SKILL.md"),
+    enabled: !!directory && !!skillId,
     // Cache content for 30s so reopening a recently-viewed skill doesn't
     // re-read SKILL.md from disk on every open. In-app saves invalidate via
     // the "saveSkillContent" key prefix, so edits stay fresh.
@@ -255,15 +266,6 @@ export function useArchivedSkillContent(archiveId: string | null) {
   });
 }
 
-export function useSkillFiles(directory: string | null, skillId?: string | null) {
-  return useQuery({
-    queryKey: ["skills", "files", skillId, directory],
-    queryFn: () => skillsApi.listSkillFiles(directory!, skillId),
-    enabled: !!directory,
-    staleTime: 30 * 1000,
-  });
-}
-
 export function useSkillFileChildren(
   directory: string | null,
   parentPath: string | null,
@@ -272,8 +274,8 @@ export function useSkillFileChildren(
 ) {
   return useQuery({
     queryKey: ["skills", "fileChildren", skillId, directory, parentPath],
-    queryFn: () => skillsApi.listSkillFileChildren(directory!, parentPath, skillId),
-    enabled: enabled && !!directory,
+    queryFn: () => skillsApi.listSkillFiles(skillId!, parentPath),
+    enabled: enabled && !!directory && !!skillId,
     staleTime: 30 * 1000,
   });
 }
@@ -282,32 +284,31 @@ export function useSaveSkillContent() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
-      directory,
       content,
       skillId,
     }: {
       directory: string;
       content: string;
       skillId?: string | null;
-    }) => skillsApi.writeSkillMd(directory, content, skillId),
+    }) => skillsApi.writeSkillText(skillId!, "SKILL.md", content),
     onSuccess: () => invalidateFor(qc, "saveSkillContent"),
   });
 }
 
-export function useSkillFileContent(path: string | null) {
+export function useSkillFileContent(skillId: string | undefined, path: string | null) {
   return useQuery({
     queryKey: ["skills", "file", path],
-    queryFn: () => skillsApi.readSkillFilePath(path!),
-    enabled: !!path,
+    queryFn: () => skillsApi.readSkillText(skillId!, path!),
+    enabled: !!skillId && !!path,
     retry: false,
   });
 }
 
-export function useSkillImageContent(path: string | null) {
+export function useSkillImageContent(skillId: string | undefined, path: string | null) {
   return useQuery({
     queryKey: ["skills", "image", path],
-    queryFn: () => skillsApi.readSkillImagePath(path!),
-    enabled: !!path,
+    queryFn: () => skillsApi.readSkillImage(skillId!, path!),
+    enabled: !!skillId && !!path,
     retry: false,
   });
 }
@@ -315,8 +316,8 @@ export function useSkillImageContent(path: string | null) {
 export function useSaveSkillFileContent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ path, content }: { path: string; content: string }) =>
-      skillsApi.writeSkillFilePath(path, content),
+    mutationFn: ({ skillId, path, content }: { skillId: string; path: string; content: string }) =>
+      skillsApi.writeSkillText(skillId, path, content),
     onSuccess: (_, { path }) => {
       qc.invalidateQueries({ queryKey: ["skills", "file", path] });
       invalidateFor(qc, "saveSkillFileContent");
@@ -454,11 +455,11 @@ export function useSkillAudit(owner?: string, repo?: string, slug?: string) {
 // ── Star / Create ──
 
 export function useStarSkill() {
-  return useStarMutation(skillsApi.starSkill, true);
+  return useStarMutation((skillId) => skillsApi.setSkillStarred(skillId, true), true);
 }
 
 export function useUnstarSkill() {
-  return useStarMutation(skillsApi.unstarSkill, false);
+  return useStarMutation((skillId) => skillsApi.setSkillStarred(skillId, false), false);
 }
 
 function useStarMutation(apiFn: (id: string) => Promise<void>, starred: boolean) {

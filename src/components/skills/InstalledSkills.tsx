@@ -840,7 +840,7 @@ export const InstalledSkills = memo(function InstalledSkills({
     setBatchAction(null);
     restoreArchivedSkillsMutation.mutate(archiveIds, {
       onSuccess: (result) => {
-        clearSucceededSelection(result.restored);
+        clearSucceededSelection(result.restored.map(({ archiveId }) => archiveId));
         if (result.failed.length > 0) {
           toast.warning(t("restoreDialog.batchPartialFailed", { count: result.failed.length }));
         }

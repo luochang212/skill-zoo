@@ -93,6 +93,7 @@ function getIconColor(name: string, isSkillMd: boolean): string {
 }
 
 interface FileTreeNodeProps {
+  skillId?: string;
   node: SkillFileNode;
   depth: number;
   selectedPath?: string;
@@ -104,6 +105,7 @@ interface FileTreeNodeProps {
 }
 
 function FileTreeNode({
+  skillId,
   node,
   depth,
   selectedPath,
@@ -128,9 +130,9 @@ function FileTreeNode({
     } else if (onSelectFile) {
       onSelectFile(node);
     } else {
-      skillsApi.openSkillPath(node.path).catch(() => {});
+      if (skillId) skillsApi.openSkillPath(skillId, node.path).catch(() => {});
     }
-  }, [expanded, isLoading, node, onLoadChildren, onSelectFile]);
+  }, [expanded, isLoading, node, onLoadChildren, onSelectFile, skillId]);
 
   const isSelected = !node.isDir && node.path === selectedPath;
   const Icon = node.isDir ? Folder : getFileIcon(node.name, node.isSkillMd);
@@ -190,6 +192,7 @@ function FileTreeNode({
           ) : (
             node.children?.map((child) => (
               <FileTreeNode
+                skillId={skillId}
                 key={child.path}
                 node={child}
                 depth={depth + 1}
@@ -209,6 +212,7 @@ function FileTreeNode({
 }
 
 interface SkillFileTreeProps {
+  skillId?: string;
   nodes: SkillFileNode[];
   isLoading?: boolean;
   isError?: boolean;
@@ -222,6 +226,7 @@ interface SkillFileTreeProps {
 }
 
 export function SkillFileTree({
+  skillId,
   nodes,
   isLoading,
   isError,
@@ -273,6 +278,7 @@ export function SkillFileTree({
       <div className="py-1">
         {nodes.map((node) => (
           <FileTreeNode
+            skillId={skillId}
             key={node.path}
             node={node}
             depth={0}

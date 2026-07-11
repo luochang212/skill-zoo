@@ -49,17 +49,10 @@ export const skillsApi = {
 
   clearSkillUpdateHistory: () => invoke<void>("clear_skill_update_history"),
 
-  removeSkill: (skillId: string) => invoke<void>("remove_skill", { skillId }),
-
   removeSkills: (skillIds: string[]) => invoke<RemoveSkillsResult>("remove_skills", { skillIds }),
-
-  archiveSkill: (skillId: string) => invoke<void>("archive_skill", { skillId }),
 
   archiveSkills: (skillIds: string[]) =>
     invoke<ArchiveSkillsResult>("archive_skills", { skillIds }),
-
-  restoreArchivedSkill: (archiveId: string) =>
-    invoke<InstalledSkill>("restore_archived_skill", { archiveId }),
 
   restoreArchivedSkills: (archiveIds: string[]) =>
     invoke<RestoreArchivedSkillsResult>("restore_archived_skills", { archiveIds }),
@@ -69,24 +62,17 @@ export const skillsApi = {
   readArchivedSkillMd: (archiveId: string) =>
     invoke<string>("read_archived_skill_md", { archiveId }),
 
-  readSkillMd: (directory: string, skillId?: string | null) =>
-    invoke<string>("read_skill_md", { directory, skillId }),
+  listSkillFiles: (skillId: string, parentPath?: string | null) =>
+    invoke<SkillFileNode[]>("list_skill_files", { skillId, parentPath }),
 
-  writeSkillMd: (directory: string, content: string, skillId?: string | null) =>
-    invoke<void>("write_skill_md", { directory, skillId, content }),
+  readSkillText: (skillId: string, relativePath: string) =>
+    invoke<string>("read_skill_text", { skillId, relativePath }),
 
-  listSkillFiles: (directory: string, skillId?: string | null) =>
-    invoke<SkillFileNode[]>("list_skill_files", { directory, skillId }),
+  readSkillImage: (skillId: string, relativePath: string) =>
+    invoke<string>("read_skill_image", { skillId, relativePath }),
 
-  listSkillFileChildren: (directory: string, parentPath?: string | null, skillId?: string | null) =>
-    invoke<SkillFileNode[]>("list_skill_file_children", { directory, skillId, parentPath }),
-
-  readSkillFilePath: (path: string) => invoke<string>("read_skill_file_path", { path }),
-
-  readSkillImagePath: (path: string) => invoke<string>("read_skill_image_path", { path }),
-
-  writeSkillFilePath: (path: string, content: string) =>
-    invoke<void>("write_skill_file_path", { path, content }),
+  writeSkillText: (skillId: string, relativePath: string, content: string) =>
+    invoke<void>("write_skill_text", { skillId, relativePath, content }),
 
   getSymlinkStatus: () => invoke<SymlinkStatus[]>("get_symlink_status"),
 
@@ -100,7 +86,8 @@ export const skillsApi = {
 
   openSkillDir: (directory: string) => invoke<void>("open_skill_dir", { directory }),
 
-  openSkillPath: (path: string) => invoke<void>("open_skill_path", { path }),
+  openSkillPath: (skillId: string, relativePath?: string | null) =>
+    invoke<void>("open_skill_path", { skillId, relativePath }),
 
   getAgentPaths: () => invoke<AgentPathInfo[]>("get_agent_paths"),
 
@@ -138,9 +125,8 @@ export const skillsApi = {
 
   // ── Star / Create ──
 
-  starSkill: (skillId: string) => invoke<void>("star_skill", { skillId }),
-
-  unstarSkill: (skillId: string) => invoke<void>("unstar_skill", { skillId }),
+  setSkillStarred: (skillId: string, starred: boolean) =>
+    invoke<void>("set_skill_starred", { skillId, starred }),
 
   setSkillIsMine: (skillId: string, isMine: boolean) =>
     invoke<void>("set_skill_is_mine", { skillId, isMine }),
@@ -214,7 +200,7 @@ export interface ArchiveSkillFailure {
 }
 
 export interface RestoreArchivedSkillsResult {
-  restored: string[];
+  restored: { archiveId: string; skill: InstalledSkill }[];
   failed: RestoreArchivedSkillFailure[];
 }
 

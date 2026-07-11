@@ -173,7 +173,7 @@ function SkillEntry({ skill, showHash }: { skill: InstalledSkill; showHash: bool
           size="sm"
           variant="ghost"
           className="h-6 text-[11px] px-2 shrink-0"
-          onClick={() => skillsApi.openSkillPath(skill.homePath!)}
+          onClick={() => skillsApi.openSkillPath(skill.id)}
         >
           <Eye className="h-3 w-3 mr-1" />
           {t("consistency.viewContent")}
@@ -224,7 +224,7 @@ function MismatchEntry({
             size="sm"
             variant="ghost"
             className="h-6 text-[11px] px-2 shrink-0"
-            onClick={() => skillsApi.openSkillPath(mismatch.homePath!)}
+            onClick={() => skillsApi.openSkillPath(mismatch.skillId)}
           >
             <Eye className="h-3 w-3 mr-1" />
             {t("consistency.viewContent")}

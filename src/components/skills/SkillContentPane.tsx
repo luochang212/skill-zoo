@@ -242,12 +242,12 @@ export const SkillContentPane = memo(function SkillContentPane({
     data: fileData,
     isLoading: fileLoading,
     error: fileError,
-  } = useSkillFileContent(isSkillMdActive || isImageActive ? null : selectedFilePath);
+  } = useSkillFileContent(skillId, isSkillMdActive || isImageActive ? null : selectedFilePath);
   const {
     data: imageData,
     isLoading: imageLoading,
     error: imageError,
-  } = useSkillImageContent(isImageActive ? selectedFilePath : null);
+  } = useSkillImageContent(skillId, isImageActive ? selectedFilePath : null);
   const fileErrorCode = apiErrorCode(fileError);
   const imageErrorCode = apiErrorCode(imageError);
   const isBinary = fileErrorCode === "binaryFile";
@@ -275,12 +275,12 @@ export const SkillContentPane = memo(function SkillContentPane({
   const isDirty = !isSkillMdActive && fileEditContent !== null && fileEditContent !== fileData;
 
   const handleFileSave = useCallback(() => {
-    if (!selectedFilePath || !isDirty || saveFileMutation.isPending) return;
+    if (!skillId || !selectedFilePath || !isDirty || saveFileMutation.isPending) return;
     saveFileMutation.mutate(
-      { path: selectedFilePath, content: fileEditContent! },
+      { skillId, path: selectedFilePath, content: fileEditContent! },
       { onSuccess: () => setFileEditContent(null) },
     );
-  }, [selectedFilePath, isDirty, fileEditContent, saveFileMutation]);
+  }, [skillId, selectedFilePath, isDirty, fileEditContent, saveFileMutation]);
 
   const handleLoadChildren = useCallback(
     async (node: SkillFileNode) => {
@@ -299,7 +299,7 @@ export const SkillContentPane = memo(function SkillContentPane({
       try {
         const children = await queryClient.fetchQuery({
           queryKey: ["skills", "fileChildren", skillId, directory, node.path],
-          queryFn: () => skillsApi.listSkillFileChildren(directory, node.path, skillId),
+          queryFn: () => skillsApi.listSkillFiles(skillId!, node.path),
           staleTime: 30 * 1000,
         });
         setNodes((current) => setNodeChildren(current, node.path, children));
@@ -524,6 +524,7 @@ export const SkillContentPane = memo(function SkillContentPane({
             }}
           >
             <SkillFileTree
+              skillId={skillId}
               nodes={nodes}
               isLoading={rootLoading}
               isError={rootError}
@@ -562,9 +563,11 @@ export const SkillContentPane = memo(function SkillContentPane({
                 : t("skillFiles.binaryFile")}
             </p>
             <button
-              onClick={() =>
-                selectedFilePath && skillsApi.openSkillPath(selectedFilePath).catch(() => {})
-              }
+              onClick={() => {
+                if (skillId && selectedFilePath) {
+                  skillsApi.openSkillPath(skillId, selectedFilePath).catch(() => {});
+                }
+              }}
               className="text-xs px-3 py-1.5 rounded-md border border-border hover:bg-accent transition-colors"
             >
               {t("skillFiles.openInFinder")}

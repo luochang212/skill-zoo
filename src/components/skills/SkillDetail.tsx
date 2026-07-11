@@ -173,7 +173,7 @@ export function SkillDetail({
               ? undefined
               : () => {
                   if (skill.homePath) {
-                    skillsApi.openSkillPath(skill.homePath);
+                    skillsApi.openSkillPath(skill.id);
                   } else {
                     skillsApi.openSkillDir(skill.directory);
                   }

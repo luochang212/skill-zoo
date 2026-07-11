@@ -163,7 +163,10 @@ describe("useRestoreArchivedSkill", () => {
       installedAt: 5000,
       updatedAt: 6000,
     };
-    vi.mocked(invoke).mockResolvedValue(restoredSkill);
+    vi.mocked(invoke).mockResolvedValue({
+      restored: [{ archiveId: "restored-skill-archive-id", skill: restoredSkill }],
+      failed: [],
+    });
     const { wrapper, queryClient } = createQueryWrapper();
 
     queryClient.setQueryData(["skills", "installed"], mockSkills);
@@ -222,7 +225,7 @@ describe("useRemoveSkill", () => {
   });
 
   it("invalidates external imports because remove can unregister external skills", async () => {
-    vi.mocked(invoke).mockResolvedValue(undefined);
+    vi.mocked(invoke).mockResolvedValue({ removed: ["external:demo"], failed: [] });
     const { wrapper, queryClient } = createQueryWrapper();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 

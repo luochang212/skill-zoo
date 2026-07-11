@@ -11,8 +11,8 @@ use crate::services::cli::{CliService, KnownSkillUpdate};
 use crate::services::github;
 use crate::services::lock::{SkillLock, SUPPORTED_LOCK_VERSION};
 use crate::services::skill::{
-    is_symlink_or_junction, DiscoverableSkill, InstalledSkill, RepoSkillsResult, SkillFileNode,
-    SkillService, SymlinkStatus,
+    is_symlink_or_junction, DiscoverableSkill, InstalledSkill, ManagedSkill, RepoSkillsResult,
+    SkillFileNode, SkillService, SymlinkStatus,
 };
 use crate::store::AppState;
 use serde::{Deserialize, Serialize};
@@ -154,6 +154,30 @@ fn log_archive_rollback_error(action: &str, error: impl std::fmt::Display) {
     eprintln!("Archive rollback failed during {action}: {error}");
 }
 
+fn restore_archive_stores(
+    state: &AppState,
+    cache_snapshot: &SkillCache,
+    metadata_snapshot: &crate::persistence::MetadataStore,
+    manifest_snapshot: &ArchiveManifest,
+    operation: &str,
+) {
+    if let Ok(mut cache) = state.skill_cache.write() {
+        *cache = cache_snapshot.clone();
+        if let Err(error) = cache.save() {
+            log_archive_rollback_error(&format!("restore cache after {operation}"), error);
+        }
+    }
+    if let Ok(mut metadata) = state.metadata.write() {
+        *metadata = metadata_snapshot.clone();
+        if let Err(error) = metadata.save() {
+            log_archive_rollback_error(&format!("restore metadata after {operation}"), error);
+        }
+    }
+    if let Err(error) = manifest_snapshot.save() {
+        log_archive_rollback_error(&format!("restore manifest after {operation}"), error);
+    }
+}
+
 fn known_skill_roots() -> Vec<PathBuf> {
     std::iter::once(config::get_agents_skills_dir())
         .chain(
@@ -187,65 +211,6 @@ fn is_path_under_roots(path: &Path, roots: &[PathBuf], must_exist: bool) -> bool
         .iter()
         .filter_map(|root| root.canonicalize().ok())
         .any(|root| real_path == root || real_path.starts_with(root))
-}
-
-fn is_existing_path_under_skill_dir(path: &Path) -> bool {
-    is_path_under_roots(path, &known_skill_roots(), true)
-}
-
-fn is_writable_path_under_skill_dir(path: &Path) -> bool {
-    is_path_under_roots(path, &known_skill_roots(), false)
-}
-
-fn is_existing_path_under_cached_skill(cache: &SkillCache, path: &Path) -> bool {
-    if !path.is_absolute() {
-        return false;
-    }
-    let Some(real_path) = canonical_path_for_boundary(path, true) else {
-        return false;
-    };
-    cache.iter().any(|skill| {
-        skill
-            .home_path
-            .as_deref()
-            .and_then(|home| Path::new(home).canonicalize().ok())
-            .is_some_and(|home| real_path == home || real_path.starts_with(home))
-    })
-}
-
-fn is_writable_path_under_cached_skill(cache: &SkillCache, path: &Path) -> bool {
-    if !path.is_absolute() {
-        return false;
-    }
-    let Some(real_path) = canonical_path_for_boundary(path, false) else {
-        return false;
-    };
-    cache.iter().any(|skill| {
-        skill.origin != "external"
-            && skill
-                .home_path
-                .as_deref()
-                .and_then(|home| Path::new(home).canonicalize().ok())
-                .is_some_and(|home| real_path == home || real_path.starts_with(home))
-    })
-}
-
-fn is_existing_path_under_external_import(path: &Path) -> bool {
-    if !path.is_absolute() {
-        return false;
-    }
-    let Some(real_path) = canonical_path_for_boundary(path, true) else {
-        return false;
-    };
-    let Ok(imports) = ExternalImports::load() else {
-        return false;
-    };
-    imports.imports.values().any(|import| {
-        Path::new(&import.source_path)
-            .canonicalize()
-            .ok()
-            .is_some_and(|source| real_path == source || real_path.starts_with(source))
-    })
 }
 
 fn link_points_to_import_source(link_path: &Path, source_path: &Path) -> bool {
@@ -1235,78 +1200,6 @@ fn update_result_with_added_error(
     update_result_with_error_count(result)
 }
 
-fn resolve_skill_home_dir_from_cache(
-    cache: &SkillCache,
-    skill_id: Option<&str>,
-    directory: &str,
-) -> Result<PathBuf, String> {
-    validate_skill_directory(directory)?;
-
-    if let Some(skill_id) = skill_id {
-        let skill = cache
-            .find_by_id(skill_id)
-            .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
-        if skill.directory != directory {
-            return Err(format!(
-                "Skill id does not match requested directory: {skill_id}"
-            ));
-        }
-        let home_path = skill
-            .home_path
-            .as_ref()
-            .ok_or_else(|| "Skill has no physical home path".to_string())?;
-        let home = PathBuf::from(home_path);
-        if !home.is_dir() {
-            return Err(format!(
-                "Skill home path does not exist: {}",
-                home.display()
-            ));
-        }
-        return Ok(home);
-    }
-
-    resolve_skill_home_dir_by_directory(directory)
-}
-
-fn assert_skill_editable(
-    cache: &SkillCache,
-    skill_id: Option<&str>,
-    directory: &str,
-) -> Result<(), String> {
-    if let Some(skill_id) = skill_id {
-        let skill = cache
-            .find_by_id(skill_id)
-            .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
-        if skill.directory != directory {
-            return Err(format!(
-                "Skill id does not match requested directory: {skill_id}"
-            ));
-        }
-        if skill.origin == "external" {
-            return Err("External imported skills are read-only in Skill Zoo.".to_string());
-        }
-        return Ok(());
-    }
-
-    if cache
-        .iter()
-        .any(|skill| skill.directory == directory && skill.origin == "external")
-    {
-        return Err("External imported skills are read-only in Skill Zoo.".to_string());
-    }
-    Ok(())
-}
-
-fn resolve_skill_home_dir_by_directory(directory: &str) -> Result<PathBuf, String> {
-    validate_skill_directory(directory)?;
-
-    known_skill_roots()
-        .into_iter()
-        .map(|root| root.join(directory))
-        .find(|skill_dir| skill_dir.is_dir())
-        .ok_or_else(|| format!("Skill directory not found for: {directory}"))
-}
-
 fn remove_lock_entry_for_skill(skill: &SkillCacheEntry) {
     if skill.origin != "ssot" {
         return;
@@ -1382,73 +1275,6 @@ fn scan_cached_skill_home(
     SkillService::scan_skill_root(skill_dir, &scan_root, agent_id).map_err(|e| e.to_string())
 }
 
-fn find_cached_skill_for_path(cache: &SkillCache, path: &Path) -> Option<SkillCacheEntry> {
-    let real_path = path.canonicalize().ok()?;
-    cache
-        .iter()
-        .filter_map(|skill| {
-            let home_path = PathBuf::from(skill.home_path.as_ref()?);
-            let real_home = home_path.canonicalize().ok()?;
-            if real_path == real_home || real_path.starts_with(&real_home) {
-                Some((real_home.components().count(), skill.clone()))
-            } else {
-                None
-            }
-        })
-        .max_by_key(|(depth, _)| *depth)
-        .map(|(_, skill)| skill)
-}
-
-fn scan_skill_home_for_cache(
-    state: &AppState,
-    skill_dir: &Path,
-    directory: &str,
-) -> Result<SkillCacheEntry, String> {
-    let cached = {
-        let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-        find_cached_skill_for_path(&cache, skill_dir)
-    };
-    if let Some(skill) = cached {
-        return scan_cached_skill_home(&skill, skill_dir);
-    }
-
-    if skill_dir.starts_with(config::get_agents_skills_dir()) {
-        return SkillService::scan_skill_root(skill_dir, &config::get_agents_skills_dir(), None)
-            .map_err(|e| e.to_string());
-    }
-
-    for agent in config::AGENTS {
-        if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
-            if skill_dir.starts_with(&agent_dir) {
-                return SkillService::scan_skill_root(skill_dir, &agent_dir, Some(agent.id))
-                    .map_err(|e| e.to_string());
-            }
-        }
-    }
-
-    SkillService::scan_single_skill(directory).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub async fn remove_skill(state: State<'_, AppState>, skill_id: String) -> Result<(), String> {
-    let skill = SkillService::find_in_cache(&state.skill_cache, &skill_id)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
-
-    remove_cached_skill_from_disk(&skill)?;
-
-    SkillService::remove_cache_entry(&state.skill_cache, &skill_id).map_err(|e| e.to_string())?;
-
-    // Clean up metadata for removed skill
-    {
-        let mut metadata = state.metadata.write().map_err(|e| e.to_string())?;
-        metadata.remove(&skill_id);
-        metadata.save().map_err(|e| e.to_string())?;
-    }
-
-    Ok(())
-}
-
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoveSkillsResult {
@@ -1480,8 +1306,15 @@ pub struct ArchiveSkillFailure {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RestoreArchivedSkillsResult {
-    pub restored: Vec<String>,
+    pub restored: Vec<RestoredArchivedSkill>,
     pub failed: Vec<RestoreArchivedSkillFailure>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoredArchivedSkill {
+    pub archive_id: String,
+    pub skill: InstalledSkill,
 }
 
 #[derive(Debug, Serialize)]
@@ -1736,21 +1569,13 @@ fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String>
                 log_archive_rollback_error("restore agent symlink after archive failure", e);
             }
         }
-        if let Ok(mut cache) = state.skill_cache.write() {
-            *cache = old_cache.clone();
-            if let Err(e) = cache.save() {
-                log_archive_rollback_error("restore cache after archive failure", e);
-            }
-        }
-        if let Ok(mut metadata) = state.metadata.write() {
-            *metadata = old_metadata.clone();
-            if let Err(e) = metadata.save() {
-                log_archive_rollback_error("restore metadata after archive failure", e);
-            }
-        }
-        if let Err(e) = old_manifest.save() {
-            log_archive_rollback_error("restore manifest after archive failure", e);
-        }
+        restore_archive_stores(
+            state,
+            &old_cache,
+            &old_metadata,
+            &old_manifest,
+            "archive failure",
+        );
         message
     };
 
@@ -1815,11 +1640,6 @@ fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String>
 }
 
 #[tauri::command]
-pub fn archive_skill(state: State<'_, AppState>, skill_id: String) -> Result<(), String> {
-    archive_skill_inner(&state, skill_id)
-}
-
-#[tauri::command]
 pub fn archive_skills(
     state: State<'_, AppState>,
     skill_ids: Vec<String>,
@@ -1838,30 +1658,22 @@ pub fn archive_skills(
 }
 
 #[tauri::command]
-pub fn restore_archived_skill(
-    state: State<'_, AppState>,
-    archive_id: String,
-) -> Result<InstalledSkill, String> {
-    let restored_id = restore_archived_skill_inner(&state, archive_id)?;
-    let skills = SkillService::read_all_skills(&state.skill_cache, &state.metadata)
-        .map_err(|e| e.to_string())?;
-    skills
-        .into_iter()
-        .find(|s| s.id == restored_id)
-        .ok_or_else(|| "Skill restored but not found in cache".to_string())
-}
-
-#[tauri::command]
 pub fn restore_archived_skills(
     state: State<'_, AppState>,
     archive_ids: Vec<String>,
 ) -> Result<RestoreArchivedSkillsResult, String> {
-    let mut restored: Vec<String> = Vec::new();
+    let mut restored: Vec<RestoredArchivedSkill> = Vec::new();
     let mut failed: Vec<RestoreArchivedSkillFailure> = Vec::new();
 
     for archive_id in archive_ids {
-        match restore_archived_skill_inner(&state, archive_id.clone()) {
-            Ok(_) => restored.push(archive_id),
+        match restore_archived_skill_inner(&state, archive_id.clone()).and_then(|restored_id| {
+            SkillService::read_all_skills(&state.skill_cache, &state.metadata)
+                .map_err(|e| e.to_string())?
+                .into_iter()
+                .find(|skill| skill.id == restored_id)
+                .ok_or_else(|| "Skill restored but not found in cache".to_string())
+        }) {
+            Ok(skill) => restored.push(RestoredArchivedSkill { archive_id, skill }),
             Err(e) => failed.push(RestoreArchivedSkillFailure {
                 archive_id,
                 error: e,
@@ -1975,18 +1787,13 @@ fn restore_archived_skill_inner(state: &AppState, archive_id: String) -> Result<
                 log_archive_rollback_error("move restored skill back to archive", e);
             }
         }
-        if let Ok(mut cache) = state.skill_cache.write() {
-            *cache = old_cache.clone();
-            if let Err(e) = cache.save() {
-                log_archive_rollback_error("restore cache after restore failure", e);
-            }
-        }
-        if let Ok(mut metadata) = state.metadata.write() {
-            *metadata = old_metadata.clone();
-            if let Err(e) = metadata.save() {
-                log_archive_rollback_error("restore metadata after restore failure", e);
-            }
-        }
+        restore_archive_stores(
+            state,
+            &old_cache,
+            &old_metadata,
+            &old_manifest,
+            "restore failure",
+        );
         let restore_key = archived_skill
             .lock_key
             .clone()
@@ -1996,9 +1803,6 @@ fn restore_archived_skill_inner(state: &AppState, archive_id: String) -> Result<
             Ok::<(), AppError>(())
         }) {
             log_archive_rollback_error("remove restored lock entry after restore failure", e);
-        }
-        if let Err(e) = old_manifest.save() {
-            log_archive_rollback_error("restore manifest after restore failure", e);
         }
         message
     };
@@ -2131,97 +1935,14 @@ fn restore_archived_skill_inner(state: &AppState, archive_id: String) -> Result<
 }
 
 #[tauri::command]
-pub fn read_skill_md(
-    state: State<'_, AppState>,
-    directory: String,
-    skill_id: Option<String>,
-) -> Result<String, String> {
-    let skill_dir = {
-        let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-        resolve_skill_home_dir_from_cache(&cache, skill_id.as_deref(), &directory)?
-    };
-    let skill_md = skill_dir.join("SKILL.md");
-    if !skill_md.exists() {
-        return Err(format!("SKILL.md not found for: {directory}"));
-    }
-    std::fs::read_to_string(&skill_md).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn write_skill_md(
-    state: State<'_, AppState>,
-    directory: String,
-    skill_id: Option<String>,
-    content: String,
-) -> Result<(), String> {
-    let skill_dir = {
-        let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-        assert_skill_editable(&cache, skill_id.as_deref(), &directory)?;
-        resolve_skill_home_dir_from_cache(&cache, skill_id.as_deref(), &directory)?
-    };
-    let skill_md = skill_dir.join("SKILL.md");
-
-    let parent = skill_md
-        .parent()
-        .ok_or_else(|| "Invalid skill path".to_string())?;
-    std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-
-    atomic_write(&skill_md, &content).map_err(|e| e.to_string())?;
-
-    // Update lock file timestamp so resolve_timestamps reflects the edit.
-    {
-        let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-        let should_update_lock = skill_id
-            .as_deref()
-            .and_then(|id| cache.find_by_id(id))
-            .map(|skill| skill.origin == "ssot")
-            .unwrap_or_else(|| {
-                cache
-                    .iter()
-                    .any(|skill| skill.directory == directory && skill.origin == "ssot")
-            });
-        if should_update_lock {
-            let _ = SkillLock::update(|lock| {
-                if let Some(entry) = lock.skills.get_mut(&directory) {
-                    entry.updated_at = Some(chrono::Utc::now().to_rfc3339());
-                }
-                Ok::<(), AppError>(())
-            });
-        }
-    }
-
-    // Refresh cache to pick up changed name/description/contentHash/updatedAt
-    let entry = scan_skill_home_for_cache(&state, &skill_dir, &directory)?;
-    SkillService::upsert_cache_entry(&state.skill_cache, entry).map_err(|e| e.to_string())?;
-
-    Ok(())
-}
-
-#[tauri::command]
 pub fn list_skill_files(
     state: State<'_, AppState>,
-    directory: String,
-    skill_id: Option<String>,
-) -> Result<Vec<SkillFileNode>, String> {
-    let skill_dir = {
-        let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-        resolve_skill_home_dir_from_cache(&cache, skill_id.as_deref(), &directory)?
-    };
-    SkillService::list_skill_files_at(&skill_dir).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn list_skill_file_children(
-    state: State<'_, AppState>,
-    directory: String,
-    skill_id: Option<String>,
+    skill_id: String,
     parent_path: Option<String>,
 ) -> Result<Vec<SkillFileNode>, String> {
-    let skill_dir = {
-        let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-        resolve_skill_home_dir_from_cache(&cache, skill_id.as_deref(), &directory)?
-    };
-    SkillService::list_skill_file_children_at(&skill_dir, parent_path.as_deref())
+    let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
+    let skill = ManagedSkill::resolve(&cache, &skill_id, false).map_err(|e| e.to_string())?;
+    SkillService::list_skill_file_children_at(&skill.root, parent_path.as_deref())
         .map_err(|e| e.to_string())
 }
 
@@ -2382,35 +2103,25 @@ fn skill_file_error(code: &'static str, message: impl Into<String>) -> CommandEr
     }
 }
 
-/// Read a text file at an absolute skill path (UTF-8 only).
 #[tauri::command]
-pub fn read_skill_file_path(
+pub fn read_skill_text(
     state: State<'_, AppState>,
-    path: String,
+    skill_id: String,
+    relative_path: String,
 ) -> Result<String, CommandError> {
-    if path.is_empty() || path.contains('\0') {
-        return Err(CommandError::bad_request("Invalid path"));
-    }
-    let p = std::path::Path::new(&path);
-    if !p.is_absolute() {
-        return Err(CommandError::bad_request("Path must be absolute"));
-    }
     let cache = state
         .skill_cache
         .read()
         .map_err(|e| CommandError::generic(e.to_string()))?;
-    if !is_existing_path_under_skill_dir(p) && !is_existing_path_under_cached_skill(&cache, p) {
-        return Err(CommandError::bad_request(
-            "Path is not under a known skill directory",
-        ));
-    }
+    let skill = ManagedSkill::resolve(&cache, &skill_id, false)
+        .map_err(|e| CommandError::bad_request(e.to_string()))?;
+    let p = skill
+        .existing_path(&relative_path)
+        .map_err(|e| CommandError::bad_request(e.to_string()))?;
     if !p.is_file() {
-        return Err(CommandError::bad_request(format!(
-            "Not a file: {}",
-            p.display()
-        )));
+        return Err(CommandError::bad_request("Path is not a file"));
     }
-    let bytes = std::fs::read(p).map_err(|e| CommandError::generic(e.to_string()))?;
+    let bytes = std::fs::read(&p).map_err(|e| CommandError::generic(e.to_string()))?;
     String::from_utf8(bytes).map_err(|_| skill_file_error("binaryFile", "File is not UTF-8 text"))
 }
 
@@ -2433,127 +2144,81 @@ fn image_mime_from_path(path: &Path) -> Option<&'static str> {
     }
 }
 
-/// Read an image at an absolute skill path and return a browser-displayable data URL.
 #[tauri::command]
-pub fn read_skill_image_path(
+pub fn read_skill_image(
     state: State<'_, AppState>,
-    path: String,
+    skill_id: String,
+    relative_path: String,
 ) -> Result<String, CommandError> {
-    if path.is_empty() || path.contains('\0') {
-        return Err(CommandError::bad_request("Invalid path"));
-    }
-    let p = std::path::Path::new(&path);
-    if !p.is_absolute() {
-        return Err(CommandError::bad_request("Path must be absolute"));
-    }
     let cache = state
         .skill_cache
         .read()
         .map_err(|e| CommandError::generic(e.to_string()))?;
-    if !is_existing_path_under_skill_dir(p) && !is_existing_path_under_cached_skill(&cache, p) {
-        return Err(CommandError::bad_request(
-            "Path is not under a known skill directory",
-        ));
-    }
+    let skill = ManagedSkill::resolve(&cache, &skill_id, false)
+        .map_err(|e| CommandError::bad_request(e.to_string()))?;
+    let p = skill
+        .existing_path(&relative_path)
+        .map_err(|e| CommandError::bad_request(e.to_string()))?;
     if !p.is_file() {
-        return Err(CommandError::bad_request(format!(
-            "Not a file: {}",
-            p.display()
-        )));
+        return Err(CommandError::bad_request("Path is not a file"));
     }
-    let mime = image_mime_from_path(p)
+    let mime = image_mime_from_path(&p)
         .ok_or_else(|| skill_file_error("unsupportedImageFile", "Unsupported image file"))?;
-    let metadata = std::fs::metadata(p).map_err(|e| CommandError::generic(e.to_string()))?;
+    let metadata = std::fs::metadata(&p).map_err(|e| CommandError::generic(e.to_string()))?;
     if metadata.len() > MAX_IMAGE_PREVIEW_BYTES {
         return Err(skill_file_error("imageTooLarge", "Image file is too large"));
     }
-    let bytes = std::fs::read(p).map_err(|e| CommandError::generic(e.to_string()))?;
+    let bytes = std::fs::read(&p).map_err(|e| CommandError::generic(e.to_string()))?;
     use base64::Engine;
     let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
     Ok(format!("data:{mime};base64,{encoded}"))
 }
 
-/// Write content to a text file at an absolute skill path.
-/// Also updates the skill's lock timestamp and cache so updatedAt reflects the change.
 #[tauri::command]
-pub fn write_skill_file_path(
+pub fn write_skill_text(
     state: State<'_, AppState>,
-    path: String,
+    skill_id: String,
+    relative_path: String,
     content: String,
 ) -> Result<(), String> {
-    if path.is_empty() || path.contains('\0') {
-        return Err("Invalid path".into());
-    }
-    let p = std::path::Path::new(&path);
-    if !p.is_absolute() {
-        return Err("Path must be absolute".into());
-    }
-    let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-    if !is_writable_path_under_skill_dir(p) && !is_writable_path_under_cached_skill(&cache, p) {
-        return Err("Path is not under a known skill directory".into());
-    }
-    drop(cache);
-    atomic_write(p, content).map_err(|e| e.to_string())?;
-
-    let cached_skill = {
+    let skill = {
         let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-        find_cached_skill_for_path(&cache, p)
+        ManagedSkill::resolve(&cache, &skill_id, true).map_err(|e| e.to_string())?
     };
+    let path = skill
+        .writable_path(&relative_path)
+        .map_err(|e| e.to_string())?;
+    atomic_write(&path, content).map_err(|e| e.to_string())?;
 
-    if let Some(skill) = cached_skill {
-        // Update lock file timestamp
-        if skill.origin == "ssot" {
-            let _ = SkillLock::update(|lock| {
-                if let Some(entry) = lock.skills.get_mut(&skill.directory) {
-                    entry.updated_at = Some(chrono::Utc::now().to_rfc3339());
-                }
-                Ok::<(), AppError>(())
-            });
-        }
-        // Refresh cache so updatedAt is reflected in the frontend
-        let home = PathBuf::from(
-            skill
-                .home_path
-                .as_ref()
-                .ok_or_else(|| "Skill has no physical home path".to_string())?,
-        );
-        if let Ok(entry) = scan_cached_skill_home(&skill, &home) {
-            let _ = SkillService::upsert_cache_entry(&state.skill_cache, entry);
-        }
+    if skill.entry.origin == "ssot" {
+        let _ = SkillLock::update(|lock| {
+            if let Some(entry) = lock.skills.get_mut(&skill.entry.directory) {
+                entry.updated_at = Some(chrono::Utc::now().to_rfc3339());
+            }
+            Ok::<(), AppError>(())
+        });
     }
+    let entry = scan_cached_skill_home(&skill.entry, &skill.root)?;
+    SkillService::upsert_cache_entry(&state.skill_cache, entry).map_err(|e| e.to_string())?;
 
     Ok(())
 }
 
-/// Open an absolute skill path in the file manager.
-/// Validates that the path is under a known skill directory (SSOT or agent).
 #[tauri::command]
 pub fn open_skill_path(
     state: State<'_, AppState>,
     app_handle: tauri::AppHandle,
-    path: String,
+    skill_id: String,
+    relative_path: Option<String>,
 ) -> Result<(), String> {
-    if path.is_empty() || path.contains('\0') {
-        return Err("Invalid path".into());
-    }
-    let p = std::path::Path::new(&path);
-    if !p.is_absolute() {
-        return Err("Path must be absolute".into());
-    }
-    // Verify the path is under a known skill directory
     let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-    if !is_existing_path_under_skill_dir(p)
-        && !is_existing_path_under_cached_skill(&cache, p)
-        && !is_existing_path_under_external_import(p)
-    {
-        return Err("Path is not under a known skill directory".into());
-    }
-    if !p.exists() {
-        return Err(format!("Path does not exist: {}", p.display()));
-    }
+    let skill = ManagedSkill::resolve(&cache, &skill_id, false).map_err(|e| e.to_string())?;
+    let path = skill
+        .existing_path(relative_path.as_deref().unwrap_or(""))
+        .map_err(|e| e.to_string())?;
     app_handle
         .opener()
-        .open_path(path, None::<&str>)
+        .open_path(path.to_string_lossy(), None::<&str>)
         .map_err(|e| e.to_string())
 }
 
@@ -3205,7 +2870,7 @@ pub async fn preview_skill_md(
     let mut archive =
         zip::ZipArchive::new(file).map_err(|e| CommandError::from(AppError::from(e)))?;
 
-    let needle = format!("/{}/SKILL.md", &skill_dir);
+    let needle = format!("/{}/SKILL.md", skill_dir);
     for i in 0..archive.len() {
         let mut entry = archive
             .by_index(i)
@@ -3409,16 +3074,13 @@ pub async fn get_skill_audit(
 // ────────────── Star / Unstar / Create ──────────────
 
 #[tauri::command]
-pub fn star_skill(state: State<'_, AppState>, skill_id: String) -> Result<(), String> {
+pub fn set_skill_starred(
+    state: State<'_, AppState>,
+    skill_id: String,
+    starred: bool,
+) -> Result<(), String> {
     let mut metadata = state.metadata.write().map_err(|e| e.to_string())?;
-    metadata.set_starred(&skill_id, true);
-    metadata.save().map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn unstar_skill(state: State<'_, AppState>, skill_id: String) -> Result<(), String> {
-    let mut metadata = state.metadata.write().map_err(|e| e.to_string())?;
-    metadata.set_starred(&skill_id, false);
+    metadata.set_starred(&skill_id, starred);
     metadata.save().map_err(|e| e.to_string())
 }
 
@@ -3766,35 +3428,6 @@ mod tests {
     }
 
     #[test]
-    fn resolves_skill_home_dir_by_skill_id_not_directory_priority() {
-        let root = tempfile::tempdir().expect("tempdir");
-        let ssot_home = root.path().join(".agents").join("skills").join("demo");
-        let agent_home = root.path().join(".codex").join("skills").join("demo");
-        std::fs::create_dir_all(&ssot_home).expect("create ssot skill");
-        std::fs::create_dir_all(&agent_home).expect("create agent skill");
-
-        let cache = crate::persistence::SkillCache::from_entries(vec![
-            test_cache_entry_with_home(
-                "repo:owner/repo:demo",
-                "demo",
-                "ssot",
-                Some(ssot_home.to_string_lossy().to_string()),
-            ),
-            test_cache_entry_with_home(
-                "agent:codex:demo",
-                "demo",
-                "agent",
-                Some(agent_home.to_string_lossy().to_string()),
-            ),
-        ]);
-
-        let resolved = resolve_skill_home_dir_from_cache(&cache, Some("agent:codex:demo"), "demo")
-            .expect("resolve skill home");
-
-        assert_eq!(resolved, agent_home);
-    }
-
-    #[test]
     fn remove_cached_skill_from_disk_removes_selected_home_not_same_named_duplicate() {
         let root = tempfile::tempdir().expect("tempdir");
         let ssot_home = root.path().join(".agents").join("skills").join("demo");
@@ -3864,23 +3497,6 @@ mod tests {
         assert_eq!(removed, 1);
         assert!(!link.exists());
         assert!(source.exists());
-    }
-
-    #[test]
-    fn external_cached_paths_are_not_writable() {
-        let root = tempfile::tempdir().expect("tempdir");
-        let source = root.path().join("demo");
-        std::fs::create_dir_all(&source).expect("create source");
-        let note = source.join("notes.md");
-        let cache = crate::persistence::SkillCache::from_entries(vec![test_cache_entry_with_home(
-            "external:demo",
-            "demo",
-            "external",
-            Some(source.to_string_lossy().to_string()),
-        )]);
-
-        assert!(!is_writable_path_under_cached_skill(&cache, &note));
-        assert!(assert_skill_editable(&cache, Some("external:demo"), "demo").is_err());
     }
 
     #[test]

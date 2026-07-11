@@ -75,13 +75,13 @@ describe("App local skill detail navigation", () => {
           return Promise.resolve({});
         case "get_visible_agents":
           return Promise.resolve({});
-        case "read_skill_md":
+        case "read_skill_text":
           return Promise.resolve("# Skill content");
-        case "list_skill_file_children":
+        case "list_skill_files":
           return Promise.resolve([
             {
               name: "SKILL.md",
-              path: "/tmp/skill/SKILL.md",
+              path: "SKILL.md",
               isDir: false,
               isSkillMd: true,
             },
