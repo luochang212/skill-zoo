@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.32] — 2026-07-12
+
+### Fixed
+- Skill drag link success toast now waits for the agent link confirmation before appearing, preventing the toast from being suppressed when the linked state resolves after the drag animation completes.
+
 ## [0.3.31] — 2026-07-12
 
 ### Fixed
