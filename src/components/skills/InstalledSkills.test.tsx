@@ -2,7 +2,7 @@ import "@/i18n";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { InstalledSkills } from "./InstalledSkills";
 import type { InstalledSkill } from "@/types/skills";
 import type { ReactNode } from "react";
@@ -147,6 +147,11 @@ describe("InstalledSkills visible agent filtering", () => {
     vi.useRealTimers();
   });
 
+  afterEach(() => {
+    document.querySelectorAll("[data-dnd-dragging]").forEach((element) => element.remove());
+    vi.useRealTimers();
+  });
+
   it("shows SSOT, visible-agent entity, and external skills in All", () => {
     mocks.visibleAgentOrder = ["claude-code"];
     mocks.skills = [
@@ -247,7 +252,7 @@ describe("InstalledSkills visible agent filtering", () => {
       }),
     ];
 
-    renderInstalledSkills();
+    const view = renderInstalledSkills();
 
     act(() => {
       mocks.onDragStart?.({ operation: { source: { id: "skill:external-skill" } } });
@@ -279,11 +284,83 @@ describe("InstalledSkills visible agent filtering", () => {
     });
     expect(toast.success).not.toHaveBeenCalled();
     activeDragFeedback.remove();
+    mocks.skills = [
+      skill({
+        id: "external-skill",
+        name: "External Skill",
+        origin: "external",
+        apps: { "claude-code": true, codex: true },
+      }),
+    ];
+    view.rerender(
+      <InstalledSkills
+        category={{ type: "all" }}
+        onSelectCategory={vi.fn()}
+        onViewSkill={vi.fn()}
+        onViewArchivedSkill={vi.fn()}
+      />,
+    );
 
     act(() => {
       vi.advanceTimersByTime(16);
       vi.runOnlyPendingTimers();
     });
+    expect(toast.success).toHaveBeenCalledWith("External Skill linked to Codex");
+  });
+
+  it("demotes stale drag feedback before showing the link toast", async () => {
+    vi.useFakeTimers();
+    const staleDragFeedback = document.createElement("div");
+    staleDragFeedback.setAttribute("data-dnd-dragging", "");
+    document.body.append(staleDragFeedback);
+    mocks.skills = [
+      skill({
+        id: "external-skill",
+        name: "External Skill",
+        origin: "external",
+        apps: { "claude-code": true },
+      }),
+    ];
+
+    const view = renderInstalledSkills();
+
+    act(() => {
+      mocks.onDragStart?.({ operation: { source: { id: "skill:external-skill" } } });
+      mocks.onDragEnd?.({
+        canceled: false,
+        operation: {
+          source: { id: "skill:external-skill" },
+          target: { id: "agent:codex" },
+        },
+      });
+    });
+    await act(async () => {});
+
+    mocks.skills = [
+      skill({
+        id: "external-skill",
+        name: "External Skill",
+        origin: "external",
+        apps: { "claude-code": true, codex: true },
+      }),
+    ];
+    view.rerender(
+      <InstalledSkills
+        category={{ type: "all" }}
+        onSelectCategory={vi.fn()}
+        onViewSkill={vi.fn()}
+        onViewArchivedSkill={vi.fn()}
+      />,
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+      vi.runOnlyPendingTimers();
+    });
+
+    expect(staleDragFeedback).toHaveAttribute("data-dnd-stale-after-drop");
+    expect(staleDragFeedback.style.getPropertyValue("z-index")).toBe("100");
+    expect(staleDragFeedback.style.getPropertyPriority("z-index")).toBe("important");
     expect(toast.success).toHaveBeenCalledWith("External Skill linked to Codex");
   });
 

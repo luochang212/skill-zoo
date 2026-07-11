@@ -69,6 +69,13 @@ interface InstalledSkillsProps {
 type SortField = "name" | "repo" | "updatedAt";
 type SortDirection = "asc" | "desc";
 type BatchAction = "archive" | "remove" | "restore" | "unlink";
+type PendingLinkToast = {
+  skillId: string;
+  skillName: string;
+  agent: string;
+  agentLabel: string;
+  afterDropSettled: SkillDropControls["afterDropSettled"];
+};
 
 const EMPTY_SKILLS: InstalledSkill[] = [];
 const EMPTY_ARCHIVED_SKILLS: ArchivedSkill[] = [];
@@ -415,6 +422,7 @@ export const InstalledSkills = memo(function InstalledSkills({
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchAction, setBatchAction] = useState<BatchAction | null>(null);
+  const [pendingLinkToast, setPendingLinkToast] = useState<PendingLinkToast | null>(null);
   const [consistencyNavTarget, setConsistencyNavTarget] = useState<{
     tab: ConsistencyTab;
     targetId: string;
@@ -452,6 +460,27 @@ export const InstalledSkills = memo(function InstalledSkills({
   const archivedList = archivedSkills ?? EMPTY_ARCHIVED_SKILLS;
   const isArchiveView = category.type === "archived";
   const visibleAgentSet = useMemo(() => new Set(visibleAgentOrder), [visibleAgentOrder]);
+
+  useEffect(() => {
+    if (!pendingLinkToast) return;
+
+    const skill = skillsList.find((item) => item.id === pendingLinkToast.skillId);
+    const linked =
+      !!skill &&
+      (skill.homeAgent === pendingLinkToast.agent || !!skill.apps[pendingLinkToast.agent]);
+    if (!linked) return;
+
+    const toastDetails = pendingLinkToast;
+    setPendingLinkToast(null);
+    toastDetails.afterDropSettled(() =>
+      toast.success(
+        t("skillDrag.linkSuccess", {
+          skill: toastDetails.skillName,
+          agent: toastDetails.agentLabel,
+        }),
+      ),
+    );
+  }, [pendingLinkToast, skillsList, t]);
 
   useEffect(() => {
     if (agentFilter !== "all" && !visibleAgentSet.has(agentFilter)) {
@@ -792,6 +821,13 @@ export const InstalledSkills = memo(function InstalledSkills({
 
     const agentLabel =
       agentConfigs?.find((config) => config.id === target.agent)?.label ?? target.agent;
+    setPendingLinkToast({
+      skillId: droppedSkill.id,
+      skillName: droppedSkill.name,
+      agent: target.agent,
+      agentLabel,
+      afterDropSettled,
+    });
     void (async () => {
       try {
         await toggleSymlinkMutation.mutateAsync({
@@ -799,15 +835,8 @@ export const InstalledSkills = memo(function InstalledSkills({
           agent: target.agent,
           enabled: true,
         });
-        afterDropSettled(() =>
-          toast.success(
-            t("skillDrag.linkSuccess", {
-              skill: droppedSkill.name,
-              agent: agentLabel,
-            }),
-          ),
-        );
       } catch (error) {
+        setPendingLinkToast(null);
         afterDropSettled(() =>
           toast.error(error instanceof Error ? formatApiError(error) : String(error)),
         );

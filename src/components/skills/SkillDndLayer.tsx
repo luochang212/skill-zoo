@@ -17,6 +17,7 @@ const DRAG_PREVIEW_ANCHOR_Y = 12;
 const DRAG_FEEDBACK_SELECTOR = "[data-dnd-dragging]";
 const DRAG_SETTLED_CHECK_MS = 16;
 const DRAG_SETTLED_MAX_CHECKS = 30;
+const STALE_DRAG_FEEDBACK_ATTR = "data-dnd-stale-after-drop";
 
 export type SkillDropTarget = { type: "star" } | { type: "agent"; agent: string };
 
@@ -28,6 +29,18 @@ function afterDropSettled(callback: () => void) {
   let checks = 0;
   const wait = () => {
     if (!document.querySelector(DRAG_FEEDBACK_SELECTOR) || checks >= DRAG_SETTLED_MAX_CHECKS) {
+      if (checks >= DRAG_SETTLED_MAX_CHECKS) {
+        for (const element of document.querySelectorAll<HTMLElement>(DRAG_FEEDBACK_SELECTOR)) {
+          element.setAttribute(STALE_DRAG_FEEDBACK_ATTR, "");
+          element.setAttribute("aria-hidden", "true");
+          element.style.setProperty("z-index", "100", "important");
+          try {
+            element.hidePopover?.();
+          } catch {
+            // The feedback may already have left the popover top layer.
+          }
+        }
+      }
       window.setTimeout(callback, 0);
       return;
     }
