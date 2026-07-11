@@ -14,6 +14,9 @@ import type { InstalledSkill } from "@/types/skills";
 
 const DRAG_PREVIEW_ICON_CENTER_X = 20;
 const DRAG_PREVIEW_ANCHOR_Y = 12;
+const DRAG_FEEDBACK_SELECTOR = "[data-dnd-dragging]";
+const DRAG_SETTLED_CHECK_MS = 16;
+const DRAG_SETTLED_MAX_CHECKS = 30;
 
 export type SkillDropTarget = { type: "star" } | { type: "agent"; agent: string };
 
@@ -22,7 +25,18 @@ export interface SkillDropControls {
 }
 
 function afterDropSettled(callback: () => void) {
-  window.setTimeout(callback, 0);
+  let checks = 0;
+  const wait = () => {
+    if (!document.querySelector(DRAG_FEEDBACK_SELECTOR) || checks >= DRAG_SETTLED_MAX_CHECKS) {
+      window.setTimeout(callback, 0);
+      return;
+    }
+
+    checks += 1;
+    window.setTimeout(wait, DRAG_SETTLED_CHECK_MS);
+  };
+
+  wait();
 }
 
 function getDraggedSkillId(sourceId: string) {

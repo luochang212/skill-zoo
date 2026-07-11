@@ -70,7 +70,7 @@ vi.mock("@/hooks/useSkills", () => ({
   useRemoveSkills: () => ({ mutate: vi.fn(), isPending: false }),
   useRestoreArchivedSkills: () => ({ mutate: vi.fn(), isPending: false }),
   useStarSkill: () => ({ mutate: mocks.starSkill }),
-  useToggleSymlink: () => ({ mutate: mocks.toggleSymlink, isPending: false }),
+  useToggleSymlink: () => ({ mutateAsync: mocks.toggleSymlink, isPending: false }),
   useUnstarSkill: () => ({ mutate: vi.fn() }),
 }));
 
@@ -138,6 +138,7 @@ describe("InstalledSkills visible agent filtering", () => {
     mocks.hideNonSsot = false;
     mocks.starSkill.mockReset();
     mocks.toggleSymlink.mockReset();
+    mocks.toggleSymlink.mockResolvedValue(undefined);
     mocks.batchUnlinkSkills.mockReset();
     mocks.onDragStart = undefined;
     mocks.onDragEnd = undefined;
@@ -232,8 +233,11 @@ describe("InstalledSkills visible agent filtering", () => {
     expect(screen.getByRole("button", { name: "Drop here to link to Codex" })).toHaveClass("h-9");
   });
 
-  it("links an external import when it is dropped on an unlinked agent tab", () => {
+  it("links an external import when it is dropped on an unlinked agent tab", async () => {
     vi.useFakeTimers();
+    const activeDragFeedback = document.createElement("div");
+    activeDragFeedback.setAttribute("data-dnd-dragging", "");
+    document.body.append(activeDragFeedback);
     mocks.skills = [
       skill({
         id: "external-skill",
@@ -263,20 +267,21 @@ describe("InstalledSkills visible agent filtering", () => {
       });
     });
 
-    expect(mocks.toggleSymlink).toHaveBeenCalledWith(
-      { skillId: "external-skill", agent: "codex", enabled: true },
-      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
-    );
-    const mutationOptions = mocks.toggleSymlink.mock.calls[0]?.[1] as
-      | { onSuccess?: () => void }
-      | undefined;
+    expect(mocks.toggleSymlink).toHaveBeenCalledWith({
+      skillId: "external-skill",
+      agent: "codex",
+      enabled: true,
+    });
+    await act(async () => {});
 
     act(() => {
-      mutationOptions?.onSuccess?.();
+      vi.advanceTimersByTime(160);
     });
     expect(toast.success).not.toHaveBeenCalled();
+    activeDragFeedback.remove();
 
     act(() => {
+      vi.advanceTimersByTime(16);
       vi.runOnlyPendingTimers();
     });
     expect(toast.success).toHaveBeenCalledWith("External Skill linked to Codex");

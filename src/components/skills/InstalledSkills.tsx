@@ -792,21 +792,27 @@ export const InstalledSkills = memo(function InstalledSkills({
 
     const agentLabel =
       agentConfigs?.find((config) => config.id === target.agent)?.label ?? target.agent;
-    toggleSymlinkMutation.mutate(
-      { skillId: droppedSkill.id, agent: target.agent, enabled: true },
-      {
-        onSuccess: () =>
-          afterDropSettled(() =>
-            toast.success(
-              t("skillDrag.linkSuccess", {
-                skill: droppedSkill.name,
-                agent: agentLabel,
-              }),
-            ),
+    void (async () => {
+      try {
+        await toggleSymlinkMutation.mutateAsync({
+          skillId: droppedSkill.id,
+          agent: target.agent,
+          enabled: true,
+        });
+        afterDropSettled(() =>
+          toast.success(
+            t("skillDrag.linkSuccess", {
+              skill: droppedSkill.name,
+              agent: agentLabel,
+            }),
           ),
-        onError: (error) => afterDropSettled(() => toast.error(formatApiError(error))),
-      },
-    );
+        );
+      } catch (error) {
+        afterDropSettled(() =>
+          toast.error(error instanceof Error ? formatApiError(error) : String(error)),
+        );
+      }
+    })();
   };
 
   const renderContent = (draggedSkill: InstalledSkill | null) => (
