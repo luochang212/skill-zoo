@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { useDroppable } from "@dnd-kit/react";
 import { useTranslation } from "react-i18next";
 import {
   Archive,
@@ -17,7 +16,7 @@ import type { InstalledSkill } from "@/types/skills";
 import type { SidebarCategory } from "@/hooks/useSidebarFilter";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { LOCAL_SKILL_DRAG_TYPE, STAR_SKILL_DROP_ID } from "@/lib/skillDnd";
+import { useStarSkillDropTarget } from "@/components/skills/SkillDndLayer";
 
 function CountBadge({ count }: { count: number }) {
   return (
@@ -50,10 +49,7 @@ export function SkillSidebar({
 }: SkillSidebarProps) {
   const { t } = useTranslation();
   const [reposExpanded, setReposExpanded] = useState(true);
-  const { ref: starDropRef, isDropTarget: starDropActive } = useDroppable({
-    id: STAR_SKILL_DROP_ID,
-    accept: LOCAL_SKILL_DRAG_TYPE,
-  });
+  const { ref: starDropRef, isDropTarget: starDropActive } = useStarSkillDropTarget();
 
   const countSkillIds = useMemo(() => new Set(countSkills.map((s) => s.id)), [countSkills]);
 
