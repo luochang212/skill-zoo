@@ -78,6 +78,10 @@ const EMPTY_ARCHIVED_SKILLS: ArchivedSkill[] = [];
 const DRAG_PREVIEW_ICON_CENTER_X = 20;
 const DRAG_PREVIEW_ANCHOR_Y = 12;
 
+function showAfterDragCleanup(callback: () => void) {
+  window.setTimeout(callback, 0);
+}
+
 function SkillDragSource({
   skill,
   disabled,
@@ -1242,13 +1246,16 @@ export const InstalledSkills = memo(function InstalledSkills({
                 { skillId: droppedSkill.id, agent, enabled: true },
                 {
                   onSuccess: () =>
-                    toast.success(
-                      t("skillDrag.linkSuccess", {
-                        skill: droppedSkill.name,
-                        agent: agentLabel,
-                      }),
+                    showAfterDragCleanup(() =>
+                      toast.success(
+                        t("skillDrag.linkSuccess", {
+                          skill: droppedSkill.name,
+                          agent: agentLabel,
+                        }),
+                      ),
                     ),
-                  onError: (error) => toast.error(formatApiError(error)),
+                  onError: (error) =>
+                    showAfterDragCleanup(() => toast.error(formatApiError(error))),
                 },
               );
             }

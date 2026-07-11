@@ -1,6 +1,7 @@
 import "@/i18n";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InstalledSkills } from "./InstalledSkills";
 import type { InstalledSkill } from "@/types/skills";
@@ -41,6 +42,14 @@ vi.mock("@dnd-kit/react", () => ({
   DragOverlay: ({ children }: { children: ReactNode }) => children,
   useDraggable: () => ({ ref: vi.fn(), isDragging: false }),
   useDroppable: () => ({ ref: vi.fn(), isDropTarget: false }),
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    warning: vi.fn(),
+  },
 }));
 
 vi.mock("@/hooks/useSkills", () => ({
@@ -132,6 +141,9 @@ describe("InstalledSkills visible agent filtering", () => {
     mocks.batchUnlinkSkills.mockReset();
     mocks.onDragStart = undefined;
     mocks.onDragEnd = undefined;
+    vi.mocked(toast.success).mockReset();
+    vi.mocked(toast.error).mockReset();
+    vi.useRealTimers();
   });
 
   it("shows SSOT, visible-agent entity, and external skills in All", () => {
@@ -221,6 +233,7 @@ describe("InstalledSkills visible agent filtering", () => {
   });
 
   it("links an external import when it is dropped on an unlinked agent tab", () => {
+    vi.useFakeTimers();
     mocks.skills = [
       skill({
         id: "external-skill",
@@ -254,6 +267,19 @@ describe("InstalledSkills visible agent filtering", () => {
       { skillId: "external-skill", agent: "codex", enabled: true },
       expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
     );
+    const mutationOptions = mocks.toggleSymlink.mock.calls[0]?.[1] as
+      | { onSuccess?: () => void }
+      | undefined;
+
+    act(() => {
+      mutationOptions?.onSuccess?.();
+    });
+    expect(toast.success).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.runOnlyPendingTimers();
+    });
+    expect(toast.success).toHaveBeenCalledWith("External Skill linked to Codex");
   });
 
   it("does not link an agent-origin skill back to its home agent", () => {
