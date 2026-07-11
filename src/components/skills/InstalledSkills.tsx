@@ -1262,10 +1262,8 @@ export const InstalledSkills = memo(function InstalledSkills({
         {draggedSkill && (
           <div
             data-testid="skill-drag-preview"
-            className="flex h-9 w-44 items-center gap-2.5 overflow-hidden rounded-md border border-border bg-card px-3 text-card-foreground shadow-lg"
-            style={{
-              transform: `translate(${dragPreviewOffset.x}px, ${dragPreviewOffset.y}px)`,
-            }}
+            className="absolute flex h-9 w-44 items-center gap-2.5 overflow-hidden rounded-md border border-border bg-card px-3 text-card-foreground shadow-lg"
+            style={{ left: dragPreviewOffset.x, top: dragPreviewOffset.y }}
           >
             <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
             <p className="min-w-0 truncate text-[13px] font-medium">{draggedSkill.name}</p>

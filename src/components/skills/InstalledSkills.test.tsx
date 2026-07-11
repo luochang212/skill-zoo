@@ -213,7 +213,8 @@ describe("InstalledSkills visible agent filtering", () => {
     });
 
     expect(screen.getByTestId("skill-drag-preview")).toHaveStyle({
-      transform: "translate(100px, 48px)",
+      left: "100px",
+      top: "48px",
     });
     expect(screen.getByTestId("skill-drag-preview")).toHaveClass("h-9", "w-44");
     expect(screen.getByRole("button", { name: "Drop here to link to Codex" })).toHaveClass("h-9");

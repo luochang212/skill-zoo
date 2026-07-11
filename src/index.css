@@ -197,6 +197,27 @@
   }
 }
 
+/* dnd-kit injects these rules at runtime. Keep the positioning contract in the
+   app stylesheet too so release WebViews do not strand the overlay at (0, 0)
+   when runtime style injection is unavailable. */
+[data-dnd-dragging] {
+  position: fixed !important;
+  pointer-events: none !important;
+  touch-action: none;
+  top: var(--dnd-top, 0px) !important;
+  left: var(--dnd-left, 0px) !important;
+  right: unset !important;
+  bottom: unset !important;
+  width: var(--dnd-width, auto);
+  max-width: var(--dnd-width, auto);
+  height: var(--dnd-height, auto);
+  max-height: var(--dnd-height, auto);
+  translate: var(--dnd-translate, 0px 0px 0px) !important;
+  transform: var(--dnd-transform, none) !important;
+  transition: var(--dnd-transition) !important;
+  will-change: translate;
+}
+
 @layer base {
   * {
     @apply border-border;
