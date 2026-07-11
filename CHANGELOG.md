@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.30] — 2026-07-12
+
+### Changed
+- Skill drag-and-drop overlay extracted to a dedicated `SkillDndLayer` component, decoupled from the installed skills layout.
+
+### Fixed
+- Skill drag link success toast now appears after drag source cleanup, eliminating a visual flicker between the toast and the re-rendered card.
+
 ## [0.3.29] — 2026-07-12
 
 ### Changed
