@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.28] — 2026-07-12
+
+### Fixed
+- Skill drag previews now follow the pointer in packaged Windows and macOS apps instead of remaining in the top-left corner.
+
 ## [0.3.27] — 2026-07-11
 
 ### Fixed
