@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.29] — 2026-07-12
+
+### Changed
+- Release automation now validates version metadata and required platform artifacts before publishing, and updates Homebrew only after the GitHub Release exists.
+
+### Fixed
+- Skill drag previews in packaged Windows and macOS apps now follow the pointer without showing an original-card-sized overlay mask.
+
 ## [0.3.28] — 2026-07-12
 
 ### Fixed
