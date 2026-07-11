@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.26] — 2026-07-11
+
+### Changed
+- Skill file access centralized through `ManagedSkill` — file paths are now relative to the skill root with path-traversal prevention, replacing absolute-path-based commands with safer `skillId` + `relativePath` alternatives.
+
+### Fixed
+- Startup theme flicker on app launch.
+- Infinite re-renders caused by unstable default values in hooks.
+- Wrench icon color now consistent with other icons in Skill Maintenance settings.
+
 ## [0.3.25] — 2026-07-10
 
 ### Added
