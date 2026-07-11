@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.27] — 2026-07-11
+
+### Fixed
+- Startup theme color flash on app launch.
+- Skill drag preview misalignment on Windows.
+
 ## [0.3.26] — 2026-07-11
 
 ### Changed
