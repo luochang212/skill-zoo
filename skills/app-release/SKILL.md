@@ -7,7 +7,7 @@ description: Use when the user asks to release a new version, ship a build, or p
 
 ## Overview
 
-Release is done by pushing a `v*` tag. CI builds all platforms, creates a GitHub Release, and updates the Homebrew cask. Manual steps: update CHANGELOG.md, then tag and push.
+Release is done by pushing a `v*` tag. CI validates the release metadata, builds all platforms, creates a GitHub Release, and then updates the website version and Homebrew cask. Manual steps: update the changelog and version files, commit them together, then tag and push. The workflow is asynchronous: after a successful tag push, report that the release was triggered; do not wait for CI unless the user explicitly asks.
 
 **Announce at start:** "I'm using the release skill to ship a new version."
 
@@ -92,17 +92,10 @@ If there is protocol impact, verify before continuing:
 
 ### 4. Update Version Files
 
-Update `src-tauri/Cargo.toml` to match the release version:
+Update `src-tauri/Cargo.toml` and `package.json` with `apply_patch` so the instructions work consistently on macOS, Linux, and Windows agents. Both files use bare semver without the `v` prefix. Then regenerate `Cargo.lock`:
 
 ```bash
-sed -i '' 's/^version = ".*"/version = "X.Y.Z"/' src-tauri/Cargo.toml
-cargo check --manifest-path src-tauri/Cargo.toml  # regenerates Cargo.lock
-```
-
-Update `package.json` to match (no `v` prefix — npm uses bare semver):
-
-```bash
-sed -i '' 's/"version": ".*"/"version": "X.Y.Z"/' package.json
+cargo check --manifest-path src-tauri/Cargo.toml
 ```
 
 Do NOT update `docs/version.json` here — CI updates it automatically after the release is published.
@@ -140,13 +133,16 @@ git tag v0.1.2
 git push origin v0.1.2
 ```
 
+Once the tag push succeeds, the release has been triggered. Report the pushed tag and commit, and stop without polling GitHub Actions unless the user asked to wait or monitor the release.
+
 ### 7. CI Jobs (triggered by `v*` tag)
 
 | Job | Outcome |
 |---|---|
-| **build** | Universal DMG, NSIS installer, portable zip → renamed to `Skill-Zoo-v{VERSION}-{platform}.{ext}` |
-| **create-release** | GitHub Release with substituted release notes + all artifacts |
-| **update-homebrew** | Computes SHA256, updates cask formula, opens PR, and auto-merges |
+| **validate-release** | Verifies the tag matches package versions and the changelog before expensive builds start |
+| **build** | Builds every platform and refuses to upload an incomplete installer/updater artifact set |
+| **create-release** | Creates or refreshes the GitHub Release, uploads all artifacts, then updates `docs/version.json` |
+| **update-homebrew** | Runs after the GitHub Release exists, computes the DMG SHA256, and updates the cask |
 
 `docs/version.json` is updated by CI after `create-release` succeeds — never manually. This ensures the download website only points to published artifacts.
 
@@ -158,5 +154,5 @@ git push origin v0.1.2
 | Hardcoding version in RELEASE_BODY.md | Use `__VERSION__` placeholder. The CI substitutes it automatically. |
 | Releasing with uncommitted changes | `git status --short` must be empty. Uncommitted changes won't be included in the release. |
 | Letting CI update `docs/version.json` | `version.json` is updated by CI's `create-release` job **after** artifacts are published. Do NOT update it manually in the release commit. |
-| Forgetting to regenerate `Cargo.lock` | After editing `Cargo.toml` version, run `cargo check --manifest-path src-tauri/Cargo.toml` to sync Cargo.lock. `sed` alone won't update it. |
+| Forgetting to regenerate `Cargo.lock` | After editing `Cargo.toml` version, run `cargo check --manifest-path src-tauri/Cargo.toml` to sync Cargo.lock. Editing the manifest alone does not update the lockfile. |
 | Making multiple commits | All version updates (CHANGELOG, Cargo.toml, Cargo.lock, package.json) go into a single `chore: release vX.Y.Z` commit. Do not commit after each file. `docs/version.json` is not part of this commit — CI handles it. |
