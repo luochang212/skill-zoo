@@ -4,10 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
+    <script src="./theme-init.js"></script>
     <style>
       html,
       body,
       #root {
+        height: 100%;
         min-height: 100%;
         margin: 0;
         background: hsl(30 20% 98%);
@@ -18,8 +20,15 @@
       html.dark #root {
         background: hsl(0 0% 11.8%);
       }
+
+      @media (prefers-color-scheme: dark) {
+        html:not(.light),
+        html:not(.light) body,
+        html:not(.light) #root {
+          background: hsl(0 0% 11.8%);
+        }
+      }
     </style>
-    <script src="./theme-init.js"></script>
     <title>Skill Zoo</title>
   </head>
   <body class="overflow-hidden">

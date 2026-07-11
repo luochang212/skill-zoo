@@ -10,7 +10,12 @@ function systemPrefersDark() {
 
 export function applyTheme(theme: Theme) {
   const isDark = theme === "dark" || (theme === "system" && systemPrefersDark());
+  const scheme = isDark ? "dark" : "light";
+
   document.documentElement.classList.toggle("dark", isDark);
+  document.documentElement.classList.toggle("light", !isDark);
+  document.documentElement.style.colorScheme = scheme;
+  document.querySelector('meta[name="color-scheme"]')?.setAttribute("content", scheme);
 
   // Sync native window theme so the title bar blends in on Windows.
   invoke("set_window_theme", { theme }).catch(() => {});
