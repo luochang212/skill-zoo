@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.31] — 2026-07-12
+
+### Fixed
+- Skill drag link success toast now waits for drag feedback to resolve before appearing, preventing a race where the toast could show before the card position settled.
+
 ## [0.3.30] — 2026-07-12
 
 ### Changed
