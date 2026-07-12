@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.33] — 2026-07-12
+
+### Fixed
+- Skill drag link toast now clears any stale drag feedback layer state before showing, preventing the toast from being skipped when a previous drag interaction left lingering state.
+
 ## [0.3.32] — 2026-07-12
 
 ### Fixed
