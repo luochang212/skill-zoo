@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.34] — 2026-07-12
+
+### Fixed
+- Skill drag and drop is now disabled on Windows, where the drag preview and link flow were unreliable in packaged builds.
+
 ## [0.3.33] — 2026-07-12
 
 ### Fixed
