@@ -294,6 +294,14 @@
   background: transparent;
 }
 
+/* Radix renders its own scrollbar, so its native viewport scrollbar must stay hidden. */
+[data-radix-scroll-area-viewport] {
+  scrollbar-width: none !important;
+}
+[data-radix-scroll-area-viewport]::-webkit-scrollbar {
+  display: none !important;
+}
+
 /* ── View Transitions: circle-expand theme switch ── */
 ::view-transition-old(root),
 ::view-transition-new(root) {
