@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.37] — 2026-07-13
+
+### Fixed
+- Radix scroll areas no longer show both native and custom scrollbars on Windows, while preserving the existing macOS behavior.
+
 ## [0.3.36] — 2026-07-13
 
 ### Changed
