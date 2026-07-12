@@ -198,9 +198,8 @@
 }
 
 /* Static fallback for @dnd-kit/dom 0.5.0's Feedback styles. Packaged Tauri
-   WebViews do not apply the runtime-injected stylesheet reliably. This is
-   required on macOS release builds even though skill drag-and-drop is disabled
-   on Windows. Keep this in sync when upgrading dnd-kit. */
+   WebViews do not apply the runtime-injected stylesheet reliably. Keep this in
+   sync when upgrading dnd-kit. */
 [data-dnd-dragging] {
   position: fixed !important;
   pointer-events: none !important;

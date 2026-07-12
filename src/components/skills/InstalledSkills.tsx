@@ -658,7 +658,6 @@ export const InstalledSkills = memo(function InstalledSkills({
           consistencyCount={consistencyCount}
           category={category}
           onSelectCategory={onSelectCategory}
-          skillDragSupported={false}
         />
         <div className="flex-1 min-w-0 flex items-center justify-center p-6">
           <div className="text-center space-y-3 max-w-md">
@@ -816,7 +815,7 @@ export const InstalledSkills = memo(function InstalledSkills({
     })();
   };
 
-  const renderContent = (draggedSkill: InstalledSkill | null, skillDragSupported: boolean) => (
+  const renderContent = (draggedSkill: InstalledSkill | null) => (
     <div className="flex h-full relative">
       {/* Sidebar */}
       <SkillSidebar
@@ -828,7 +827,6 @@ export const InstalledSkills = memo(function InstalledSkills({
         category={category}
         onSelectCategory={onSelectCategory}
         draggedSkill={draggedSkill}
-        skillDragSupported={skillDragSupported}
       />
 
       {/* Main content */}
@@ -1152,7 +1150,7 @@ export const InstalledSkills = memo(function InstalledSkills({
 
   return (
     <SkillDndLayer skills={skillsList} onDropSkill={handleSkillDrop}>
-      {({ draggedSkill, skillDragSupported }) => renderContent(draggedSkill, skillDragSupported)}
+      {({ draggedSkill }) => renderContent(draggedSkill)}
     </SkillDndLayer>
   );
 });

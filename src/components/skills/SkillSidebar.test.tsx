@@ -25,7 +25,6 @@ describe("SkillSidebar", () => {
         skills={[makeSkill("one", "Owner", "Repo"), makeSkill("two", "owner", "repo")]}
         category={{ type: "all" }}
         onSelectCategory={vi.fn()}
-        skillDragSupported={false}
       />,
     );
 

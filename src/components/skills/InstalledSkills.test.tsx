@@ -18,12 +18,9 @@ const mocks = vi.hoisted(() => ({
   archivedSkills: [] as InstalledSkill[],
   visibleAgentOrder: ["claude-code", "codex"] as string[],
   hideNonSsot: false,
-  skillDragSupported: true,
   starSkill: vi.fn(),
   toggleSymlink: vi.fn(),
   batchUnlinkSkills: vi.fn(),
-  useDraggable: vi.fn(),
-  useDroppable: vi.fn(),
   onDragStart: undefined as ((event: unknown) => void) | undefined,
   onDragEnd: undefined as ((event: unknown) => void) | undefined,
 }));
@@ -43,14 +40,8 @@ vi.mock("@dnd-kit/react", () => ({
     return children;
   },
   DragOverlay: ({ children }: { children: ReactNode }) => children,
-  useDraggable: () => {
-    mocks.useDraggable();
-    return { ref: vi.fn(), isDragging: false };
-  },
-  useDroppable: () => {
-    mocks.useDroppable();
-    return { ref: vi.fn(), isDropTarget: false };
-  },
+  useDraggable: () => ({ ref: vi.fn(), isDragging: false }),
+  useDroppable: () => ({ ref: vi.fn(), isDropTarget: false }),
 }));
 
 vi.mock("sonner", () => ({
@@ -59,10 +50,6 @@ vi.mock("sonner", () => ({
     error: vi.fn(),
     warning: vi.fn(),
   },
-}));
-
-vi.mock("@/lib/platform", () => ({
-  supportsSkillDragAndDrop: () => mocks.skillDragSupported,
 }));
 
 vi.mock("@/hooks/useSkills", () => ({
@@ -149,13 +136,10 @@ describe("InstalledSkills visible agent filtering", () => {
     mocks.archivedSkills = [];
     mocks.visibleAgentOrder = ["claude-code", "codex"];
     mocks.hideNonSsot = false;
-    mocks.skillDragSupported = true;
     mocks.starSkill.mockReset();
     mocks.toggleSymlink.mockReset();
     mocks.toggleSymlink.mockResolvedValue(undefined);
     mocks.batchUnlinkSkills.mockReset();
-    mocks.useDraggable.mockReset();
-    mocks.useDroppable.mockReset();
     mocks.onDragStart = undefined;
     mocks.onDragEnd = undefined;
     vi.mocked(toast.success).mockReset();
@@ -373,28 +357,6 @@ describe("InstalledSkills visible agent filtering", () => {
     });
 
     expect(mocks.toggleSymlink).not.toHaveBeenCalled();
-  });
-
-  it("does not enable skill drag and drop on Windows", () => {
-    mocks.skillDragSupported = false;
-    mocks.skills = [
-      skill({
-        id: "external-skill",
-        name: "External Skill",
-        origin: "external",
-        apps: { "claude-code": true },
-      }),
-    ];
-
-    renderInstalledSkills();
-
-    const cardWrapper = screen.getByRole("group", { name: "External Skill" });
-    expect(cardWrapper).not.toHaveClass("cursor-grab");
-    expect(mocks.onDragStart).toBeUndefined();
-    expect(mocks.onDragEnd).toBeUndefined();
-    expect(mocks.useDraggable).not.toHaveBeenCalled();
-    expect(mocks.useDroppable).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Codex" })).toBeInTheDocument();
   });
 
   it("does not recreate an existing agent link", () => {
