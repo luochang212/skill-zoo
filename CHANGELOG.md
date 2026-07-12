@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.36] — 2026-07-13
+
+### Changed
+- Skill drag-and-drop is re-enabled on Windows, where it had been disabled since 0.3.34 due to unreliable drag preview and link behavior in packaged builds.
+
+### Fixed
+- The drag-link success toast now appears in packaged/release builds — the Sonner toaster stylesheet was not loaded, so the toast rendered invisibly.
+
 ## [0.3.35] — 2026-07-12
 
 ### Fixed
