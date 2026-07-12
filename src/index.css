@@ -197,6 +197,69 @@
   }
 }
 
+/* Static fallback for @dnd-kit/dom 0.5.0's Feedback styles. Packaged Tauri
+   WebViews do not apply the runtime-injected stylesheet reliably. This is
+   required on macOS release builds even though skill drag-and-drop is disabled
+   on Windows. Keep this in sync when upgrading dnd-kit. */
+[data-dnd-dragging] {
+  position: fixed !important;
+  pointer-events: none !important;
+  touch-action: none;
+  z-index: 2147483647;
+  will-change: translate;
+  top: var(--dnd-top, 0px) !important;
+  left: var(--dnd-left, 0px) !important;
+  right: unset !important;
+  bottom: unset !important;
+  width: var(--dnd-width, auto);
+  max-width: var(--dnd-width, auto);
+  height: var(--dnd-height, auto);
+  max-height: var(--dnd-height, auto);
+  transform: var(--dnd-transform, none) !important;
+  transition: var(--dnd-transition) !important;
+}
+
+[data-dnd-placeholder] {
+  transition: none;
+}
+
+[data-dnd-placeholder="hidden"] {
+  visibility: hidden;
+}
+
+[data-dnd-dragging] * {
+  pointer-events: none !important;
+}
+
+[data-dnd-dragging]:not([data-dnd-dropping]) {
+  translate: var(--dnd-translate, 0px 0px 0px) !important;
+}
+
+[data-dnd-dragging][style*="--dnd-scale"] {
+  scale: var(--dnd-scale) !important;
+  transform-origin: var(--dnd-transform-origin) !important;
+}
+
+:where([data-dnd-dragging][popover]) {
+  overflow: visible;
+  background: unset;
+  border: unset;
+  margin: unset;
+  padding: unset;
+  color: inherit;
+}
+
+:where(input, button)[data-dnd-dragging][popover] {
+  border: revert;
+  background: revert;
+}
+
+[data-dnd-dragging]::backdrop,
+[data-dnd-overlay]:not([data-dnd-dragging]) {
+  display: none;
+  visibility: hidden;
+}
+
 @layer base {
   * {
     @apply border-border;
