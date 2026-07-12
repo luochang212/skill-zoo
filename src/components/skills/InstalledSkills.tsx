@@ -49,7 +49,6 @@ import {
   AgentDropTab,
   SkillDndLayer,
   SkillDragSource,
-  type SkillDropControls,
   type SkillDropTarget,
 } from "@/components/skills/SkillDndLayer";
 import { formatApiError } from "@/lib/api/errors";
@@ -658,6 +657,7 @@ export const InstalledSkills = memo(function InstalledSkills({
           consistencyCount={consistencyCount}
           category={category}
           onSelectCategory={onSelectCategory}
+          skillDragSupported={false}
         />
         <div className="flex-1 min-w-0 flex items-center justify-center p-6">
           <div className="text-center space-y-3 max-w-md">
@@ -776,11 +776,7 @@ export const InstalledSkills = memo(function InstalledSkills({
     );
   };
 
-  const handleSkillDrop = (
-    droppedSkill: InstalledSkill,
-    target: SkillDropTarget,
-    { afterDropSettled }: SkillDropControls,
-  ) => {
+  const handleSkillDrop = (droppedSkill: InstalledSkill, target: SkillDropTarget) => {
     if (target.type === "star") {
       if (!droppedSkill.starred) starMutation.mutate(droppedSkill.id);
       return;
@@ -792,30 +788,26 @@ export const InstalledSkills = memo(function InstalledSkills({
 
     const agentLabel =
       agentConfigs?.find((config) => config.id === target.agent)?.label ?? target.agent;
-    void (async () => {
-      try {
-        await toggleSymlinkMutation.mutateAsync({
-          skillId: droppedSkill.id,
-          agent: target.agent,
-          enabled: true,
-        });
-        afterDropSettled(() =>
+    toggleSymlinkMutation.mutate(
+      {
+        skillId: droppedSkill.id,
+        agent: target.agent,
+        enabled: true,
+      },
+      {
+        onSuccess: () =>
           toast.success(
             t("skillDrag.linkSuccess", {
               skill: droppedSkill.name,
               agent: agentLabel,
             }),
           ),
-        );
-      } catch (error) {
-        afterDropSettled(() =>
-          toast.error(error instanceof Error ? formatApiError(error) : String(error)),
-        );
-      }
-    })();
+        onError: (error) => toast.error(formatApiError(error)),
+      },
+    );
   };
 
-  const renderContent = (draggedSkill: InstalledSkill | null) => (
+  const renderContent = (draggedSkill: InstalledSkill | null, skillDragSupported: boolean) => (
     <div className="flex h-full relative">
       {/* Sidebar */}
       <SkillSidebar
@@ -827,6 +819,7 @@ export const InstalledSkills = memo(function InstalledSkills({
         category={category}
         onSelectCategory={onSelectCategory}
         draggedSkill={draggedSkill}
+        skillDragSupported={skillDragSupported}
       />
 
       {/* Main content */}
@@ -1150,7 +1143,7 @@ export const InstalledSkills = memo(function InstalledSkills({
 
   return (
     <SkillDndLayer skills={skillsList} onDropSkill={handleSkillDrop}>
-      {({ draggedSkill }) => renderContent(draggedSkill)}
+      {({ draggedSkill, skillDragSupported }) => renderContent(draggedSkill, skillDragSupported)}
     </SkillDndLayer>
   );
 });

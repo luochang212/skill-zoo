@@ -10,54 +10,17 @@ import {
   SKILL_DRAG_ID_PREFIX,
   STAR_SKILL_DROP_ID,
 } from "@/lib/skillDnd";
+import { supportsSkillDragAndDrop } from "@/lib/platform";
 import type { InstalledSkill } from "@/types/skills";
 
 const DRAG_PREVIEW_ICON_CENTER_X = 20;
 const DRAG_PREVIEW_ANCHOR_Y = 12;
-const DRAG_FEEDBACK_SELECTOR = "[data-dnd-dragging]";
-const DRAG_SETTLED_CHECK_MS = 16;
-const DRAG_SETTLED_MAX_CHECKS = 30;
-const DRAG_END_CLEANUP_DELAY_MS = 32;
-const STALE_DRAG_FEEDBACK_ATTR = "data-dnd-stale-after-drop";
 
 export type SkillDropTarget = { type: "star" } | { type: "agent"; agent: string };
-
-export interface SkillDropControls {
-  afterDropSettled: (callback: () => void) => void;
-}
-
-function cleanupStaleDragFeedback() {
-  for (const element of document.querySelectorAll<HTMLElement>(DRAG_FEEDBACK_SELECTOR)) {
-    element.setAttribute(STALE_DRAG_FEEDBACK_ATTR, "");
-    try {
-      element.hidePopover?.();
-    } catch {
-      // The feedback may already have left the popover top layer.
-    }
-    element.removeAttribute("popover");
-    element.removeAttribute("data-dnd-dragging");
-  }
-}
-
-function scheduleDragEndCleanup() {
-  window.setTimeout(cleanupStaleDragFeedback, DRAG_END_CLEANUP_DELAY_MS);
-}
-
-function afterDropSettled(callback: () => void) {
-  let checks = 0;
-  const wait = () => {
-    if (!document.querySelector(DRAG_FEEDBACK_SELECTOR) || checks >= DRAG_SETTLED_MAX_CHECKS) {
-      if (checks >= DRAG_SETTLED_MAX_CHECKS) cleanupStaleDragFeedback();
-      window.setTimeout(callback, 0);
-      return;
-    }
-
-    checks += 1;
-    window.setTimeout(wait, DRAG_SETTLED_CHECK_MS);
-  };
-
-  wait();
-}
+export type SkillDndState = {
+  draggedSkill: InstalledSkill | null;
+  skillDragSupported: boolean;
+};
 
 function getDraggedSkillId(sourceId: string) {
   return sourceId.startsWith(SKILL_DRAG_ID_PREFIX)
@@ -66,6 +29,32 @@ function getDraggedSkillId(sourceId: string) {
 }
 
 export function SkillDragSource({
+  skill,
+  disabled,
+  className,
+  children,
+}: {
+  skill: InstalledSkill;
+  disabled: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  if (!supportsSkillDragAndDrop()) {
+    return (
+      <div role="group" aria-label={skill.name} className={className}>
+        {children}
+      </div>
+    );
+  }
+
+  return (
+    <EnabledSkillDragSource skill={skill} disabled={disabled} className={className}>
+      {children}
+    </EnabledSkillDragSource>
+  );
+}
+
+function EnabledSkillDragSource({
   skill,
   disabled,
   className,
@@ -99,6 +88,48 @@ export function SkillDragSource({
 }
 
 export function AgentDropTab({
+  agent,
+  label,
+  active,
+  draggedSkill,
+  onClick,
+}: {
+  agent: string;
+  label: string;
+  active: boolean;
+  draggedSkill: InstalledSkill | null;
+  onClick: () => void;
+}) {
+  if (!supportsSkillDragAndDrop()) {
+    return (
+      <button
+        type="button"
+        aria-label={label}
+        onClick={onClick}
+        className={cn(
+          "relative h-9 px-2.5 text-xs rounded-lg transition-colors whitespace-nowrap",
+          active
+            ? "bg-primary/10 text-primary font-medium"
+            : "text-muted-foreground hover:text-foreground hover:bg-accent",
+        )}
+      >
+        {label}
+      </button>
+    );
+  }
+
+  return (
+    <EnabledAgentDropTab
+      agent={agent}
+      label={label}
+      active={active}
+      draggedSkill={draggedSkill}
+      onClick={onClick}
+    />
+  );
+}
+
+function EnabledAgentDropTab({
   agent,
   label,
   active,
@@ -149,25 +180,34 @@ export function AgentDropTab({
   );
 }
 
-export function useStarSkillDropTarget() {
-  return useDroppable({
-    id: STAR_SKILL_DROP_ID,
-    accept: LOCAL_SKILL_DRAG_TYPE,
-  });
-}
-
 export function SkillDndLayer({
   skills,
   onDropSkill,
   children,
 }: {
   skills: InstalledSkill[];
-  onDropSkill: (
-    skill: InstalledSkill,
-    target: SkillDropTarget,
-    controls: SkillDropControls,
-  ) => void;
-  children: (state: { draggedSkill: InstalledSkill | null }) => ReactNode;
+  onDropSkill: (skill: InstalledSkill, target: SkillDropTarget) => void;
+  children: (state: SkillDndState) => ReactNode;
+}) {
+  if (!supportsSkillDragAndDrop()) {
+    return children({ draggedSkill: null, skillDragSupported: false });
+  }
+
+  return (
+    <EnabledSkillDndLayer skills={skills} onDropSkill={onDropSkill}>
+      {children}
+    </EnabledSkillDndLayer>
+  );
+}
+
+function EnabledSkillDndLayer({
+  skills,
+  onDropSkill,
+  children,
+}: {
+  skills: InstalledSkill[];
+  onDropSkill: (skill: InstalledSkill, target: SkillDropTarget) => void;
+  children: (state: SkillDndState) => ReactNode;
 }) {
   const [draggedSkill, setDraggedSkill] = useState<InstalledSkill | null>(null);
   const [dragPreviewOffset, setDragPreviewOffset] = useState({ x: 0, y: 0 });
@@ -196,19 +236,18 @@ export function SkillDndLayer({
         const targetId = String(operation.target?.id ?? "");
         if (!canceled && droppedSkill) {
           if (targetId === STAR_SKILL_DROP_ID) {
-            onDropSkill(droppedSkill, { type: "star" }, { afterDropSettled });
+            onDropSkill(droppedSkill, { type: "star" });
           } else {
             const agent = getAgentFromSkillDropId(targetId);
             if (agent) {
-              onDropSkill(droppedSkill, { type: "agent", agent }, { afterDropSettled });
+              onDropSkill(droppedSkill, { type: "agent", agent });
             }
           }
         }
         setDraggedSkill(null);
-        scheduleDragEndCleanup();
       }}
     >
-      {children({ draggedSkill })}
+      {children({ draggedSkill, skillDragSupported: true })}
       <DragOverlay dropAnimation={null} className="pointer-events-none z-[100] overflow-visible">
         {draggedSkill && (
           <div
