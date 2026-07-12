@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
+import "sonner/dist/styles.css";
 import "@/i18n";
 import App from "./App";
 import "./index.css";
