@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.35] — 2026-07-12
+
+### Fixed
+- Skill drag-and-drop feedback is restored in packaged macOS builds, where the Tauri WebView was not reliably applying dnd-kit's runtime-injected drag-preview stylesheet.
+
 ## [0.3.34] — 2026-07-12
 
 ### Fixed
