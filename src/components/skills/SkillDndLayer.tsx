@@ -14,50 +14,8 @@ import type { InstalledSkill } from "@/types/skills";
 
 const DRAG_PREVIEW_ICON_CENTER_X = 20;
 const DRAG_PREVIEW_ANCHOR_Y = 12;
-const DRAG_FEEDBACK_SELECTOR = "[data-dnd-dragging]";
-const DRAG_SETTLED_CHECK_MS = 16;
-const DRAG_SETTLED_MAX_CHECKS = 30;
-const DRAG_END_CLEANUP_DELAY_MS = 32;
-const STALE_DRAG_FEEDBACK_ATTR = "data-dnd-stale-after-drop";
 
 export type SkillDropTarget = { type: "star" } | { type: "agent"; agent: string };
-
-export interface SkillDropControls {
-  afterDropSettled: (callback: () => void) => void;
-}
-
-function cleanupStaleDragFeedback() {
-  for (const element of document.querySelectorAll<HTMLElement>(DRAG_FEEDBACK_SELECTOR)) {
-    element.setAttribute(STALE_DRAG_FEEDBACK_ATTR, "");
-    try {
-      element.hidePopover?.();
-    } catch {
-      // The feedback may already have left the popover top layer.
-    }
-    element.removeAttribute("popover");
-    element.removeAttribute("data-dnd-dragging");
-  }
-}
-
-function scheduleDragEndCleanup() {
-  window.setTimeout(cleanupStaleDragFeedback, DRAG_END_CLEANUP_DELAY_MS);
-}
-
-function afterDropSettled(callback: () => void) {
-  let checks = 0;
-  const wait = () => {
-    if (!document.querySelector(DRAG_FEEDBACK_SELECTOR) || checks >= DRAG_SETTLED_MAX_CHECKS) {
-      if (checks >= DRAG_SETTLED_MAX_CHECKS) cleanupStaleDragFeedback();
-      window.setTimeout(callback, 0);
-      return;
-    }
-
-    checks += 1;
-    window.setTimeout(wait, DRAG_SETTLED_CHECK_MS);
-  };
-
-  wait();
-}
 
 function getDraggedSkillId(sourceId: string) {
   return sourceId.startsWith(SKILL_DRAG_ID_PREFIX)
@@ -162,11 +120,7 @@ export function SkillDndLayer({
   children,
 }: {
   skills: InstalledSkill[];
-  onDropSkill: (
-    skill: InstalledSkill,
-    target: SkillDropTarget,
-    controls: SkillDropControls,
-  ) => void;
+  onDropSkill: (skill: InstalledSkill, target: SkillDropTarget) => void;
   children: (state: { draggedSkill: InstalledSkill | null }) => ReactNode;
 }) {
   const [draggedSkill, setDraggedSkill] = useState<InstalledSkill | null>(null);
@@ -196,16 +150,15 @@ export function SkillDndLayer({
         const targetId = String(operation.target?.id ?? "");
         if (!canceled && droppedSkill) {
           if (targetId === STAR_SKILL_DROP_ID) {
-            onDropSkill(droppedSkill, { type: "star" }, { afterDropSettled });
+            onDropSkill(droppedSkill, { type: "star" });
           } else {
             const agent = getAgentFromSkillDropId(targetId);
             if (agent) {
-              onDropSkill(droppedSkill, { type: "agent", agent }, { afterDropSettled });
+              onDropSkill(droppedSkill, { type: "agent", agent });
             }
           }
         }
         setDraggedSkill(null);
-        scheduleDragEndCleanup();
       }}
     >
       {children({ draggedSkill })}

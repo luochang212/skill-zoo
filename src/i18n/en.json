@@ -269,8 +269,7 @@
   },
   "skillDrag": {
     "linkToAgent": "Drop here to link to {{agent}}",
-    "alreadyLinked": "Already linked to {{agent}}",
-    "linkSuccess": "{{skill}} linked to {{agent}}"
+    "alreadyLinked": "Already linked to {{agent}}"
   },
   "settings": {
     "appearance": "Appearance",

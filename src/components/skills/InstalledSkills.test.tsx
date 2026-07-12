@@ -2,7 +2,7 @@ import "@/i18n";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InstalledSkills } from "./InstalledSkills";
 import type { InstalledSkill } from "@/types/skills";
 import type { ReactNode } from "react";
@@ -70,7 +70,7 @@ vi.mock("@/hooks/useSkills", () => ({
   useRemoveSkills: () => ({ mutate: vi.fn(), isPending: false }),
   useRestoreArchivedSkills: () => ({ mutate: vi.fn(), isPending: false }),
   useStarSkill: () => ({ mutate: mocks.starSkill }),
-  useToggleSymlink: () => ({ mutateAsync: mocks.toggleSymlink, isPending: false }),
+  useToggleSymlink: () => ({ mutate: mocks.toggleSymlink, isPending: false }),
   useUnstarSkill: () => ({ mutate: vi.fn() }),
 }));
 
@@ -138,17 +138,12 @@ describe("InstalledSkills visible agent filtering", () => {
     mocks.hideNonSsot = false;
     mocks.starSkill.mockReset();
     mocks.toggleSymlink.mockReset();
-    mocks.toggleSymlink.mockResolvedValue(undefined);
+    mocks.toggleSymlink.mockImplementation(() => {});
     mocks.batchUnlinkSkills.mockReset();
     mocks.onDragStart = undefined;
     mocks.onDragEnd = undefined;
     vi.mocked(toast.success).mockReset();
     vi.mocked(toast.error).mockReset();
-    vi.useRealTimers();
-  });
-
-  afterEach(() => {
-    document.querySelectorAll("[data-dnd-dragging]").forEach((element) => element.remove());
     vi.useRealTimers();
   });
 
@@ -238,12 +233,7 @@ describe("InstalledSkills visible agent filtering", () => {
     expect(screen.getByRole("button", { name: "Drop here to link to Codex" })).toHaveClass("h-9");
   });
 
-  it("links an external import when it is dropped on an unlinked agent tab", async () => {
-    vi.useFakeTimers();
-    const activeDragFeedback = document.createElement("div");
-    activeDragFeedback.setAttribute("data-dnd-dragging", "");
-    activeDragFeedback.setAttribute("popover", "manual");
-    document.body.append(activeDragFeedback);
+  it("links an external import when it is dropped on an unlinked agent tab without a success toast", () => {
     mocks.skills = [
       skill({
         id: "external-skill",
@@ -273,64 +263,15 @@ describe("InstalledSkills visible agent filtering", () => {
       });
     });
 
-    expect(mocks.toggleSymlink).toHaveBeenCalledWith({
-      skillId: "external-skill",
-      agent: "codex",
-      enabled: true,
-    });
-    await act(async () => {});
-
-    act(() => {
-      vi.advanceTimersByTime(16);
-    });
+    expect(mocks.toggleSymlink).toHaveBeenCalledWith(
+      {
+        skillId: "external-skill",
+        agent: "codex",
+        enabled: true,
+      },
+      expect.objectContaining({ onError: expect.any(Function) }),
+    );
     expect(toast.success).not.toHaveBeenCalled();
-
-    act(() => {
-      vi.advanceTimersByTime(48);
-      vi.runOnlyPendingTimers();
-    });
-    expect(activeDragFeedback).toHaveAttribute("data-dnd-stale-after-drop");
-    expect(activeDragFeedback).not.toHaveAttribute("popover");
-    expect(toast.success).toHaveBeenCalledWith("External Skill linked to Codex");
-  });
-
-  it("demotes stale drag feedback before showing the link toast", async () => {
-    vi.useFakeTimers();
-    const staleDragFeedback = document.createElement("div");
-    staleDragFeedback.setAttribute("data-dnd-dragging", "");
-    staleDragFeedback.setAttribute("popover", "manual");
-    document.body.append(staleDragFeedback);
-    mocks.skills = [
-      skill({
-        id: "external-skill",
-        name: "External Skill",
-        origin: "external",
-        apps: { "claude-code": true },
-      }),
-    ];
-
-    renderInstalledSkills();
-
-    act(() => {
-      mocks.onDragStart?.({ operation: { source: { id: "skill:external-skill" } } });
-      mocks.onDragEnd?.({
-        canceled: false,
-        operation: {
-          source: { id: "skill:external-skill" },
-          target: { id: "agent:codex" },
-        },
-      });
-    });
-    await act(async () => {});
-
-    act(() => {
-      vi.advanceTimersByTime(64);
-      vi.runOnlyPendingTimers();
-    });
-
-    expect(staleDragFeedback).toHaveAttribute("data-dnd-stale-after-drop");
-    expect(staleDragFeedback).not.toHaveAttribute("popover");
-    expect(toast.success).toHaveBeenCalledWith("External Skill linked to Codex");
   });
 
   it("does not link an agent-origin skill back to its home agent", () => {

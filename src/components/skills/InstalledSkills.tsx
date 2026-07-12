@@ -49,7 +49,6 @@ import {
   AgentDropTab,
   SkillDndLayer,
   SkillDragSource,
-  type SkillDropControls,
   type SkillDropTarget,
 } from "@/components/skills/SkillDndLayer";
 import { formatApiError } from "@/lib/api/errors";
@@ -776,11 +775,7 @@ export const InstalledSkills = memo(function InstalledSkills({
     );
   };
 
-  const handleSkillDrop = (
-    droppedSkill: InstalledSkill,
-    target: SkillDropTarget,
-    { afterDropSettled }: SkillDropControls,
-  ) => {
+  const handleSkillDrop = (droppedSkill: InstalledSkill, target: SkillDropTarget) => {
     if (target.type === "star") {
       if (!droppedSkill.starred) starMutation.mutate(droppedSkill.id);
       return;
@@ -790,29 +785,16 @@ export const InstalledSkills = memo(function InstalledSkills({
       droppedSkill.homeAgent === target.agent || !!droppedSkill.apps[target.agent];
     if (alreadyLinked) return;
 
-    const agentLabel =
-      agentConfigs?.find((config) => config.id === target.agent)?.label ?? target.agent;
-    void (async () => {
-      try {
-        await toggleSymlinkMutation.mutateAsync({
-          skillId: droppedSkill.id,
-          agent: target.agent,
-          enabled: true,
-        });
-        afterDropSettled(() =>
-          toast.success(
-            t("skillDrag.linkSuccess", {
-              skill: droppedSkill.name,
-              agent: agentLabel,
-            }),
-          ),
-        );
-      } catch (error) {
-        afterDropSettled(() =>
-          toast.error(error instanceof Error ? formatApiError(error) : String(error)),
-        );
-      }
-    })();
+    toggleSymlinkMutation.mutate(
+      {
+        skillId: droppedSkill.id,
+        agent: target.agent,
+        enabled: true,
+      },
+      {
+        onError: (error) => toast.error(formatApiError(error)),
+      },
+    );
   };
 
   const renderContent = (draggedSkill: InstalledSkill | null) => (
