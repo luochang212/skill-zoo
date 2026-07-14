@@ -349,7 +349,7 @@ describe("InstalledSkills visible agent filtering", () => {
     expect(mocks.toggleSymlink).not.toHaveBeenCalled();
   });
 
-  it("notifies when a skill is dropped on an already linked agent tab", async () => {
+  it("does not notify when a skill is dropped on an already linked agent tab", () => {
     mocks.skills = [
       skill({
         id: "linked-skill",
@@ -371,8 +371,8 @@ describe("InstalledSkills visible agent filtering", () => {
     });
 
     expect(mocks.toggleSymlink).not.toHaveBeenCalled();
-
-    await waitFor(() => expect(toast.info).toHaveBeenCalledWith("Already linked to Codex"));
+    expect(toast.info).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("hides entity skills whose home agent is not visible", () => {

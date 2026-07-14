@@ -790,10 +790,7 @@ export const InstalledSkills = memo(function InstalledSkills({
       agentConfigs?.find((config) => config.id === target.agent)?.label ?? target.agent;
     const alreadyLinked =
       droppedSkill.homeAgent === target.agent || !!droppedSkill.apps[target.agent];
-    if (alreadyLinked) {
-      afterDropSettled(() => toast.info(t("skillDrag.alreadyLinked", { agent: agentLabel })));
-      return;
-    }
+    if (alreadyLinked) return;
 
     void (async () => {
       try {
