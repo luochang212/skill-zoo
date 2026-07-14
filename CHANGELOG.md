@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.38] — 2026-07-15
+
+### Fixed
+- Skill state changes — linking, unlinking, installing, and removing skills — are now failure-atomic: if a step fails partway, the operation rolls back instead of leaving partially-applied state.
+- Removing an external import now persists the import-record removal before cleaning up agent links, so a failed link cleanup can no longer leave a dangling import entry.
+- Dropping a skill onto an agent it is already linked to no longer fires a redundant notification.
+
+### Changed
+- Removed dead code and hardened skill operations across the skill and settings services.
+
 ## [0.3.37] — 2026-07-13
 
 ### Fixed

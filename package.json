@@ -1,6 +1,6 @@
 {
   "name": "skill-zoo-workspace",
-  "version": "0.3.37",
+  "version": "0.3.38",
   "description": "Local GUI tool for managing Agent Skills",
   "private": true,
   "type": "module",
