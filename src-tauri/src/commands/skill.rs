@@ -722,14 +722,17 @@ pub fn remove_external_import(state: State<'_, AppState>, import_id: String) -> 
     let mut imports = ExternalImports::load().map_err(|e| e.to_string())?;
     let import = imports
         .imports
-        .remove(&import_id)
+        .get(&import_id)
+        .cloned()
         .ok_or_else(|| format!("External import not found: {import_id}"))?;
-    imports.save().map_err(|e| e.to_string())?;
 
     let source_path = PathBuf::from(&import.source_path);
+    remove_external_import_links_for_target(&import.directory, &source_path)
+        .map_err(|e| e.to_string())?;
+    imports.imports.remove(&import_id);
+    imports.save().map_err(|e| e.to_string())?;
     crate::services::watcher::unwatch_external_path(&state, &source_path);
 
-    let _ = remove_external_import_links_for_target(&import.directory, &source_path);
     let _ = SkillService::remove_cache_entry(&state.skill_cache, &import_id);
     if let Ok(mut metadata) = state.metadata.write() {
         metadata.remove(&import_id);
@@ -771,38 +774,64 @@ pub async fn install_skills(
     skill_names: Vec<String>,
     agents: Vec<String>,
 ) -> Result<Vec<InstalledSkill>, CommandError> {
+    for agent in &agents {
+        if !config::AGENTS.iter().any(|config| config.id == agent) {
+            return Err(CommandError::from(AppError::BadRequest(format!(
+                "Unknown agent: {agent}"
+            ))));
+        }
+    }
     let preflight_agent_dirs = selected_agent_skill_dirs(&agents);
-    let installed_dirs = CliService::add_skills(
-        &repo_url,
-        &skill_names,
-        &agents.first().cloned().unwrap_or_default(),
-        &preflight_agent_dirs,
-    )
-    .await
-    .map_err(CommandError::from)?;
+    let installed_dirs = CliService::add_skills(&repo_url, &skill_names, &preflight_agent_dirs)
+        .await
+        .map_err(CommandError::from)?;
 
-    // Create symlinks first
+    let rollback = |created_links: &[(String, String)]| {
+        for (skill_dir, agent) in created_links.iter().rev() {
+            let home_path = config::get_agents_skills_dir().join(skill_dir);
+            let _ =
+                SkillService::toggle_symlink(skill_dir, &home_path.to_string_lossy(), agent, false);
+        }
+        for skill_dir in &installed_dirs {
+            let _ = std::fs::remove_dir_all(config::get_agents_skills_dir().join(skill_dir));
+        }
+        let _ = SkillLock::update(|lock| {
+            for skill_dir in &installed_dirs {
+                lock.skills.remove(skill_dir);
+            }
+            Ok::<(), AppError>(())
+        });
+    };
+
+    let mut created_links = Vec::new();
     for skill_dir in &installed_dirs {
         let home_path = config::get_agents_skills_dir().join(skill_dir);
         for agent in &agents {
-            if let Err(e) =
+            if let Err(error) =
                 SkillService::toggle_symlink(skill_dir, &home_path.to_string_lossy(), agent, true)
             {
-                eprintln!(
-                    "Failed to create symlink for installed skill '{}' (agent {}): {e}",
-                    skill_dir, agent
-                );
+                rollback(&created_links);
+                return Err(CommandError::from(error));
             }
+            created_links.push((skill_dir.clone(), agent.clone()));
         }
     }
 
-    // Batch-scan and upsert all installed skills
-    let (entries, _failed) = SkillService::scan_skills_batch(&installed_dirs);
-    for entry in entries {
-        let _ = SkillService::upsert_cache_entry(&state.skill_cache, entry);
+    match SkillService::rebuild_cache(&state.skill_cache, &state.metadata, &state.sync_in_progress)
+        .await
+    {
+        Ok(skills) => Ok(skills),
+        Err(error) => {
+            rollback(&created_links);
+            let _ = SkillService::rebuild_cache(
+                &state.skill_cache,
+                &state.metadata,
+                &state.sync_in_progress,
+            )
+            .await;
+            Err(CommandError::from(error))
+        }
     }
-
-    SkillService::read_all_skills(&state.skill_cache, &state.metadata).map_err(CommandError::from)
 }
 
 #[tauri::command]
@@ -1228,13 +1257,16 @@ fn remove_cached_skill_from_disk(skill: &SkillCacheEntry) -> Result<(), String> 
         let mut imports = ExternalImports::load().map_err(|e| e.to_string())?;
         let import = imports
             .imports
-            .remove(&skill.id)
+            .get(&skill.id)
+            .cloned()
             .ok_or_else(|| format!("External import not found: {}", skill.id))?;
-        imports.save().map_err(|e| e.to_string())?;
-        let _ = remove_external_import_links_for_target(
+        remove_external_import_links_for_target(
             &import.directory,
             &PathBuf::from(&import.source_path),
-        );
+        )
+        .map_err(|e| e.to_string())?;
+        imports.imports.remove(&skill.id);
+        imports.save().map_err(|e| e.to_string())?;
         return Ok(());
     }
 
@@ -3100,7 +3132,6 @@ pub async fn create_skill(
     state: State<'_, AppState>,
     name: String,
     content: String,
-    agents: Vec<String>,
 ) -> Result<InstalledSkill, String> {
     validate_skill_name(&name)?;
     validate_skill_directory(&name)?;
@@ -3118,19 +3149,6 @@ pub async fn create_skill(
     let skill_md_path = skill_dir.join("SKILL.md");
     std::fs::write(&skill_md_path, &content)
         .map_err(|e| format!("Failed to write SKILL.md: {e}"))?;
-
-    for agent in &agents {
-        if let Some(_agent_dir) = config::get_agent_skills_dir(agent) {
-            if let Err(e) =
-                SkillService::toggle_symlink(&name, &skill_dir.to_string_lossy(), agent, true)
-            {
-                eprintln!(
-                    "Failed to create symlink for new skill '{}' (agent {}): {e}",
-                    name, agent
-                );
-            }
-        }
-    }
 
     // Scan and insert into cache incrementally
     let entry = SkillService::scan_single_skill(&name).map_err(|e| e.to_string())?;

@@ -348,3 +348,24 @@ fn test_scan_skill_root_normalizes_nested_directory_to_forward_slashes() {
     // id is built from directory — must also use forward slashes
     assert_eq!(entry.id, "ssot:category/nested-demo");
 }
+
+#[test]
+fn test_scan_skill_root_recomputes_hash_after_file_deletion() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let scan_root = dir.path().join("skills");
+    let skill_dir = scan_root.join("hash-refresh");
+    std::fs::create_dir_all(&skill_dir).expect("create skill dir");
+    std::fs::write(skill_dir.join("SKILL.md"), "# Skill").expect("write skill");
+    let removable = skill_dir.join("remove-me.txt");
+    std::fs::write(&removable, "content").expect("write removable file");
+
+    let before = SkillService::scan_skill_root_for_test(&skill_dir, &scan_root, None)
+        .expect("initial scan")
+        .content_hash;
+    std::fs::remove_file(removable).expect("remove file");
+    let after = SkillService::scan_skill_root_for_test(&skill_dir, &scan_root, None)
+        .expect("rescan")
+        .content_hash;
+
+    assert_ne!(before, after);
+}

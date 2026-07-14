@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import {
   useRepoReadme,
   useRefreshRepoPanel,
@@ -10,11 +11,13 @@ import {
   useUnstarSkill,
   useUpdateAllSkills,
   useUpdateSkill,
+  useSkillsWatcher,
 } from "./useSkills";
 import { createQueryWrapper } from "@/test/utils";
 import type { InstalledSkill } from "@/types/skills";
 
 vi.mock("@tauri-apps/api/core");
+vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
 
 const mockSkills: InstalledSkill[] = [
   {
@@ -40,6 +43,29 @@ const mockSkills: InstalledSkill[] = [
     updatedAt: 4000,
   },
 ];
+
+describe("useSkillsWatcher", () => {
+  it("unlistens when registration resolves after unmount", async () => {
+    let resolveListen!: (unlisten: () => void) => void;
+    const unlisten = vi.fn();
+    vi.mocked(listen).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveListen = resolve;
+        }),
+    );
+    const { wrapper } = createQueryWrapper();
+    const { unmount } = renderHook(() => useSkillsWatcher(), { wrapper });
+
+    unmount();
+    await act(async () => {
+      resolveListen(unlisten);
+      await Promise.resolve();
+    });
+
+    expect(unlisten).toHaveBeenCalledOnce();
+  });
+});
 
 describe("useStarSkill", () => {
   beforeEach(() => {

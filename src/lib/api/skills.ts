@@ -131,8 +131,8 @@ export const skillsApi = {
   setSkillIsMine: (skillId: string, isMine: boolean) =>
     invoke<void>("set_skill_is_mine", { skillId, isMine }),
 
-  createSkill: (name: string, content: string, agents: string[]) =>
-    invoke<InstalledSkill>("create_skill", { name, content, agents }),
+  createSkill: (name: string, content: string) =>
+    invoke<InstalledSkill>("create_skill", { name, content }),
 
   // ── Duplicates ──
 

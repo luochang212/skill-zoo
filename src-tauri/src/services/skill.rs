@@ -438,7 +438,7 @@ impl SkillService {
     }
 
     /// Construct the canonical skill ID string used across cache and duplicate detection.
-    /// Must match the logic in `scan_single_skill_with_cache`.
+    /// Must match the logic in `scan_single_skill`.
     fn make_skill_id(
         origin: &str,
         dir: &str,
@@ -520,81 +520,6 @@ impl SkillService {
         }
     }
 
-    fn get_dir_latest_mtime(path: &str) -> Option<i64> {
-        let root = std::path::Path::new(path);
-        let mut latest: Option<std::time::SystemTime> = None;
-        fn walk(dir: &std::path::Path, latest: &mut Option<std::time::SystemTime>) {
-            let Ok(entries) = std::fs::read_dir(dir) else {
-                return;
-            };
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    if crate::config::SKIP_DIRS.contains(&name) {
-                        continue;
-                    }
-                }
-                if is_symlink_or_junction(&path) && path.is_dir() {
-                    continue;
-                }
-                if let Ok(meta) = std::fs::metadata(&path) {
-                    if let Ok(mtime) = meta.modified() {
-                        if latest.is_none_or(|l| mtime > l) {
-                            *latest = Some(mtime);
-                        }
-                    }
-                }
-                if path.is_dir() {
-                    walk(&path, latest);
-                }
-            }
-        }
-        walk(root, &mut latest);
-        latest.and_then(|m| {
-            m.duration_since(std::time::UNIX_EPOCH)
-                .ok()
-                .map(|d| d.as_millis() as i64)
-        })
-    }
-
-    fn hash_cache_path() -> PathBuf {
-        crate::config::get_app_config_dir().join("hash-cache.json")
-    }
-
-    fn load_hash_cache() -> HashMap<String, (i64, String)> {
-        let path = Self::hash_cache_path();
-        if !path.exists() {
-            return HashMap::new();
-        }
-        let content = std::fs::read_to_string(&path).unwrap_or_default();
-        serde_json::from_str(&content).unwrap_or_default()
-    }
-
-    fn save_hash_cache(cache: &HashMap<String, (i64, String)>) {
-        let path = Self::hash_cache_path();
-        if let Ok(json) = serde_json::to_string_pretty(cache) {
-            let _ = crate::persistence::atomic_write(&path, json);
-        }
-    }
-
-    fn compute_content_hash_cached(
-        home_path: &str,
-        cache: &mut HashMap<String, (i64, String)>,
-    ) -> Option<String> {
-        let current_mtime = Self::get_dir_latest_mtime(home_path)?;
-        // Normalize to forward slashes so the cache key is consistent across
-        // platforms even when the path was produced by different code paths.
-        let key = crate::persistence::normalize_path_separators(home_path);
-        if let Some((cached_mtime, cached_hash)) = cache.get(&key) {
-            if current_mtime == *cached_mtime {
-                return Some(cached_hash.clone());
-            }
-        }
-        let new_hash = Self::compute_content_hash(home_path)?;
-        cache.insert(key, (current_mtime, new_hash.clone()));
-        Some(new_hash)
-    }
-
     // ──────────────────────────────────────────────
     //  Read path: return cached skills
     // ──────────────────────────────────────────────
@@ -665,10 +590,8 @@ impl SkillService {
         // the async runtime stays free to handle incoming Tauri commands.
         let entries = tokio::task::spawn_blocking(move || {
             let mut entries: Vec<SkillCacheEntry> = Vec::new();
-            let mut hash_cache = Self::load_hash_cache();
-            Self::scan_filesystem_into(&mut entries, &mut hash_cache);
-            Self::scan_external_imports_into(&mut entries, &mut hash_cache);
-            Self::save_hash_cache(&hash_cache);
+            Self::scan_filesystem_into(&mut entries);
+            Self::scan_external_imports_into(&mut entries);
             entries
         })
         .await
@@ -688,10 +611,7 @@ impl SkillService {
     }
 
     /// Scan filesystem for skill directories and push into entries.
-    fn scan_filesystem_into(
-        entries: &mut Vec<SkillCacheEntry>,
-        hash_cache: &mut HashMap<String, (i64, String)>,
-    ) {
+    fn scan_filesystem_into(entries: &mut Vec<SkillCacheEntry>) {
         let mut scan_dirs: Vec<PathBuf> = Vec::new();
         let agents_dir = config::get_agents_skills_dir();
         if agents_dir.exists() {
@@ -731,16 +651,12 @@ impl SkillService {
                 entries,
                 &mut seen_ids,
                 scan_dir,
-                hash_cache,
                 &imports_by_source,
             );
         }
     }
 
-    fn scan_external_imports_into(
-        entries: &mut Vec<SkillCacheEntry>,
-        hash_cache: &mut HashMap<String, (i64, String)>,
-    ) {
+    fn scan_external_imports_into(entries: &mut Vec<SkillCacheEntry>) {
         let Ok(imports) = ExternalImports::load() else {
             return;
         };
@@ -749,7 +665,7 @@ impl SkillService {
             if external_source_under_known_skill_root(Path::new(&import.source_path)) {
                 continue;
             }
-            let Ok(entry) = Self::scan_external_import_with_cache(import, hash_cache) else {
+            let Ok(entry) = Self::scan_external_import(import) else {
                 continue;
             };
             if seen_ids.insert(entry.id.clone()) {
@@ -814,7 +730,6 @@ impl SkillService {
         entries: &mut Vec<SkillCacheEntry>,
         seen_ids: &mut HashSet<String>,
         scan_root: &PathBuf,
-        hash_cache: &mut HashMap<String, (i64, String)>,
         imports_by_source: &HashMap<PathBuf, &ExternalImportEntry>,
     ) {
         let Ok(dir_entries) = std::fs::read_dir(dir) else {
@@ -833,9 +748,7 @@ impl SkillService {
                 // SSOT which is already scanned from the SSOT root — skip it.
                 if let Ok(target) = path.canonicalize() {
                     if let Some(import) = imports_by_source.get(&target) {
-                        if let Ok(ext_entry) =
-                            Self::scan_external_import_with_cache(import, hash_cache)
-                        {
+                        if let Ok(ext_entry) = Self::scan_external_import(import) {
                             if seen_ids.insert(ext_entry.id.clone()) {
                                 entries.push(ext_entry);
                             }
@@ -864,9 +777,7 @@ impl SkillService {
                             .expect("scan_root should be SSOT or a known agent directory"),
                     )
                 };
-                let Ok(entry) =
-                    Self::scan_skill_root_with_cache(&path, scan_root, agent_id, hash_cache)
-                else {
+                let Ok(entry) = Self::scan_skill_root(&path, scan_root, agent_id) else {
                     continue;
                 };
                 if !seen_ids.insert(entry.id.clone()) {
@@ -879,7 +790,6 @@ impl SkillService {
                     entries,
                     seen_ids,
                     scan_root,
-                    hash_cache,
                     imports_by_source,
                 );
             }
@@ -1167,17 +1077,6 @@ impl SkillService {
     /// Used for incremental cache updates after install/update.
     /// Looks in SSOT first, then agent directories, to handle both origins.
     pub fn scan_single_skill(skill_dir: &str) -> Result<SkillCacheEntry, AppError> {
-        let mut hash_cache = Self::load_hash_cache();
-        let result = Self::scan_single_skill_with_cache(skill_dir, &mut hash_cache)?;
-        Self::save_hash_cache(&hash_cache);
-        Ok(result)
-    }
-
-    /// Core scan logic with shared hash cache for bulk operations.
-    fn scan_single_skill_with_cache(
-        skill_dir: &str,
-        hash_cache: &mut HashMap<String, (i64, String)>,
-    ) -> Result<SkillCacheEntry, AppError> {
         let origin = Self::detect_origin(skill_dir);
         let home_path = Self::detect_home_path(skill_dir, origin);
 
@@ -1222,7 +1121,7 @@ impl SkillService {
 
         let content_hash = home_path
             .as_ref()
-            .and_then(|p| Self::compute_content_hash_cached(p, hash_cache));
+            .and_then(|p| Self::compute_content_hash(p));
         let home_agent = Self::detect_home_agent(&home_path, origin);
         let now = chrono::Utc::now().timestamp();
         let (installed_at, updated_at) =
@@ -1262,43 +1161,18 @@ impl SkillService {
     pub fn scan_skill_roots_batch(
         skill_roots: &[(PathBuf, PathBuf, Option<String>)],
     ) -> Result<Vec<SkillCacheEntry>, AppError> {
-        let mut hash_cache = Self::load_hash_cache();
         let mut entries = Vec::with_capacity(skill_roots.len());
         for (skill_root, scan_root, agent_id) in skill_roots {
-            entries.push(Self::scan_skill_root_with_cache(
+            entries.push(Self::scan_skill_root(
                 skill_root,
                 scan_root,
                 agent_id.as_deref(),
-                &mut hash_cache,
             )?);
         }
-        Self::save_hash_cache(&hash_cache);
         Ok(entries)
     }
 
-    pub fn scan_skill_root(
-        skill_root: &Path,
-        scan_root: &Path,
-        agent_id: Option<&str>,
-    ) -> Result<SkillCacheEntry, AppError> {
-        let mut hash_cache = Self::load_hash_cache();
-        let result =
-            Self::scan_skill_root_with_cache(skill_root, scan_root, agent_id, &mut hash_cache);
-        Self::save_hash_cache(&hash_cache);
-        result
-    }
-
     pub fn scan_external_import(import: &ExternalImportEntry) -> Result<SkillCacheEntry, AppError> {
-        let mut hash_cache = Self::load_hash_cache();
-        let result = Self::scan_external_import_with_cache(import, &mut hash_cache);
-        Self::save_hash_cache(&hash_cache);
-        result
-    }
-
-    fn scan_external_import_with_cache(
-        import: &ExternalImportEntry,
-        hash_cache: &mut HashMap<String, (i64, String)>,
-    ) -> Result<SkillCacheEntry, AppError> {
         let skill_root = PathBuf::from(&import.source_path);
         if external_source_under_known_skill_root(&skill_root) {
             return Err(AppError::BadRequest(
@@ -1330,7 +1204,7 @@ impl SkillService {
             Some(parsed_name)
         };
         let home_path = Some(import.source_path.clone());
-        let content_hash = Self::compute_content_hash_cached(&import.source_path, hash_cache);
+        let content_hash = Self::compute_content_hash(&import.source_path);
         let apps = Self::detect_agents(&import.directory, &home_path);
 
         Ok(SkillCacheEntry {
@@ -1352,11 +1226,10 @@ impl SkillService {
         })
     }
 
-    fn scan_skill_root_with_cache(
+    pub fn scan_skill_root(
         skill_root: &Path,
         scan_root: &Path,
         agent_id: Option<&str>,
-        hash_cache: &mut HashMap<String, (i64, String)>,
     ) -> Result<SkillCacheEntry, AppError> {
         let skill_md = skill_root.join("SKILL.md");
         if !skill_md.exists() {
@@ -1409,7 +1282,7 @@ impl SkillService {
             .map(crate::persistence::normalize_path_separators);
         let content_hash = home_path
             .as_ref()
-            .and_then(|p| Self::compute_content_hash_cached(p, hash_cache));
+            .and_then(|p| Self::compute_content_hash(p));
         let home_agent = if origin == "agent" {
             agent_id
                 .map(str::to_string)
@@ -1450,8 +1323,7 @@ impl SkillService {
         scan_root: &Path,
         agent_id: Option<&str>,
     ) -> Result<SkillCacheEntry, AppError> {
-        let mut hash_cache = HashMap::new();
-        Self::scan_skill_root_with_cache(skill_root, scan_root, agent_id, &mut hash_cache)
+        Self::scan_skill_root(skill_root, scan_root, agent_id)
     }
 
     /// Insert or replace a cache entry and persist.
@@ -1475,19 +1347,16 @@ impl SkillService {
         c.save()
     }
 
-    /// Scan multiple skill directories with a shared hash cache for efficiency.
     /// Returns (entries, failed_dirs) — caller decides how to handle failures.
     pub fn scan_skills_batch(skill_dirs: &[String]) -> (Vec<SkillCacheEntry>, Vec<String>) {
-        let mut hash_cache = Self::load_hash_cache();
         let mut entries = Vec::with_capacity(skill_dirs.len());
         let mut failed = Vec::new();
         for dir in skill_dirs {
-            match Self::scan_single_skill_with_cache(dir, &mut hash_cache) {
+            match Self::scan_single_skill(dir) {
                 Ok(entry) => entries.push(entry),
                 Err(_) => failed.push(dir.clone()),
             }
         }
-        Self::save_hash_cache(&hash_cache);
         (entries, failed)
     }
 
@@ -1743,10 +1612,11 @@ impl SkillService {
         }
         let entries =
             std::fs::read_dir(&agent_skills_dir).map_err(|e| error::io(&agent_skills_dir, e))?;
-        for entry in entries.flatten() {
+        for entry in entries {
+            let entry = entry.map_err(|e| error::io(&agent_skills_dir, e))?;
             let path = entry.path();
-            if is_symlink_or_junction(&path) && Self::safe_remove(&path).is_err() {
-                // Intentionally ignore removal failures for orphaned symlinks
+            if is_symlink_or_junction(&path) {
+                Self::safe_remove(&path)?;
             }
         }
         Ok(())

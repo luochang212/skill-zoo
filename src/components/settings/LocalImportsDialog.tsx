@@ -146,7 +146,6 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
           setSelectedSources(new Set());
           refetch();
         },
-        onError: (error) => toast.error(formatApiError(error)),
       },
     );
   };
@@ -402,7 +401,6 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
                                     toast.success(t("settings.localImports.removeSuccess"));
                                     refetch();
                                   },
-                                  onError: (error) => toast.error(formatApiError(error)),
                                 })
                               }
                             >

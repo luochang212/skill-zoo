@@ -9,7 +9,6 @@ import {
   XCircle,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -131,15 +130,11 @@ export function SkillUpdateManagerDialog({
   };
 
   const handleDeleteHistory = (id: string) => {
-    deleteHistory.mutate(id, {
-      onError: (error) => toast.error(formatApiError(error)),
-    });
+    deleteHistory.mutate(id);
   };
 
   const handleClearHistory = () => {
-    clearHistory.mutate(undefined, {
-      onError: (error) => toast.error(formatApiError(error)),
-    });
+    clearHistory.mutate();
   };
 
   return (

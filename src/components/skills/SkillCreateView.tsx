@@ -43,7 +43,7 @@ export function SkillCreateView({ onClose, onCreated }: SkillCreateViewProps) {
   const handleCreate = useCallback(() => {
     if (!name.trim() || createMutation.isPending) return;
     createMutation.mutate(
-      { name: name.trim(), content: fullContent, agents: [] },
+      { name: name.trim(), content: fullContent },
       {
         onSuccess: (skill) => {
           onCreated(skill.id, skill.directory, skill.name);

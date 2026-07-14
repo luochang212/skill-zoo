@@ -33,16 +33,3 @@ export function formatArchivedList(skills: ArchivedSkill[]): string {
 
   return `${skills.map((skill) => `${skill.archiveId} (${skill.name})`).join("\n")}\n`;
 }
-
-export function formatChanges(changes: Change[]): string {
-  if (changes.length === 0) {
-    return "No changes.\n";
-  }
-
-  return `${changes
-    .map((change) => {
-      const target = change.target ? ` -> ${change.target}` : "";
-      return `${change.action}: ${change.path}${target}`;
-    })
-    .join("\n")}\n`;
-}

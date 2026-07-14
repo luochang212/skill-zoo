@@ -645,7 +645,7 @@ describe("InstalledSkills visible agent filtering", () => {
 
     expect(mocks.batchUnlinkSkills).toHaveBeenCalledWith(
       { skillIds: ["ssot-skill", "external-skill"], agent: "codex" },
-      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
     );
   });
 

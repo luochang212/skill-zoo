@@ -165,7 +165,6 @@ pub fn run() {
             commands::settings::get_skill_usage,
             commands::settings::set_window_theme,
             commands::settings::get_visible_agents,
-            commands::settings::update_visible_agents,
             commands::settings::update_agent_preferences,
             commands::settings::clear_download_cache,
             commands::settings::get_cache_size,

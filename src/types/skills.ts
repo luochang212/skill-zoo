@@ -97,6 +97,16 @@ export interface ExternalImportSelection {
 
 export type View = "discover" | "local" | "settings";
 
+export type SidebarCategory =
+  | { type: "all" }
+  | { type: "starred" }
+  | { type: "import" }
+  | { type: "archived" }
+  | { type: "mine" }
+  | { type: "consistency" }
+  | { type: "unassigned" }
+  | { type: "repo"; owner: string; name: string };
+
 export interface AgentPathInfo {
   agent: string;
   label: string;

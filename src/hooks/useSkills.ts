@@ -48,14 +48,20 @@ export function useSkillUpdateHistory(enabled = true) {
 export function useSkillsWatcher() {
   const qc = useQueryClient();
   useEffect(() => {
+    let disposed = false;
     let unlisten: (() => void) | undefined;
-    (async () => {
-      unlisten = await listen("skills-changed", () => {
-        invalidateFor(qc, "rescanSkills");
-        invalidateFor(qc, "externalImports");
-      });
-    })();
+    void listen("skills-changed", () => {
+      invalidateFor(qc, "rescanSkills");
+      invalidateFor(qc, "externalImports");
+    }).then((registeredUnlisten) => {
+      if (disposed) {
+        registeredUnlisten();
+      } else {
+        unlisten = registeredUnlisten;
+      }
+    });
     return () => {
+      disposed = true;
       unlisten?.();
     };
   }, [qc]);
@@ -485,8 +491,8 @@ function useStarMutation(apiFn: (id: string) => Promise<void>, starred: boolean)
 export function useCreateSkill() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { name: string; content: string; agents: string[] }) =>
-      skillsApi.createSkill(vars.name, vars.content, vars.agents),
+    mutationFn: (vars: { name: string; content: string }) =>
+      skillsApi.createSkill(vars.name, vars.content),
     onSuccess: () => invalidateFor(qc, "createSkill"),
   });
 }

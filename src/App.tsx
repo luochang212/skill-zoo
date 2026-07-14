@@ -40,10 +40,9 @@ import {
   useUnstarSkill,
   useSkillsWatcher,
 } from "@/hooks/useSkills";
-import { useSidebarFilter } from "@/hooks/useSidebarFilter";
 import { applyTheme } from "@/hooks/useTheme";
 import { settingsApi } from "@/lib/api/settings";
-import type { View, DiscoverRepo } from "@/types/skills";
+import type { View, DiscoverRepo, SidebarCategory } from "@/types/skills";
 
 interface EBProps {
   children: ReactNode;
@@ -124,7 +123,7 @@ export default function App() {
     isLoading: archivedContentLoading,
     isError: archivedError,
   } = useArchivedSkillContent(archivedEditor?.archiveId ?? null);
-  const sidebarFilter = useSidebarFilter();
+  const [category, setCategory] = useState<SidebarCategory>({ type: "all" });
   useSkillsWatcher();
 
   useEffect(() => {
@@ -140,20 +139,26 @@ export default function App() {
 
   // Listen for navigation requests from the tray menu (e.g. "设置" → settings view).
   useEffect(() => {
+    let disposed = false;
     let unlisten: (() => void) | undefined;
-    (async () => {
-      unlisten = await listen<string>("navigate", (event) => {
-        const target = event.payload;
-        if (target === "settings") {
-          setView("settings");
-        } else if (target === "settings:skill-companion") {
-          setView("settings");
-          skillCompanionRequestCounter.current += 1;
-          setSkillCompanionOpenRequest(skillCompanionRequestCounter.current);
-        }
-      });
-    })();
+    void listen<string>("navigate", (event) => {
+      const target = event.payload;
+      if (target === "settings") {
+        setView("settings");
+      } else if (target === "settings:skill-companion") {
+        setView("settings");
+        skillCompanionRequestCounter.current += 1;
+        setSkillCompanionOpenRequest(skillCompanionRequestCounter.current);
+      }
+    }).then((registeredUnlisten) => {
+      if (disposed) {
+        registeredUnlisten();
+      } else {
+        unlisten = registeredUnlisten;
+      }
+    });
     return () => {
+      disposed = true;
       unlisten?.();
     };
   }, []);
@@ -181,7 +186,7 @@ export default function App() {
     archiveMutation.mutate(editor.skillId, {
       onSuccess: () => {
         editor.closeEditor();
-        sidebarFilter.setCategory({ type: "archived" });
+        setCategory({ type: "archived" });
       },
     });
   };
@@ -199,7 +204,7 @@ export default function App() {
     restoreMutation.mutate(archivedEditor.archiveId, {
       onSuccess: (skill) => {
         setArchivedEditor(null);
-        sidebarFilter.setCategory({ type: "all" });
+        setCategory({ type: "all" });
         editor.openEditor(skill.id, skill.directory, skill.name);
       },
     });
@@ -284,8 +289,8 @@ export default function App() {
     <InstalledSkills
       onViewSkill={editor.openEditor}
       onViewArchivedSkill={handleOpenArchivedSkill}
-      category={sidebarFilter.category}
-      onSelectCategory={sidebarFilter.selectCategory}
+      category={category}
+      onSelectCategory={setCategory}
       onCreateSkill={handleOpenCreateSkill}
     />
   );

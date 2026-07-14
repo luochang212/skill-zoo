@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { InstalledSkill } from "@/types/skills";
-import type { SidebarCategory } from "@/hooks/useSidebarFilter";
+import type { SidebarCategory } from "@/types/skills";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useStarSkillDropTarget } from "@/components/skills/SkillDndLayer";

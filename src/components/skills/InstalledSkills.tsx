@@ -52,9 +52,7 @@ import {
   type SkillDropControls,
   type SkillDropTarget,
 } from "@/components/skills/SkillDndLayer";
-import { formatApiError } from "@/lib/api/errors";
-import type { SidebarCategory } from "@/hooks/useSidebarFilter";
-import type { ArchivedSkill, InstalledSkill } from "@/types/skills";
+import type { ArchivedSkill, InstalledSkill, SidebarCategory } from "@/types/skills";
 
 type ViewMode = "grid" | "list";
 
@@ -771,7 +769,6 @@ export const InstalledSkills = memo(function InstalledSkills({
             toast.warning(t("symlinkBatch.partialFailed", { count: result.failed.length }));
           }
         },
-        onError: (error) => toast.error(formatApiError(error)),
       },
     );
   };
@@ -807,8 +804,8 @@ export const InstalledSkills = memo(function InstalledSkills({
             }),
           ),
         );
-      } catch (error) {
-        afterDropSettled(() => toast.error(formatApiError(error)));
+      } catch {
+        // The global mutation handler reports the error.
       }
     })();
   };

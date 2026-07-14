@@ -65,12 +65,9 @@ impl CliService {
     ///
     /// Downloads the repo as ZIP, discovers skills, copies them into
     /// `~/.agents/skills/<name>/`, and updates the lock file.
-    /// The `agent` parameter is retained for API compatibility;
-    /// agent-specific symlinks are handled by the command layer.
     pub async fn add_skills(
         repo_url: &str,
         skills: &[String],
-        _agent: &str,
         preflight_agent_dirs: &[PathBuf],
     ) -> Result<Vec<String>, AppError> {
         let install_all = skills.is_empty() || skills.iter().any(|s| s == "*");
@@ -118,7 +115,13 @@ impl CliService {
 
         for (skill_name, _description, skill_path) in &to_install {
             let dest_dir = ssot_dir.join(skill_name);
-            let tmp = Self::create_temp_dir(&ssot_dir, skill_name, "install")?;
+            let tmp = match Self::create_temp_dir(&ssot_dir, skill_name, "install") {
+                Ok(tmp) => tmp,
+                Err(error) => {
+                    errors.push(format!("{skill_name}: {error}"));
+                    continue;
+                }
+            };
             let tmp_dir = tmp.path().to_path_buf();
 
             match Self::copy_dir_contents(skill_path, &tmp_dir) {
@@ -129,7 +132,10 @@ impl CliService {
                         ));
                         continue;
                     }
-                    std::fs::rename(&tmp_dir, &dest_dir).map_err(AppError::Io)?;
+                    if let Err(error) = std::fs::rename(&tmp_dir, &dest_dir) {
+                        errors.push(format!("{skill_name}: {error}"));
+                        continue;
+                    }
                     let _ = tmp.keep();
                     let lock_skill_path = Self::lock_skill_path(&clone_path, skill_path)
                         .unwrap_or_else(|| format!("skills/{skill_name}"));
@@ -139,6 +145,16 @@ impl CliService {
                     errors.push(format!("{skill_name}: {e}"));
                 }
             }
+        }
+
+        if !errors.is_empty() {
+            for (skill_name, _) in &installed_skills {
+                let _ = std::fs::remove_dir_all(ssot_dir.join(skill_name));
+            }
+            return Err(AppError::Cli(format!(
+                "Installation failed: {}",
+                errors.join(", ")
+            )));
         }
 
         // Persist metadata to lock file, including folder SHAs so future
@@ -175,21 +191,17 @@ impl CliService {
                     std::collections::HashMap::new()
                 }
             };
-        let _ = Self::update_lock_after_install(
+        if let Err(error) = Self::update_lock_after_install(
             &installed_skills,
             &owner,
             &repo,
             branch.as_deref(),
             &folder_shas,
-        );
-
-        if !errors.is_empty() {
-            return Err(AppError::Cli(format!(
-                "Installed {} skill(s), {} failed: {}",
-                installed_skills.len(),
-                errors.len(),
-                errors.join(", ")
-            )));
+        ) {
+            for (skill_name, _) in &installed_skills {
+                let _ = std::fs::remove_dir_all(ssot_dir.join(skill_name));
+            }
+            return Err(error);
         }
 
         Ok(installed_skills

@@ -78,6 +78,7 @@ export function useSkillCompanionItems() {
 }
 
 export function useSaveSkillCompanionItems() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (items: SkillCompanionItem[]) => settingsApi.saveSkillCompanionItems(items),
@@ -85,6 +86,7 @@ export function useSaveSkillCompanionItems() {
       qc.setQueryData(SKILL_COMPANION_ITEMS_KEY, items);
       qc.invalidateQueries({ queryKey: SKILL_COMPANION_ITEMS_KEY });
     },
+    onError: () => toast.error(t("settings.skillCompanion.saveFailed")),
   });
 }
 

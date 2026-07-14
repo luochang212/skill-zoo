@@ -217,52 +217,6 @@ fn refresh_cached_agent_apps(state: &AppState) -> Result<(), String> {
     cache.save().map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-pub fn update_visible_agents(
-    state: State<'_, AppState>,
-    visible_agents: HashMap<String, bool>,
-) -> Result<(), String> {
-    if !visible_agents.values().any(|v| *v) {
-        return Err("At least one agent must remain visible".to_string());
-    }
-
-    // Read old visibility before saving
-    let old_visible = {
-        let settings = state.settings.lock().map_err(|e| e.to_string())?;
-        crate::services::skill::SkillService::get_visible_agents(&settings)
-    };
-
-    // Save new value
-    {
-        let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
-        let json = serde_json::to_string(&visible_agents).map_err(|e| e.to_string())?;
-        settings.set("visible_agents".to_string(), json);
-        settings.save().map_err(|e| e.to_string())?;
-    }
-
-    // Clean up symlinks for newly hidden agents
-    let mut removed_any_agent_links = false;
-    for agent in crate::config::AGENTS {
-        let was_visible = old_visible
-            .get(agent.id)
-            .copied()
-            .unwrap_or(crate::config::default_visibility(agent.id));
-        let now_visible = visible_agents
-            .get(agent.id)
-            .copied()
-            .unwrap_or(crate::config::default_visibility(agent.id));
-        if was_visible && !now_visible {
-            let _ = crate::services::skill::SkillService::remove_agent_symlinks(agent.id);
-            removed_any_agent_links = true;
-        }
-    }
-    if removed_any_agent_links {
-        refresh_cached_agent_apps(&state)?;
-    }
-
-    Ok(())
-}
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentPreferences {
@@ -346,18 +300,10 @@ pub fn update_agent_preferences(
     }
 
     let normalized_order = normalize_agent_order(&visible_agents, &agent_order);
-    let old_visible;
-
-    {
-        let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
-        old_visible = crate::services::skill::SkillService::get_visible_agents(&settings);
-        let previous = settings.clone();
-        set_agent_preference_values(&mut settings, &visible_agents, &normalized_order)?;
-        if let Err(error) = settings.save() {
-            *settings = previous;
-            return Err(error.to_string());
-        }
-    }
+    let old_visible = {
+        let settings = state.settings.lock().map_err(|e| e.to_string())?;
+        crate::services::skill::SkillService::get_visible_agents(&settings)
+    };
 
     let mut removed_any_agent_links = false;
     for agent in crate::config::AGENTS {
@@ -370,10 +316,22 @@ pub fn update_agent_preferences(
             .copied()
             .unwrap_or(crate::config::default_visibility(agent.id));
         if was_visible && !now_visible {
-            let _ = crate::services::skill::SkillService::remove_agent_symlinks(agent.id);
+            crate::services::skill::SkillService::remove_agent_symlinks(agent.id)
+                .map_err(|e| e.to_string())?;
             removed_any_agent_links = true;
         }
     }
+
+    {
+        let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
+        let previous = settings.clone();
+        set_agent_preference_values(&mut settings, &visible_agents, &normalized_order)?;
+        if let Err(error) = settings.save() {
+            *settings = previous;
+            return Err(error.to_string());
+        }
+    }
+
     if removed_any_agent_links {
         refresh_cached_agent_apps(&state)?;
     }

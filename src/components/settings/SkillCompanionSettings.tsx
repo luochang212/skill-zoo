@@ -689,7 +689,6 @@ function SkillCompanionManagerDialog({
       },
       onError: () => {
         onError?.();
-        toast.error(t("settings.skillCompanion.saveFailed"));
       },
     });
   };

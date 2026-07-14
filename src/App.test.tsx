@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -61,7 +61,9 @@ function renderApp() {
 describe("App local skill detail navigation", () => {
   beforeEach(() => {
     globalThis.ResizeObserver = ResizeObserverMock;
-    vi.mocked(listen).mockClear();
+    vi.mocked(listen)
+      .mockReset()
+      .mockResolvedValue(() => {});
     vi.mocked(invoke).mockReset();
     vi.mocked(invoke).mockImplementation((command) => {
       switch (command) {
@@ -92,6 +94,28 @@ describe("App local skill detail navigation", () => {
           return Promise.resolve(undefined);
       }
     });
+  });
+
+  it("unlistens navigation when registration resolves after unmount", async () => {
+    let resolveNavigate!: (unlisten: () => void) => void;
+    const unlisten = vi.fn();
+    vi.mocked(listen).mockImplementation((eventName) => {
+      if (eventName === "navigate") {
+        return new Promise((resolve) => {
+          resolveNavigate = resolve;
+        });
+      }
+      return Promise.resolve(() => {});
+    });
+
+    const { unmount } = renderApp();
+    unmount();
+    await act(async () => {
+      resolveNavigate(unlisten);
+      await Promise.resolve();
+    });
+
+    expect(unlisten).toHaveBeenCalledOnce();
   });
 
   it("keeps the local skill list mounted behind the detail overlay", async () => {
