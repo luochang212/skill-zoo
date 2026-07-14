@@ -12,6 +12,22 @@ use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 use tauri::Emitter;
 
+fn commit_cache_entries(
+    cache: &mut SkillCache,
+    entries: Vec<SkillCacheEntry>,
+    persist: impl FnOnce(&SkillCache) -> Result<(), AppError>,
+) -> Result<(), AppError> {
+    let previous = cache.clone();
+    for entry in entries {
+        cache.upsert(entry);
+    }
+    if let Err(error) = persist(cache) {
+        *cache = previous;
+        return Err(error);
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InstalledSkill {
@@ -32,6 +48,69 @@ pub struct InstalledSkill {
     pub is_mine: bool,
     pub installed_at: i64,
     pub updated_at: i64,
+}
+
+pub(crate) struct StagedAgentSymlinkRemoval {
+    moved_links: Vec<(PathBuf, PathBuf)>,
+    staging_dirs: Vec<tempfile::TempDir>,
+}
+
+impl StagedAgentSymlinkRemoval {
+    pub(crate) fn rollback(self) -> Result<(), AppError> {
+        let mut errors = Vec::new();
+        for (original, staged) in self.moved_links.iter().rev() {
+            if std::fs::symlink_metadata(staged).is_err() {
+                if std::fs::symlink_metadata(original).is_err() {
+                    errors.push(format!(
+                        "cannot restore {} because its staged backup is missing",
+                        original.display()
+                    ));
+                }
+                continue;
+            }
+            if std::fs::symlink_metadata(original).is_ok() {
+                errors.push(format!(
+                    "cannot restore {} because the destination now exists",
+                    original.display()
+                ));
+                continue;
+            }
+            if let Err(error) = std::fs::rename(staged, original) {
+                errors.push(format!(
+                    "restore {} from {}: {error}",
+                    original.display(),
+                    staged.display()
+                ));
+            }
+        }
+
+        if errors.is_empty() {
+            return Ok(());
+        }
+
+        let retained = self
+            .staging_dirs
+            .into_iter()
+            .map(|dir| dir.keep().display().to_string())
+            .collect::<Vec<_>>();
+        Err(AppError::Cli(format!(
+            "Failed to restore agent links: {}. Backups retained at: {}",
+            errors.join("; "),
+            retained.join(", ")
+        )))
+    }
+
+    pub(crate) fn commit(self) {
+        for dir in self.staging_dirs {
+            let path = dir.path().to_path_buf();
+            if let Err(error) = dir.close() {
+                eprintln!(
+                    "Failed to remove staged agent links at {}: {error}",
+                    path.display()
+                );
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -566,25 +645,9 @@ impl SkillService {
     pub async fn rebuild_cache(
         cache: &RwLock<SkillCache>,
         metadata: &RwLock<MetadataStore>,
-        sync_flag: &std::sync::atomic::AtomicBool,
+        refresh_lock: &tokio::sync::Mutex<()>,
     ) -> Result<Vec<InstalledSkill>, AppError> {
-        if sync_flag.swap(true, std::sync::atomic::Ordering::AcqRel) {
-            let c = cache
-                .read()
-                .map_err(|e| AppError::Parse(format!("Cache lock: {e}")))?;
-            let m = metadata
-                .read()
-                .map_err(|e| AppError::Parse(format!("Metadata lock: {e}")))?;
-            return Self::get_cached_skills(&c, &m);
-        }
-
-        struct SyncGuard<'a>(&'a std::sync::atomic::AtomicBool);
-        impl<'a> Drop for SyncGuard<'a> {
-            fn drop(&mut self) {
-                self.0.store(false, std::sync::atomic::Ordering::Release);
-            }
-        }
-        let _guard = SyncGuard(sync_flag);
+        let _refresh_guard = refresh_lock.lock().await;
 
         // Run the heavy filesystem scan on the blocking thread pool so
         // the async runtime stays free to handle incoming Tauri commands.
@@ -608,6 +671,37 @@ impl SkillService {
             .read()
             .map_err(|e| AppError::Parse(format!("Metadata lock: {e}")))?;
         Self::get_cached_skills(&new_cache, &m)
+    }
+
+    /// Scan newly installed SSOT skills and commit them to the cache as one
+    /// serialized update. This prevents an overlapping full rebuild from
+    /// replacing fresh entries with an older filesystem snapshot.
+    pub async fn refresh_installed_skills(
+        cache: &RwLock<SkillCache>,
+        metadata: &RwLock<MetadataStore>,
+        refresh_lock: &tokio::sync::Mutex<()>,
+        skill_dirs: Vec<String>,
+    ) -> Result<Vec<InstalledSkill>, AppError> {
+        let _refresh_guard = refresh_lock.lock().await;
+        let (entries, failed) =
+            tokio::task::spawn_blocking(move || Self::scan_skills_batch(&skill_dirs))
+                .await
+                .map_err(|e| AppError::Parse(format!("Installed skill scan panicked: {e}")))?;
+
+        if !failed.is_empty() {
+            return Err(AppError::Parse(format!(
+                "Failed to scan installed skills: {}",
+                failed.join(", ")
+            )));
+        }
+
+        let mut current = cache
+            .write()
+            .map_err(|e| AppError::Parse(format!("Cache lock: {e}")))?;
+        commit_cache_entries(&mut current, entries, SkillCache::save)?;
+        drop(current);
+
+        Self::read_all_skills(cache, metadata)
     }
 
     /// Scan filesystem for skill directories and push into entries.
@@ -1500,6 +1594,14 @@ impl SkillService {
         Ok(())
     }
 
+    #[cfg(test)]
+    pub(crate) fn create_link_to_target_for_test(
+        target_path: &std::path::Path,
+        symlink_path: &std::path::Path,
+    ) -> Result<(), AppError> {
+        Self::create_link_to_target(target_path, symlink_path)
+    }
+
     pub fn remove_agent_links_for_target(
         skill_name: &str,
         target_path: &std::path::Path,
@@ -1604,22 +1706,100 @@ impl SkillService {
         Ok(())
     }
 
-    pub fn remove_agent_symlinks(agent: &str) -> Result<(), AppError> {
-        let agent_skills_dir = config::get_agent_skills_dir(agent)
-            .ok_or_else(|| AppError::NotFound(format!("Unknown agent: {agent}")))?;
-        if !agent_skills_dir.exists() {
-            return Ok(());
+    pub(crate) fn stage_agent_symlink_removal(
+        agents: &[&str],
+    ) -> Result<StagedAgentSymlinkRemoval, AppError> {
+        let mut agent_dirs = Vec::with_capacity(agents.len());
+        for agent in agents {
+            agent_dirs.push(
+                config::get_agent_skills_dir(agent)
+                    .ok_or_else(|| AppError::NotFound(format!("Unknown agent: {agent}")))?,
+            );
         }
-        let entries =
-            std::fs::read_dir(&agent_skills_dir).map_err(|e| error::io(&agent_skills_dir, e))?;
-        for entry in entries {
-            let entry = entry.map_err(|e| error::io(&agent_skills_dir, e))?;
-            let path = entry.path();
-            if is_symlink_or_junction(&path) {
-                Self::safe_remove(&path)?;
+        Self::stage_agent_symlink_removal_in_dirs(&agent_dirs)
+    }
+
+    fn stage_agent_symlink_removal_in_dirs(
+        agent_dirs: &[PathBuf],
+    ) -> Result<StagedAgentSymlinkRemoval, AppError> {
+        Self::stage_agent_symlink_removal_in_dirs_with(agent_dirs, |source, destination| {
+            std::fs::rename(source, destination)
+        })
+    }
+
+    fn stage_agent_symlink_removal_in_dirs_with(
+        agent_dirs: &[PathBuf],
+        mut rename_link: impl FnMut(&Path, &Path) -> std::io::Result<()>,
+    ) -> Result<StagedAgentSymlinkRemoval, AppError> {
+        let mut link_groups = Vec::new();
+        for agent_dir in agent_dirs {
+            if !agent_dir.exists() {
+                continue;
+            }
+            let entries = std::fs::read_dir(agent_dir).map_err(|e| error::io(agent_dir, e))?;
+            let mut links = Vec::new();
+            for entry in entries {
+                let entry = entry.map_err(|e| error::io(agent_dir, e))?;
+                let path = entry.path();
+                if is_symlink_or_junction(&path) {
+                    links.push(path);
+                }
+            }
+            if !links.is_empty() {
+                link_groups.push((agent_dir.clone(), links));
             }
         }
-        Ok(())
+
+        let mut staged = StagedAgentSymlinkRemoval {
+            moved_links: Vec::new(),
+            staging_dirs: Vec::new(),
+        };
+        let mut moves_to_make = Vec::new();
+        for (agent_dir, links) in link_groups {
+            let parent = agent_dir.parent().ok_or_else(|| {
+                AppError::BadRequest(format!(
+                    "Agent skills directory has no parent: {}",
+                    agent_dir.display()
+                ))
+            })?;
+            let staging_dir = tempfile::Builder::new()
+                .prefix(".skill-zoo-hide-")
+                .tempdir_in(parent)
+                .map_err(|e| error::io(parent, e))?;
+            let staging_path = staging_dir.path().to_path_buf();
+            staged.staging_dirs.push(staging_dir);
+            for original in links {
+                let file_name = original.file_name().ok_or_else(|| {
+                    AppError::BadRequest(format!(
+                        "Agent link has no file name: {}",
+                        original.display()
+                    ))
+                })?;
+                let destination = staging_path.join(file_name);
+                moves_to_make.push((original, destination));
+            }
+        }
+
+        for (original, destination) in moves_to_make {
+            if let Err(error) = rename_link(&original, &destination) {
+                let original_error = error::io(&original, error);
+                return match staged.rollback() {
+                    Ok(()) => Err(original_error),
+                    Err(rollback_error) => Err(AppError::Cli(format!(
+                        "{original_error}. Recovery incomplete: {rollback_error}"
+                    ))),
+                };
+            }
+            staged.moved_links.push((original, destination));
+        }
+        Ok(staged)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn stage_agent_symlink_removal_in_dirs_for_test(
+        agent_dirs: &[PathBuf],
+    ) -> Result<StagedAgentSymlinkRemoval, AppError> {
+        Self::stage_agent_symlink_removal_in_dirs(agent_dirs)
     }
 
     // ──────────────────────────────────────────────
@@ -1951,6 +2131,110 @@ mod tests {
     }
 
     #[test]
+    fn staged_agent_link_removal_rolls_back_all_agents_and_ignores_real_directories() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let first_agent = root.path().join("first-agent/skills");
+        let second_agent = root.path().join("second-agent/skills");
+        let first_target = root.path().join("targets/first");
+        let second_target = root.path().join("targets/second");
+        std::fs::create_dir_all(&first_target).unwrap();
+        std::fs::create_dir_all(&second_target).unwrap();
+        std::fs::create_dir_all(first_agent.join("local-skill")).unwrap();
+        let first_link = first_agent.join("first");
+        let second_link = second_agent.join("second");
+        SkillService::create_link_to_target(&first_target, &first_link).unwrap();
+        SkillService::create_link_to_target(&second_target, &second_link).unwrap();
+
+        let staged = SkillService::stage_agent_symlink_removal_in_dirs_for_test(&[
+            first_agent.clone(),
+            second_agent,
+        ])
+        .unwrap();
+
+        assert!(std::fs::symlink_metadata(&first_link).is_err());
+        assert!(std::fs::symlink_metadata(&second_link).is_err());
+        assert!(first_agent.join("local-skill").is_dir());
+
+        staged.rollback().unwrap();
+
+        assert!(symlink_target_matches(&first_link, &first_target));
+        assert!(symlink_target_matches(&second_link, &second_target));
+        assert!(first_agent.join("local-skill").is_dir());
+    }
+
+    #[test]
+    fn staged_agent_link_removal_restores_earlier_links_when_a_later_move_fails() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let first_agent = root.path().join("first-agent/skills");
+        let second_agent = root.path().join("second-agent/skills");
+        let first_target = root.path().join("targets/first");
+        let second_target = root.path().join("targets/second");
+        std::fs::create_dir_all(&first_target).unwrap();
+        std::fs::create_dir_all(&second_target).unwrap();
+        let first_link = first_agent.join("first");
+        let second_link = second_agent.join("second");
+        SkillService::create_link_to_target(&first_target, &first_link).unwrap();
+        SkillService::create_link_to_target(&second_target, &second_link).unwrap();
+        let mut moves = 0;
+
+        let result = SkillService::stage_agent_symlink_removal_in_dirs_with(
+            &[first_agent, second_agent],
+            |source, destination| {
+                moves += 1;
+                if moves == 2 {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::PermissionDenied,
+                        "injected move failure",
+                    ));
+                }
+                std::fs::rename(source, destination)
+            },
+        );
+
+        assert!(result.is_err());
+        assert!(symlink_target_matches(&first_link, &first_target));
+        assert!(symlink_target_matches(&second_link, &second_target));
+    }
+
+    #[test]
+    fn staged_agent_link_removal_reports_a_missing_backup() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let agent_dir = root.path().join("agent/skills");
+        let target = root.path().join("target");
+        std::fs::create_dir_all(&target).unwrap();
+        let link = agent_dir.join("demo");
+        SkillService::create_link_to_target(&target, &link).unwrap();
+        let staged =
+            SkillService::stage_agent_symlink_removal_in_dirs_for_test(&[agent_dir]).unwrap();
+        let backup = staged.moved_links[0].1.clone();
+        SkillService::safe_remove(&backup).unwrap();
+
+        let error = staged.rollback().unwrap_err().to_string();
+
+        assert!(error.contains("staged backup is missing"));
+        assert!(error.contains("Backups retained at"));
+        assert!(std::fs::symlink_metadata(&link).is_err());
+        assert!(target.is_dir());
+    }
+
+    #[test]
+    fn committed_agent_link_removal_deletes_links_without_deleting_targets() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let agent_dir = root.path().join("agent/skills");
+        let target = root.path().join("target");
+        std::fs::create_dir_all(&target).unwrap();
+        let link = agent_dir.join("demo");
+        SkillService::create_link_to_target(&target, &link).unwrap();
+
+        let staged =
+            SkillService::stage_agent_symlink_removal_in_dirs_for_test(&[agent_dir]).unwrap();
+        staged.commit();
+
+        assert!(std::fs::symlink_metadata(&link).is_err());
+        assert!(target.is_dir());
+    }
+
+    #[test]
     #[cfg(unix)]
     fn symlink_target_state_treats_dangling_link_as_unknown() {
         let dir = tempfile::tempdir().expect("tempdir");
@@ -2137,6 +2421,77 @@ mod tests {
             installed_at: 0,
             updated_at: 0,
         }
+    }
+
+    #[test]
+    fn cache_batch_commit_restores_memory_when_persistence_fails() {
+        let original = test_cache_entry("ssot:original", "original", "owner", "repo");
+        let added = test_cache_entry("ssot:added", "added", "owner", "repo");
+        let mut cache = SkillCache::from_entries(vec![original]);
+
+        let result = commit_cache_entries(&mut cache, vec![added], |_| {
+            Err(AppError::Cli("save failed".to_string()))
+        });
+
+        assert!(result.is_err());
+        assert!(cache.find_by_id("ssot:original").is_some());
+        assert!(cache.find_by_id("ssot:added").is_none());
+    }
+
+    #[test]
+    fn cache_batch_commit_persists_all_entries_once() {
+        let mut cache = SkillCache::empty();
+        let entries = vec![
+            test_cache_entry("ssot:first", "first", "owner", "repo"),
+            test_cache_entry("ssot:second", "second", "owner", "repo"),
+        ];
+        let mut saves = 0;
+
+        commit_cache_entries(&mut cache, entries, |_| {
+            saves += 1;
+            Ok(())
+        })
+        .unwrap();
+
+        assert_eq!(saves, 1);
+        assert!(cache.find_by_id("ssot:first").is_some());
+        assert!(cache.find_by_id("ssot:second").is_some());
+    }
+
+    #[tokio::test]
+    async fn installed_skill_refresh_waits_for_an_active_cache_refresh() {
+        let cache = RwLock::new(SkillCache::empty());
+        let metadata = RwLock::new(MetadataStore {
+            entries: HashMap::new(),
+        });
+        let refresh_lock = tokio::sync::Mutex::new(());
+        let guard = refresh_lock.lock().await;
+
+        let blocked = tokio::time::timeout(
+            std::time::Duration::from_millis(20),
+            SkillService::refresh_installed_skills(
+                &cache,
+                &metadata,
+                &refresh_lock,
+                vec!["missing-skill-for-refresh-lock-test".to_string()],
+            ),
+        )
+        .await;
+        assert!(blocked.is_err());
+
+        drop(guard);
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            SkillService::refresh_installed_skills(
+                &cache,
+                &metadata,
+                &refresh_lock,
+                vec!["missing-skill-for-refresh-lock-test".to_string()],
+            ),
+        )
+        .await
+        .expect("refresh should proceed after the lock is released");
+        assert!(result.is_err());
     }
 
     fn test_lock_entry(source: &str, skill_path: &str) -> SkillLockEntry {

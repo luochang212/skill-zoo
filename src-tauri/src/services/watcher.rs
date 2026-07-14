@@ -364,8 +364,12 @@ async fn trigger_incremental_refresh(
 
 async fn trigger_rebuild(app_handle: &tauri::AppHandle, event_count: usize, started: Instant) {
     let state = app_handle.state::<AppState>();
-    match SkillService::rebuild_cache(&state.skill_cache, &state.metadata, &state.sync_in_progress)
-        .await
+    match SkillService::rebuild_cache(
+        &state.skill_cache,
+        &state.metadata,
+        &state.cache_refresh_lock,
+    )
+    .await
     {
         Ok(_) => {
             let _ = app_handle.emit("skills-changed", ());

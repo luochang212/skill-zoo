@@ -82,7 +82,7 @@ pub fn run() {
                     match services::skill::SkillService::rebuild_cache(
                         &state.skill_cache,
                         &state.metadata,
-                        &state.sync_in_progress,
+                        &state.cache_refresh_lock,
                     )
                     .await
                     {

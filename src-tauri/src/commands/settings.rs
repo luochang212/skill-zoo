@@ -1,5 +1,6 @@
 use crate::services::cli::CliService;
 use crate::services::lock::{SkillLock, SkillLockEntry};
+use crate::services::skill::StagedAgentSymlinkRemoval;
 use crate::services::skill_usage::SkillUsage;
 use crate::services::tray::{
     validate_skill_companion_items, SkillCompanionItem, SKILL_COMPANION_ITEMS_SETTING,
@@ -279,6 +280,47 @@ fn set_agent_preference_values(
     Ok(())
 }
 
+fn rollback_agent_preference_change(
+    settings: &mut crate::persistence::Settings,
+    previous: crate::persistence::Settings,
+    staged_links: StagedAgentSymlinkRemoval,
+    error: String,
+) -> String {
+    *settings = previous;
+    match staged_links.rollback() {
+        Ok(()) => error,
+        Err(rollback_error) => format!("{error}. Recovery incomplete: {rollback_error}"),
+    }
+}
+
+fn commit_agent_preference_change(
+    settings: &mut crate::persistence::Settings,
+    visible_agents: &HashMap<String, bool>,
+    agent_order: &[String],
+    staged_links: StagedAgentSymlinkRemoval,
+    persist: impl FnOnce(&crate::persistence::Settings) -> Result<(), String>,
+) -> Result<(), String> {
+    let previous = settings.clone();
+    if let Err(error) = set_agent_preference_values(settings, visible_agents, agent_order) {
+        return Err(rollback_agent_preference_change(
+            settings,
+            previous,
+            staged_links,
+            error,
+        ));
+    }
+    if let Err(error) = persist(settings) {
+        return Err(rollback_agent_preference_change(
+            settings,
+            previous,
+            staged_links,
+            error,
+        ));
+    }
+    staged_links.commit();
+    Ok(())
+}
+
 const MAX_VISIBLE_AGENTS: usize = 7;
 
 #[tauri::command]
@@ -300,12 +342,9 @@ pub fn update_agent_preferences(
     }
 
     let normalized_order = normalize_agent_order(&visible_agents, &agent_order);
-    let old_visible = {
-        let settings = state.settings.lock().map_err(|e| e.to_string())?;
-        crate::services::skill::SkillService::get_visible_agents(&settings)
-    };
-
-    let mut removed_any_agent_links = false;
+    let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
+    let old_visible = crate::services::skill::SkillService::get_visible_agents(&settings);
+    let mut hidden_agents = Vec::new();
     for agent in crate::config::AGENTS {
         let was_visible = old_visible
             .get(agent.id)
@@ -316,24 +355,26 @@ pub fn update_agent_preferences(
             .copied()
             .unwrap_or(crate::config::default_visibility(agent.id));
         if was_visible && !now_visible {
-            crate::services::skill::SkillService::remove_agent_symlinks(agent.id)
-                .map_err(|e| e.to_string())?;
-            removed_any_agent_links = true;
+            hidden_agents.push(agent.id);
         }
     }
 
-    {
-        let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
-        let previous = settings.clone();
-        set_agent_preference_values(&mut settings, &visible_agents, &normalized_order)?;
-        if let Err(error) = settings.save() {
-            *settings = previous;
-            return Err(error.to_string());
-        }
-    }
+    let staged_links =
+        crate::services::skill::SkillService::stage_agent_symlink_removal(&hidden_agents)
+            .map_err(|e| e.to_string())?;
+    commit_agent_preference_change(
+        &mut settings,
+        &visible_agents,
+        &normalized_order,
+        staged_links,
+        |settings| settings.save().map_err(|e| e.to_string()),
+    )?;
+    drop(settings);
 
-    if removed_any_agent_links {
-        refresh_cached_agent_apps(&state)?;
+    if !hidden_agents.is_empty() {
+        if let Err(error) = refresh_cached_agent_apps(&state) {
+            eprintln!("Failed to refresh cached agent links after hiding agents: {error}");
+        }
     }
 
     Ok(AgentPreferences {
@@ -344,7 +385,11 @@ pub fn update_agent_preferences(
 
 #[cfg(test)]
 mod agent_preferences_tests {
-    use super::{has_visible_agent, normalize_agent_order, set_agent_preference_values};
+    use super::{
+        commit_agent_preference_change, has_visible_agent, normalize_agent_order,
+        set_agent_preference_values,
+    };
+    use crate::services::skill::{symlink_target_matches, SkillService};
     use std::collections::HashMap;
 
     #[test]
@@ -402,6 +447,45 @@ mod agent_preferences_tests {
             serde_json::from_str::<Vec<String>>(settings.get("agent_order").unwrap()).unwrap(),
             order
         );
+    }
+
+    #[test]
+    fn save_failure_restores_settings_and_all_staged_agent_links() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let first_agent = root.path().join("first-agent/skills");
+        let second_agent = root.path().join("second-agent/skills");
+        let first_target = root.path().join("targets/first");
+        let second_target = root.path().join("targets/second");
+        std::fs::create_dir_all(&first_target).unwrap();
+        std::fs::create_dir_all(&second_target).unwrap();
+        let first_link = first_agent.join("first");
+        let second_link = second_agent.join("second");
+        SkillService::create_link_to_target_for_test(&first_target, &first_link).unwrap();
+        SkillService::create_link_to_target_for_test(&second_target, &second_link).unwrap();
+        let staged = SkillService::stage_agent_symlink_removal_in_dirs_for_test(&[
+            first_agent,
+            second_agent,
+        ])
+        .unwrap();
+        let mut settings = crate::persistence::Settings {
+            values: HashMap::from([("theme".to_string(), "dark".to_string())]),
+        };
+        let previous = settings.clone();
+        let visible = HashMap::from([
+            ("claude-code".to_string(), true),
+            ("codex".to_string(), false),
+        ]);
+        let order = vec!["claude-code".to_string(), "codex".to_string()];
+
+        let result =
+            commit_agent_preference_change(&mut settings, &visible, &order, staged, |_| {
+                Err("settings save failed".to_string())
+            });
+
+        assert_eq!(result.unwrap_err(), "settings save failed");
+        assert_eq!(settings.values, previous.values);
+        assert!(symlink_target_matches(&first_link, &first_target));
+        assert!(symlink_target_matches(&second_link, &second_target));
     }
 }
 

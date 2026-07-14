@@ -767,6 +767,69 @@ pub fn clean_external_import_links(
     Ok(removed)
 }
 
+fn rollback_installed_skills(
+    installed_dirs: &[String],
+    created_links: &[(String, String)],
+) -> Vec<String> {
+    let mut errors = Vec::new();
+    for (skill_dir, agent) in created_links.iter().rev() {
+        let home_path = config::get_agents_skills_dir().join(skill_dir);
+        if let Err(error) =
+            SkillService::toggle_symlink(skill_dir, &home_path.to_string_lossy(), agent, false)
+        {
+            errors.push(format!("remove link for {skill_dir} from {agent}: {error}"));
+        }
+    }
+    for skill_dir in installed_dirs {
+        let path = config::get_agents_skills_dir().join(skill_dir);
+        if let Err(error) = std::fs::remove_dir_all(&path) {
+            if error.kind() != std::io::ErrorKind::NotFound {
+                errors.push(format!("remove {}: {error}", path.display()));
+            }
+        }
+    }
+    if let Err(error) = SkillLock::update(|lock| {
+        for skill_dir in installed_dirs {
+            lock.skills.remove(skill_dir);
+        }
+        Ok::<(), AppError>(())
+    }) {
+        errors.push(format!("update lock file: {error}"));
+    }
+    errors
+}
+
+fn command_error_with_recovery(error: AppError, recovery_errors: Vec<String>) -> CommandError {
+    let mut command_error = CommandError::from(error);
+    if !recovery_errors.is_empty() {
+        command_error.message.push_str(&format!(
+            ". Recovery incomplete: {}",
+            recovery_errors.join("; ")
+        ));
+    }
+    command_error
+}
+
+async fn fail_installed_skills(
+    state: &AppState,
+    installed_dirs: &[String],
+    created_links: &[(String, String)],
+    error: AppError,
+) -> CommandError {
+    let mut recovery_errors = rollback_installed_skills(installed_dirs, created_links);
+    if let Err(error) = SkillService::rebuild_cache(
+        &state.skill_cache,
+        &state.metadata,
+        &state.cache_refresh_lock,
+    )
+    .await
+    {
+        recovery_errors.push(format!("rebuild cache after rollback: {error}"));
+    }
+
+    command_error_with_recovery(error, recovery_errors)
+}
+
 #[tauri::command]
 pub async fn install_skills(
     state: State<'_, AppState>,
@@ -786,23 +849,6 @@ pub async fn install_skills(
         .await
         .map_err(CommandError::from)?;
 
-    let rollback = |created_links: &[(String, String)]| {
-        for (skill_dir, agent) in created_links.iter().rev() {
-            let home_path = config::get_agents_skills_dir().join(skill_dir);
-            let _ =
-                SkillService::toggle_symlink(skill_dir, &home_path.to_string_lossy(), agent, false);
-        }
-        for skill_dir in &installed_dirs {
-            let _ = std::fs::remove_dir_all(config::get_agents_skills_dir().join(skill_dir));
-        }
-        let _ = SkillLock::update(|lock| {
-            for skill_dir in &installed_dirs {
-                lock.skills.remove(skill_dir);
-            }
-            Ok::<(), AppError>(())
-        });
-    };
-
     let mut created_links = Vec::new();
     for skill_dir in &installed_dirs {
         let home_path = config::get_agents_skills_dir().join(skill_dir);
@@ -810,26 +856,25 @@ pub async fn install_skills(
             if let Err(error) =
                 SkillService::toggle_symlink(skill_dir, &home_path.to_string_lossy(), agent, true)
             {
-                rollback(&created_links);
-                return Err(CommandError::from(error));
+                return Err(
+                    fail_installed_skills(&state, &installed_dirs, &created_links, error).await,
+                );
             }
             created_links.push((skill_dir.clone(), agent.clone()));
         }
     }
 
-    match SkillService::rebuild_cache(&state.skill_cache, &state.metadata, &state.sync_in_progress)
-        .await
+    match SkillService::refresh_installed_skills(
+        &state.skill_cache,
+        &state.metadata,
+        &state.cache_refresh_lock,
+        installed_dirs.clone(),
+    )
+    .await
     {
         Ok(skills) => Ok(skills),
         Err(error) => {
-            rollback(&created_links);
-            let _ = SkillService::rebuild_cache(
-                &state.skill_cache,
-                &state.metadata,
-                &state.sync_in_progress,
-            )
-            .await;
-            Err(CommandError::from(error))
+            Err(fail_installed_skills(&state, &installed_dirs, &created_links, error).await)
         }
     }
 }
@@ -851,9 +896,13 @@ pub async fn get_installed_skills(
         }
     }
     // Cache is empty (app just started) or force=true: rebuild from filesystem
-    SkillService::rebuild_cache(&state.skill_cache, &state.metadata, &state.sync_in_progress)
-        .await
-        .map_err(|e| e.to_string())
+    SkillService::rebuild_cache(
+        &state.skill_cache,
+        &state.metadata,
+        &state.cache_refresh_lock,
+    )
+    .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -2857,9 +2906,13 @@ pub async fn get_repo_skills(
     .await
     .map_err(CommandError::from)?;
 
-    SkillService::rebuild_cache(&state.skill_cache, &state.metadata, &state.sync_in_progress)
-        .await
-        .map_err(CommandError::from)?;
+    SkillService::rebuild_cache(
+        &state.skill_cache,
+        &state.metadata,
+        &state.cache_refresh_lock,
+    )
+    .await
+    .map_err(CommandError::from)?;
 
     let cache = visible_discover_conflict_cache(&state).map_err(CommandError::generic)?;
     let lock = SkillLock::read().map_err(CommandError::from)?;
@@ -3604,6 +3657,23 @@ mod tests {
             updated_at: None,
             commit_sha: Some(commit_sha.to_string()),
         }
+    }
+
+    #[test]
+    fn install_error_reports_every_incomplete_recovery_step() {
+        let error = command_error_with_recovery(
+            AppError::Cli("link creation failed".to_string()),
+            vec![
+                "remove skill directory: permission denied".to_string(),
+                "update lock file: disk full".to_string(),
+            ],
+        );
+
+        assert!(error.message.contains("link creation failed"));
+        assert!(error
+            .message
+            .contains("remove skill directory: permission denied"));
+        assert!(error.message.contains("update lock file: disk full"));
     }
 
     #[test]
