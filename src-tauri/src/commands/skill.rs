@@ -722,17 +722,14 @@ pub fn remove_external_import(state: State<'_, AppState>, import_id: String) -> 
     let mut imports = ExternalImports::load().map_err(|e| e.to_string())?;
     let import = imports
         .imports
-        .get(&import_id)
-        .cloned()
+        .remove(&import_id)
         .ok_or_else(|| format!("External import not found: {import_id}"))?;
+    imports.save().map_err(|e| e.to_string())?;
 
     let source_path = PathBuf::from(&import.source_path);
-    remove_external_import_links_for_target(&import.directory, &source_path)
-        .map_err(|e| e.to_string())?;
-    imports.imports.remove(&import_id);
-    imports.save().map_err(|e| e.to_string())?;
     crate::services::watcher::unwatch_external_path(&state, &source_path);
 
+    let _ = remove_external_import_links_for_target(&import.directory, &source_path);
     let _ = SkillService::remove_cache_entry(&state.skill_cache, &import_id);
     if let Ok(mut metadata) = state.metadata.write() {
         metadata.remove(&import_id);
@@ -1306,16 +1303,13 @@ fn remove_cached_skill_from_disk(skill: &SkillCacheEntry) -> Result<(), String> 
         let mut imports = ExternalImports::load().map_err(|e| e.to_string())?;
         let import = imports
             .imports
-            .get(&skill.id)
-            .cloned()
+            .remove(&skill.id)
             .ok_or_else(|| format!("External import not found: {}", skill.id))?;
-        remove_external_import_links_for_target(
+        imports.save().map_err(|e| e.to_string())?;
+        let _ = remove_external_import_links_for_target(
             &import.directory,
             &PathBuf::from(&import.source_path),
-        )
-        .map_err(|e| e.to_string())?;
-        imports.imports.remove(&skill.id);
-        imports.save().map_err(|e| e.to_string())?;
+        );
         return Ok(());
     }
 
