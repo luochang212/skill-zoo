@@ -2949,6 +2949,34 @@ pub async fn preview_skill_md(
     let mut archive =
         zip::ZipArchive::new(file).map_err(|e| CommandError::from(AppError::from(e)))?;
 
+    // A valid root SKILL.md makes the repository a single-skill source. Check
+    // it before nested path matching so a same-named nested skill cannot win.
+    for i in 0..archive.len() {
+        let mut entry = archive
+            .by_index(i)
+            .map_err(|e| CommandError::from(AppError::from(e)))?;
+        let entry_name = entry.name().trim_matches('/').to_string();
+        let mut parts = entry_name.split('/');
+        let Some(_) = parts.next() else {
+            continue;
+        };
+        if parts.next() != Some("SKILL.md") || parts.next().is_some() {
+            continue;
+        }
+
+        let mut content = String::new();
+        std::io::Read::read_to_string(&mut entry, &mut content)
+            .map_err(|e| CommandError::from(AppError::Io(e)))?;
+        if SkillService::normalized_repo_root_skill_name(&content, &name).is_some() {
+            if skill_dir == "." {
+                return Ok(content);
+            }
+            return Err(CommandError::from(AppError::NotFound(format!(
+                "SKILL.md not found for skill: {skill_dir}"
+            ))));
+        }
+    }
+
     let needle = format!("/{}/SKILL.md", skill_dir);
     for i in 0..archive.len() {
         let mut entry = archive
@@ -3267,6 +3295,19 @@ mod tests {
         let content = read_repo_readme_from_zip_path(&dir.path().join("repo.zip")).unwrap();
 
         assert_eq!(content, "# Root README");
+    }
+
+    #[test]
+    fn root_preview_requires_valid_root_skill_metadata() {
+        let content = "---\nname: identity-skill\n---\n# Identity";
+
+        assert!(SkillService::normalized_repo_root_skill_name(content, "repo").is_none());
+
+        let valid = "---\nname: identity-skill\ndescription: Demo\n---\n# Identity";
+        assert_eq!(
+            SkillService::normalized_repo_root_skill_name(valid, "repo").as_deref(),
+            Some("identity-skill")
+        );
     }
 
     #[test]

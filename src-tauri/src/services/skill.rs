@@ -892,14 +892,22 @@ impl SkillService {
 
     pub fn parse_skill_md(path: &std::path::Path) -> Result<(String, Option<String>), AppError> {
         let content = std::fs::read_to_string(path).map_err(|e| error::io(path, e))?;
-        let mut name = path
+        let fallback_name = path
             .parent()
             .and_then(|p| p.file_name())
             .and_then(|n| n.to_str())
             .unwrap_or("unknown")
             .to_string();
+        Ok(Self::parse_skill_md_content(&content, &fallback_name))
+    }
+
+    pub(crate) fn parse_skill_md_content(
+        content: &str,
+        fallback_name: &str,
+    ) -> (String, Option<String>) {
+        let mut name = fallback_name.to_string();
         let mut description: Option<String> = None;
-        if let Some(frontmatter) = Self::extract_frontmatter(&content) {
+        if let Some(frontmatter) = Self::extract_frontmatter(content) {
             if let Ok(meta) = serde_yaml::from_str::<serde_yaml::Value>(&frontmatter) {
                 if let Some(n) = meta.get("name") {
                     let n_str = Self::yaml_value_to_string(n);
@@ -910,7 +918,7 @@ impl SkillService {
                 }
             }
         }
-        Ok((name, description))
+        (name, description)
     }
 
     pub fn extract_frontmatter(content: &str) -> Option<String> {
@@ -941,6 +949,103 @@ impl SkillService {
             return b.to_string();
         }
         String::new()
+    }
+
+    fn is_safe_skill_directory_name(name: &str) -> bool {
+        let windows_stem = name.split('.').next().unwrap_or(name).to_ascii_uppercase();
+        let windows_reserved = matches!(windows_stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+            || (windows_stem.len() == 4
+                && (windows_stem.starts_with("COM") || windows_stem.starts_with("LPT"))
+                && windows_stem
+                    .chars()
+                    .last()
+                    .is_some_and(|c| matches!(c, '1'..='9')));
+        !name.is_empty()
+            && name.len() <= 255
+            && !name.ends_with('.')
+            && !windows_reserved
+            && name
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_alphanumeric())
+            && name
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+    }
+
+    pub(crate) fn safe_skill_name_or_fallback(name: &str, fallback: &str) -> String {
+        if Self::is_safe_skill_directory_name(name) {
+            name.to_string()
+        } else if Self::is_safe_skill_directory_name(fallback) {
+            fallback.to_string()
+        } else {
+            let trimmed = fallback.trim_matches(['.', '-']);
+            let prefixed = format!("skill-{trimmed}");
+            if Self::is_safe_skill_directory_name(&prefixed) {
+                prefixed
+            } else {
+                "repo-skill".to_string()
+            }
+        }
+    }
+
+    pub(crate) fn normalized_repo_root_skill_name(
+        content: &str,
+        repo_name: &str,
+    ) -> Option<String> {
+        let frontmatter = Self::extract_frontmatter(content)?;
+        let meta = serde_yaml::from_str::<serde_yaml::Value>(&frontmatter).ok()?;
+        let name = meta.get("name")?.as_str()?.trim();
+        let description = meta.get("description")?.as_str()?.trim();
+        if name.is_empty() || description.is_empty() {
+            return None;
+        }
+        Some(Self::safe_skill_name_or_fallback(name, repo_name))
+    }
+
+    pub(crate) fn has_valid_repo_root_skill(skill_md: &Path) -> bool {
+        std::fs::read_to_string(skill_md)
+            .ok()
+            .and_then(|content| Self::normalized_repo_root_skill_name(&content, "repo-skill"))
+            .is_some()
+    }
+
+    pub(crate) fn normalize_extracted_repo_root(
+        root_dir: &Path,
+        repo_name: &str,
+    ) -> Result<PathBuf, AppError> {
+        let Some(fallback_name) = root_dir.file_name().and_then(|n| n.to_str()) else {
+            return Ok(root_dir.to_path_buf());
+        };
+        let skill_md = root_dir.join("SKILL.md");
+        if !skill_md.is_file() {
+            return Ok(root_dir.to_path_buf());
+        }
+
+        let Ok(content) = std::fs::read_to_string(&skill_md) else {
+            return Ok(root_dir.to_path_buf());
+        };
+        let Some(normalized_name) = Self::normalized_repo_root_skill_name(&content, repo_name)
+        else {
+            return Ok(root_dir.to_path_buf());
+        };
+        if normalized_name == fallback_name {
+            return Ok(root_dir.to_path_buf());
+        }
+
+        let Some(parent) = root_dir.parent() else {
+            return Ok(root_dir.to_path_buf());
+        };
+        let normalized_root = parent.join(normalized_name);
+        if std::fs::symlink_metadata(&normalized_root).is_ok() {
+            return Err(AppError::Cli(format!(
+                "Cannot normalize repository root because {} already exists",
+                normalized_root.display()
+            )));
+        }
+
+        std::fs::rename(root_dir, &normalized_root).map_err(AppError::Io)?;
+        Ok(normalized_root)
     }
 
     pub async fn discover_from_repo(
@@ -1004,6 +1109,7 @@ impl SkillService {
             let Some(root_dir) = root_dir else {
                 return Ok(skills);
             };
+            let root_dir = Self::normalize_extracted_repo_root(&root_dir, name)?;
             Self::scan_for_skills(&root_dir, &root_dir, owner, name, 0, &mut skills)?;
             Ok(skills)
         }
@@ -1032,7 +1138,9 @@ impl SkillService {
             return Ok(());
         }
         let skill_md = dir.join("SKILL.md");
-        if skill_md.exists() {
+        let is_repo_root = depth == 0 && dir == base_path;
+        let valid_root_skill = is_repo_root && Self::has_valid_repo_root_skill(&skill_md);
+        if skill_md.exists() && (!is_repo_root || valid_root_skill) {
             let dir_name = dir
                 .file_name()
                 .and_then(|n| n.to_str())
@@ -1045,7 +1153,11 @@ impl SkillService {
             // on Windows produces backslashes (e.g. "skills\self-learning"),
             // which then fail to match against forward-slash-locked paths in
             // `CliService::lock_skill_path`.
-            let key = rel.to_string_lossy().replace('\\', "/");
+            let key = if rel.as_os_str().is_empty() {
+                ".".to_string()
+            } else {
+                rel.to_string_lossy().replace('\\', "/")
+            };
             skills.push(DiscoverableSkill {
                 key,
                 name: dir_name.to_string(),
@@ -1057,6 +1169,9 @@ impl SkillService {
                 installed_skill_id: None,
                 installs: None,
             });
+            if valid_root_skill {
+                return Ok(());
+            }
         }
         if let Ok(entries) = std::fs::read_dir(dir) {
             for entry in entries.flatten() {
@@ -1111,11 +1226,35 @@ impl SkillService {
         repo_name: &str,
         branch: Option<&str>,
     ) -> (DiscoverableSkillInstallStatus, Option<String>) {
-        let matches: Vec<&SkillCacheEntry> = cache
+        let mut matches: Vec<&SkillCacheEntry> = cache
             .skills()
             .iter()
             .filter(|entry| entry.directory == install_directory && entry.origin != "external")
             .collect();
+
+        if matches.is_empty() && repo_skill_path == "." {
+            matches = cache
+                .skills()
+                .iter()
+                .filter(|entry| {
+                    entry.origin == "ssot"
+                        && entry
+                            .repo_owner
+                            .as_deref()
+                            .is_some_and(|owner| owner.eq_ignore_ascii_case(repo_owner))
+                        && entry
+                            .repo_name
+                            .as_deref()
+                            .is_some_and(|name| name.eq_ignore_ascii_case(repo_name))
+                        && lock
+                            .skills
+                            .get(&entry.directory)
+                            .and_then(|lock_entry| lock_entry.skill_path.as_deref())
+                            .map(Self::normalize_repo_skill_path)
+                            .is_some_and(|path| path.is_empty())
+                })
+                .collect();
+        }
 
         if matches.is_empty() {
             return (DiscoverableSkillInstallStatus::Available, None);
@@ -1160,11 +1299,16 @@ impl SkillService {
 
     fn normalize_repo_skill_path(path: &str) -> String {
         let normalized = path.replace('\\', "/");
-        normalized
+        let normalized = normalized
             .strip_suffix("/SKILL.md")
             .unwrap_or(&normalized)
             .trim_matches('/')
-            .to_string()
+            .to_string();
+        if normalized == "." {
+            String::new()
+        } else {
+            normalized
+        }
     }
 
     /// Scan a single skill directory and return a cache entry for it.
@@ -2088,6 +2232,106 @@ mod tests {
     use crate::services::lock::SUPPORTED_LOCK_VERSION;
 
     #[test]
+    fn repo_root_normalization_uses_safe_skill_name() {
+        let repo = tempfile::tempdir().expect("tempdir");
+        let repo_root = repo.path().join("identity-skill-deadbeef");
+        std::fs::create_dir_all(&repo_root).expect("create repo root");
+        std::fs::write(
+            repo_root.join("SKILL.md"),
+            "---\nname: identity-skill\ndescription: Demo\n---\n",
+        )
+        .expect("write skill");
+        let nested = repo_root.join("skills").join("child");
+        std::fs::create_dir_all(&nested).expect("create nested skill");
+        std::fs::write(
+            nested.join("SKILL.md"),
+            "---\nname: child\ndescription: Demo\n---\n",
+        )
+        .expect("write nested skill");
+
+        let normalized = SkillService::normalize_extracted_repo_root(&repo_root, "identity-skill")
+            .expect("normalize repo root");
+
+        assert_eq!(
+            normalized.file_name().and_then(|n| n.to_str()),
+            Some("identity-skill")
+        );
+        assert!(!repo_root.exists());
+    }
+
+    #[test]
+    fn repo_root_normalization_uses_repo_name_for_unsafe_skill_name() {
+        let repo = tempfile::tempdir().expect("tempdir");
+        let repo_root = repo.path().join("identity-skill-deadbeef");
+        std::fs::create_dir_all(&repo_root).expect("create repo root");
+        std::fs::write(
+            repo_root.join("SKILL.md"),
+            "---\nname: My Skill\ndescription: Demo\n---\n",
+        )
+        .expect("write skill");
+
+        let normalized = SkillService::normalize_extracted_repo_root(&repo_root, "identity-skill")
+            .expect("normalize repo root");
+
+        assert_eq!(
+            normalized.file_name().and_then(|n| n.to_str()),
+            Some("identity-skill")
+        );
+        assert!(!repo_root.exists());
+    }
+
+    #[test]
+    fn repo_discovery_scans_nested_skills_when_root_metadata_is_invalid() {
+        let repo = tempfile::tempdir().expect("tempdir");
+        let repo_root = repo.path().join("skills-repo-deadbeef");
+        let nested = repo_root.join("skills").join("child");
+        std::fs::create_dir_all(&nested).expect("create nested skill");
+        std::fs::write(repo_root.join("SKILL.md"), "---\nname: root-only\n---\n")
+            .expect("write invalid root skill");
+        std::fs::write(
+            nested.join("SKILL.md"),
+            "---\nname: child\ndescription: Demo\n---\n",
+        )
+        .expect("write nested skill");
+
+        let mut skills = Vec::new();
+        SkillService::scan_for_skills(&repo_root, &repo_root, "owner", "repo", 0, &mut skills)
+            .expect("scan skills");
+
+        assert_eq!(skills.len(), 1);
+        assert_eq!(skills[0].key, "skills/child");
+    }
+
+    #[test]
+    fn repo_discovery_uses_directory_name_as_root_skill_key() {
+        let repo = tempfile::tempdir().expect("tempdir");
+        let repo_root = repo.path().join("identity-skill-deadbeef");
+        std::fs::create_dir_all(&repo_root).expect("create repo root");
+        std::fs::write(
+            repo_root.join("SKILL.md"),
+            "---\nname: identity-skill\ndescription: Demo\n---\n",
+        )
+        .expect("write skill");
+
+        let repo_root = SkillService::normalize_extracted_repo_root(&repo_root, "identity-skill")
+            .expect("normalize repo root");
+
+        let mut skills = Vec::new();
+        SkillService::scan_for_skills(
+            &repo_root,
+            &repo_root,
+            "Sac-Y",
+            "identity-skill",
+            0,
+            &mut skills,
+        )
+        .expect("scan skills");
+
+        assert_eq!(skills.len(), 1);
+        assert_eq!(skills[0].key, ".");
+    }
+
+    #[test]
     fn agent_link_name_uses_directory_leaf() {
         assert_eq!(
             SkillService::agent_link_name(".system/openai-docs"),
@@ -2334,6 +2578,32 @@ mod tests {
         );
         assert_eq!(conflict_status, DiscoverableSkillInstallStatus::Conflict);
         assert_eq!(conflict_id, None);
+    }
+
+    #[test]
+    fn discoverable_classification_matches_legacy_root_install_by_empty_lock_path() {
+        let cache = SkillCache::from_entries(vec![test_cache_entry(
+            "repo:owner/repo:legacy-root",
+            "repo-deadbeef",
+            "owner",
+            "repo",
+        )]);
+        let mut lock = SkillLock {
+            version: SUPPORTED_LOCK_VERSION,
+            skills: Default::default(),
+            dismissed: serde_json::json!({}),
+        };
+        lock.skills.insert(
+            "repo-deadbeef".to_string(),
+            test_lock_entry("owner/repo", ""),
+        );
+
+        let (status, installed_id) = SkillService::classify_discoverable_skill(
+            &cache, &lock, "repo", ".", "owner", "repo", None,
+        );
+
+        assert_eq!(status, DiscoverableSkillInstallStatus::Installed);
+        assert_eq!(installed_id.as_deref(), Some("repo:owner/repo:legacy-root"));
     }
 
     #[test]

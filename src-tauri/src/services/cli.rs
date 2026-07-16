@@ -6,7 +6,7 @@ use crate::config;
 use crate::error::{classify_download_error, AppError};
 use crate::services::github;
 use crate::services::lock::{SkillLock, SkillLockEntry};
-use crate::services::skill::is_symlink_or_junction;
+use crate::services::skill::{is_symlink_or_junction, SkillService};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use tauri::Emitter;
@@ -659,6 +659,9 @@ impl CliService {
         name: &str,
         skill_path: &Path,
     ) -> bool {
+        if selector.trim() == "." {
+            return skill_path == repo_root && repo_root.join("SKILL.md").is_file();
+        }
         let selector = Self::normalize_skill_path(selector);
         if selector.is_empty() {
             return false;
@@ -807,6 +810,7 @@ impl CliService {
             .find(|e| e.path().is_dir())
             .map(|e| e.path())
             .ok_or_else(|| AppError::Cli("Archive has no root directory".into()))?;
+        let root_dir = SkillService::normalize_extracted_repo_root(&root_dir, repo)?;
 
         Ok((temp_dir, root_dir))
     }
@@ -820,7 +824,7 @@ impl CliService {
 
     fn scan_dir(
         dir: &PathBuf,
-        _root: &PathBuf,
+        root: &PathBuf,
         skills: &mut Vec<(String, String, PathBuf)>,
         depth: usize,
     ) {
@@ -829,13 +833,18 @@ impl CliService {
         }
 
         let skill_md = dir.join("SKILL.md");
-        if skill_md.exists() {
+        let is_repo_root = depth == 0 && dir == root;
+        let valid_root_skill = is_repo_root && SkillService::has_valid_repo_root_skill(&skill_md);
+        if skill_md.exists() && (!is_repo_root || valid_root_skill) {
             let name = dir
                 .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or("unknown")
                 .to_string();
             skills.push((name, String::new(), dir.clone()));
+            if valid_root_skill {
+                return;
+            }
         }
 
         let entries = match std::fs::read_dir(dir) {
@@ -852,7 +861,7 @@ impl CliService {
             if crate::config::SKIP_DIRS.contains(&file_name) {
                 continue;
             }
-            Self::scan_dir(&path, _root, skills, depth + 1);
+            Self::scan_dir(&path, root, skills, depth + 1);
         }
     }
 
@@ -983,6 +992,13 @@ impl CliService {
                     Self::lock_skill_path(repo_root, path).as_deref()
                         == Some(expected_path.as_str())
                 })
+                .map(|(_, _, path)| path);
+        }
+
+        if lock_skill_path.is_some() {
+            return discovered
+                .iter()
+                .find(|(_, _, path)| path == repo_root)
                 .map(|(_, _, path)| path);
         }
 
@@ -1272,6 +1288,98 @@ mod tests {
     }
 
     #[test]
+    fn install_selection_matches_root_skill_directory_key() {
+        let repo = tempfile::tempdir().unwrap();
+        let repo_root = repo.path().join("identity-skill");
+        std::fs::create_dir_all(&repo_root).unwrap();
+        std::fs::write(
+            repo_root.join("SKILL.md"),
+            "---\nname: identity-skill\ndescription: Demo\n---\n",
+        )
+        .unwrap();
+
+        let discovered = vec![(
+            "identity-skill".to_string(),
+            String::new(),
+            repo_root.clone(),
+        )];
+        let requested = vec![".".to_string()];
+
+        let selected =
+            CliService::select_discovered_skills(&repo_root, &discovered, &requested, false);
+
+        assert_eq!(selected.len(), 1);
+        assert_eq!(&selected[0].2, &repo_root);
+    }
+
+    #[test]
+    fn cli_discovery_ignores_invalid_root_and_scans_nested_skills() {
+        let repo = tempfile::tempdir().unwrap();
+        let repo_root = repo.path().join("skills-repo");
+        let nested = repo_root.join("skills").join("child");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(repo_root.join("SKILL.md"), "---\nname: root-only\n---\n").unwrap();
+        std::fs::write(
+            nested.join("SKILL.md"),
+            "---\nname: child\ndescription: Demo\n---\n",
+        )
+        .unwrap();
+
+        let discovered = CliService::discover_skills_in_tree(&repo_root);
+
+        assert_eq!(discovered.len(), 1);
+        assert_eq!(discovered[0].0, "child");
+    }
+
+    #[test]
+    fn cli_discovery_stops_at_valid_root_skill() {
+        let repo = tempfile::tempdir().unwrap();
+        let repo_root = repo.path().join("skills-repo");
+        let nested = repo_root.join("skills").join("child");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(
+            repo_root.join("SKILL.md"),
+            "---\nname: root-only\ndescription: Demo\n---\n",
+        )
+        .unwrap();
+        std::fs::write(
+            nested.join("SKILL.md"),
+            "---\nname: child\ndescription: Demo\n---\n",
+        )
+        .unwrap();
+
+        let discovered = CliService::discover_skills_in_tree(&repo_root);
+
+        assert_eq!(discovered.len(), 1);
+        assert_eq!(discovered[0].0, "skills-repo");
+    }
+
+    #[test]
+    fn install_selection_root_key_does_not_match_nested_same_name() {
+        let repo = tempfile::tempdir().unwrap();
+        let repo_root = repo.path().join("identity-skill");
+        let nested = repo_root.join("nested").join("identity-skill");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(repo_root.join("SKILL.md"), "# Root").unwrap();
+
+        let discovered = vec![
+            (
+                "identity-skill".to_string(),
+                String::new(),
+                repo_root.clone(),
+            ),
+            ("identity-skill".to_string(), String::new(), nested.clone()),
+        ];
+        let requested = vec![".".to_string()];
+
+        let selected =
+            CliService::select_discovered_skills(&repo_root, &discovered, &requested, false);
+
+        assert_eq!(selected.len(), 1);
+        assert_eq!(&selected[0].2, &repo_root);
+    }
+
+    #[test]
     fn normalize_skill_path_converts_windows_backslashes_to_forward_slashes() {
         // Cross-platform contract: regardless of the host OS, a selector or
         // path passed through `normalize_skill_path` must end up with forward
@@ -1467,6 +1575,29 @@ mod tests {
                 .expect("selected skill");
 
         assert_eq!(selected, &expected);
+    }
+
+    #[test]
+    fn find_discovered_skill_for_update_uses_repo_root_for_empty_lock_path() {
+        let repo = tempfile::tempdir().unwrap();
+        let repo_root = repo.path().join("renamed-root-skill");
+        std::fs::create_dir_all(&repo_root).unwrap();
+
+        let discovered = vec![(
+            "renamed-root-skill".to_string(),
+            String::new(),
+            repo_root.clone(),
+        )];
+
+        let selected = CliService::find_discovered_skill_for_update(
+            &repo_root,
+            "old-root-name",
+            Some(""),
+            &discovered,
+        )
+        .expect("selected root skill");
+
+        assert_eq!(selected, &repo_root);
     }
 
     #[test]
