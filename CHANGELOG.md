@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.39] — 2026-07-17
+
+### Fixed
+- Repositories with a valid root `SKILL.md` (containing both `name` and `description` frontmatter) are now consistently treated as single-skill sources. Nested skills in such repos are no longer surfaced, and the install directory is normalized to a filesystem-safe name derived from the skill frontmatter.
+- Invalid UTF-8 in root `SKILL.md` metadata no longer causes inconsistent behavior — it is handled uniformly across preview, discovery, and install paths.
+- Install and update selectors now correctly match root skills by lock path, including legacy installations made before root-skill normalization.
+
 ## [0.3.38] — 2026-07-15
 
 ### Fixed
