@@ -1003,11 +1003,24 @@ impl SkillService {
         Some(Self::safe_skill_name_or_fallback(name, repo_name))
     }
 
+    pub(crate) fn normalized_repo_root_skill_name_bytes(
+        content: &[u8],
+        repo_name: &str,
+    ) -> Option<String> {
+        let content = std::str::from_utf8(content).ok()?;
+        Self::normalized_repo_root_skill_name(content, repo_name)
+    }
+
+    pub(crate) fn read_normalized_repo_root_skill_name(
+        skill_md: &Path,
+        repo_name: &str,
+    ) -> Option<String> {
+        let content = std::fs::read(skill_md).ok()?;
+        Self::normalized_repo_root_skill_name_bytes(&content, repo_name)
+    }
+
     pub(crate) fn has_valid_repo_root_skill(skill_md: &Path) -> bool {
-        std::fs::read_to_string(skill_md)
-            .ok()
-            .and_then(|content| Self::normalized_repo_root_skill_name(&content, "repo-skill"))
-            .is_some()
+        Self::read_normalized_repo_root_skill_name(skill_md, "repo-skill").is_some()
     }
 
     pub(crate) fn normalize_extracted_repo_root(
@@ -1022,10 +1035,8 @@ impl SkillService {
             return Ok(root_dir.to_path_buf());
         }
 
-        let Ok(content) = std::fs::read_to_string(&skill_md) else {
-            return Ok(root_dir.to_path_buf());
-        };
-        let Some(normalized_name) = Self::normalized_repo_root_skill_name(&content, repo_name)
+        let Some(normalized_name) =
+            Self::read_normalized_repo_root_skill_name(&skill_md, repo_name)
         else {
             return Ok(root_dir.to_path_buf());
         };

@@ -2964,17 +2964,19 @@ pub async fn preview_skill_md(
             continue;
         }
 
-        let mut content = String::new();
-        std::io::Read::read_to_string(&mut entry, &mut content)
-            .map_err(|e| CommandError::from(AppError::Io(e)))?;
-        if SkillService::normalized_repo_root_skill_name(&content, &name).is_some() {
-            if skill_dir == "." {
-                return Ok(content);
-            }
-            return Err(CommandError::from(AppError::NotFound(format!(
-                "SKILL.md not found for skill: {skill_dir}"
-            ))));
+        let mut content = Vec::new();
+        if std::io::Read::read_to_end(&mut entry, &mut content).is_err() {
+            continue;
         }
+        let Some(content) = valid_root_preview_content(content, &name) else {
+            continue;
+        };
+        if skill_dir == "." {
+            return Ok(content);
+        }
+        return Err(CommandError::from(AppError::NotFound(format!(
+            "SKILL.md not found for skill: {skill_dir}"
+        ))));
     }
 
     let needle = format!("/{}/SKILL.md", skill_dir);
@@ -2993,6 +2995,11 @@ pub async fn preview_skill_md(
     Err(CommandError::from(AppError::NotFound(format!(
         "SKILL.md not found for skill: {skill_dir}"
     ))))
+}
+
+fn valid_root_preview_content(content: Vec<u8>, repo_name: &str) -> Option<String> {
+    SkillService::normalized_repo_root_skill_name_bytes(&content, repo_name)?;
+    String::from_utf8(content).ok()
 }
 
 // ────────────── Discover (skills.sh) ──────────────
@@ -3308,6 +3315,14 @@ mod tests {
             SkillService::normalized_repo_root_skill_name(valid, "repo").as_deref(),
             Some("identity-skill")
         );
+    }
+
+    #[test]
+    fn invalid_utf8_root_skill_metadata_is_not_treated_as_valid() {
+        let content = b"---\nname: identity-skill\ndescription: Demo\n---\n\xff";
+
+        assert!(SkillService::normalized_repo_root_skill_name_bytes(content, "repo").is_none());
+        assert!(valid_root_preview_content(content.to_vec(), "repo").is_none());
     }
 
     #[test]
