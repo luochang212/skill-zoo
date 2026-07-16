@@ -6,7 +6,7 @@ use crate::config;
 use crate::error::{classify_download_error, AppError};
 use crate::services::github;
 use crate::services::lock::{SkillLock, SkillLockEntry};
-use crate::services::skill::{is_symlink_or_junction, SkillService};
+use crate::services::skill::{is_symlink_or_junction, normalize_repo_skill_path, SkillService};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use tauri::Emitter;
@@ -390,7 +390,7 @@ impl CliService {
             return Err(format!(
                 "{name}: Skill path no longer exists in {}: {}",
                 Self::repo_ref_label(owner, repo, branch),
-                Self::normalize_skill_path(skill_path)
+                normalize_repo_skill_path(skill_path)
             ));
         };
 
@@ -554,7 +554,7 @@ impl CliService {
 
     /// Get the folder SHA for a specific path from a repo tree.
     pub fn get_folder_sha_from_tree(tree: &RepoTreeResponse, path: &str) -> Option<String> {
-        let normalized_path = Self::normalize_skill_path(path);
+        let normalized_path = normalize_repo_skill_path(path);
 
         // Root-level skill
         if normalized_path.is_empty() {
@@ -618,19 +618,10 @@ impl CliService {
         }
     }
 
-    fn normalize_skill_path(path: &str) -> String {
-        // Normalize to forward slashes for cross-platform comparability.
-        path.replace('\\', "/")
-            .trim_end_matches("/SKILL.md")
-            .trim_end_matches("SKILL.md")
-            .trim_end_matches('/')
-            .to_string()
-    }
-
     fn lock_skill_path(repo_root: &Path, skill_path: &Path) -> Option<String> {
         let relative = skill_path.strip_prefix(repo_root).ok()?;
         let path = relative.to_string_lossy().replace('\\', "/");
-        Some(Self::normalize_skill_path(&path))
+        Some(normalize_repo_skill_path(&path))
     }
 
     fn select_discovered_skills<'a>(
@@ -662,7 +653,7 @@ impl CliService {
         if selector.trim() == "." {
             return skill_path == repo_root && repo_root.join("SKILL.md").is_file();
         }
-        let selector = Self::normalize_skill_path(selector);
+        let selector = normalize_repo_skill_path(selector);
         if selector.is_empty() {
             return false;
         }
@@ -953,7 +944,7 @@ impl CliService {
             Self::find_discovered_skill_for_update(repo_root, name, lock_skill_path, discovered)
                 .ok_or_else(|| {
                     let normalized_path = lock_skill_path
-                        .map(Self::normalize_skill_path)
+                        .map(normalize_repo_skill_path)
                         .unwrap_or_default();
                     if normalized_path.is_empty() {
                         AppError::NotFound(format!("Skill {name} not found in {owner}/{repo}"))
@@ -983,7 +974,7 @@ impl CliService {
         discovered: &'a [(String, String, PathBuf)],
     ) -> Option<&'a PathBuf> {
         let expected_path = lock_skill_path
-            .map(Self::normalize_skill_path)
+            .map(normalize_repo_skill_path)
             .unwrap_or_default();
         if !expected_path.is_empty() {
             return discovered
@@ -1380,31 +1371,50 @@ mod tests {
     }
 
     #[test]
-    fn normalize_skill_path_converts_windows_backslashes_to_forward_slashes() {
+    fn normalize_repo_skill_path_converts_windows_backslashes_to_forward_slashes() {
         // Cross-platform contract: regardless of the host OS, a selector or
-        // path passed through `normalize_skill_path` must end up with forward
+        // path passed through `normalize_repo_skill_path` must end up with forward
         // slashes so it is comparable to `lock_skill_path` output (which always
         // uses '/'). This is the heart of the Windows install regression fix.
         assert_eq!(
-            CliService::normalize_skill_path("skills\\self-learning"),
+            normalize_repo_skill_path("skills\\self-learning"),
             "skills/self-learning"
         );
         assert_eq!(
-            CliService::normalize_skill_path("skills\\self-learning\\SKILL.md"),
+            normalize_repo_skill_path("skills\\self-learning\\SKILL.md"),
             "skills/self-learning"
         );
         assert_eq!(
-            CliService::normalize_skill_path("skills/self-learning"),
+            normalize_repo_skill_path("skills/self-learning"),
             "skills/self-learning"
         );
         // Mixed separators should also collapse cleanly.
         assert_eq!(
-            CliService::normalize_skill_path("skills\\sub\\dir/self-learning\\SKILL.md"),
+            normalize_repo_skill_path("skills\\sub\\dir/self-learning\\SKILL.md"),
             "skills/sub/dir/self-learning"
         );
         // Root-level skill stays empty.
-        assert_eq!(CliService::normalize_skill_path("SKILL.md"), "");
-        assert_eq!(CliService::normalize_skill_path(""), "");
+        assert_eq!(normalize_repo_skill_path("SKILL.md"), "");
+        assert_eq!(normalize_repo_skill_path(""), "");
+        assert_eq!(normalize_repo_skill_path("."), "");
+        assert_eq!(normalize_repo_skill_path("./"), "");
+        assert_eq!(normalize_repo_skill_path("./SKILL.md"), "");
+        assert_eq!(normalize_repo_skill_path(".\\SKILL.md"), "");
+    }
+
+    #[test]
+    fn root_path_variants_use_repository_tree_sha() {
+        let tree = RepoTreeResponse {
+            sha: "root-sha".to_string(),
+            tree: Vec::new(),
+        };
+
+        for path in ["", ".", "SKILL.md", "./SKILL.md", ".\\SKILL.md"] {
+            assert_eq!(
+                CliService::get_folder_sha_from_tree(&tree, path).as_deref(),
+                Some("root-sha")
+            );
+        }
     }
 
     #[test]
@@ -1578,7 +1588,7 @@ mod tests {
     }
 
     #[test]
-    fn find_discovered_skill_for_update_uses_repo_root_for_empty_lock_path() {
+    fn find_discovered_skill_for_update_uses_repo_root_for_root_lock_paths() {
         let repo = tempfile::tempdir().unwrap();
         let repo_root = repo.path().join("renamed-root-skill");
         std::fs::create_dir_all(&repo_root).unwrap();
@@ -1589,15 +1599,17 @@ mod tests {
             repo_root.clone(),
         )];
 
-        let selected = CliService::find_discovered_skill_for_update(
-            &repo_root,
-            "old-root-name",
-            Some(""),
-            &discovered,
-        )
-        .expect("selected root skill");
+        for lock_path in ["", ".", "./SKILL.md"] {
+            let selected = CliService::find_discovered_skill_for_update(
+                &repo_root,
+                "old-root-name",
+                Some(lock_path),
+                &discovered,
+            )
+            .expect("selected root skill");
 
-        assert_eq!(selected, &repo_root);
+            assert_eq!(selected, &repo_root);
+        }
     }
 
     #[test]

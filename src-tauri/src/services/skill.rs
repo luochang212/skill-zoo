@@ -12,6 +12,20 @@ use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 use tauri::Emitter;
 
+pub(crate) fn normalize_repo_skill_path(path: &str) -> String {
+    let normalized = path
+        .replace('\\', "/")
+        .trim_end_matches("/SKILL.md")
+        .trim_end_matches("SKILL.md")
+        .trim_end_matches('/')
+        .to_string();
+    if normalized == "." {
+        String::new()
+    } else {
+        normalized
+    }
+}
+
 fn commit_cache_entries(
     cache: &mut SkillCache,
     entries: Vec<SkillCacheEntry>,
@@ -973,19 +987,45 @@ impl SkillService {
                 .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
     }
 
+    fn slugify_skill_name(name: &str) -> String {
+        let mut slug = String::new();
+        let mut pending_separator = false;
+
+        for character in name.chars() {
+            if character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-') {
+                if pending_separator && !slug.is_empty() {
+                    slug.push('-');
+                }
+                slug.push(character.to_ascii_lowercase());
+                pending_separator = false;
+            } else {
+                pending_separator = true;
+            }
+        }
+
+        let truncated: String = slug.trim_matches(['.', '-']).chars().take(255).collect();
+        truncated.trim_matches(['.', '-']).to_string()
+    }
+
     pub(crate) fn safe_skill_name_or_fallback(name: &str, fallback: &str) -> String {
         if Self::is_safe_skill_directory_name(name) {
-            name.to_string()
-        } else if Self::is_safe_skill_directory_name(fallback) {
-            fallback.to_string()
+            return name.to_string();
+        }
+
+        let slug = Self::slugify_skill_name(name);
+        if Self::is_safe_skill_directory_name(&slug) {
+            return slug;
+        }
+        if Self::is_safe_skill_directory_name(fallback) {
+            return fallback.to_string();
+        }
+
+        let trimmed = fallback.trim_matches(['.', '-']);
+        let prefixed = format!("skill-{trimmed}");
+        if Self::is_safe_skill_directory_name(&prefixed) {
+            prefixed
         } else {
-            let trimmed = fallback.trim_matches(['.', '-']);
-            let prefixed = format!("skill-{trimmed}");
-            if Self::is_safe_skill_directory_name(&prefixed) {
-                prefixed
-            } else {
-                "repo-skill".to_string()
-            }
+            "repo-skill".to_string()
         }
     }
 
@@ -1261,7 +1301,7 @@ impl SkillService {
                             .skills
                             .get(&entry.directory)
                             .and_then(|lock_entry| lock_entry.skill_path.as_deref())
-                            .map(Self::normalize_repo_skill_path)
+                            .map(normalize_repo_skill_path)
                             .is_some_and(|path| path.is_empty())
                 })
                 .collect();
@@ -1294,9 +1334,9 @@ impl SkillService {
         let same_path = repo_skill_path == install_directory
             || lock_entry
                 .and_then(|entry| entry.skill_path.as_deref())
-                .map(Self::normalize_repo_skill_path)
+                .map(normalize_repo_skill_path)
                 .as_deref()
-                == Some(Self::normalize_repo_skill_path(repo_skill_path).as_str());
+                == Some(normalize_repo_skill_path(repo_skill_path).as_str());
 
         if same_repo && same_branch && same_path {
             (
@@ -1305,20 +1345,6 @@ impl SkillService {
             )
         } else {
             (DiscoverableSkillInstallStatus::Conflict, None)
-        }
-    }
-
-    fn normalize_repo_skill_path(path: &str) -> String {
-        let normalized = path.replace('\\', "/");
-        let normalized = normalized
-            .strip_suffix("/SKILL.md")
-            .unwrap_or(&normalized)
-            .trim_matches('/')
-            .to_string();
-        if normalized == "." {
-            String::new()
-        } else {
-            normalized
         }
     }
 
@@ -2271,7 +2297,7 @@ mod tests {
     }
 
     #[test]
-    fn repo_root_normalization_uses_repo_name_for_unsafe_skill_name() {
+    fn repo_root_normalization_slugifies_unsafe_skill_name() {
         let repo = tempfile::tempdir().expect("tempdir");
         let repo_root = repo.path().join("identity-skill-deadbeef");
         std::fs::create_dir_all(&repo_root).expect("create repo root");
@@ -2286,9 +2312,25 @@ mod tests {
 
         assert_eq!(
             normalized.file_name().and_then(|n| n.to_str()),
-            Some("identity-skill")
+            Some("my-skill")
         );
         assert!(!repo_root.exists());
+    }
+
+    #[test]
+    fn unsafe_skill_name_falls_back_to_repo_name_when_slug_is_empty_or_reserved() {
+        assert_eq!(
+            SkillService::safe_skill_name_or_fallback("foo/bar", "identity-skill"),
+            "foo-bar"
+        );
+        assert_eq!(
+            SkillService::safe_skill_name_or_fallback("中文技能", "identity-skill"),
+            "identity-skill"
+        );
+        assert_eq!(
+            SkillService::safe_skill_name_or_fallback("CON", "identity-skill"),
+            "identity-skill"
+        );
     }
 
     #[test]
@@ -2592,7 +2634,7 @@ mod tests {
     }
 
     #[test]
-    fn discoverable_classification_matches_legacy_root_install_by_empty_lock_path() {
+    fn discoverable_classification_matches_legacy_root_install_by_root_lock_path() {
         let cache = SkillCache::from_entries(vec![test_cache_entry(
             "repo:owner/repo:legacy-root",
             "repo-deadbeef",
@@ -2604,17 +2646,19 @@ mod tests {
             skills: Default::default(),
             dismissed: serde_json::json!({}),
         };
-        lock.skills.insert(
-            "repo-deadbeef".to_string(),
-            test_lock_entry("owner/repo", ""),
-        );
+        for lock_path in ["", ".", "SKILL.md", "./SKILL.md"] {
+            lock.skills.insert(
+                "repo-deadbeef".to_string(),
+                test_lock_entry("owner/repo", lock_path),
+            );
 
-        let (status, installed_id) = SkillService::classify_discoverable_skill(
-            &cache, &lock, "repo", ".", "owner", "repo", None,
-        );
+            let (status, installed_id) = SkillService::classify_discoverable_skill(
+                &cache, &lock, "repo", ".", "owner", "repo", None,
+            );
 
-        assert_eq!(status, DiscoverableSkillInstallStatus::Installed);
-        assert_eq!(installed_id.as_deref(), Some("repo:owner/repo:legacy-root"));
+            assert_eq!(status, DiscoverableSkillInstallStatus::Installed);
+            assert_eq!(installed_id.as_deref(), Some("repo:owner/repo:legacy-root"));
+        }
     }
 
     #[test]
