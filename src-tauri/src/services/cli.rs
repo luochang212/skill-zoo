@@ -845,7 +845,7 @@ impl CliService {
 
         for entry in entries.flatten() {
             let path = entry.path();
-            if !path.is_dir() {
+            if is_symlink_or_junction(&path) || !path.is_dir() {
                 continue;
             }
             let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
@@ -1320,6 +1320,34 @@ mod tests {
 
         assert_eq!(discovered.len(), 1);
         assert_eq!(discovered[0].0, "child");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn cli_discovery_skips_symlinked_skill_directories() {
+        let repo = tempfile::tempdir().unwrap();
+        let repo_root = repo.path().join("skills-repo");
+        let skill_dir = repo_root.join("skills").join("demo");
+        let agent_dir = repo_root.join(".agents");
+        std::fs::create_dir_all(&skill_dir).unwrap();
+        std::fs::create_dir_all(&agent_dir).unwrap();
+        std::fs::write(skill_dir.join("SKILL.md"), "# Demo").unwrap();
+        std::os::unix::fs::symlink("../skills", agent_dir.join("skills")).unwrap();
+
+        let discovered = CliService::discover_skills_in_tree(&repo_root);
+
+        assert_eq!(discovered.len(), 1);
+        assert_eq!(&discovered[0].2, &skill_dir);
+        let destinations = discovered
+            .iter()
+            .map(|(name, _, _)| name.as_str())
+            .collect::<Vec<_>>();
+        CliService::ensure_install_destinations_available(
+            &destinations,
+            &repo.path().join("ssot"),
+            &[],
+        )
+        .unwrap();
     }
 
     #[test]

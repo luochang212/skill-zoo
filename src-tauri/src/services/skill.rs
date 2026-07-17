@@ -1227,13 +1227,14 @@ impl SkillService {
         if let Ok(entries) = std::fs::read_dir(dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.is_dir() {
-                    let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                    if crate::config::SKIP_DIRS.contains(&file_name) {
-                        continue;
-                    }
-                    Self::scan_for_skills(&path, base_path, owner, repo, depth + 1, skills)?;
+                if is_symlink_or_junction(&path) || !path.is_dir() {
+                    continue;
                 }
+                let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                if crate::config::SKIP_DIRS.contains(&file_name) {
+                    continue;
+                }
+                Self::scan_for_skills(&path, base_path, owner, repo, depth + 1, skills)?;
             }
         }
         Ok(())
@@ -2353,6 +2354,31 @@ mod tests {
 
         assert_eq!(skills.len(), 1);
         assert_eq!(skills[0].key, "skills/child");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn repo_discovery_skips_symlinked_skill_directories() {
+        let repo = tempfile::tempdir().expect("tempdir");
+        let repo_root = repo.path().join("skills-repo");
+        let skill_dir = repo_root.join("skills").join("demo");
+        let agent_dir = repo_root.join(".agents");
+        std::fs::create_dir_all(&skill_dir).expect("create skill");
+        std::fs::create_dir_all(&agent_dir).expect("create agent dir");
+        std::fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: demo\ndescription: Demo\n---\n",
+        )
+        .expect("write skill");
+        std::os::unix::fs::symlink("../skills", agent_dir.join("skills"))
+            .expect("create skills symlink");
+
+        let mut skills = Vec::new();
+        SkillService::scan_for_skills(&repo_root, &repo_root, "owner", "repo", 0, &mut skills)
+            .expect("scan skills");
+
+        assert_eq!(skills.len(), 1);
+        assert_eq!(skills[0].key, "skills/demo");
     }
 
     #[test]
