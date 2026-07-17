@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.40] — 2026-07-17
+
+### Fixed
+- Symlinked directories inside a fetched repository are now skipped during skill discovery, so a skill reachable through more than one path (for example an `.agents/skills` symlink pointing back at the repo's own `skills` directory) is no longer listed twice.
+
 ## [0.3.39] — 2026-07-17
 
 ### Fixed
