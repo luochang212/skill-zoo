@@ -2,6 +2,7 @@ use crate::persistence::SkillCache;
 use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, TimeZone, Weekday};
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
+use std::io::BufRead;
 use std::path::{Path, PathBuf};
 
 const RECENT_LIMIT: usize = 5;
@@ -236,11 +237,22 @@ fn aggregate_events(
     let mut events = Vec::new();
     let mut seen = HashSet::new();
     for path in files {
-        let Ok(content) = std::fs::read_to_string(path) else {
+        // Stream each session log line by line rather than buffering the
+        // whole file into a `String`. A heavy Claude Code user can have
+        // multi-tens-of-MB JSONL logs; this bounds peak memory to one line
+        // plus the accumulated events. `BufRead::lines` splits lines exactly
+        // like `str::lines` (same CRLF / trailing-newline handling), so any
+        // valid UTF-8 file yields identical results. A line that fails to
+        // decode is skipped — strictly more robust than the old
+        // `read_to_string`, which dropped the entire file on one bad byte.
+        let Ok(file) = std::fs::File::open(path) else {
             continue;
         };
-        for line in content.lines() {
-            let Some(parsed) = parse_line(line) else {
+        for line in std::io::BufReader::new(file).lines() {
+            let Ok(line) = line else {
+                continue;
+            };
+            let Some(parsed) = parse_line(&line) else {
                 continue;
             };
             for raw_skill in parsed.skills {
@@ -913,6 +925,56 @@ mod tests {
         assert_eq!(usage.installed_skill_count, 1);
         assert_eq!(usage.recent[0].name, "code-review");
         assert_eq!(usage.recent[0].source, SkillUsageSource::User);
+    }
+
+    #[test]
+    fn aggregate_keeps_valid_lines_around_garbage() {
+        // A non-JSON line in the middle must not stop iteration: the valid
+        // line after it must still be captured, and a trailing newline must
+        // not produce a phantom event. Guards against a stop-at-first-error
+        // or off-by-one regression in the line iterator.
+        let temp = tempfile::tempdir().unwrap();
+        let project_dir = temp.path().join(".claude/projects/demo");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        let valid1 = r#"{"type":"user","timestamp":"2026-07-02T10:00:00Z","uuid":"u1","message":{"content":"<command-name>/code-review</command-name>x"}}"#;
+        let valid2 = r#"{"type":"user","timestamp":"2026-07-02T11:00:00Z","uuid":"u2","message":{"content":"<command-name>/code-review</command-name>x"}}"#;
+        std::fs::write(
+            project_dir.join("session.jsonl"),
+            format!("{valid1}\nthis is not json\n{valid2}\n"),
+        )
+        .unwrap();
+        let whitelist = HashSet::from(["code-review".to_string()]);
+        let now = Local.with_ymd_and_hms(2026, 7, 2, 12, 0, 0).unwrap();
+        let usage = discover_skill_usage_from_home("claude-code", temp.path(), whitelist, 1, now);
+        assert_eq!(
+            usage.total_calls, 2,
+            "both valid lines must survive the garbage line between them"
+        );
+    }
+
+    #[test]
+    fn aggregate_skips_invalid_utf8_line() {
+        // The one genuine behavior change vs the old read_to_string: a line
+        // that is not valid UTF-8 is skipped instead of poisoning the whole
+        // file. The valid line after it must still be captured.
+        let temp = tempfile::tempdir().unwrap();
+        let project_dir = temp.path().join(".claude/projects/demo");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        let valid1 = r#"{"type":"user","timestamp":"2026-07-02T10:00:00Z","uuid":"u1","message":{"content":"<command-name>/code-review</command-name>x"}}"#;
+        let valid2 = r#"{"type":"user","timestamp":"2026-07-02T11:00:00Z","uuid":"u2","message":{"content":"<command-name>/code-review</command-name>x"}}"#;
+        let mut body = Vec::new();
+        body.extend_from_slice(valid1.as_bytes());
+        body.extend_from_slice(b"\n\xff\xfe\n");
+        body.extend_from_slice(valid2.as_bytes());
+        body.extend_from_slice(b"\n");
+        std::fs::write(project_dir.join("session.jsonl"), body).unwrap();
+        let whitelist = HashSet::from(["code-review".to_string()]);
+        let now = Local.with_ymd_and_hms(2026, 7, 2, 12, 0, 0).unwrap();
+        let usage = discover_skill_usage_from_home("claude-code", temp.path(), whitelist, 1, now);
+        assert_eq!(
+            usage.total_calls, 2,
+            "an invalid-utf8 line must not drop the surrounding valid events"
+        );
     }
 
     #[test]
