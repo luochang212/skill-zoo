@@ -84,7 +84,7 @@ impl TrayLanguage {
                 skill_companion: "Common Commands",
                 recent_skills: "Recently Used",
                 copy_hint: "Click an item to copy",
-                add_companion: "Add common command...",
+                add_companion: "Add new item...",
                 empty_recent: "No recent skills",
                 quit: "Quit",
             },
@@ -95,7 +95,7 @@ impl TrayLanguage {
                 skill_companion: "常用指令",
                 recent_skills: "最近使用",
                 copy_hint: "点击条目即可复制",
-                add_companion: "添加常用指令…",
+                add_companion: "添加新条目…",
                 empty_recent: "暂无最近使用",
                 quit: "退出",
             },
@@ -326,14 +326,18 @@ fn replace_companion_menu_items(
         .iter()
         .filter_map(|item| companion_menu_title(&item.content).map(|title| (item, title)))
         .collect();
+    // Always reachable: jumps to the manager dialog to add a new item. Built
+    // once here and appended in whichever branch runs below.
+    let add_item = MenuItem::with_id(
+        app,
+        MENU_COMPANION_ADD,
+        labels.add_companion,
+        true,
+        None::<&str>,
+    )?;
+
     if menu_items.is_empty() {
-        menu.append(&MenuItem::with_id(
-            app,
-            MENU_COMPANION_ADD,
-            labels.add_companion,
-            true,
-            None::<&str>,
-        )?)?;
+        menu.append(&add_item)?;
         return Ok(());
     }
 
@@ -348,6 +352,7 @@ fn replace_companion_menu_items(
     }
 
     menu.append(&PredefinedMenuItem::separator(app)?)?;
+    menu.append(&add_item)?;
     menu.append(&MenuItem::with_id(
         app,
         MENU_COMPANION_COPY_HINT,
@@ -620,7 +625,7 @@ mod tests {
         assert_eq!(english.skill_companion, "Common Commands");
         assert_eq!(english.recent_skills, "Recently Used");
         assert_eq!(english.copy_hint, "Click an item to copy");
-        assert_eq!(english.add_companion, "Add common command...");
+        assert_eq!(english.add_companion, "Add new item...");
         assert_eq!(english.empty_recent, "No recent skills");
         assert_eq!(english.quit, "Quit");
 
@@ -631,7 +636,7 @@ mod tests {
         assert_eq!(chinese.skill_companion, "常用指令");
         assert_eq!(chinese.recent_skills, "最近使用");
         assert_eq!(chinese.copy_hint, "点击条目即可复制");
-        assert_eq!(chinese.add_companion, "添加常用指令…");
+        assert_eq!(chinese.add_companion, "添加新条目…");
         assert_eq!(chinese.empty_recent, "暂无最近使用");
         assert_eq!(chinese.quit, "退出");
     }
