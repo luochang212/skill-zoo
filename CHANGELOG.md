@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.41] — 2026-07-31
+
+### Added
+- xAI's Grok Build (the `grok` CLI) is registered as a supported agent. Skills live at `~/.grok/skills/` as `SKILL.md` folders — the same format as Claude Code — so registration alone wires it into discovery, install, symlinks, the watcher, and all frontend surfaces. It is hidden by default, and usage tracking is deferred until Grok's session-log format is known.
+
+### Changed
+- The usage collector now streams session logs line-by-line instead of reading each file fully into memory, bounding peak memory to one line plus accumulated events — meaningful for heavy users with multi-tens-of-megabyte JSONL logs. As part of this, an invalid-UTF-8 line is now skipped rather than causing the whole file to be dropped.
+- The tray companion menu now always shows the "Add new item" action (previously it appeared only when the companion list was empty), placed above the disabled copy hint. "Add common command" is relabeled to "Add new item" (EN/ZH) to match the broader use.
+
 ## [0.3.40] — 2026-07-17
 
 ### Fixed
