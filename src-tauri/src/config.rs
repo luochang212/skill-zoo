@@ -136,6 +136,12 @@ pub const AGENTS: &[AgentConfig] = &[
         skills_subdir: ".gemini/antigravity",
         has_usage_tracking: false,
     },
+    AgentConfig {
+        id: "grok",
+        label: "Grok Build",
+        skills_subdir: ".grok",
+        has_usage_tracking: false,
+    },
 ];
 
 pub fn default_visibility(agent_id: &str) -> bool {
@@ -154,6 +160,7 @@ pub fn default_visibility(agent_id: &str) -> bool {
             | "qoder"
             | "kilo"
             | "antigravity"
+            | "grok"
     )
 }
 
