@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.42] — 2026-08-04
+
+### Added
+- Pi (the `pi` coding agent) is registered as a supported agent. Skills live at `~/.pi/agent/skills/` as `SKILL.md` folders — the same format as Claude Code — so registration alone wires it into discovery, install, symlinks, the watcher, and all frontend surfaces. It is hidden by default, and usage tracking is deferred until Pi's session-log format is known.
+
 ## [0.3.41] — 2026-07-31
 
 ### Added
