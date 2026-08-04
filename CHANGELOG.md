@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.43] — 2026-08-04
+
+### Added
+- Moonshot's Kimi Code (the `kimi-code` CLI) is registered as a supported agent. Skills live at `~/.kimi-code/skills/` as `SKILL.md` folders — the same format as Claude Code — so registration alone wires it into discovery, install, symlinks, the watcher, and all frontend surfaces. It is hidden by default, and usage tracking is deferred until Kimi Code's session-log format is known.
+- The CLI agent registry (`packages/cli/src/protocol/agents.ts`) now mirrors the desktop list, adding Grok Build, Pi, and Kimi Code.
+
 ## [0.3.42] — 2026-08-04
 
 ### Added
