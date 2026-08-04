@@ -23,6 +23,9 @@ export const AGENTS: AgentConfig[] = [
   { id: "qoder", label: "Qoder", skillsSubdir: ".qoder" },
   { id: "kilo", label: "Kilo Code", skillsSubdir: ".kilocode" },
   { id: "antigravity", label: "Antigravity", skillsSubdir: ".gemini/antigravity" },
+  { id: "grok", label: "Grok Build", skillsSubdir: ".grok" },
+  { id: "pi", label: "Pi", skillsSubdir: ".pi/agent" },
+  { id: "kimi-code", label: "Kimi Code", skillsSubdir: ".kimi-code" },
 ];
 
 export const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", "__pycache__"]);

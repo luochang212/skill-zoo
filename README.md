@@ -15,7 +15,7 @@
 
 ![app-screenshot](docs/header-image.webp)
 
-Local Agent Skills Manager: Discover, install, and manage skills for AI coding tools including Claude Code, Codex, Gemini, OpenCode, Cursor, Trae, Hermes, OpenClaw and more.
+Local Agent Skills Manager: Discover, install, and manage skills for AI coding tools including Claude Code, Codex, Cursor, Hermes, OpenClaw, Pi and more.
 
 ## ✨ Tech Stack
 

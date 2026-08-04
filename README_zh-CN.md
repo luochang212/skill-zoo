@@ -14,7 +14,7 @@
 
 ![app-screenshot](docs/header-image.webp)
 
-本地 Agent Skills 管理工具：发现、安装、管理 Claude Code、Codex、Gemini、OpenCode、Cursor、Trae、Hermes、OpenClaw 等 AI 编程工具的技能。
+本地 Agent Skills 管理工具：发现、安装、管理 Claude Code、Codex、Cursor、Hermes、Pi 等 AI 编程工具的技能。
 
 ## ✨ 技术栈
 

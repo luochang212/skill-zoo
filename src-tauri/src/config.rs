@@ -148,6 +148,12 @@ pub const AGENTS: &[AgentConfig] = &[
         skills_subdir: ".pi/agent",
         has_usage_tracking: false,
     },
+    AgentConfig {
+        id: "kimi-code",
+        label: "Kimi Code",
+        skills_subdir: ".kimi-code",
+        has_usage_tracking: false,
+    },
 ];
 
 pub fn default_visibility(agent_id: &str) -> bool {
@@ -168,6 +174,7 @@ pub fn default_visibility(agent_id: &str) -> bool {
             | "antigravity"
             | "grok"
             | "pi"
+            | "kimi-code"
     )
 }
 
