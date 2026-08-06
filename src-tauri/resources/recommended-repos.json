@@ -36,10 +36,10 @@
     "description": "337 Claude Code skills — engineering, marketing, product, compliance, research, and daily productivity"
   },
   {
-    "owner": "multica-ai",
-    "name": "andrej-karpathy-skills",
+    "owner": "Fission-AI",
+    "name": "OpenSpec",
     "branch": "main",
-    "description": "A CLAUDE.md file to improve Claude Code behavior, derived from Andrej Karpathy's observations on LLM coding pitfalls"
+    "description": "Spec-driven development (SDD) for AI coding assistants"
   },
   {
     "owner": "mattpocock",
