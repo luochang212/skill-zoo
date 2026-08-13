@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.44] — 2026-08-13
+
+### Added
+- DeepSeek Harness (the `dsh` CLI) is registered as a supported agent. Skills live at `~/.dsh/skills/` as `SKILL.md` folders — the same format as Claude Code — so registration alone wires it into discovery, install, symlinks, the watcher, and all frontend surfaces. It is hidden by default, and usage tracking is deferred until DeepSeek Harness's session-log format is known. DeepSeek Harness also reads the shared `~/.agents/skills` store natively, so SSOT-installed skills are available to it without extra links.
+- The CLI agent registry (`packages/cli/src/protocol/agents.ts`) mirrors the new DeepSeek Harness entry.
+
+### Changed
+- The recommended-repositories list replaces `multica-ai/andrej-karpathy-skills` with `Fission-AI/OpenSpec` (spec-driven development for AI coding assistants).
+
 ## [0.3.43] — 2026-08-04
 
 ### Added
