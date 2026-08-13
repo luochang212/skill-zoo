@@ -154,6 +154,12 @@ pub const AGENTS: &[AgentConfig] = &[
         skills_subdir: ".kimi-code",
         has_usage_tracking: false,
     },
+    AgentConfig {
+        id: "dsh",
+        label: "DeepSeek Harness",
+        skills_subdir: ".dsh",
+        has_usage_tracking: false,
+    },
 ];
 
 pub fn default_visibility(agent_id: &str) -> bool {
@@ -175,6 +181,7 @@ pub fn default_visibility(agent_id: &str) -> bool {
             | "grok"
             | "pi"
             | "kimi-code"
+            | "dsh"
     )
 }
 
