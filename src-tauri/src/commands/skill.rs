@@ -1685,6 +1685,9 @@ fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String>
             .map_err(|e| rollback(format!("Cache lock: {e}"), &removed_agents))?;
         cache.remove(&skill.id);
         if let Err(e) = cache.save() {
+            // Drop the write guard before rolling back: rollback re-acquires
+            // this lock (std RwLock is not reentrant) and would deadlock.
+            drop(cache);
             return Err(rollback(e.to_string(), &removed_agents));
         }
     }
@@ -1696,6 +1699,9 @@ fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String>
             .map_err(|e| rollback(format!("Metadata lock: {e}"), &removed_agents))?;
         metadata.remove(&skill.id);
         if let Err(e) = metadata.save() {
+            // Drop the write guard before rolling back: rollback re-acquires
+            // this lock (std RwLock is not reentrant) and would deadlock.
+            drop(metadata);
             return Err(rollback(e.to_string(), &removed_agents));
         }
     }
@@ -1914,6 +1920,9 @@ fn restore_archived_skill_inner(state: &AppState, archive_id: String) -> Result<
             metadata.remove(&archived_skill.original_skill_id);
         }
         if let Err(e) = metadata.save() {
+            // Drop the write guard before rolling back: rollback re-acquires
+            // this lock (std RwLock is not reentrant) and would deadlock.
+            drop(metadata);
             return Err(rollback(e.to_string(), &restored_agents));
         }
     }
