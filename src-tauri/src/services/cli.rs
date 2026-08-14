@@ -672,6 +672,22 @@ impl CliService {
         config::get_repo_zip_cache_dir().join(Self::cache_zip_file_name(owner, repo, branch))
     }
 
+    /// Unique temp path for an in-flight ZIP download. The fixed cache path is
+    /// only used for the completed file; concurrent downloads of the same repo
+    /// must never write the same temp file (File::create truncates).
+    fn zip_tmp_path(cache_dir: &Path, owner: &str, repo: &str, branch: Option<&str>) -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+        cache_dir.join(format!(
+            ".{owner}--{repo}--{}.{}.{}.zip.tmp",
+            Self::cache_ref_key(branch),
+            std::process::id(),
+            nanos
+        ))
+    }
+
     pub async fn ensure_cached_zip(
         owner: &str,
         repo: &str,
@@ -728,10 +744,7 @@ impl CliService {
 
         let total_size = response.content_length();
         let mut downloaded: u64 = 0;
-        let tmp_path = cache_dir.join(format!(
-            ".{owner}--{repo}--{}.zip.tmp",
-            Self::cache_ref_key(branch)
-        ));
+        let tmp_path = Self::zip_tmp_path(&cache_dir, owner, repo, branch);
         let mut file = std::fs::File::create(&tmp_path).map_err(AppError::Io)?;
 
         use futures::StreamExt;
@@ -858,7 +871,30 @@ impl CliService {
 
     /// Recursively copy directory contents, skipping hidden / VCS /
     /// Python cache directories and broken symlinks.
+    ///
+    /// Symlinks are never followed: directory symlinks (including loops and
+    /// links pointing outside the skill directory) are skipped, and file
+    /// symlinks are dereferenced only when their target resolves to a regular
+    /// file relative to the link's own directory. Nesting is capped at
+    /// [`Self::MAX_COPY_DEPTH`] to keep the recursion bounded.
     fn copy_dir_contents(src: &PathBuf, dest: &PathBuf) -> Result<(), AppError> {
+        Self::copy_dir_contents_at_depth(src, dest, 0)
+    }
+
+    const MAX_COPY_DEPTH: usize = 20;
+
+    fn copy_dir_contents_at_depth(
+        src: &PathBuf,
+        dest: &PathBuf,
+        depth: usize,
+    ) -> Result<(), AppError> {
+        if depth > Self::MAX_COPY_DEPTH {
+            return Err(AppError::Cli(format!(
+                "Skill directory is nested deeper than {} levels; refusing to copy",
+                Self::MAX_COPY_DEPTH
+            )));
+        }
+
         std::fs::create_dir_all(dest).map_err(AppError::Io)?;
 
         let entries = std::fs::read_dir(src).map_err(AppError::Io)?;
@@ -873,15 +909,27 @@ impl CliService {
 
             let dest_path = dest.join(file_name);
 
-            if path.is_dir() {
-                Self::copy_dir_contents(&path, &dest_path)?;
-            } else if is_symlink_or_junction(&path) {
-                // Dereference symlinks — copy the target file instead.
-                if let Ok(target) = std::fs::read_link(&path) {
-                    if target.exists() {
-                        std::fs::copy(&target, &dest_path).map_err(AppError::Io)?;
-                    }
+            if is_symlink_or_junction(&path) {
+                // Never follow directory symlinks (external dirs, loops,
+                // escapes) — they are skipped entirely. File symlinks are
+                // dereferenced against the link's own directory, never the
+                // process CWD.
+                let Ok(target) = std::fs::read_link(&path) else {
+                    continue;
+                };
+                let resolved = if target.is_absolute() {
+                    target
+                } else {
+                    path.parent().unwrap_or(Path::new(".")).join(&target)
+                };
+                if std::fs::symlink_metadata(&resolved)
+                    .map(|m| m.is_file())
+                    .unwrap_or(false)
+                {
+                    std::fs::copy(&resolved, &dest_path).map_err(AppError::Io)?;
                 }
+            } else if path.is_dir() {
+                Self::copy_dir_contents_at_depth(&path, &dest_path, depth + 1)?;
             } else {
                 std::fs::copy(&path, &dest_path).map_err(AppError::Io)?;
             }
@@ -1324,6 +1372,114 @@ mod tests {
 
     #[test]
     #[cfg(unix)]
+    fn copy_dir_contents_skips_directory_symlink_to_external_dir() {
+        let root = tempfile::tempdir().unwrap();
+        let outside = root.path().join("outside");
+        std::fs::create_dir_all(&outside).unwrap();
+        std::fs::write(outside.join("secret.txt"), "private data").unwrap();
+
+        let src = root.path().join("demo");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("SKILL.md"), "# Demo").unwrap();
+        std::os::unix::fs::symlink(&outside, src.join("outside")).unwrap();
+
+        let dest = root.path().join("dest");
+        CliService::copy_dir_contents(&src, &dest).unwrap();
+
+        assert!(dest.join("SKILL.md").is_file());
+        assert!(
+            !dest.join("outside").join("secret.txt").exists(),
+            "external directory must not be copied through a directory symlink"
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn copy_dir_contents_skips_loop_directory_symlink() {
+        let root = tempfile::tempdir().unwrap();
+        let src = root.path().join("demo");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("SKILL.md"), "# Demo").unwrap();
+        std::os::unix::fs::symlink(".", src.join("loop")).unwrap();
+
+        let dest = root.path().join("dest");
+        CliService::copy_dir_contents(&src, &dest).unwrap();
+
+        assert!(dest.join("SKILL.md").is_file());
+        assert!(
+            !dest.join("loop").exists(),
+            "loop directory symlink must be skipped, not recursed into"
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn copy_dir_contents_copies_file_symlink_target_relative_to_link_dir() {
+        let root = tempfile::tempdir().unwrap();
+        let repo = root.path().join("repo");
+        let docs = repo.join("docs");
+        std::fs::create_dir_all(&docs).unwrap();
+        std::fs::write(docs.join("notes.md"), "correct notes").unwrap();
+
+        let src = repo.join("skills").join("demo");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("SKILL.md"), "# Demo").unwrap();
+        std::os::unix::fs::symlink("../../docs/notes.md", src.join("notes.md")).unwrap();
+        assert!(src.join("notes.md").is_file());
+
+        let dest = root.path().join("dest");
+        CliService::copy_dir_contents(&src, &dest).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(dest.join("notes.md")).unwrap(),
+            "correct notes",
+            "valid relative symlink target must resolve from the link's directory"
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn copy_dir_contents_does_not_resolve_symlink_target_against_cwd() {
+        let fixture_rel = format!(".copy-cwd-fixture-{}.txt", std::process::id());
+        let fixture = std::env::current_dir().unwrap().join(&fixture_rel);
+        std::fs::write(&fixture, "wrong file from cwd").unwrap();
+
+        let root = tempfile::tempdir().unwrap();
+        let src = root.path().join("demo");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("SKILL.md"), "# Demo").unwrap();
+        std::os::unix::fs::symlink(&fixture_rel, src.join("link.txt")).unwrap();
+
+        let dest = root.path().join("dest");
+        let result = CliService::copy_dir_contents(&src, &dest);
+        let _ = std::fs::remove_file(&fixture);
+        result.unwrap();
+
+        assert!(
+            !dest.join("link.txt").exists(),
+            "dangling-from-link-dir symlink must not copy a CWD-relative file"
+        );
+    }
+
+    #[test]
+    fn copy_dir_contents_rejects_excessive_nesting_depth() {
+        let root = tempfile::tempdir().unwrap();
+        let src = root.path().join("demo");
+        let mut deep = src.clone();
+        for i in 0..25 {
+            deep = deep.join(format!("d{i}"));
+        }
+        std::fs::create_dir_all(&deep).unwrap();
+        std::fs::write(src.join("SKILL.md"), "# Demo").unwrap();
+
+        let dest = root.path().join("dest");
+        let result = CliService::copy_dir_contents(&src, &dest);
+
+        assert!(result.is_err(), "excessive nesting must fail with an error");
+    }
+
+    #[test]
+    #[cfg(unix)]
     fn cli_discovery_skips_symlinked_skill_directories() {
         let repo = tempfile::tempdir().unwrap();
         let repo_root = repo.path().join("skills-repo");
@@ -1523,6 +1679,19 @@ mod tests {
         assert_eq!(request.repo, "repo");
         assert_eq!(request.branch.as_deref(), Some("main"));
         assert!(request.force);
+    }
+
+    #[test]
+    fn zip_tmp_path_is_unique_per_call() {
+        let cache_dir = std::path::PathBuf::from("/tmp/fake-cache");
+        let a = CliService::zip_tmp_path(&cache_dir, "owner", "repo", Some("main"));
+        let b = CliService::zip_tmp_path(&cache_dir, "owner", "repo", Some("main"));
+        assert_ne!(a, b, "tmp path must be unique per call");
+        assert!(a.starts_with(&cache_dir));
+        assert!(a.extension().is_some_and(|e| e == "tmp"));
+
+        let c = CliService::zip_tmp_path(&cache_dir, "owner", "repo", None);
+        assert_ne!(a, c, "default-branch download must use a distinct tmp path");
     }
 
     #[test]
