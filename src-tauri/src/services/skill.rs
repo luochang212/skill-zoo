@@ -872,7 +872,9 @@ impl SkillService {
                 .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or("unknown");
-            if crate::config::SKIP_DIRS.contains(&dir_name) {
+            // Skip the app's own hidden temp/backup dirs (`.name.install.*`,
+            // `.name.backup.*`) left behind by crashed or failed operations.
+            if crate::config::SKIP_DIRS.contains(&dir_name) || dir_name.starts_with('.') {
                 continue;
             }
             if path.join("SKILL.md").exists() {
