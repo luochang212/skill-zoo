@@ -1,0 +1,13 @@
+schema: spec-driven
+
+context: |
+  Skill Zoo: a desktop app for managing AI coding-assistant Skills, plus a companion CLI.
+  Stack: Tauri 2 (Rust backend in src-tauri/), React + TypeScript + TanStack Query
+  frontend (src/), Bun toolchain, CLI in packages/cli/.
+  Authoritative conventions live in AGENTS.md at the repo root — read it first.
+  Key invariants: the filesystem is the source of truth (~/.agents/skills/ is the
+  SSOT store; agent directories only contain symlinks); all frontend-backend I/O
+  goes through typed Tauri commands; the desktop app owns the local protocol
+  (fixtures/local-protocol/) and the CLI must conform to it.
+  Tests: frontend `bun run test`, backend
+  `cargo test --features test-helpers --manifest-path src-tauri/Cargo.toml`.

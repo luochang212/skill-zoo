@@ -87,6 +87,16 @@ The frontend never touches the filesystem, never calls GitHub, never runs git. A
 
 Backend data flows through hooks. Mutations invalidate dependent queries. Component-local state is only for UI concerns (dialog open? tab active?).
 
+## OpenSpec Workflow
+
+The repo manages behavior-level changes through OpenSpec: open a change (proposal → specs delta → design → tasks), implement, then archive. CLI: `openspec` (v1.8+).
+
+- `openspec/specs/` is the living truth of system behavior — behavior-level changes should sync the main specs, or the specs go stale.
+- `openspec/changes/archive/` is the decision record (with verification evidence and trade-offs) — worth reading before evaluating a change.
+- Project context lives in `openspec/config.yaml`; principle-level conventions are this file.
+- Gate: `openspec validate --strict`.
+- Typo-level or pure-tooling fixes don't need a change — match ceremony to stakes (see How We Work).
+
 ## Testing
 
 **Run tests:**
