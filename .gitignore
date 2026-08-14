@@ -1,6 +1,7 @@
 .DS_Store
 .idea/
 .claude/
+.zcode/
 
 dist/
 node_modules/
