@@ -127,6 +127,8 @@ git commit -m "chore: release vX.Y.Z"
 
 > **CRITICAL:** Pushing a `v*` tag triggers CI to build and publish a release. **Always tell the user explicitly that a push is about to happen and get their consent before executing.** Never push without approval.
 
+> **Note:** `git push` triggers `.githooks/pre-push`, which re-runs the full check suite and takes minutes — this is the intentional local gate that keeps a broken push from reaching CI. Run the push in the background or with a generous timeout; a foreground push can be killed mid-hook by the default command timeout, leaving `main` unpushed and no tag.
+
 ```bash
 git push origin main
 git tag v0.1.2
