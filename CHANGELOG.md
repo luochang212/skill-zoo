@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.45] — 2026-08-14
+
+### Fixed
+- SSOT and agent-directory scans now skip the app's own temporary and backup directories (`.name.install.*`, `.name.update.*`, `.name.backup.*`), so a crashed or failed install/update no longer leaves a hidden "ghost skill" behind. Dot-prefixed namespaces such as `.system` remain real skills and are still discovered.
+- Installing or updating a skill from a repository no longer follows directory symlinks, and file symlinks are resolved relative to the link's own directory rather than the process working directory, with a recursion-depth cap — a skill archive can no longer pull arbitrary host files into the skill store.
+- Concurrent downloads of the same repository now write to unique temporary files, so two simultaneous downloads can no longer truncate each other and corrupt the cached zip.
+- Archiving or restoring a skill no longer freezes the whole app when the cache or metadata save fails — the store lock is released before rollback re-acquires it.
+- File-content and image-content queries are now scoped by skill id, so two skills with the same-named file no longer share a cache entry (and saving one no longer wipes the other's); updating all skills now invalidates content caches immediately.
+
 ## [0.3.44] — 2026-08-13
 
 ### Added
