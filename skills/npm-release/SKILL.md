@@ -150,33 +150,44 @@ Do not commit generated tarballs or temporary install directories.
 
 Publish only after typecheck, tests, build, and `npm publish --dry-run` pass. Before the real `npm publish`, summarize the package name, version, dist tag, and tarball contents, then ask the user for explicit confirmation.
 
+**Log in first.** `--auth-type=web` authenticates `npm login`, not `npm publish` — publishing while unauthenticated fails with a 404 that masks the real cause. Ensure a valid token exists (see "Non-TTY browser authentication") before publishing, and drop `--auth-type=web` from the publish command.
+
 **Working directory does not persist between tool calls.** Always include `cd <path>` in the command itself — never assume a previous `cd` still applies. When publishing from a workspace sub-package, use an absolute `cd` prefix:
 
 ```bash
-cd /path/to/repo/packages/cli && npm publish --auth-type=web
+cd /path/to/repo/packages/cli && npm publish --registry https://registry.npmjs.org/
 ```
 
 Preferred command after user confirmation:
 
 ```bash
 cd packages/cli
-npm publish --auth-type=web
+npm publish --registry https://registry.npmjs.org/
 ```
+
+If the machine's default registry is a read-only mirror (e.g. `registry.npmmirror.com`), the explicit `--registry https://registry.npmjs.org/` is required — mirrors do not accept publishes.
 
 ### Non-TTY browser authentication
 
-In agent environments (Claude Code, Cowork, CI), npm detects non-interactive terminals and redacts browser auth URLs as `***`. This blocks you from opening the link for the user. To get the real URL, wrap the command with `script -q /dev/null` to simulate a TTY:
+Two different steps need browser auth, and npm handles them differently in agent environments (Claude Code, Cowork, CI):
+
+**Login** — `npm login --auth-type=web` prints the full `https://www.npmjs.com/login?next=/login/cli/<id>` URL even without a TTY, so no `script` wrapper is needed. Just `open` the printed "Login at:" URL:
 
 ```bash
-script -q /dev/null npm publish --auth-type=web 2>&1 &
+npm login --auth-type=web --registry https://registry.npmjs.org/
+# then open the printed "Login at:" URL in the user's browser
+```
+
+**Publish 2FA (EOTP)** — when the account requires 2FA for publishing, `npm publish` fails with `EOTP` and prints its auth URL redacted as `***` (`https://www.npmjs.com/auth/cli/***`). Only this step needs a real TTY to reveal the URL. Use `script -q /dev/null`, and feed it a leading newline because npm's TTY prompt ("Press ENTER to open in the browser...") otherwise blocks before it polls for authentication:
+
+```bash
+printf '\n' | script -q /dev/null npm publish --registry https://registry.npmjs.org/ 2>&1 &
 sleep 8
-# grep the real URL from output, then:
+# grep the real "Authenticate your account at:" URL from output, then:
 open "https://www.npmjs.com/auth/cli/<id>"
 ```
 
-The `script` wrapper causes npm to print the full `https://www.npmjs.com/auth/cli/<id>` URL instead of `***`. Extract it, open it in the user's browser, and keep the background process alive while they authenticate.
-
-The same `script -q /dev/null` trick works for `npm login --auth-type=web` if the initial login also needs browser auth.
+Extract the URL, open it in the user's browser, and keep the background process alive while they authenticate. If `script` is unavailable (e.g. a sandbox blocks pty allocation), fall back to `--otp <6-digit TOTP>`.
 
 Success looks like:
 
@@ -210,8 +221,11 @@ Do not include private account identifiers, browser auth URLs, npm auth IDs, aut
 | Failure | Cause | Response |
 |---|---|---|
 | `You cannot publish over the previously published versions` | Local version already exists on npm | Ask the user to confirm the new version, then bump `packages/cli/package.json`, sync lockfile, and rerun checks |
-| npm asks for additional authentication | npm account requires an interactive verification step | Retry with `npm publish --auth-type=web` in a TTY and use browser auth |
-| Browser auth URL is `***` | npm redacted URL in non-TTY output | Wrap with `script -q /dev/null npm publish --auth-type=web 2>&1 &`, extract the real URL from output, then `open` it |
+| `npm publish` returns 404 / "do not have permission" | Not logged in — `--auth-type=web` does not authenticate at publish time | Run `npm login --auth-type=web --registry https://registry.npmjs.org/` first, then publish |
+| `npm error code EOTP` | Account requires 2FA for publishing | Either get the user's 6-digit TOTP and pass `--otp <code>`, or complete the browser web-OTP flow (see "Non-TTY browser authentication") |
+| Browser auth URL is `***` | npm redacted the publish OTP URL in non-TTY output | Wrap the publish in `script -q /dev/null` with a leading newline (see "Non-TTY browser authentication"), extract the real URL, then `open` it |
+| npm errors with `EPERM` on the `~/.npm` cache | Cache dir has root-owned files from an old npm bug | Run `sudo chown -R $(id -u):$(id -g) ~/.npm`, or use a temp cache via `--cache /tmp/xxx` |
+| `npm login` fails writing `~/.npmrc` (EPERM) | Home dir not writable from the agent sandbox | Log in with `--userconfig /tmp/xxx.npmrc` and pass the same `--userconfig` to `npm publish`; delete the file afterward |
 | Tests fail after version bump | Hardcoded expected version | Prefer asserting against `CLI_VERSION` |
 | Dry-run includes unexpected files | Bad `files` whitelist or generated artifacts | Fix package manifest before publishing |
 | Bin command fails after tarball install | `bin` path, shebang, executable bit, or bundle issue | Fix before publishing and rerun tarball install check |
@@ -228,6 +242,10 @@ npm view skill-zoo version dist-tags --json
 
 # ask the user to confirm the exact version, then bump packages/cli/package.json and bun.lock if needed
 
+# log in first (prints the full URL even non-TTY); skip if a valid token already exists
+npm login --auth-type=web --registry https://registry.npmjs.org/
+# open the printed "Login at:" URL, wait for the user to authenticate
+
 cd /path/to/repo/packages/cli
 npm run typecheck
 npm test
@@ -235,9 +253,9 @@ npm run build
 npm publish --dry-run
 
 # summarize dry-run results and ask the user to confirm the real publish
-# in non-TTY (agent) environments, use script wrapper to get real auth URL:
-script -q /dev/null npm publish --auth-type=web 2>&1 &
-# extract URL, open in browser, wait for user to authenticate
+# if the account requires 2FA, the publish OTP URL is redacted as *** — wrap with script:
+printf '\n' | script -q /dev/null npm publish --registry https://registry.npmjs.org/ 2>&1 &
+# extract the "Authenticate your account at:" URL, open in browser, wait for user
 
 npm view skill-zoo@X.Y.Z version dist.tarball time --json
 npm dist-tag ls skill-zoo
