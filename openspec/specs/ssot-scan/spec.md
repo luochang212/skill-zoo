@@ -2,13 +2,13 @@
 
 ## Purpose
 
-定义 SSOT 与 agent 目录扫描的技能识别边界：应用自身的隐藏临时/备份目录不得被识别为技能，真实技能目录必须照常被发现。
+定义 SSOT 与 agent 目录扫描的技能识别边界：应用自身的临时/备份目录（`.{name}.{install|update|backup}.`）不得被识别为技能，真实技能目录（包括点前缀命名空间）必须照常被发现。
 
 ## Requirements
 
-### Requirement: 扫描跳过隐藏目录
+### Requirement: 扫描跳过应用自身的临时/备份目录
 
-扫描技能目录时，系统 MUST 跳过以 `.` 开头的目录名，不得将其识别为技能。
+扫描技能目录时，系统 MUST 跳过应用自身的临时/备份目录（命名遵循 `.{name}.{install|update|backup}.` 模式，如 `.demo.install.456`、`.demo.backup.123.0`），不得将其识别为技能。其他以 `.` 开头的目录名（如 `.system` 命名空间）是真实技能目录，MUST 照常识别。
 
 #### Scenario: 残留备份目录不被识别为技能
 - **WHEN** SSOT 中存在 `.demo.backup.123.0/` 目录且内含 SKILL.md（更新清理失败的残留）
@@ -18,13 +18,17 @@
 - **WHEN** SSOT 中存在 `.demo.install.456/` 目录且内含 SKILL.md（崩溃残留）
 - **THEN** 该目录不被识别为技能
 
-### Requirement: 正常技能目录不受影响
+### Requirement: 真实技能目录不受影响
 
-非隐藏命名的真实技能目录 MUST 照常被发现并识别。
+真实技能目录（包括 `.system` 这类点前缀命名空间）MUST 照常被发现并识别。
 
 #### Scenario: 普通技能目录照常扫描
 - **WHEN** SSOT 中存在 `demo/` 目录且内含 SKILL.md
 - **THEN** `demo` 被识别为技能，行为与修复前一致
+
+#### Scenario: 点前缀命名空间照常扫描
+- **WHEN** SSOT 中存在 `.system/openai-docs/` 目录且内含 SKILL.md
+- **THEN** `openai-docs` 被识别为技能（`directory` 为 `.system/openai-docs`）
 
 ### Requirement: 外部导入扫描不受影响
 

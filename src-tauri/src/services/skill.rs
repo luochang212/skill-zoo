@@ -833,6 +833,16 @@ impl SkillService {
         (installed_at, updated_at)
     }
 
+    /// True when a directory name matches the app's own temp/backup naming
+    /// (`.{name}.{install|update|backup}.`). Dot-prefixed namespaces such as
+    /// `.system` are real skill directories and must not be skipped.
+    fn is_app_temp_dir(name: &str) -> bool {
+        name.starts_with('.')
+            && [".install.", ".backup.", ".update."]
+                .iter()
+                .any(|marker| name.contains(marker))
+    }
+
     fn scan_dir_recursive_into(
         dir: &PathBuf,
         entries: &mut Vec<SkillCacheEntry>,
@@ -872,9 +882,11 @@ impl SkillService {
                 .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or("unknown");
-            // Skip the app's own hidden temp/backup dirs (`.name.install.*`,
-            // `.name.backup.*`) left behind by crashed or failed operations.
-            if crate::config::SKIP_DIRS.contains(&dir_name) || dir_name.starts_with('.') {
+            // Skip the app's own temp/backup dirs (`.name.install.*`,
+            // `.name.update.*`, `.name.backup.*`) left behind by crashed or
+            // failed operations. Dot-prefixed namespaces like `.system` are
+            // real skills and stay.
+            if crate::config::SKIP_DIRS.contains(&dir_name) || Self::is_app_temp_dir(dir_name) {
                 continue;
             }
             if path.join("SKILL.md").exists() {
@@ -2419,6 +2431,16 @@ mod tests {
             "openai-docs"
         );
         assert_eq!(SkillService::agent_link_name("openai-docs"), "openai-docs");
+    }
+
+    #[test]
+    fn is_app_temp_dir_matches_temp_backup_but_not_namespaces() {
+        assert!(SkillService::is_app_temp_dir(".demo.install.abc"));
+        assert!(SkillService::is_app_temp_dir(".demo.update.abc"));
+        assert!(SkillService::is_app_temp_dir(".demo.backup.123.0"));
+        assert!(!SkillService::is_app_temp_dir(".system"));
+        assert!(!SkillService::is_app_temp_dir(".claude"));
+        assert!(!SkillService::is_app_temp_dir("demo"));
     }
 
     #[test]

@@ -84,6 +84,19 @@ describe("scanInstalledSkills", () => {
     expect(skills[0].apps.opencode).toBe(true);
   });
 
+  it("skips app temp/backup dirs but keeps dot-prefixed namespaces", async () => {
+    const home = await makeTempHome();
+    const paths = getPaths(home);
+    await writeSkill(path.join(paths.agentsSkillsDir, ".demo.backup.123.0"), "name: Ghost Backup");
+    await writeSkill(path.join(paths.agentsSkillsDir, ".demo.install.456"), "name: Ghost Install");
+    await writeSkill(path.join(paths.agentsSkillsDir, ".system", "openai-docs"), "name: System Docs");
+    await writeSkill(path.join(paths.agentsSkillsDir, "real-skill"), "name: Real Skill");
+
+    const skills = await scanInstalledSkills(home);
+
+    expect(skills.map((s) => s.name).sort()).toEqual(["openai-docs", "real-skill"]);
+  });
+
   it("includes valid external imports and skips missing ones", async () => {
     const home = await makeTempHome();
     const paths = getPaths(home);

@@ -158,7 +158,12 @@ async function scanDirRecursive(
       continue;
     }
 
-    if (SKIP_DIRS.has(entryName)) {
+    // Skip the app's own temp/backup dirs (.name.install.*, .name.update.*,
+    // .name.backup.*). Dot-prefixed namespaces like `.system` are real skills.
+    const isTempDir =
+      entryName.startsWith(".") &&
+      [".install.", ".update.", ".backup."].some((marker) => entryName.includes(marker));
+    if (SKIP_DIRS.has(entryName) || isTempDir) {
       continue;
     }
 

@@ -28,6 +28,10 @@ An import entry's `sourcePath` points to the concrete skill root containing `SKI
 
 Removing an external import means removing the registry entry and app-managed agent links that point to `sourcePath`; it must not remove files under `sourcePath`.
 
+## Skill Scan Recognition
+
+A directory is recognized as a skill when it contains a `SKILL.md`. Scans must skip directory names in the shared skip list (`node_modules`, `.git`, `dist`, `build`, `__pycache__`) and the desktop app's own temporary and backup directories, which follow the `.name.{install|update|backup}.` pattern (for example `.demo.install.456`, `.demo.backup.123.0`). Other dot-prefixed namespaces — such as `.system/openai-docs` — are real skill directories and must be scanned normally. Symlink/junction resolution for external imports happens before this directory-name filter, so external imports are unaffected.
+
 ## Compatibility Rules
 
 - Desktop is the source of truth for local protocol shape and semantics.
