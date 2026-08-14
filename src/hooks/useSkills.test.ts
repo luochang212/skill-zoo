@@ -7,6 +7,7 @@ import {
   useRefreshRepoPanel,
   useRemoveSkill,
   useRestoreArchivedSkill,
+  useSkillFileContent,
   useStarSkill,
   useUnstarSkill,
   useUpdateAllSkills,
@@ -320,5 +321,25 @@ describe("useRefreshRepoPanel", () => {
       branch: undefined,
       force: true,
     });
+  });
+});
+
+describe("useSkillFileContent", () => {
+  beforeEach(() => {
+    vi.mocked(invoke).mockReset();
+    vi.mocked(invoke).mockResolvedValue("# file content");
+  });
+
+  it("scopes the query key by skill id for same-named files", async () => {
+    const { wrapper, queryClient } = createQueryWrapper();
+    renderHook(() => useSkillFileContent("skill-a", "README.md"), { wrapper });
+    renderHook(() => useSkillFileContent("skill-b", "README.md"), { wrapper });
+
+    const keys = queryClient
+      .getQueryCache()
+      .getAll()
+      .map((q) => q.queryKey);
+    expect(keys).toContainEqual(["skills", "file", "skill-a", "README.md"]);
+    expect(keys).toContainEqual(["skills", "file", "skill-b", "README.md"]);
   });
 });

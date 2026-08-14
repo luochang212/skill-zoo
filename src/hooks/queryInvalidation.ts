@@ -29,7 +29,6 @@ export const INVALIDATION_MAP = {
     ["skills", "installed"],
     ["skills", "symlinks"],
     ["skills", "content"],
-    ["skills", "files"],
     ["skills", "fileChildren"],
     ["skills", "file"],
     ["skills", "image"],
@@ -58,6 +57,7 @@ export const INVALIDATION_MAP = {
   ],
   updateAllSkills: [
     ["skills", "installed"],
+    ["skills", "content"],
     ["skills", "updateHistory"],
   ],
   deleteSkillUpdateHistory: [["skills", "updateHistory"]],
@@ -68,7 +68,6 @@ export const INVALIDATION_MAP = {
     ["skills", "symlinks"],
     ["repos", "skills"],
     ["skills", "content"],
-    ["skills", "files"],
     ["skills", "fileChildren"],
     ["skills", "file"],
     ["skills", "image"],

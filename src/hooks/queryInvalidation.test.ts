@@ -34,11 +34,26 @@ describe("invalidateFor", () => {
       expect.arrayContaining([
         ["skills", "content"],
         ["repos", "skills"],
-        ["skills", "files"],
         ["skills", "fileChildren"],
         ["skills", "file"],
         ["skills", "image"],
       ]),
     );
+  });
+
+  it("invalidates content caches after a batch update", () => {
+    expect(INVALIDATION_MAP.updateAllSkills).toEqual(
+      expect.arrayContaining([
+        ["skills", "content"],
+        ["skills", "installed"],
+        ["skills", "updateHistory"],
+      ]),
+    );
+  });
+
+  it("does not reference dead file-list query keys", () => {
+    for (const keys of Object.values(INVALIDATION_MAP)) {
+      expect(keys).not.toContainEqual(["skills", "files"]);
+    }
   });
 });

@@ -303,7 +303,7 @@ export function useSaveSkillContent() {
 
 export function useSkillFileContent(skillId: string | undefined, path: string | null) {
   return useQuery({
-    queryKey: ["skills", "file", path],
+    queryKey: ["skills", "file", skillId, path],
     queryFn: () => skillsApi.readSkillText(skillId!, path!),
     enabled: !!skillId && !!path,
     retry: false,
@@ -312,7 +312,7 @@ export function useSkillFileContent(skillId: string | undefined, path: string | 
 
 export function useSkillImageContent(skillId: string | undefined, path: string | null) {
   return useQuery({
-    queryKey: ["skills", "image", path],
+    queryKey: ["skills", "image", skillId, path],
     queryFn: () => skillsApi.readSkillImage(skillId!, path!),
     enabled: !!skillId && !!path,
     retry: false,
@@ -324,8 +324,8 @@ export function useSaveSkillFileContent() {
   return useMutation({
     mutationFn: ({ skillId, path, content }: { skillId: string; path: string; content: string }) =>
       skillsApi.writeSkillText(skillId, path, content),
-    onSuccess: (_, { path }) => {
-      qc.invalidateQueries({ queryKey: ["skills", "file", path] });
+    onSuccess: (_, { skillId, path }) => {
+      qc.invalidateQueries({ queryKey: ["skills", "file", skillId, path] });
       invalidateFor(qc, "saveSkillFileContent");
     },
   });
