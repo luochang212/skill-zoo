@@ -160,6 +160,12 @@ pub const AGENTS: &[AgentConfig] = &[
         skills_subdir: ".dsh",
         has_usage_tracking: false,
     },
+    AgentConfig {
+        id: "zcode",
+        label: "ZCode",
+        skills_subdir: ".zcode",
+        has_usage_tracking: false,
+    },
 ];
 
 pub fn default_visibility(agent_id: &str) -> bool {
@@ -182,6 +188,7 @@ pub fn default_visibility(agent_id: &str) -> bool {
             | "pi"
             | "kimi-code"
             | "dsh"
+            | "zcode"
     )
 }
 
