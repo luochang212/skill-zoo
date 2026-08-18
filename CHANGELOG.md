@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.46] — 2026-08-18
 
 ### Added
 - ZCode (the `zcode` desktop client and its bundled CLI) is registered as a supported agent. Skills live at `~/.zcode/skills/` as `SKILL.md` folders — the same format as Claude Code — so registration alone wires it into discovery, install, symlinks, the watcher, and all frontend surfaces. It is hidden by default, and usage tracking is deferred until ZCode's session-log format is known. ZCode also reads the shared `~/.agents/skills` store natively, so SSOT-installed skills are available to it without extra links.
