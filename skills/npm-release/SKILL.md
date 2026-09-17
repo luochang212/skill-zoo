@@ -107,13 +107,21 @@ The dry-run must show the expected version and tarball contents. For this CLI, e
 
 ```text
 README.md
-dist/index.d.ts
 dist/index.js
 package.json
 wui/app.js
 wui/index.html
 wui/styles.css
 ```
+
+There is deliberately no `dist/index.d.ts`. The CLI entry (`packages/cli/src/index.ts`)
+is a shebang script that calls `runCli()` and exports nothing, so the declaration file
+tsup's `--dts` emitted contained only the shebang line — a type contract with no types.
+It was also unreachable: the package declares `bin` and no `main`/`exports`/`types`, so a
+consumer's `import ... from "skill-zoo"` fails with `TS2307` before the file is ever read
+(wiring up `types` instead yields `TS2306: is not a module`). Rather than keep a
+misleading empty file, the build no longer emits declarations. If the CLI ever grows a
+programmatic API, re-add declarations *and* the `types`/`exports` wiring together.
 
 If extra source, test, repo, log, or private files appear, fix the `files` whitelist or ignore rules before publishing.
 
@@ -125,7 +133,7 @@ Before publishing a CLI package, verify the executable path matches `bin` and ca
 cd ../..
 sed -n '1,20p' packages/cli/src/index.ts
 sed -n '1,20p' packages/cli/dist/index.js
-ls -l packages/cli/dist/index.js packages/cli/dist/index.d.ts
+ls -l packages/cli/dist/index.js
 node packages/cli/dist/index.js --version
 node packages/cli/dist/index.js --help | sed -n '1,120p'
 ```

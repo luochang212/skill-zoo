@@ -13,7 +13,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format esm --target node20 --dts --clean",
+    "build": "tsup src/index.ts --format esm --target node20 --clean",
     "dev": "tsx src/index.ts",
     "prepack": "npm run build",
     "test": "vitest run",
@@ -38,7 +38,7 @@
     "@types/node": "^24.10.1",
     "tsup": "^8.5.1",
     "tsx": "^4.23.13",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.11"
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
   }
 }
