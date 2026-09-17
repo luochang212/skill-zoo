@@ -28,7 +28,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-base64 = "0.22"
+base64 = "0.23"
 chrono = { version = "0.4", features = ["serde"] }
 tauri = { version = "2", features = ["protocol-asset", "tray-icon", "image-png"] }
 tauri-plugin-opener = "2"
@@ -47,11 +47,11 @@ regex = "1.12"
 tempfile = "3"
 zip = "8.6"
 sha2 = "0.11"
-notify = "7"
+notify = "8"
 rand = "0.10"
 urlencoding = "2.1"
 arboard = { version = "3.6.1", default-features = false }
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 unicode-width = "0.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
