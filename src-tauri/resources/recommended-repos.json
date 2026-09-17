@@ -30,10 +30,10 @@
     "description": "Browser automation CLI for AI agents"
   },
   {
-    "owner": "alirezarezvani",
-    "name": "claude-skills",
+    "owner": "GoogleChrome",
+    "name": "modern-web-guidance",
     "branch": "main",
-    "description": "337 Claude Code skills — engineering, marketing, product, compliance, research, and daily productivity"
+    "description": "Modern web platform guidance for coding agents — best practices, browser compatibility data, plus accessibility, privacy and security skills"
   },
   {
     "owner": "Fission-AI",
