@@ -5,7 +5,13 @@ description = "Local GUI tool for managing Agent Skills"
 authors = ["luochang212"]
 license = "MIT"
 edition = "2021"
-rust-version = "1.85.0"
+# Corrected from 1.85.0, which was not achievable: `zip` (a direct dependency)
+# declares rust-version = "1.88", as do time, image, plist, darling and
+# serde_with; 26 crates in Cargo.lock require more than 1.85. `rust-version` is
+# advisory metadata that cargo does not enforce against dependencies (verified:
+# a crate declaring 1.85 resolves zip 8.6.0 without complaint), so keeping 1.85
+# would only have misled anyone deciding which toolchain to install.
+rust-version = "1.88.0"
 
 [lib]
 name = "skill_zoo_lib"
