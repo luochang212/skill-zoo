@@ -32,13 +32,13 @@
     "remark-parse": "^11.0.0",
     "remark-rehype": "^11.1.2",
     "unified": "^11.0.5",
-    "yaml": "^2.8.2"
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
     "tsup": "^8.5.1",
-    "tsx": "^4.21.0",
+    "tsx": "^4.23.13",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.11"
   }
 }
