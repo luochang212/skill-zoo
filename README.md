@@ -21,7 +21,7 @@ Local Agent Skills Manager: Discover, install, and manage skills for AI coding t
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | React 19 + TypeScript 6 + Vite 8 |
+| Frontend | React 19 + TypeScript 7 + Vite 8 |
 | Backend | Rust (Tauri v2) |
 | Styling | Tailwind CSS 4 + shadcn/ui |
 | State | TanStack React Query |

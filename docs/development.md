@@ -41,7 +41,9 @@ skill-zoo/
 
 ## 🔧 Development
 
-Prerequisites: [Bun](https://bun.sh/), [Rust](https://www.rust-lang.org/tools/install), and a [Tauri setup](https://v2.tauri.app/start/prerequisites/).
+Prerequisites: [Bun](https://bun.sh/), [Node](https://nodejs.org/) 22.12+ (24 LTS is what CI and the current toolchain use), [Rust](https://www.rust-lang.org/tools/install) 1.88+ (the floor the dependency graph actually requires — `zip` and friends declare 1.88), and a [Tauri setup](https://v2.tauri.app/start/prerequisites/).
+
+Bun is the package manager, but Node is a hard requirement for the documented workflows: vitest runs its files in `node` fork workers, so `bun run test` fails with "Failed to start forks worker" when no `node` binary is on `PATH`. The CLI additionally declares `engines.node >= 22.12.0` because it depends on the ESM-only commander 15.
 
 On Linux, install the system packages Tauri needs for desktop builds:
 

@@ -20,7 +20,7 @@
 
 | 层级 | 技术 |
 |------|------|
-| 前端 | React 19 + TypeScript 6 + Vite 8 |
+| 前端 | React 19 + TypeScript 7 + Vite 8 |
 | 后端 | Rust（Tauri v2） |
 | 样式 | Tailwind CSS 4 + shadcn/ui |
 | 状态 | TanStack React Query |
