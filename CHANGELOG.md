@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.47] — 2026-09-18
+
+### Changed
+- The recommended-repositories list replaces `alirezarezvani/claude-skills` with `GoogleChrome/modern-web-guidance` (modern web platform guidance for coding agents).
+- Frontend toolchain refresh: TypeScript 7, Vitest 5, jsdom 30, `@testing-library/jest-dom` 7, plus in-range bumps for React, Vite, Tailwind CSS, Radix UI and the rest. Every declared dependency now sits on its latest stable release.
+- Rust dependencies brought up to date: serde, futures, thiserror, notify 8, rusqlite 0.40 and base64 0.23. `dirs` stays on 6.x because tauri itself requires `dirs ^6`.
+- `rust-version` in `src-tauri/Cargo.toml` corrected from 1.85.0 to 1.88.0, the floor the dependency graph actually requires.
+
+### Fixed
+- The skill-detail file-tree sidebar animates again. Its transition targeted `transform` while Tailwind v4 compiles the slide to the `translate` property, and the width container snapped to zero in the same frame so collapsing was invisible.
+- The collapsed Repos section no longer leaves invisible rows focusable or hides entries past an arbitrary height cap; collapsed entries are removed from the document and the toggle reports `aria-expanded`.
+- Follow-the-system theme now applies on every view, not only while Settings is open, and no longer reverts an explicit light/dark choice.
+- The theme switch no longer shows the previous palette during its view transition.
+- The Enter key that confirms a Chinese IME candidate no longer navigates away from the repo search.
+- Input fields keep a visible keyboard focus indicator that meets the 3:1 contrast floor; row and select-all checkboxes gained accessible names.
+
 ## [0.3.46] — 2026-08-18
 
 ### Added
