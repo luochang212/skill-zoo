@@ -205,4 +205,48 @@ describe("BrowseSkills", () => {
       description: undefined,
     });
   });
+
+  it("does not navigate while an IME composition is being confirmed", async () => {
+    vi.useFakeTimers();
+    mocks.repoResult = { owner: "hugmouse", name: "skills" };
+    const onSelectRepo = vi.fn();
+    render(<BrowseSkills selectedRepo={null} onSelectRepo={onSelectRepo} />);
+
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "hugmouse/skills" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    expect(screen.getByRole("button", { name: /hugmouse\/skills/ })).toBeInTheDocument();
+
+    // WebKit reports isComposing === false for the Enter that confirms a candidate,
+    // so the keyCode 229 path is the one that actually protects WKWebView.
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+    expect(onSelectRepo).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    expect(onSelectRepo).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onSelectRepo).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
+  it("still navigates on a plain Enter after composition ends", async () => {
+    vi.useFakeTimers();
+    mocks.repoResult = { owner: "hugmouse", name: "skills" };
+    const onSelectRepo = vi.fn();
+    render(<BrowseSkills selectedRepo={null} onSelectRepo={onSelectRepo} />);
+
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "hugmouse/skills" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+
+    fireEvent.keyDown(input, { key: "Enter", isComposing: false });
+
+    expect(onSelectRepo).toHaveBeenCalledWith(mocks.repoResult);
+    vi.useRealTimers();
+  });
 });

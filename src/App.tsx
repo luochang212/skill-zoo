@@ -40,7 +40,7 @@ import {
   useUnstarSkill,
   useSkillsWatcher,
 } from "@/hooks/useSkills";
-import { applyTheme } from "@/hooks/useTheme";
+import { applyTheme, subscribeToSystemTheme } from "@/hooks/useTheme";
 import { settingsApi } from "@/lib/api/settings";
 import type { View, DiscoverRepo, SidebarCategory } from "@/types/skills";
 
@@ -129,6 +129,9 @@ export default function App() {
   useEffect(() => {
     const theme = (localStorage.getItem("theme") as string | null) ?? "system";
     applyTheme(theme as "light" | "dark" | "system");
+    // App-level so an OS light/dark switch is honoured on every view, not only
+    // while the settings view (the sole useTheme consumer) is mounted.
+    return subscribeToSystemTheme();
   }, []);
 
   useEffect(() => {

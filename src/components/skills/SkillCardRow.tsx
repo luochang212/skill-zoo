@@ -48,7 +48,11 @@ export function SkillCardRow({
       {/* Checkbox column */}
       {onToggleSelect !== undefined && (
         <div className="w-8 shrink-0 flex justify-center">
-          <Checkbox checked={selected ?? false} onCheckedChange={onToggleSelect} />
+          <Checkbox
+            checked={selected ?? false}
+            onCheckedChange={onToggleSelect}
+            aria-label={t("browse.selectRow", { name: skill.name })}
+          />
         </div>
       )}
       {/* Name — w-48 aligned with header */}

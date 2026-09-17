@@ -670,4 +670,28 @@ describe("InstalledSkills visible agent filtering", () => {
 
     expect(screen.getByRole("button", { name: "Remove link" })).toBeDisabled();
   });
+
+  it("names the row and select-all checkboxes for assistive tech", async () => {
+    const user = userEvent.setup();
+    mocks.skills = [skill({ id: "alpha", name: "Alpha" })];
+    const view = renderInstalledSkills();
+
+    // Row view is what renders per-row selection checkboxes.
+    await user.click(
+      view.container.querySelector("button.inline-flex.items-center.bg-muted") as HTMLButtonElement,
+    );
+
+    expect(await screen.findByRole("checkbox", { name: "Select Alpha" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Select all" })).toBeInTheDocument();
+  });
+
+  it("labels the search field and keeps a visible focus indicator", async () => {
+    mocks.skills = [skill({ id: "alpha", name: "Alpha" })];
+    renderInstalledSkills();
+
+    const search = await screen.findByLabelText("Search installed...");
+    // Not placeholder-only: the name must come from an attribute.
+    expect(search).toHaveAttribute("aria-label", "Search installed...");
+    expect(search.className).toContain("focus-visible:border-ring");
+  });
 });

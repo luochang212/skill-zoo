@@ -590,13 +590,17 @@ function SkillCompanionRow({
               placeholder={t("settings.skillCompanion.contentPlaceholder")}
               disabled={disabled}
               aria-label={t("settings.skillCompanion.itemContent", { index: index + 1 })}
+              aria-invalid={invalid || undefined}
+              aria-describedby={invalid ? `skill-companion-error-${index}` : undefined}
               className={cn(
-                "h-16 max-h-16 w-full resize-none overflow-y-auto rounded-md border border-input bg-background px-3 py-2 text-sm leading-5 ring-offset-background transition-colors placeholder:text-muted-foreground focus-visible:border-ring/50 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
+                "h-16 max-h-16 w-full resize-none overflow-y-auto rounded-md border border-input bg-background px-3 py-2 text-sm leading-5 ring-offset-background transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring disabled:cursor-not-allowed disabled:opacity-50",
                 invalid && "border-destructive/60",
               )}
             />
             {invalid ? (
-              <p className="text-xs text-destructive">{t("settings.skillCompanion.validation")}</p>
+              <p id={`skill-companion-error-${index}`} className="text-xs text-destructive">
+                {t("settings.skillCompanion.validation")}
+              </p>
             ) : null}
           </div>
         ) : (

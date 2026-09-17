@@ -264,6 +264,7 @@ export function SkillSidebar({
           <div>
             <button
               onClick={() => setReposExpanded((v) => !v)}
+              aria-expanded={reposExpanded}
               className={cn(
                 "w-full px-4 py-2.5 flex items-center text-[13px] transition-colors text-left",
                 "text-foreground/70 hover:bg-accent/50 hover:text-foreground",
@@ -279,51 +280,66 @@ export function SkillSidebar({
                 <ChevronDown className="h-4 w-4 shrink-0 ml-1 mr-1.5" />
               )}
             </button>
+            {/* Collapsed entries are unmounted, not merely zero-height: the old
+                max-h-0/opacity-0 kept them focusable and exposed in the AX tree
+                (Chrome reported role=button, ignored=false for invisible rows).
+                Not rendering also removes the arbitrary max-height cap that
+                silently clipped long repo lists. */}
             <div
               className={cn(
-                "overflow-hidden transition-all duration-200 ease-in-out",
-                reposExpanded ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0",
+                "grid transition-[grid-template-rows] duration-200 ease-in-out",
+                reposExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
               )}
             >
-              {repos.map((repo) => (
-                <Tooltip key={`${repo.owner}/${repo.name}`}>
-                  <TooltipTrigger asChild>
+              <div className="overflow-hidden">
+                {reposExpanded && (
+                  <>
+                    {repos.map((repo) => (
+                      <Tooltip key={`${repo.owner}/${repo.name}`}>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() =>
+                              onSelectCategory({
+                                type: "repo",
+                                owner: repo.owner,
+                                name: repo.name,
+                              })
+                            }
+                            className={cn(
+                              "w-full px-4 py-2 flex items-center text-[13px] transition-colors pl-8",
+                              isActive({ type: "repo", owner: repo.owner, name: repo.name })
+                                ? "bg-primary/5 text-foreground border-l-2 border-l-primary"
+                                : "text-foreground/70 hover:bg-accent/50 hover:text-foreground",
+                            )}
+                          >
+                            <span className="flex items-center min-w-0 flex-1">
+                              <span className="truncate">
+                                {repo.owner}/{repo.name}
+                              </span>
+                            </span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="text-xs" data-selectable>
+                          {repo.owner}/{repo.name}
+                        </TooltipContent>
+                      </Tooltip>
+                    ))}
                     <button
-                      onClick={() =>
-                        onSelectCategory({ type: "repo", owner: repo.owner, name: repo.name })
-                      }
+                      onClick={() => onSelectCategory({ type: "unassigned" })}
                       className={cn(
                         "w-full px-4 py-2 flex items-center text-[13px] transition-colors pl-8",
-                        isActive({ type: "repo", owner: repo.owner, name: repo.name })
+                        isActive({ type: "unassigned" })
                           ? "bg-primary/5 text-foreground border-l-2 border-l-primary"
                           : "text-foreground/70 hover:bg-accent/50 hover:text-foreground",
                       )}
                     >
                       <span className="flex items-center min-w-0 flex-1">
-                        <span className="truncate">
-                          {repo.owner}/{repo.name}
-                        </span>
+                        <span className="truncate">{t("sidebar.unassigned")}</span>
                       </span>
                     </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right" className="text-xs" data-selectable>
-                    {repo.owner}/{repo.name}
-                  </TooltipContent>
-                </Tooltip>
-              ))}
-              <button
-                onClick={() => onSelectCategory({ type: "unassigned" })}
-                className={cn(
-                  "w-full px-4 py-2 flex items-center text-[13px] transition-colors pl-8",
-                  isActive({ type: "unassigned" })
-                    ? "bg-primary/5 text-foreground border-l-2 border-l-primary"
-                    : "text-foreground/70 hover:bg-accent/50 hover:text-foreground",
+                  </>
                 )}
-              >
-                <span className="flex items-center min-w-0 flex-1">
-                  <span className="truncate">{t("sidebar.unassigned")}</span>
-                </span>
-              </button>
+              </div>
             </div>
           </div>
         </ScrollArea>

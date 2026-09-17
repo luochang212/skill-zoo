@@ -142,6 +142,7 @@ function FileTreeNode({
     <div>
       <button
         onClick={handleClick}
+        aria-expanded={node.isDir ? expanded : undefined}
         className={cn(
           "w-full flex items-center gap-1.5 py-1 pr-2 text-[13px] text-left transition-colors group",
           isSelected ? "bg-primary/15 text-foreground font-medium" : "hover:bg-accent/50",

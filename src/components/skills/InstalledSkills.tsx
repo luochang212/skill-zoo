@@ -97,6 +97,7 @@ function ListHeader({
   onToggleSelectAll,
   selectable = true,
   dateLabel = "Updated",
+  selectAllLabel,
   sortField,
   sortDirection,
   onSort,
@@ -108,6 +109,7 @@ function ListHeader({
   onToggleSelectAll: () => void;
   selectable?: boolean;
   dateLabel?: string;
+  selectAllLabel: string;
 }) {
   const headerBtn = (field: SortField, label: string, className: string) => (
     <button
@@ -123,7 +125,13 @@ function ListHeader({
   return (
     <div className="flex items-center gap-4 px-5 py-1.5 border-b border-border/40">
       <div className="w-8 shrink-0 flex justify-center">
-        {selectable && <Checkbox checked={allSelected} onCheckedChange={onToggleSelectAll} />}
+        {selectable && (
+          <Checkbox
+            checked={allSelected}
+            onCheckedChange={onToggleSelectAll}
+            aria-label={selectAllLabel}
+          />
+        )}
       </div>
       {headerBtn("name", "Name", "w-48 shrink-0")}
       {headerBtn("repo", "Repo", "flex-1 min-w-0 hidden @2xl/main:flex")}
@@ -834,7 +842,8 @@ export const InstalledSkills = memo(function InstalledSkills({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t("installed.searchPlaceholder")}
-                className="h-9 text-[13px] max-w-xs rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none"
+                aria-label={t("installed.searchPlaceholder")}
+                className="h-9 text-[13px] max-w-xs rounded-md border border-input bg-background px-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring"
                 autoComplete="off"
                 autoCorrect="off"
                 spellCheck={false}
@@ -958,6 +967,7 @@ export const InstalledSkills = memo(function InstalledSkills({
                         onToggleSelectAll={allSelected ? handleDeselectVisible : handleSelectAll}
                         selectable
                         dateLabel={isArchiveView ? t("skill.archived") : t("skill.updated")}
+                        selectAllLabel={t("browse.selectAll")}
                       />
                       {sorted.map((skill) => (
                         <SkillDragSource key={skill.id} skill={skill} disabled={isArchiveView}>

@@ -128,7 +128,10 @@
 }
 
 :root {
-  color-scheme: light;
+  /* Two values so native controls and scrollbars follow the OS until the theme
+     script pins a single scheme; pinning one here made a failed JS path render a
+     dark canvas with light native widgets. */
+  color-scheme: light dark;
   --background: 30 20% 98%;
   --foreground: 25 15% 12%;
   --card: 0 0% 100%;

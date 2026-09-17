@@ -194,6 +194,11 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
   // Keyboard handler for the search input
   const handleSearchKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      // IME guard: the Enter that confirms a candidate must not navigate. WebKit
+      // reports isComposing === false by then, so keyCode 229 is the check that
+      // actually holds on WKWebView / WebKitGTK.
+      if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
+
       if (e.key === "Escape") {
         setDropdownOpen(false);
       } else if (e.key === "Enter" && repoResult && dropdownOpen && isRepoQuery) {

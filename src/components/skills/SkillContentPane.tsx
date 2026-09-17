@@ -506,21 +506,27 @@ export const SkillContentPane = memo(function SkillContentPane({
         className="flex-1 min-h-0 flex min-w-0"
         style={sidebarDragging ? { userSelect: "none" } : undefined}
       >
-        {/* Collapsible sidebar */}
+        {/* Collapsible sidebar — the width transition is what makes the slide
+            visible: without it the container snapped to 0 in the same frame and
+            clipped the outgoing translate. Disabled while dragging so resizing
+            keeps up with the pointer. */}
         <div
-          className="h-full shrink-0 overflow-hidden"
+          className={cn(
+            "h-full shrink-0 overflow-hidden transition-[width] duration-200 ease-out",
+            sidebarDragging && "!duration-0",
+          )}
           style={{
             width: sidebarOpen ? sidebarWidth : 0,
           }}
         >
           <div
             className={cn(
-              "h-full transition-[transform,opacity] duration-200 ease-out",
+              "h-full transition-[translate,opacity] duration-200 ease-out",
               sidebarOpen ? "translate-x-0 opacity-100" : "-translate-x-full opacity-0",
             )}
             style={{
               width: sidebarWidth,
-              willChange: sidebarDragging ? "transform, opacity" : undefined,
+              willChange: sidebarDragging ? "translate, opacity" : undefined,
             }}
           >
             <SkillFileTree

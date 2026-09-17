@@ -65,6 +65,7 @@
     "nameConflict": "同名冲突",
     "nameConflictHint": "另一个技能已使用此目录名，请先在本地技能中处理后再安装。",
     "selectAll": "全选",
+    "selectRow": "选择 {{name}}",
     "selectedCount": "已选 {{count}} 个",
     "installSelected": "批量安装",
     "recentlyViewed": "最近浏览",

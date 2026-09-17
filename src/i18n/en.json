@@ -65,6 +65,7 @@
     "nameConflict": "Name conflict",
     "nameConflictHint": "A different skill already uses this folder name. Resolve it in Local Skills before installing.",
     "selectAll": "Select all",
+    "selectRow": "Select {{name}}",
     "selectedCount": "{{count}} selected",
     "installSelected": "Install selected",
     "recentlyViewed": "Recently Viewed",
