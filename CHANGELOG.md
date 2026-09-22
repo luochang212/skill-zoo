@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.48] — 2026-09-23
+
+### Changed
+- macOS 13.3 is now the minimum supported version, enforced as `bundle.macOS.minimumSystemVersion`. This matches the browser floor the toolchain already targets — Vite 8's default `safari16.4` build target and Tailwind v4's Safari 16.4 baseline — because macOS's WKWebView engine is tied to the OS version. Systems below 13.3 can no longer launch the app.
+- The frontend, CLI and Vite-config TypeScript projects now enable `noUncheckedIndexedAccess` and `verbatimModuleSyntax`, so unchecked index access and ambiguous type/value imports fail at compile time instead of at runtime. No user-visible behavior change.
+
+### Fixed
+- Hiding a coding agent no longer fails when its skill links cannot be removed. The visibility preference is now persisted first and is the only hard failure; link cleanup is best-effort. Any app-owned links that were moved are restored, and a concise notice reports that some skill links could not be cleaned up. (#10)
+- Hiding an agent no longer removes skill links the app does not own. Cleanup is scoped to links pointing at the SSOT store or a known skill home, so links an agent manages itself (for example OpenClaw's `~/.openclaw/skills`) are left in place.
+
 ## [0.3.47] — 2026-09-18
 
 ### Changed
