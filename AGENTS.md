@@ -87,6 +87,14 @@ The frontend never touches the filesystem, never calls GitHub, never runs git. A
 
 Backend data flows through hooks. Mutations invalidate dependent queries. Component-local state is only for UI concerns (dialog open? tab active?).
 
+### Browser Support Floor
+
+The frontend ships on three engines — WKWebView (macOS), WebView2 (Windows), WebKitGTK (Linux) — so "Baseline widely available" is not the bar. The bar is **Safari 16.4 / macOS 13.3**, which is what the toolchain already assumes: Vite 8's default build target is `safari16.4`, and Tailwind v4's documented baseline is Safari 16.4.
+
+That floor has exactly one machine-readable home: `bundle.macOS.minimumSystemVersion` in `src-tauri/tauri.conf.json`. Prose must not contradict it.
+
+Every platform feature is one of two things. **Load-bearing** — the app is broken without it, so feature-detect it or ship a fallback. **Progressive** — absence degrades instead of breaking (the theme-switch view transition and the `::-webkit-scrollbar` color fallback are progressive). Don't add a load-bearing feature above the floor without raising the floor in the same change.
+
 ## OpenSpec Workflow
 
 The repo manages behavior-level changes through OpenSpec: open a change (proposal → specs delta → design → tasks), implement, then archive. CLI: `openspec` (v1.8+).
