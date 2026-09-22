@@ -454,7 +454,8 @@
       "moveLast": "Move {{agent}} to last",
       "finishSorting": "Finish sorting",
       "noResults": "No matching coding agents",
-      "saveFailed": "Could not save Coding Agent settings"
+      "saveFailed": "Could not save Coding Agent settings",
+      "hiddenWithCleanupWarning": "Coding agent hidden, but some skill links could not be removed"
     },
     "about": {
       "title": "About",

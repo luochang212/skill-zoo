@@ -128,6 +128,7 @@ export interface VisibleAgents {
 export interface AgentPreferences {
   visibleAgents: VisibleAgents;
   agentOrder: string[];
+  linkCleanupFailed?: boolean;
 }
 
 export interface SkillCompanionItem {

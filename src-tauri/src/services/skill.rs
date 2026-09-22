@@ -67,6 +67,7 @@ pub struct InstalledSkill {
 pub(crate) struct StagedAgentSymlinkRemoval {
     moved_links: Vec<(PathBuf, PathBuf)>,
     staging_dirs: Vec<tempfile::TempDir>,
+    pub(crate) skipped_unowned_links: usize,
 }
 
 impl StagedAgentSymlinkRemoval {
@@ -335,6 +336,22 @@ fn resolve_link_target(
     } else {
         target
     }
+}
+
+/// A link in an agent skills directory counts as app-owned when its stored
+/// target (lexically resolved, no filesystem access, so dangling links still
+/// classify) points into the SSOT store or equals a known skill home.
+/// Foreign and unclassifiable links must be left in place when hiding agents.
+pub(crate) fn is_app_owned_link(
+    link_path: &std::path::Path,
+    ssot_root: &std::path::Path,
+    known_home_paths: &[PathBuf],
+) -> bool {
+    let Ok(target) = std::fs::read_link(link_path) else {
+        return false;
+    };
+    let resolved = resolve_link_target(link_path, target);
+    resolved.starts_with(ssot_root) || known_home_paths.contains(&resolved)
 }
 
 pub(crate) fn symlink_target_matches(
@@ -1902,31 +1919,24 @@ impl SkillService {
         Ok(())
     }
 
-    pub(crate) fn stage_agent_symlink_removal(
-        agents: &[&str],
-    ) -> Result<StagedAgentSymlinkRemoval, AppError> {
-        let mut agent_dirs = Vec::with_capacity(agents.len());
-        for agent in agents {
-            agent_dirs.push(
-                config::get_agent_skills_dir(agent)
-                    .ok_or_else(|| AppError::NotFound(format!("Unknown agent: {agent}")))?,
-            );
-        }
-        Self::stage_agent_symlink_removal_in_dirs(&agent_dirs)
-    }
-
-    fn stage_agent_symlink_removal_in_dirs(
+    pub(crate) fn stage_agent_symlink_removal_in_dirs(
         agent_dirs: &[PathBuf],
+        known_home_paths: &[PathBuf],
     ) -> Result<StagedAgentSymlinkRemoval, AppError> {
-        Self::stage_agent_symlink_removal_in_dirs_with(agent_dirs, |source, destination| {
-            std::fs::rename(source, destination)
-        })
+        Self::stage_agent_symlink_removal_in_dirs_with(
+            agent_dirs,
+            known_home_paths,
+            |source, destination| std::fs::rename(source, destination),
+        )
     }
 
     fn stage_agent_symlink_removal_in_dirs_with(
         agent_dirs: &[PathBuf],
+        known_home_paths: &[PathBuf],
         mut rename_link: impl FnMut(&Path, &Path) -> std::io::Result<()>,
     ) -> Result<StagedAgentSymlinkRemoval, AppError> {
+        let ssot_root = config::get_agents_skills_dir();
+        let mut skipped_unowned_links = 0;
         let mut link_groups = Vec::new();
         for agent_dir in agent_dirs {
             if !agent_dir.exists() {
@@ -1938,7 +1948,11 @@ impl SkillService {
                 let entry = entry.map_err(|e| error::io(agent_dir, e))?;
                 let path = entry.path();
                 if is_symlink_or_junction(&path) {
-                    links.push(path);
+                    if is_app_owned_link(&path, &ssot_root, known_home_paths) {
+                        links.push(path);
+                    } else {
+                        skipped_unowned_links += 1;
+                    }
                 }
             }
             if !links.is_empty() {
@@ -1949,6 +1963,7 @@ impl SkillService {
         let mut staged = StagedAgentSymlinkRemoval {
             moved_links: Vec::new(),
             staging_dirs: Vec::new(),
+            skipped_unowned_links,
         };
         let mut moves_to_make = Vec::new();
         for (agent_dir, links) in link_groups {
@@ -1994,8 +2009,9 @@ impl SkillService {
     #[cfg(test)]
     pub(crate) fn stage_agent_symlink_removal_in_dirs_for_test(
         agent_dirs: &[PathBuf],
+        known_home_paths: &[PathBuf],
     ) -> Result<StagedAgentSymlinkRemoval, AppError> {
-        Self::stage_agent_symlink_removal_in_dirs(agent_dirs)
+        Self::stage_agent_symlink_removal_in_dirs(agent_dirs, known_home_paths)
     }
 
     // ──────────────────────────────────────────────
@@ -2492,10 +2508,10 @@ mod tests {
         SkillService::create_link_to_target(&first_target, &first_link).unwrap();
         SkillService::create_link_to_target(&second_target, &second_link).unwrap();
 
-        let staged = SkillService::stage_agent_symlink_removal_in_dirs_for_test(&[
-            first_agent.clone(),
-            second_agent,
-        ])
+        let staged = SkillService::stage_agent_symlink_removal_in_dirs_for_test(
+            &[first_agent.clone(), second_agent],
+            &[first_target.clone(), second_target.clone()],
+        )
         .unwrap();
 
         assert!(std::fs::symlink_metadata(&first_link).is_err());
@@ -2526,6 +2542,7 @@ mod tests {
 
         let result = SkillService::stage_agent_symlink_removal_in_dirs_with(
             &[first_agent, second_agent],
+            &[first_target.clone(), second_target.clone()],
             |source, destination| {
                 moves += 1;
                 if moves == 2 {
@@ -2551,8 +2568,11 @@ mod tests {
         std::fs::create_dir_all(&target).unwrap();
         let link = agent_dir.join("demo");
         SkillService::create_link_to_target(&target, &link).unwrap();
-        let staged =
-            SkillService::stage_agent_symlink_removal_in_dirs_for_test(&[agent_dir]).unwrap();
+        let staged = SkillService::stage_agent_symlink_removal_in_dirs_for_test(
+            &[agent_dir],
+            &[target.clone()],
+        )
+        .unwrap();
         let backup = staged.moved_links[0].1.clone();
         SkillService::safe_remove(&backup).unwrap();
 
@@ -2573,12 +2593,126 @@ mod tests {
         let link = agent_dir.join("demo");
         SkillService::create_link_to_target(&target, &link).unwrap();
 
-        let staged =
-            SkillService::stage_agent_symlink_removal_in_dirs_for_test(&[agent_dir]).unwrap();
+        let staged = SkillService::stage_agent_symlink_removal_in_dirs_for_test(
+            &[agent_dir],
+            &[target.clone()],
+        )
+        .unwrap();
         staged.commit();
 
         assert!(std::fs::symlink_metadata(&link).is_err());
         assert!(target.is_dir());
+    }
+
+    #[test]
+    fn staging_collects_only_app_owned_links_and_counts_skipped() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let agent_dir = root.path().join("openclaw/skills");
+        let home = root.path().join("agents-store/mine");
+        let foreign = root.path().join("foreign/thing");
+        std::fs::create_dir_all(&agent_dir).unwrap();
+        std::fs::create_dir_all(&home).unwrap();
+        std::fs::create_dir_all(&foreign).unwrap();
+        SkillService::create_link_to_target(&home, &agent_dir.join("mine")).unwrap();
+        SkillService::create_link_to_target(&foreign, &agent_dir.join("theirs")).unwrap();
+
+        let staged = SkillService::stage_agent_symlink_removal_in_dirs_for_test(
+            &[agent_dir.clone()],
+            &[home.clone()],
+        )
+        .unwrap();
+
+        assert_eq!(staged.moved_links.len(), 1);
+        assert_eq!(staged.skipped_unowned_links, 1);
+        assert!(std::fs::symlink_metadata(agent_dir.join("mine")).is_err());
+        assert!(std::fs::symlink_metadata(agent_dir.join("theirs")).is_ok());
+
+        staged.rollback().unwrap();
+
+        assert!(symlink_target_matches(&agent_dir.join("mine"), &home));
+        assert!(std::fs::symlink_metadata(agent_dir.join("theirs")).is_ok());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn staging_stages_dangling_link_pointing_at_known_home() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let agent_dir = root.path().join("openclaw/skills");
+        std::fs::create_dir_all(&agent_dir).unwrap();
+        let home = root.path().join("agents-store/gone");
+        std::os::unix::fs::symlink(&home, agent_dir.join("gone")).unwrap();
+
+        let staged = SkillService::stage_agent_symlink_removal_in_dirs_for_test(
+            &[agent_dir.clone()],
+            &[home.clone()],
+        )
+        .unwrap();
+
+        assert_eq!(staged.moved_links.len(), 1);
+        staged.rollback().unwrap();
+        // 悬空目标无法 canonicalize，用原始路径比对验证回滚
+        assert!(raw_symlink_target_matches(&agent_dir.join("gone"), &home));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn is_app_owned_link_classifies_by_ssot_prefix_and_known_home() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let ssot_root = root.path().join("agents-store");
+        let home = root.path().join("hermes/skills/foo");
+        let dir = root.path().join("links");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::create_dir_all(&home).unwrap();
+        // 悬空：SSOT 目标不存在，前缀仍应命中
+        std::os::unix::fs::symlink(ssot_root.join("pdf-tools"), dir.join("ssot")).unwrap();
+        std::os::unix::fs::symlink(&home, dir.join("local")).unwrap();
+        std::os::unix::fs::symlink(root.path().join("elsewhere"), dir.join("foreign")).unwrap();
+
+        assert!(super::is_app_owned_link(
+            &dir.join("ssot"),
+            &ssot_root,
+            &[home.clone()]
+        ));
+        assert!(super::is_app_owned_link(
+            &dir.join("local"),
+            &ssot_root,
+            &[home.clone()]
+        ));
+        assert!(!super::is_app_owned_link(
+            &dir.join("foreign"),
+            &ssot_root,
+            &[home.clone()]
+        ));
+        // 缓存退化：无已知 homePath 时仅 SSOT 前缀命中
+        assert!(!super::is_app_owned_link(
+            &dir.join("local"),
+            &ssot_root,
+            &[]
+        ));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn rollback_reports_recreated_link_collision() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let agent_dir = root.path().join("openclaw/skills");
+        let home = root.path().join("agents-store/mine");
+        std::fs::create_dir_all(&agent_dir).unwrap();
+        std::fs::create_dir_all(&home).unwrap();
+        SkillService::create_link_to_target(&home, &agent_dir.join("mine")).unwrap();
+
+        let staged = SkillService::stage_agent_symlink_removal_in_dirs_for_test(
+            &[agent_dir.clone()],
+            &[home.clone()],
+        )
+        .unwrap();
+        // 模拟外部进程（如 openclaw 的 watcher）在原位重建了链接
+        SkillService::create_link_to_target(&home, &agent_dir.join("mine")).unwrap();
+
+        let error = staged.rollback().unwrap_err().to_string();
+
+        assert!(error.contains("destination now exists"), "{error}");
+        assert!(symlink_target_matches(&agent_dir.join("mine"), &home));
     }
 
     #[test]

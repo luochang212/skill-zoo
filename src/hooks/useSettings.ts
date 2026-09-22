@@ -230,7 +230,14 @@ export function useAgentPreferences({
     (nextVisibleAgents: VisibleAgents, nextAgentOrder: string[]) => {
       updatePreferences.mutate(
         { visibleAgents: nextVisibleAgents, agentOrder: nextAgentOrder },
-        { onError: () => toast.error(t("settings.agentPaths.saveFailed")) },
+        {
+          onError: () => toast.error(t("settings.agentPaths.saveFailed")),
+          onSuccess: (preferences) => {
+            if (preferences.linkCleanupFailed) {
+              toast.warning(t("settings.agentPaths.hiddenWithCleanupWarning"));
+            }
+          },
+        },
       );
     },
     [updatePreferences, t],

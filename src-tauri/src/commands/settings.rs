@@ -1,6 +1,5 @@
 use crate::services::cli::CliService;
 use crate::services::lock::{SkillLock, SkillLockEntry};
-use crate::services::skill::StagedAgentSymlinkRemoval;
 use crate::services::skill_usage::SkillUsage;
 use crate::services::tray::{
     validate_skill_companion_items, SkillCompanionItem, SKILL_COMPANION_ITEMS_SETTING,
@@ -223,6 +222,7 @@ fn refresh_cached_agent_apps(state: &AppState) -> Result<(), String> {
 pub struct AgentPreferences {
     visible_agents: HashMap<String, bool>,
     agent_order: Vec<String>,
+    link_cleanup_failed: bool,
 }
 
 fn normalize_agent_order(
@@ -280,45 +280,56 @@ fn set_agent_preference_values(
     Ok(())
 }
 
-fn rollback_agent_preference_change(
-    settings: &mut crate::persistence::Settings,
-    previous: crate::persistence::Settings,
-    staged_links: StagedAgentSymlinkRemoval,
-    error: String,
-) -> String {
-    *settings = previous;
-    match staged_links.rollback() {
-        Ok(()) => error,
-        Err(rollback_error) => format!("{error}. Recovery incomplete: {rollback_error}"),
-    }
-}
-
-fn commit_agent_preference_change(
+fn persist_agent_preferences(
     settings: &mut crate::persistence::Settings,
     visible_agents: &HashMap<String, bool>,
     agent_order: &[String],
-    staged_links: StagedAgentSymlinkRemoval,
     persist: impl FnOnce(&crate::persistence::Settings) -> Result<(), String>,
 ) -> Result<(), String> {
     let previous = settings.clone();
     if let Err(error) = set_agent_preference_values(settings, visible_agents, agent_order) {
-        return Err(rollback_agent_preference_change(
-            settings,
-            previous,
-            staged_links,
-            error,
-        ));
+        *settings = previous;
+        return Err(error);
     }
     if let Err(error) = persist(settings) {
-        return Err(rollback_agent_preference_change(
-            settings,
-            previous,
-            staged_links,
-            error,
-        ));
+        *settings = previous;
+        return Err(error);
     }
-    staged_links.commit();
     Ok(())
+}
+
+/// Best-effort removal of app-owned skill links from the directories of agents
+/// that just became hidden. Never fails: returns whether cleanup could not
+/// complete, so the caller can surface a concise notice instead of blocking
+/// the visibility change. Details go to stderr for diagnosis.
+fn cleanup_hidden_agent_links(
+    hidden_agents: &[&str],
+    agent_dirs: &[std::path::PathBuf],
+    known_home_paths: &[std::path::PathBuf],
+) -> bool {
+    match crate::services::skill::SkillService::stage_agent_symlink_removal_in_dirs(
+        agent_dirs,
+        known_home_paths,
+    ) {
+        Ok(staged) => {
+            let skipped = staged.skipped_unowned_links;
+            if skipped > 0 {
+                eprintln!(
+                    "Skipped {skipped} foreign or unrecognized skill link(s) while hiding {} (links left in place)",
+                    hidden_agents.join(", ")
+                );
+            }
+            staged.commit();
+            false
+        }
+        Err(error) => {
+            eprintln!(
+                "Skill link cleanup failed while hiding {} (links left in place): {error}",
+                hidden_agents.join(", ")
+            );
+            true
+        }
+    }
 }
 
 const MAX_VISIBLE_AGENTS: usize = 7;
@@ -342,8 +353,21 @@ pub fn update_agent_preferences(
     }
 
     let normalized_order = normalize_agent_order(&visible_agents, &agent_order);
-    let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
-    let old_visible = crate::services::skill::SkillService::get_visible_agents(&settings);
+
+    // The visibility preference is the contract: persist it first and let it
+    // be the only hard failure. Link cleanup below is best-effort hygiene.
+    let old_visible = {
+        let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
+        let old_visible = crate::services::skill::SkillService::get_visible_agents(&settings);
+        persist_agent_preferences(
+            &mut settings,
+            &visible_agents,
+            &normalized_order,
+            |settings| settings.save().map_err(|e| e.to_string()),
+        )?;
+        old_visible
+    };
+
     let mut hidden_agents = Vec::new();
     for agent in crate::config::AGENTS {
         let was_visible = old_visible
@@ -359,19 +383,25 @@ pub fn update_agent_preferences(
         }
     }
 
-    let staged_links =
-        crate::services::skill::SkillService::stage_agent_symlink_removal(&hidden_agents)
-            .map_err(|e| e.to_string())?;
-    commit_agent_preference_change(
-        &mut settings,
-        &visible_agents,
-        &normalized_order,
-        staged_links,
-        |settings| settings.save().map_err(|e| e.to_string()),
-    )?;
-    drop(settings);
-
+    let mut link_cleanup_failed = false;
     if !hidden_agents.is_empty() {
+        let agent_dirs = hidden_agents
+            .iter()
+            .filter_map(|agent| crate::config::get_agent_skills_dir(agent))
+            .collect::<Vec<_>>();
+        let known_home_paths = state
+            .skill_cache
+            .read()
+            .map(|cache| {
+                cache
+                    .skills()
+                    .iter()
+                    .filter_map(|entry| entry.home_path.as_ref().map(std::path::PathBuf::from))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        link_cleanup_failed =
+            cleanup_hidden_agent_links(&hidden_agents, &agent_dirs, &known_home_paths);
         if let Err(error) = refresh_cached_agent_apps(&state) {
             eprintln!("Failed to refresh cached agent links after hiding agents: {error}");
         }
@@ -380,17 +410,19 @@ pub fn update_agent_preferences(
     Ok(AgentPreferences {
         visible_agents,
         agent_order: normalized_order,
+        link_cleanup_failed,
     })
 }
 
 #[cfg(test)]
 mod agent_preferences_tests {
     use super::{
-        commit_agent_preference_change, has_visible_agent, normalize_agent_order,
-        set_agent_preference_values,
+        cleanup_hidden_agent_links, has_visible_agent, normalize_agent_order,
+        persist_agent_preferences, set_agent_preference_values,
     };
     use crate::services::skill::{symlink_target_matches, SkillService};
     use std::collections::HashMap;
+    use std::path::PathBuf;
 
     #[test]
     fn normalizes_known_agents_with_visible_agents_first() {
@@ -450,23 +482,7 @@ mod agent_preferences_tests {
     }
 
     #[test]
-    fn save_failure_restores_settings_and_all_staged_agent_links() {
-        let root = tempfile::tempdir().expect("tempdir");
-        let first_agent = root.path().join("first-agent/skills");
-        let second_agent = root.path().join("second-agent/skills");
-        let first_target = root.path().join("targets/first");
-        let second_target = root.path().join("targets/second");
-        std::fs::create_dir_all(&first_target).unwrap();
-        std::fs::create_dir_all(&second_target).unwrap();
-        let first_link = first_agent.join("first");
-        let second_link = second_agent.join("second");
-        SkillService::create_link_to_target_for_test(&first_target, &first_link).unwrap();
-        SkillService::create_link_to_target_for_test(&second_target, &second_link).unwrap();
-        let staged = SkillService::stage_agent_symlink_removal_in_dirs_for_test(&[
-            first_agent,
-            second_agent,
-        ])
-        .unwrap();
+    fn persist_failure_restores_settings_and_reports_error() {
         let mut settings = crate::persistence::Settings {
             values: HashMap::from([("theme".to_string(), "dark".to_string())]),
         };
@@ -477,15 +493,92 @@ mod agent_preferences_tests {
         ]);
         let order = vec!["claude-code".to_string(), "codex".to_string()];
 
-        let result =
-            commit_agent_preference_change(&mut settings, &visible, &order, staged, |_| {
-                Err("settings save failed".to_string())
-            });
+        let error = persist_agent_preferences(&mut settings, &visible, &order, |_| {
+            Err("settings save failed".to_string())
+        })
+        .unwrap_err();
 
-        assert_eq!(result.unwrap_err(), "settings save failed");
+        assert_eq!(error, "settings save failed");
         assert_eq!(settings.values, previous.values);
-        assert!(symlink_target_matches(&first_link, &first_target));
-        assert!(symlink_target_matches(&second_link, &second_target));
+    }
+
+    fn hidden_agent_fixture(root: &std::path::Path) -> (PathBuf, PathBuf) {
+        let agent_dir = root.join("openclaw/skills");
+        let home = root.join("agents-store/mine");
+        std::fs::create_dir_all(&agent_dir).unwrap();
+        std::fs::create_dir_all(&home).unwrap();
+        SkillService::create_link_to_target_for_test(&home, &agent_dir.join("mine")).unwrap();
+        (agent_dir, home)
+    }
+
+    #[test]
+    fn cleanup_success_returns_false_and_removes_owned_links() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let (agent_dir, home) = hidden_agent_fixture(root.path());
+
+        let failed =
+            cleanup_hidden_agent_links(&["openclaw"], &[agent_dir.clone()], &[home.clone()]);
+
+        assert!(!failed);
+        assert!(std::fs::symlink_metadata(agent_dir.join("mine")).is_err());
+        assert!(home.is_dir());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn cleanup_failure_on_readonly_skills_dir_degrades_instead_of_failing() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let (agent_dir, home) = hidden_agent_fixture(root.path());
+        use std::os::unix::fs::PermissionsExt;
+        let original = std::fs::metadata(&agent_dir).unwrap().permissions();
+        let mut perms = original.clone();
+        perms.set_mode(0o500);
+        std::fs::set_permissions(&agent_dir, perms).unwrap();
+
+        let failed =
+            cleanup_hidden_agent_links(&["openclaw"], &[agent_dir.clone()], &[home.clone()]);
+
+        assert!(failed);
+        assert!(symlink_target_matches(&agent_dir.join("mine"), &home));
+
+        std::fs::set_permissions(&agent_dir, original).unwrap();
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn cleanup_failure_on_readonly_agent_home_degrades_instead_of_failing() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let (agent_dir, home) = hidden_agent_fixture(root.path());
+        use std::os::unix::fs::PermissionsExt;
+        let agent_home = agent_dir.parent().unwrap();
+        let original = std::fs::metadata(agent_home).unwrap().permissions();
+        let mut perms = original.clone();
+        perms.set_mode(0o555);
+        std::fs::set_permissions(agent_home, perms).unwrap();
+
+        let failed =
+            cleanup_hidden_agent_links(&["openclaw"], &[agent_dir.clone()], &[home.clone()]);
+
+        assert!(failed);
+        assert!(symlink_target_matches(&agent_dir.join("mine"), &home));
+
+        std::fs::set_permissions(agent_home, original).unwrap();
+    }
+
+    #[test]
+    fn cleanup_skips_foreign_links_without_failing() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let (agent_dir, home) = hidden_agent_fixture(root.path());
+        let foreign = root.path().join("foreign/thing");
+        std::fs::create_dir_all(&foreign).unwrap();
+        SkillService::create_link_to_target_for_test(&foreign, &agent_dir.join("theirs")).unwrap();
+
+        let failed =
+            cleanup_hidden_agent_links(&["openclaw"], &[agent_dir.clone()], &[home.clone()]);
+
+        assert!(!failed);
+        assert!(std::fs::symlink_metadata(agent_dir.join("theirs")).is_ok());
+        assert!(std::fs::symlink_metadata(agent_dir.join("mine")).is_err());
     }
 }
 
