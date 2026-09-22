@@ -28,7 +28,7 @@ describe("useRepoLoadProgress", () => {
     unmount();
 
     await act(async () => {
-      resolves.forEach((resolve, index) => resolve(unlistens[index]));
+      unlistens.forEach((unlisten, index) => resolves[index]?.(unlisten));
       await Promise.resolve();
     });
 

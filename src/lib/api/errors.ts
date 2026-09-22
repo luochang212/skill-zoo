@@ -24,15 +24,14 @@ const ERROR_KEYS: Record<string, string> = {
 
 export function formatApiError(error: unknown): string {
   const apiError = asApiError(error);
-  if (apiError?.code && ERROR_KEYS[apiError.code]) {
-    if (apiError.code === "badRequest") {
+  const code = apiError?.code;
+  const key = code ? ERROR_KEYS[code] : undefined;
+  if (code && key) {
+    if (code === "badRequest") {
       return translateBadRequest(apiError.message);
     }
 
-    return translateError(
-      ERROR_KEYS[apiError.code],
-      apiError.repo ?? extractRepo(apiError.message),
-    );
+    return translateError(key, apiError.repo ?? extractRepo(apiError.message));
   }
 
   const raw = errorMessage(error);

@@ -88,8 +88,8 @@ describe("listExternalImports", () => {
 
     const result = await listExternalImports(home);
     expect(result).toHaveLength(1);
-    expect(result[0].status).toBe("source-missing");
-    expect(result[0].name).toBe("gone");
+    expect(result[0]?.status).toBe("source-missing");
+    expect(result[0]?.name).toBe("gone");
   });
 
   it("marks skill-missing when source exists but SKILL.md missing", async () => {
@@ -113,7 +113,7 @@ describe("listExternalImports", () => {
 
     const result = await listExternalImports(home);
     expect(result).toHaveLength(1);
-    expect(result[0].status).toBe("skill-missing");
+    expect(result[0]?.status).toBe("skill-missing");
   });
 
   it("detects linked agents via symlink resolution", async () => {
@@ -141,7 +141,7 @@ describe("listExternalImports", () => {
 
     const result = await listExternalImports(home);
     expect(result).toHaveLength(1);
-    expect(result[0].linkedAgents).toContain("claude-code");
+    expect(result[0]?.linkedAgents).toContain("claude-code");
   });
 
   it("sorts valid imports before missing ones", async () => {
@@ -172,8 +172,8 @@ describe("listExternalImports", () => {
 
     const result = await listExternalImports(home);
     expect(result).toHaveLength(2);
-    expect(result[0].status).toBe("valid");
-    expect(result[1].status).toBe("source-missing");
+    expect(result[0]?.status).toBe("valid");
+    expect(result[1]?.status).toBe("source-missing");
   });
 });
 
@@ -200,8 +200,8 @@ describe("scanExternalImportFolder", () => {
 
     const result = await scanExternalImportFolder(home, scanDir);
     expect(result).toHaveLength(1);
-    expect(result[0].name).toBe("MySkill");
-    expect(result[0].sourcePath).toBe(scanDir);
+    expect(result[0]?.name).toBe("MySkill");
+    expect(result[0]?.sourcePath).toBe(scanDir);
   });
 
   it("skips node_modules and other SKIP_DIRS", async () => {
@@ -212,7 +212,7 @@ describe("scanExternalImportFolder", () => {
 
     const result = await scanExternalImportFolder(home, scanDir);
     expect(result).toHaveLength(1);
-    expect(result[0].name).toBe("Utils");
+    expect(result[0]?.name).toBe("Utils");
   });
 
   it("marks alreadyImported for known source paths", async () => {
@@ -237,7 +237,7 @@ describe("scanExternalImportFolder", () => {
 
     const result = await scanExternalImportFolder(home, scanDir);
     expect(result).toHaveLength(1);
-    expect(result[0].alreadyImported).toBe(true);
+    expect(result[0]?.alreadyImported).toBe(true);
   });
 
   it("rejects paths inside the SSOT skills dir", async () => {
@@ -299,9 +299,9 @@ describe("importExternalSkills", () => {
     const imports = await readExternalImports(home);
     expect(Object.keys(imports.imports)).toHaveLength(1);
     const entry = Object.values(imports.imports)[0];
-    expect(entry.sourcePath).toBe(normalizePath(sourcePath));
-    expect(entry.directory).toBe("utils");
-    expect(entry.id).toMatch(/^external:utils-[a-f0-9]{8}$/);
+    expect(entry?.sourcePath).toBe(normalizePath(sourcePath));
+    expect(entry?.directory).toBe("utils");
+    expect(entry?.id).toMatch(/^external:utils-[a-f0-9]{8}$/);
 
     // Verify symlink was created in Claude Code skills dir
     const linkPath = path.join(home, ".claude", "skills", "utils");
@@ -320,7 +320,7 @@ describe("importExternalSkills", () => {
 
     expect(result.added).toEqual([]);
     expect(result.failed).toHaveLength(1);
-    expect(result.failed[0].error).toContain("SKILL.md");
+    expect(result.failed[0]?.error).toContain("SKILL.md");
   });
 
   it("fails for unknown agent", async () => {
@@ -375,7 +375,8 @@ describe("removeExternalImport", () => {
     await writeSkill(sourcePath, "name: Utils");
 
     const addResult = await importExternalSkills(home, [sourcePath], ["claude-code"]);
-    const importId = addResult.added[0];
+    // 上一行导入刚成功且只传入一个路径，added 必含该项
+    const importId = addResult.added[0]!;
 
     const result = await removeExternalImport(home, importId, { dryRun: true });
 
@@ -393,7 +394,8 @@ describe("removeExternalImport", () => {
     await writeSkill(sourcePath, "name: Utils");
 
     const addResult = await importExternalSkills(home, [sourcePath], ["claude-code"]);
-    const importId = addResult.added[0];
+    // 上一行导入刚成功且只传入一个路径，added 必含该项
+    const importId = addResult.added[0]!;
 
     const result = await removeExternalImport(home, importId);
 
@@ -415,7 +417,8 @@ describe("removeExternalImport", () => {
     await writeSkill(sourcePath, "name: Utils");
 
     const addResult = await importExternalSkills(home, [sourcePath], ["claude-code"]);
-    await removeExternalImport(home, addResult.added[0]);
+    // 上一行导入刚成功且只传入一个路径，added 必含该项
+    await removeExternalImport(home, addResult.added[0]!);
 
     // Source files still exist
     const fs = await import("node:fs/promises");
@@ -644,7 +647,8 @@ describe("CLI imports commands", () => {
     await writeSkill(sourcePath, "name: Utils");
 
     const addResult = await importExternalSkills(home, [sourcePath], ["claude-code"]);
-    const importId = addResult.added[0];
+    // 上一行导入刚成功且只传入一个路径，added 必含该项
+    const importId = addResult.added[0]!;
 
     const stdout = new CaptureStream();
     const stderr = new CaptureStream();

@@ -92,7 +92,8 @@ describe("desktop local protocol fixtures", () => {
 
     const cache = await readCache(home);
 
-    expect(cache.skills[0].apps).toBeUndefined();
+    expect(cache.skills).toHaveLength(1);
+    expect(cache.skills[0]?.apps).toBeUndefined();
   });
 
   it("refuses writes for future desktop protocol versions", async () => {

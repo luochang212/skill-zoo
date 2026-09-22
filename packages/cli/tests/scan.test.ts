@@ -46,9 +46,9 @@ describe("scanInstalledSkills", () => {
       installedAt: 1767323045,
       updatedAt: 1767409445,
     });
-    expect(skills[0].contentHash).toMatch(/^[a-f0-9]{64}$/);
-    expect(skills[0].apps.codex).toBe(true);
-    expect(skills[0].apps["claude-code"]).toBe(false);
+    expect(skills[0]?.contentHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(skills[0]?.apps.codex).toBe(true);
+    expect(skills[0]?.apps["claude-code"]).toBe(false);
   });
 
   it("writes derived apps into skills cache on rebuild", async () => {
@@ -62,8 +62,8 @@ describe("scanInstalledSkills", () => {
     await rebuildCache(home);
     const cache = await readCache(home);
 
-    expect(cache.skills[0].apps?.codex).toBe(true);
-    expect(cache.skills[0].apps?.["claude-code"]).toBe(false);
+    expect(cache.skills[0]?.apps?.codex).toBe(true);
+    expect(cache.skills[0]?.apps?.["claude-code"]).toBe(false);
   });
 
   it("detects flat agent links for nested skill directories", async () => {
@@ -81,7 +81,7 @@ describe("scanInstalledSkills", () => {
       directory: normalizePath(path.join(".system", "openai-docs")),
       origin: "ssot",
     });
-    expect(skills[0].apps.opencode).toBe(true);
+    expect(skills[0]?.apps.opencode).toBe(true);
   });
 
   it("skips app temp/backup dirs but keeps dot-prefixed namespaces", async () => {

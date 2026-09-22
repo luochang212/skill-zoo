@@ -198,7 +198,8 @@ async function archiveOne(home: string | undefined, skill: InstalledSkill): Prom
   const archiveId = makeArchiveId(skill.id, skill.directory);
   const archiveDir = path.join(paths.archiveSkillsDir, archiveId);
   const lockKey = lock.skills[skill.directory] ? skill.directory : lock.skills[skill.name] ? skill.name : null;
-  const lockEntry = lockKey ? structuredClone(lock.skills[lockKey]) : null;
+  const lockEntryRaw = lockKey ? lock.skills[lockKey] : null;
+  const lockEntry = lockEntryRaw ? structuredClone(lockEntryRaw) : null;
   const removedAgents: string[] = [];
 
   try {

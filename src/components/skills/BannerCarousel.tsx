@@ -135,12 +135,12 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
   const cardH = Math.round(cardW * ASPECT);
 
   const cardStates = useMemo(() => {
-    return banners.map((_, i) => {
+    return banners.map((banner, i) => {
       let diff = (i - current + banners.length) % banners.length;
       if (diff > banners.length / 2) diff -= banners.length;
-      return { index: i, diff, style: getStyle(diff, cardW) };
+      return { banner, index: i, diff, style: getStyle(diff, cardW) };
     });
-  }, [banners.length, current, cardW]);
+  }, [banners, current, cardW]);
 
   if (!banners.length) return null;
 
@@ -162,7 +162,7 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
       onMouseLeave={() => setIsHovered(false)}
     >
       <div className="relative w-full h-full">
-        {cardStates.map(({ index: i, diff, style }) => (
+        {cardStates.map(({ banner, index: i, diff, style }) => (
           <div
             key={i}
             className="absolute top-0 rounded-xl overflow-hidden cursor-pointer"
@@ -182,8 +182,8 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
               transformStyle: "preserve-3d",
             }}
             onClick={() => {
-              if (diff === 0 && onBannerClick && banners[i].owner && banners[i].name) {
-                onBannerClick(banners[i].owner!, banners[i].name!, banners[i].branch);
+              if (diff === 0 && onBannerClick && banner.owner && banner.name) {
+                onBannerClick(banner.owner, banner.name, banner.branch);
               } else {
                 goTo(i);
               }
@@ -191,19 +191,15 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
           >
             <img
               src={imageUrls[i]}
-              alt={banners[i].title}
+              alt={banner.title}
               className="w-full h-full object-cover"
               draggable={false}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-            {style.zIndex >= 10 && !banners[i].hideText && (
+            {style.zIndex >= 10 && !banner.hideText && (
               <div className="absolute bottom-4 left-4 right-4 text-white">
-                <h3 className="text-base font-semibold drop-shadow-md truncate">
-                  {banners[i].title}
-                </h3>
-                <p className="text-xs text-white/80 drop-shadow-md truncate">
-                  {banners[i].subtitle}
-                </p>
+                <h3 className="text-base font-semibold drop-shadow-md truncate">{banner.title}</h3>
+                <p className="text-xs text-white/80 drop-shadow-md truncate">{banner.subtitle}</p>
               </div>
             )}
           </div>

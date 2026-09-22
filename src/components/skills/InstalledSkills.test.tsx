@@ -615,7 +615,7 @@ describe("InstalledSkills visible agent filtering", () => {
       "button.inline-flex.items-center.bg-muted",
     ) as HTMLButtonElement;
     await user.click(toggleViewButton);
-    await user.click(screen.getAllByRole("checkbox")[1]);
+    await user.click(screen.getAllByRole("checkbox")[1] as HTMLElement);
 
     expect(screen.getByRole("button", { name: /Archive selected/ })).toBeDisabled();
   });
@@ -637,7 +637,7 @@ describe("InstalledSkills visible agent filtering", () => {
     await user.click(
       view.container.querySelector("button.inline-flex.items-center.bg-muted") as HTMLButtonElement,
     );
-    await user.click(screen.getAllByRole("checkbox")[0]);
+    await user.click(screen.getAllByRole("checkbox")[0] as HTMLElement);
     await user.click(screen.getByRole("button", { name: "Remove link" }));
     await user.click(
       within(screen.getByRole("dialog")).getByRole("button", { name: "Remove link" }),
@@ -666,7 +666,7 @@ describe("InstalledSkills visible agent filtering", () => {
     await user.click(
       view.container.querySelector("button.inline-flex.items-center.bg-muted") as HTMLButtonElement,
     );
-    await user.click(screen.getAllByRole("checkbox")[0]);
+    await user.click(screen.getAllByRole("checkbox")[0] as HTMLElement);
 
     expect(screen.getByRole("button", { name: "Remove link" })).toBeDisabled();
   });

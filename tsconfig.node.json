@@ -8,7 +8,9 @@
     "isolatedModules": true,
     "moduleDetection": "force",
     "composite": true,
-    "strict": true
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "verbatimModuleSyntax": true
   },
   "include": ["vite.config.ts"]
 }

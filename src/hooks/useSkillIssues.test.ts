@@ -29,13 +29,13 @@ describe("useConsistencyCheck", () => {
       },
     );
 
-    expect(result.current.duplicateGroups[0].sameContent).toBe(false);
+    expect(result.current.duplicateGroups[0]?.sameContent).toBe(false);
 
     rerender({
       skills: [makeSkill("one", "hash"), makeSkill("two", "hash")],
     });
 
-    expect(result.current.duplicateGroups[0].sameContent).toBe(true);
+    expect(result.current.duplicateGroups[0]?.sameContent).toBe(true);
   });
 
   it("does not treat external imports as local consistency issues", () => {

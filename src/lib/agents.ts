@@ -65,7 +65,7 @@ const PALETTE = [
     darkBg: "dark:bg-pink-950/30",
     darkText: "dark:text-pink-400",
   },
-];
+] as const;
 
 export function useAgentConfigs() {
   return useQuery({
@@ -78,7 +78,8 @@ export function useAgentConfigs() {
 export function getAgentColor(agentId: string, configs: AgentConfig[]) {
   const index = configs.findIndex((c) => c.id === agentId);
   if (index === -1) return PALETTE[0];
-  return PALETTE[index % PALETTE.length];
+  // index ≥ 0，对非空常量数组长取模必落在 [0, PALETTE.length) 内
+  return PALETTE[index % PALETTE.length]!;
 }
 
 export function getAgentLabel(agentId: string, configs: AgentConfig[]) {

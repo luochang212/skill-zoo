@@ -36,8 +36,12 @@ function compareVersions(left: string, right: string) {
   const length = Math.max(leftParts.length, rightParts.length);
 
   for (let index = 0; index < length; index += 1) {
-    const leftPart = Number.isFinite(leftParts[index]) ? leftParts[index] : 0;
-    const rightPart = Number.isFinite(rightParts[index]) ? rightParts[index] : 0;
+    const leftPartRaw = leftParts[index];
+    const rightPartRaw = rightParts[index];
+    const leftPart =
+      typeof leftPartRaw === "number" && Number.isFinite(leftPartRaw) ? leftPartRaw : 0;
+    const rightPart =
+      typeof rightPartRaw === "number" && Number.isFinite(rightPartRaw) ? rightPartRaw : 0;
     if (leftPart !== rightPart) return leftPart - rightPart;
   }
 
