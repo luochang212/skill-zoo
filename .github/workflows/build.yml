@@ -6,6 +6,7 @@ on:
     tags: ["v*"]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   test-frontend:
@@ -124,7 +125,15 @@ jobs:
           grep -Fq '__COMMITS__' RELEASE_BODY.md
 
   build:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      ${{
+        always() &&
+        (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')) &&
+        needs.test-frontend.result == 'success' &&
+        needs.test-backend.result == 'success' &&
+        needs.test-cli.result == 'success' &&
+        (needs.validate-release.result == 'success' || needs.validate-release.result == 'skipped')
+      }}
     permissions:
       contents: write
     needs: [test-frontend, test-backend, test-cli, validate-release]
@@ -139,11 +148,11 @@ jobs:
             os: windows-latest
             rust_targets: "x86_64-pc-windows-msvc"
           - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
+            os: ubuntu-22.04
             rust_targets: "x86_64-unknown-linux-gnu"
             linux_arch: x86_64
           - target: aarch64-unknown-linux-gnu
-            os: ubuntu-24.04-arm
+            os: ubuntu-22.04-arm
             rust_targets: "aarch64-unknown-linux-gnu"
             linux_arch: aarch64
 
