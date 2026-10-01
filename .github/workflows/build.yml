@@ -264,6 +264,17 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: bun run tauri build --target ${{ matrix.target }}
 
+      - name: Make AppImage launcher executable for all users (Linux)
+        if: contains(matrix.target, 'linux')
+        shell: bash
+        run: |
+          # Tauri otherwise downloads AppRun with mode 770, which linuxdeploy
+          # preserves as AppRun.wrapped inside the AppImage.
+          APP_RUN="$HOME/.cache/tauri/AppRun-${{ matrix.linux_arch }}"
+          mkdir -p "$(dirname "$APP_RUN")"
+          curl -fL --retry 3 -o "$APP_RUN" "https://github.com/tauri-apps/binary-releases/releases/download/apprun-old/AppRun-${{ matrix.linux_arch }}"
+          chmod 755 "$APP_RUN"
+
       - name: Tauri build (Linux)
         if: contains(matrix.target, 'linux')
         shell: bash
@@ -389,6 +400,21 @@ jobs:
               exit 1
             fi
           done
+
+      - name: Check AppImage launcher permissions (Linux)
+        if: contains(matrix.target, 'linux')
+        shell: bash
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          APPIMAGE="$GITHUB_WORKSPACE/src-tauri/target/${{ matrix.target }}/release/bundle/Skill-Zoo-${TAG_NAME}-Linux-${{ matrix.linux_arch }}.AppImage"
+          cd "$RUNNER_TEMP"
+          "$APPIMAGE" --appimage-extract AppRun.wrapped >/dev/null
+          if [ "$(stat -c %a squashfs-root/AppRun.wrapped)" != 755 ]; then
+            echo "ERROR: AppRun.wrapped must be executable by all users" >&2
+            exit 1
+          fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v6
