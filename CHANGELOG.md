@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.49] — 2026-10-02
+
+### Changed
+- Linux packages are built on Ubuntu 22.04 for compatibility with older glibc versions.
+
+### Fixed
+- Linux AppImages now make the bundled launcher executable for all users, fixing a startup `Permission denied` error.
+
 ## [0.3.48] — 2026-09-23
 
 ### Changed
