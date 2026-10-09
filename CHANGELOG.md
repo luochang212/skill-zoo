@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.50] — 2026-10-09
+
+### Fixed
+- Coding agents can be toggled off again when the saved preference already exceeds the 7-agent visibility cap, for example 9 visible agents saved before the cap was introduced. The cap now only rejects updates that would grow past it, so over-cap states can be reduced one toggle at a time instead of failing every save with "Coding Agent 设置保存失败". (#10)
+
 ## [0.3.49] — 2026-10-02
 
 ### Changed

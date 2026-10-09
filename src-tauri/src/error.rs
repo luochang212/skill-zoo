@@ -348,13 +348,16 @@ mod tests {
 
     #[tokio::test]
     async fn classify_download_error_handles_connect_failure() {
-        // Trigger a real connection failure against a guaranteed non-existent domain.
-        let error = reqwest::Client::new()
-            .get("https://this-domain-definitely-does-not-exist.invalid")
+        // Trigger a real connection failure against a loopback port with no
+        // listener, bypassing ambient proxy settings. A non-existent domain is
+        // NOT hermetic: fake-IP VPN resolvers answer every name with a local
+        // proxy address, and proxy env vars reroute the request entirely.
+        let client = reqwest::Client::builder()
+            .no_proxy()
             .timeout(std::time::Duration::from_secs(2))
-            .send()
-            .await
-            .unwrap_err();
+            .build()
+            .unwrap();
+        let error = client.get("http://127.0.0.1:1/").send().await.unwrap_err();
         assert!(error.is_connect());
 
         let app_error = classify_download_error("test/repo".into(), error);
