@@ -268,6 +268,14 @@ fn has_visible_agent(visible_agents: &HashMap<String, bool>) -> bool {
     })
 }
 
+/// The visible-agent cap only guards growth. A preference saved before the
+/// limit existed can already exceed it; rejecting those updates as well would
+/// leave the owner unable to toggle anything off (each toggle shrinks by one,
+/// never enough), so only updates that grow past the cap are refused.
+fn exceeds_visible_agent_cap(old_count: usize, new_count: usize) -> bool {
+    new_count > MAX_VISIBLE_AGENTS && new_count > old_count
+}
+
 fn set_agent_preference_values(
     settings: &mut crate::persistence::Settings,
     visible_agents: &HashMap<String, bool>,
@@ -344,8 +352,12 @@ pub fn update_agent_preferences(
         return Err("At least one agent must remain visible".to_string());
     }
 
+    let old_visible = {
+        let settings = state.settings.lock().map_err(|e| e.to_string())?;
+        crate::services::skill::SkillService::get_visible_agents(&settings)
+    };
     let visible_count = visible_agents.values().filter(|v| **v).count();
-    if visible_count > MAX_VISIBLE_AGENTS {
+    if exceeds_visible_agent_cap(old_visible.values().filter(|v| **v).count(), visible_count) {
         return Err(format!(
             "At most {} agents can be visible ({} visible now)",
             MAX_VISIBLE_AGENTS, visible_count,
@@ -356,17 +368,15 @@ pub fn update_agent_preferences(
 
     // The visibility preference is the contract: persist it first and let it
     // be the only hard failure. Link cleanup below is best-effort hygiene.
-    let old_visible = {
+    {
         let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
-        let old_visible = crate::services::skill::SkillService::get_visible_agents(&settings);
         persist_agent_preferences(
             &mut settings,
             &visible_agents,
             &normalized_order,
             |settings| settings.save().map_err(|e| e.to_string()),
         )?;
-        old_visible
-    };
+    }
 
     let mut hidden_agents = Vec::new();
     for agent in crate::config::AGENTS {
@@ -417,8 +427,9 @@ pub fn update_agent_preferences(
 #[cfg(test)]
 mod agent_preferences_tests {
     use super::{
-        cleanup_hidden_agent_links, has_visible_agent, normalize_agent_order,
-        persist_agent_preferences, set_agent_preference_values,
+        cleanup_hidden_agent_links, exceeds_visible_agent_cap, has_visible_agent,
+        normalize_agent_order, persist_agent_preferences, set_agent_preference_values,
+        MAX_VISIBLE_AGENTS,
     };
     use crate::services::skill::{symlink_target_matches, SkillService};
     use std::collections::HashMap;
@@ -455,6 +466,19 @@ mod agent_preferences_tests {
             .collect();
 
         assert!(!has_visible_agent(&hidden));
+    }
+
+    #[test]
+    fn visible_agent_cap_only_blocks_growth() {
+        let max = MAX_VISIBLE_AGENTS;
+        // A pre-cap state toggling one agent off still exceeds the cap but
+        // shrinks, so it must be accepted (issue #10 deadlock).
+        assert!(!exceeds_visible_agent_cap(max + 2, max + 1));
+        // Growing past the cap is rejected.
+        assert!(exceeds_visible_agent_cap(max, max + 1));
+        // Same-size updates (reorder) and in-cap growth pass.
+        assert!(!exceeds_visible_agent_cap(max + 2, max + 2));
+        assert!(!exceeds_visible_agent_cap(max - 1, max));
     }
 
     #[test]
