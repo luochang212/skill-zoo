@@ -1,15 +1,7 @@
 import { CustomAgentEditor } from "@/components/settings/CustomAgentEditor";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Reorder, useDragControls, type PanInfo } from "framer-motion";
-import {
-  ChevronDown,
-  ChevronRight,
-  FolderOpen,
-  GripVertical,
-  Search,
-  Pencil,
-  Plus,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, FolderOpen, GripVertical, Search, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -28,12 +20,33 @@ import type { AgentPathInfo, VisibleAgents } from "@/types/skills";
 
 const MAX_VISIBLE_AGENTS = 7;
 
-function AgentPathDetails({ info }: { info: AgentPathInfo }) {
+function AgentPathDetails({
+  info,
+  onEdit,
+}: {
+  info: AgentPathInfo;
+  onEdit: (info: AgentPathInfo) => void;
+}) {
   const { t } = useTranslation();
+  // The custom label is itself the edit affordance — hover underlines it —
+  // so no extra action button displaces the shared row columns.
+  const editable = info.agent.startsWith("custom-");
   return (
     <div className="min-w-0 space-y-1.5" data-selectable>
       <div className="flex items-center gap-2">
-        <p className="truncate text-sm font-medium leading-none">{info.label}</p>
+        {editable ? (
+          <button
+            type="button"
+            onClick={() => onEdit(info)}
+            data-agent-id={info.agent}
+            aria-label={t("settings.customAgents.edit", { agent: info.label })}
+            className="-mx-1 cursor-pointer truncate rounded-sm px-1 py-1 text-left text-sm font-medium leading-none underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            {info.label}
+          </button>
+        ) : (
+          <p className="truncate text-sm font-medium leading-none">{info.label}</p>
+        )}
         {info.agent !== "ssot" && (
           <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
             {t(
@@ -65,39 +78,6 @@ function OpenPathButton({ info }: { info: AgentPathInfo }) {
     >
       <FolderOpen className="h-3.5 w-3.5" />
       <span className="hidden sm:inline">{t("settings.agentPaths.open")}</span>
-    </Button>
-  );
-}
-
-// Every row renders this slot so the folder, action and switch columns stay
-// aligned; built-in rows fill it with an invisible, inert placeholder.
-function EditAgentButton({
-  info,
-  disabled,
-  onEdit,
-}: {
-  info: AgentPathInfo;
-  disabled: boolean;
-  onEdit: (info: AgentPathInfo) => void;
-}) {
-  const { t } = useTranslation();
-  const custom = info.agent.startsWith("custom-");
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      className={custom ? "shrink-0" : "pointer-events-none invisible shrink-0"}
-      disabled={disabled}
-      data-agent-id={custom ? info.agent : undefined}
-      aria-label={custom ? t("settings.customAgents.edit", { agent: info.label }) : undefined}
-      aria-hidden={!custom}
-      tabIndex={custom ? 0 : -1}
-      onClick={() => {
-        if (custom) onEdit(info);
-      }}
-    >
-      <Pencil className="h-4 w-4" />
     </Button>
   );
 }
@@ -137,7 +117,6 @@ function SortableAgentRow({
       onDragEnd={onDragEnd}
       className="flex min-h-14 list-none items-center gap-3 border-b border-border/40 bg-background px-4 py-2.5 last:border-b-0"
     >
-      <EditAgentButton info={info} disabled={disabled} onEdit={onEdit} />
       <button
         type="button"
         onPointerDown={(event) => !disabled && dragControls.start(event)}
@@ -151,7 +130,7 @@ function SortableAgentRow({
         <FolderOpen className="h-4 w-4 text-muted-foreground" />
       </div>
       <div className="min-w-0 flex-1">
-        <AgentPathDetails info={info} />
+        <AgentPathDetails info={info} onEdit={onEdit} />
       </div>
       <OpenPathButton info={info} />
       <Switch
@@ -282,12 +261,13 @@ export function AgentManagerDialog({
 
   const visibleOrder = draftOrder.filter((agent) => visibleAgents[agent] !== false);
   const hiddenOrder = draftOrder.filter((agent) => visibleAgents[agent] === false);
-  // The list needs the tall fixed shell; the editor is a short form and only
-  // caps the height so long reviews still scroll.
-  const contentHeight =
+  // The list keeps the tall, wide shell its rows need; the editor is a short
+  // form that caps height (long reviews still scroll) and follows the app's
+  // narrower form-dialog band.
+  const shellClass =
     editor === undefined
-      ? "h-[min(720px,calc(100vh-6rem))]"
-      : "max-h-[min(720px,calc(100vh-6rem))]";
+      ? "h-[min(720px,calc(100vh-6rem))] max-w-[600px]"
+      : "max-h-[min(720px,calc(100vh-6rem))] max-w-[480px]";
 
   const handleToggle = (agent: string) => {
     if (updatePreferences.isPending) return;
@@ -356,7 +336,7 @@ export function AgentManagerDialog({
           event.preventDefault();
           returnFocusRef.current?.focus();
         }}
-        className={`flex ${contentHeight} w-[calc(100vw-2rem)] max-w-[600px] flex-col gap-0 overflow-hidden p-0 sm:rounded-xl`}
+        className={`flex ${shellClass} w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:rounded-xl`}
         data-selectable
       >
         <DialogHeader className="shrink-0 border-b border-border/50 px-4 py-4 text-left">
@@ -439,16 +419,11 @@ export function AgentManagerDialog({
                             key={info.agent}
                             className="flex min-h-14 items-center gap-3 border-b border-border/40 px-4 py-2.5 last:border-b-0"
                           >
-                            <EditAgentButton
-                              info={info}
-                              disabled={updatePreferences.isPending}
-                              onEdit={enterEditor}
-                            />
                             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/60">
                               <FolderOpen className="h-4 w-4 text-muted-foreground" />
                             </div>
                             <div className="min-w-0 flex-1">
-                              <AgentPathDetails info={info} />
+                              <AgentPathDetails info={info} onEdit={enterEditor} />
                             </div>
                             <OpenPathButton info={info} />
                             <Switch
@@ -563,16 +538,11 @@ export function AgentManagerDialog({
                             key={info.agent}
                             className="flex min-h-14 items-center gap-3 border-b border-border/40 px-4 py-2.5 last:border-b-0"
                           >
-                            <EditAgentButton
-                              info={info}
-                              disabled={updatePreferences.isPending}
-                              onEdit={enterEditor}
-                            />
                             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/60">
                               <FolderOpen className="h-4 w-4 text-muted-foreground" />
                             </div>
                             <div className="min-w-0 flex-1">
-                              <AgentPathDetails info={info} />
+                              <AgentPathDetails info={info} onEdit={enterEditor} />
                             </div>
                             <OpenPathButton info={info} />
                             <Switch

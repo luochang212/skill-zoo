@@ -131,7 +131,7 @@ describe("CustomAgentEditor", () => {
     const { props } = setup();
     const user = userEvent.setup();
     await user.type(screen.getByLabelText(/Name/), "Draft");
-    await user.click(screen.getByRole("button", { name: "Manage Agents" }));
+    await user.click(screen.getByRole("button", { name: "Back to manage agents" }));
     expect(screen.getByText(/Discard your unsaved/)).toBeInTheDocument();
     expect(props.onCancel).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Keep Editing" }));

@@ -1,12 +1,11 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { FolderOpen, LoaderCircle } from "lucide-react";
+import { ArrowLeft, FolderOpen, LoaderCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { settingsApi } from "@/lib/api/settings";
 import type { AgentChangeResult, AgentPathInfo, AgentPreview } from "@/types/skills";
 import { Button } from "@/components/ui/button";
-import { BackButton } from "@/components/ui/BackButton";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { invalidateAgentState } from "@/hooks/useSettings";
@@ -222,9 +221,17 @@ export function CustomAgentEditor({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-4">
-      <div className="mb-4 shrink-0">
-        <BackButton onClick={cancel} title={t("settings.customAgents.back")} disabled={busy} />
-      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="mb-4 w-fit shrink-0 gap-1.5 px-2 text-muted-foreground"
+        onClick={cancel}
+        disabled={busy}
+      >
+        <ArrowLeft className="h-4 w-4" />
+        {t("settings.customAgents.back")}
+      </Button>
       {discard ? (
         <div role="alert" className="min-h-0 space-y-4 overflow-y-auto">
           <p className="text-sm">{t("settings.customAgents.discardQuestion")}</p>
@@ -310,8 +317,11 @@ export function CustomAgentEditor({
           }}
         >
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1">
-            <div className="space-y-2">
-              <label htmlFor={`${id}-path`} className="text-xs font-medium text-muted-foreground">
+            <div>
+              <label
+                htmlFor={`${id}-path`}
+                className="mb-2.5 block text-xs font-medium text-muted-foreground"
+              >
                 {t("settings.customAgents.directory")} *
               </label>
               <div className="flex gap-2">
@@ -324,7 +334,7 @@ export function CustomAgentEditor({
                   spellCheck={false}
                   autoCapitalize="none"
                   aria-invalid={invalid === "path"}
-                  aria-describedby={`${id}-hint${error ? ` ${id}-error` : ""}`}
+                  aria-describedby={error ? `${id}-error` : undefined}
                   onChange={(e) => applyPath(e.target.value)}
                   onBlur={() => {
                     if (name.trim() && path.trim()) void validate();
@@ -350,11 +360,8 @@ export function CustomAgentEditor({
                   <FolderOpen className="h-4 w-4" />
                 </Button>
               </div>
-              <p id={`${id}-hint`} className="text-xs text-muted-foreground">
-                {t("settings.customAgents.directoryHint")}
-              </p>
               {preview && !preview.exists && (
-                <label className="flex items-center gap-2 text-sm">
+                <label className="mt-2 flex items-center gap-2 text-sm">
                   <Checkbox
                     aria-label={t("settings.customAgents.createDirectory")}
                     checked={create}
@@ -365,8 +372,11 @@ export function CustomAgentEditor({
                 </label>
               )}
             </div>
-            <div className="space-y-2">
-              <label htmlFor={`${id}-name`} className="text-xs font-medium text-muted-foreground">
+            <div>
+              <label
+                htmlFor={`${id}-name`}
+                className="mb-2.5 block text-xs font-medium text-muted-foreground"
+              >
                 {t("settings.customAgents.name")} *
               </label>
               <Input

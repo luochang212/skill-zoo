@@ -78,12 +78,12 @@ describe("AgentPathsSettings", () => {
       "/builtin/skills",
     );
     expect(screen.getAllByRole("switch")).toHaveLength(2);
-    expect(screen.getAllByRole("button", { name: "Edit Codex" })).toHaveLength(1);
     expect(screen.getByText("Custom")).toBeInTheDocument();
     const edit = screen.getByRole("button", { name: "Edit Codex" });
-    expect(edit.parentElement?.firstElementChild).toBe(edit);
-    const builtinRow = screen.getByText("Gemini").closest("div.min-h-14");
-    expect(builtinRow?.querySelector("button[aria-hidden='true']")).not.toBeNull();
+    expect(edit).toHaveTextContent("Codex");
+    expect(screen.getByText("Gemini").closest("button")).toBeNull();
+    await userEvent.setup().click(edit);
+    expect(await screen.findByText("Edit Custom Agent")).toBeInTheDocument();
   });
 
   it("shows all visible agents in the settings summary", async () => {
