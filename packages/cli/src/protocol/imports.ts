@@ -14,7 +14,8 @@ import {
   restoreSnapshot,
   snapshotFile,
 } from "../lib/io.js";
-import { AGENTS, SKIP_DIRS } from "./agents.js";
+import { SKIP_DIRS } from "./agents.js";
+import { getAgents } from "./custom-agents.js";
 import { getAgentSkillsDir, getPaths, agentLinkName } from "./paths.js";
 import { parseSkillMd, rebuildCache } from "./scan.js";
 import {
@@ -140,7 +141,7 @@ async function detectLinkedAgents(
   const linked: string[] = [];
   const resolvedSource = path.resolve(sourcePath);
 
-  for (const agent of AGENTS) {
+  for (const agent of getAgents(home)) {
     const agentDir = getAgentSkillsDir(home, agent.id);
     if (!agentDir) continue;
 
@@ -255,7 +256,7 @@ async function collectCandidates(
 
 async function assertOutsideSkillRoots(home: string | undefined, target: string): Promise<void> {
   const paths = getPaths(home);
-  const roots = [paths.agentsSkillsDir, ...AGENTS.map((agent) => getAgentSkillsDir(home, agent.id)).filter(Boolean) as string[]];
+  const roots = [paths.agentsSkillsDir, ...getAgents(home).map((agent) => getAgentSkillsDir(home, agent.id)).filter(Boolean) as string[]];
 
   for (const root of roots) {
     const resolvedRoot = path.resolve(root);
@@ -290,7 +291,7 @@ export async function importExternalSkills(
   }
 
   for (const agentId of agents) {
-    if (!AGENTS.some((a) => a.id === agentId)) {
+    if (!getAgents(home).some((a) => a.id === agentId)) {
       throw new CliError(`Unknown agent: ${agentId}.`);
     }
   }

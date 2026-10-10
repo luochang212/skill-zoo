@@ -1,0 +1,10 @@
+   Compiling skill-zoo v0.3.50 (/tmp/skill-zoo-agent-baseline/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 35s
+     Running tests/custom_agent_performance_test.rs (src-tauri/target/debug/deps/custom_agent_performance_test-98b314647cb23566)
+
+running 1 test
+BENCH skills=100 customs=0 scan=(248.16216699999998, 378.852333) detect=(7.897625000000001, 12.680667) lookup10000=(6.195125, 7.73475)
+BENCH skills=1000 customs=0 scan=(1774.223917, 3688.962542) detect=(86.979375, 93.61274999999999) lookup10000=(4.815541, 8.946208)
+test custom_agent_performance ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 19.83s

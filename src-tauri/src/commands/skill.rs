@@ -180,11 +180,7 @@ fn restore_archive_stores(
 
 fn known_skill_roots() -> Vec<PathBuf> {
     std::iter::once(config::get_agents_skills_dir())
-        .chain(
-            config::AGENTS
-                .iter()
-                .filter_map(|agent| config::get_agent_skills_dir(agent.id)),
-        )
+        .chain(config::agents().iter().filter_map(config::agent_skills_dir))
         .collect()
 }
 
@@ -222,7 +218,7 @@ fn link_points_to_import_source(link_path: &Path, source_path: &Path) -> bool {
 }
 
 fn external_import_link_path(directory: &str, agent: &str) -> Result<PathBuf, String> {
-    if !config::AGENTS.iter().any(|config| config.id == agent) {
+    if !config::agents().iter().any(|config| config.id == agent) {
         return Err(format!("Unknown agent: {agent}"));
     }
     let agent_dir =
@@ -294,7 +290,7 @@ pub fn get_agent_paths() -> Vec<AgentPathInfo> {
 
 #[tauri::command]
 pub fn get_agent_configs() -> Vec<AgentConfig> {
-    crate::config::AGENTS.to_vec()
+    crate::config::agents().as_ref().clone()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -349,10 +345,10 @@ fn external_import_status(import: &ExternalImportEntry) -> ExternalImportStatus 
 
 fn linked_external_import_agents(import: &ExternalImportEntry) -> Vec<String> {
     let source_path = PathBuf::from(&import.source_path);
-    config::AGENTS
+    config::agents()
         .iter()
         .filter_map(|agent| {
-            let link_path = external_import_link_path(&import.directory, agent.id).ok()?;
+            let link_path = external_import_link_path(&import.directory, &agent.id).ok()?;
             if is_symlink_or_junction(&link_path)
                 && link_points_to_import_source(&link_path, &source_path)
             {
@@ -558,6 +554,9 @@ pub async fn import_external_skills(
     selections: Vec<ExternalImportSelection>,
     agents: Vec<String>,
 ) -> Result<Vec<InstalledSkill>, String> {
+    let _agent_lease =
+        crate::persistence::agent_transaction::AgentLease::acquire(&config::get_app_config_dir())
+            .map_err(|e| e.to_string())?;
     if selections.is_empty() {
         return Err("No external skills selected".into());
     }
@@ -719,6 +718,9 @@ pub async fn import_external_skills(
 
 #[tauri::command]
 pub fn remove_external_import(state: State<'_, AppState>, import_id: String) -> Result<(), String> {
+    let _agent_lease =
+        crate::persistence::agent_transaction::AgentLease::acquire(&config::get_app_config_dir())
+            .map_err(|e| e.to_string())?;
     let mut imports = ExternalImports::load().map_err(|e| e.to_string())?;
     let import = imports
         .imports
@@ -743,6 +745,9 @@ pub fn clean_external_import_links(
     state: State<'_, AppState>,
     import_id: Option<String>,
 ) -> Result<usize, String> {
+    let _agent_lease =
+        crate::persistence::agent_transaction::AgentLease::acquire(&config::get_app_config_dir())
+            .map_err(|e| e.to_string())?;
     let imports = ExternalImports::load().map_err(|e| e.to_string())?;
     let mut removed = 0;
     for import in imports.imports.values() {
@@ -829,19 +834,24 @@ async fn fail_installed_skills(
 
 #[tauri::command]
 pub async fn install_skills(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     repo_url: String,
     skill_names: Vec<String>,
     agents: Vec<String>,
 ) -> Result<Vec<InstalledSkill>, CommandError> {
+    let _agent_lease =
+        crate::persistence::agent_transaction::AgentLease::acquire(&config::get_app_config_dir())
+            .map_err(CommandError::from)?;
     for agent in &agents {
-        if !config::AGENTS.iter().any(|config| config.id == agent) {
+        if !config::agents().iter().any(|config| config.id == *agent) {
             return Err(CommandError::from(AppError::BadRequest(format!(
                 "Unknown agent: {agent}"
             ))));
         }
     }
     let preflight_agent_dirs = selected_agent_skill_dirs(&agents);
+    let needs_monitoring = preflight_agent_dirs.iter().any(|p| !p.exists());
     let installed_dirs = CliService::add_skills(&repo_url, &skill_names, &preflight_agent_dirs)
         .await
         .map_err(CommandError::from)?;
@@ -861,6 +871,11 @@ pub async fn install_skills(
         }
     }
 
+    if needs_monitoring {
+        if let Err(error) = crate::services::watcher::restart_skill_watcher(&app, &state) {
+            eprintln!("Failed to monitor installed agent root: {error}");
+        }
+    }
     match SkillService::refresh_installed_skills(
         &state.skill_cache,
         &state.metadata,
@@ -878,9 +893,15 @@ pub async fn install_skills(
 
 #[tauri::command]
 pub async fn get_installed_skills(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     force: Option<bool>,
 ) -> Result<Vec<InstalledSkill>, String> {
+    if force.unwrap_or(false) {
+        if let Err(error) = crate::services::watcher::restart_skill_watcher(&app, &state) {
+            eprintln!("Failed to restart skill monitoring on refresh: {error}");
+        }
+    }
     if !force.unwrap_or(false) {
         let is_empty = state
             .skill_cache
@@ -907,6 +928,9 @@ pub async fn update_skill(
     state: State<'_, AppState>,
     skill_id: String,
 ) -> Result<SingleSkillUpdateResult, CommandError> {
+    let _agent_lease =
+        crate::persistence::agent_transaction::AgentLease::acquire(&config::get_app_config_dir())
+            .map_err(CommandError::from)?;
     let skill = SkillService::find_in_cache(&state.skill_cache, &skill_id)
         .map_err(CommandError::from)?
         .ok_or_else(|| CommandError::not_found(format!("Skill not found: {skill_id}")))?;
@@ -1026,6 +1050,9 @@ pub async fn update_all_skills(
     state: State<'_, AppState>,
     checked_updates: Option<Vec<CheckedSkillUpdate>>,
 ) -> Result<UpdateAllResult, String> {
+    let _agent_lease =
+        crate::persistence::agent_transaction::AgentLease::acquire(&config::get_app_config_dir())
+            .map_err(|e| e.to_string())?;
     let started_at = chrono::Utc::now().to_rfc3339();
     let (mode, requested_skills, update_result) = if let Some(checked_updates) = checked_updates {
         let requested_skills: Vec<String> = checked_updates
@@ -1326,8 +1353,8 @@ fn scan_cached_skill_home(
     skill: &SkillCacheEntry,
     skill_dir: &Path,
 ) -> Result<SkillCacheEntry, String> {
-    if skill.origin == "external" {
-        let imports = ExternalImports::load().map_err(|e| e.to_string())?;
+    let imports = ExternalImports::load().map_err(|e| e.to_string())?;
+    if imports.imports.contains_key(&skill.id) || skill.origin == "external" {
         let import = imports
             .imports
             .get(&skill.id)
@@ -1383,6 +1410,8 @@ pub struct ArchiveSkillFailure {
 pub struct RestoreArchivedSkillsResult {
     pub restored: Vec<RestoredArchivedSkill>,
     pub failed: Vec<RestoreArchivedSkillFailure>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub skipped_agents: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1419,6 +1448,9 @@ pub async fn remove_skills(
     state: State<'_, AppState>,
     skill_ids: Vec<String>,
 ) -> Result<RemoveSkillsResult, String> {
+    let _agent_lease =
+        crate::persistence::agent_transaction::AgentLease::acquire(&config::get_app_config_dir())
+            .map_err(|e| e.to_string())?;
     let mut removed: Vec<String> = Vec::new();
     let mut failed: Vec<RemoveSkillFailure> = Vec::new();
 
@@ -1536,7 +1568,7 @@ fn assert_skill_archiveable(skill: &InstalledSkill) -> Result<(), String> {
     Ok(())
 }
 
-fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String> {
+pub(crate) fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String> {
     let skills = SkillService::read_all_skills(&state.skill_cache, &state.metadata)
         .map_err(|e| e.to_string())?;
     let skill = skills
@@ -1658,6 +1690,15 @@ fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String>
         if !enabled {
             continue;
         }
+        // A native home is an entity, not an agent link. It is moved below;
+        // nested native skills may also have no flat link at all.
+        if archived_skill.home_agent.as_deref() == Some(agent.as_str()) {
+            let flat_path = config::get_agent_skills_dir(agent)
+                .map(|root| root.join(SkillService::agent_link_name(&skill.directory)));
+            if flat_path.is_none_or(|path| !is_symlink_or_junction(&path)) {
+                continue;
+            }
+        }
         match SkillService::toggle_symlink(&skill.directory, &home_path, agent, false) {
             Ok(()) => removed_agents.push(agent.clone()),
             Err(e) => {
@@ -1725,6 +1766,9 @@ pub fn archive_skills(
     state: State<'_, AppState>,
     skill_ids: Vec<String>,
 ) -> Result<ArchiveSkillsResult, String> {
+    let _agent_lease =
+        crate::persistence::agent_transaction::AgentLease::acquire(&config::get_app_config_dir())
+            .map_err(|e| e.to_string())?;
     let mut archived: Vec<String> = Vec::new();
     let mut failed: Vec<ArchiveSkillFailure> = Vec::new();
 
@@ -1743,9 +1787,13 @@ pub fn restore_archived_skills(
     state: State<'_, AppState>,
     archive_ids: Vec<String>,
 ) -> Result<RestoreArchivedSkillsResult, String> {
+    let _agent_lease =
+        crate::persistence::agent_transaction::AgentLease::acquire(&config::get_app_config_dir())
+            .map_err(|e| e.to_string())?;
     let mut restored: Vec<RestoredArchivedSkill> = Vec::new();
     let mut failed: Vec<RestoreArchivedSkillFailure> = Vec::new();
 
+    let manifest = ArchiveManifest::load().map_err(|e| e.to_string())?;
     for archive_id in archive_ids {
         match restore_archived_skill_inner(&state, archive_id.clone()).and_then(|restored_id| {
             SkillService::read_all_skills(&state.skill_cache, &state.metadata)
@@ -1762,10 +1810,29 @@ pub fn restore_archived_skills(
         }
     }
 
-    Ok(RestoreArchivedSkillsResult { restored, failed })
+    let mut skipped_agents = restored
+        .iter()
+        .map(|record| &record.archive_id)
+        .filter_map(|id| manifest.skills.get(id))
+        .flat_map(|s| s.apps.iter())
+        .filter(|(agent, enabled)| {
+            **enabled && config::get_agent_skills_dir(agent).is_none_or(|p| !p.exists())
+        })
+        .map(|(agent, _)| agent.clone())
+        .collect::<Vec<_>>();
+    skipped_agents.sort();
+    skipped_agents.dedup();
+    Ok(RestoreArchivedSkillsResult {
+        restored,
+        failed,
+        skipped_agents,
+    })
 }
 
-fn restore_archived_skill_inner(state: &AppState, archive_id: String) -> Result<String, String> {
+pub(crate) fn restore_archived_skill_inner(
+    state: &AppState,
+    archive_id: String,
+) -> Result<String, String> {
     validate_archive_id(&archive_id)?;
     let old_manifest = ArchiveManifest::load().map_err(|e| e.to_string())?;
     let archived_skill = old_manifest
@@ -1975,7 +2042,15 @@ fn restore_archived_skill_inner(state: &AppState, archive_id: String) -> Result<
 
     // Scan after symlinks are created so detect_agents finds the restored links.
     // External imports use the import registry to preserve origin = "external".
-    let entry = if is_external {
+    let retained_import = ExternalImports::load()
+        .map_err(|e| rollback(e.to_string(), &restored_agents))?
+        .imports
+        .get(&archived_skill.original_skill_id)
+        .cloned();
+    let entry = if let Some(import) = retained_import {
+        SkillService::scan_external_import(&import)
+            .map_err(|e| rollback(e.to_string(), &restored_agents))?
+    } else if is_external {
         let imports = ExternalImports::load().map_err(|e| {
             rollback(
                 format!("Failed to load import registry: {e}"),
@@ -2039,11 +2114,15 @@ pub fn get_symlink_status(state: State<'_, AppState>) -> Result<Vec<SymlinkStatu
 
 #[tauri::command]
 pub fn toggle_symlink(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     skill_id: String,
     agent: String,
     enabled: bool,
 ) -> Result<(), String> {
+    let _agent_lease =
+        crate::persistence::agent_transaction::AgentLease::acquire(&config::get_app_config_dir())
+            .map_err(|e| e.to_string())?;
     let skill = SkillService::find_in_cache(&state.skill_cache, &skill_id)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
@@ -2055,9 +2134,16 @@ pub fn toggle_symlink(
 
     validate_skill_directory(&skill.directory)?;
 
+    let needs_monitoring =
+        enabled && config::get_agent_skills_dir(&agent).is_some_and(|p| !p.exists());
     SkillService::toggle_symlink(&skill.directory, home_path, &agent, enabled)
         .map_err(|e| e.to_string())?;
 
+    if needs_monitoring {
+        if let Err(error) = crate::services::watcher::restart_skill_watcher(&app, &state) {
+            eprintln!("Failed to monitor recreated agent root: {error}");
+        }
+    }
     // Update the in-memory cache so the frontend sees the new agent status
     // immediately without a full cache rebuild.
     let new_apps = SkillService::detect_agents(&skill.directory, &skill.home_path);
@@ -2078,6 +2164,9 @@ pub fn batch_unlink_skills(
     skill_ids: Vec<String>,
     agent: String,
 ) -> Result<BatchUnlinkSkillsResult, String> {
+    let _agent_lease =
+        crate::persistence::agent_transaction::AgentLease::acquire(&config::get_app_config_dir())
+            .map_err(|e| e.to_string())?;
     if config::get_agent_skills_dir(&agent).is_none() {
         return Err(format!("Unknown agent: {agent}"));
     }
@@ -2162,6 +2251,9 @@ pub async fn merge_duplicates_to_ssot(
     state: State<'_, AppState>,
     skill_name: String,
 ) -> Result<(), String> {
+    let _agent_lease =
+        crate::persistence::agent_transaction::AgentLease::acquire(&config::get_app_config_dir())
+            .map_err(|e| e.to_string())?;
     SkillService::merge_duplicates_to_ssot(&skill_name, &state.skill_cache, &state.metadata)
         .map_err(|e| e.to_string())
 }
@@ -3224,6 +3316,9 @@ pub async fn create_skill(
     name: String,
     content: String,
 ) -> Result<InstalledSkill, String> {
+    let _agent_lease =
+        crate::persistence::agent_transaction::AgentLease::acquire(&config::get_app_config_dir())
+            .map_err(|e| e.to_string())?;
     validate_skill_name(&name)?;
     validate_skill_directory(&name)?;
 

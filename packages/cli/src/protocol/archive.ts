@@ -1,6 +1,5 @@
 import path from "node:path";
 import crypto from "node:crypto";
-import { AGENTS } from "./agents.js";
 import { agentLinkName, getAgentSkillsDir, getPaths } from "./paths.js";
 import {
   assertWritableSchema,
@@ -48,6 +47,7 @@ export interface ArchiveResult {
 }
 
 export interface RestoreResult {
+  skippedAgents?: string[];
   restored: string[];
   failed: BatchFailure[];
   changes: Change[];
@@ -111,12 +111,20 @@ export async function restoreArchiveIds(
         result.failed.push({ ref: archiveId, error: schemaError.message });
         continue;
       }
+      const archived = (await readArchiveManifest(home)).skills[archiveId];
+      const skipped: string[] = [];
+      for (const [agent, enabled] of Object.entries(archived?.apps ?? {})) {
+        const root = getAgentSkillsDir(home, agent);
+        if (enabled && (!root || !(await pathExists(root)))) skipped.push(agent);
+      }
+
       const changes = await planRestore(home, archiveId);
       result.changes.push(...changes);
       if (!options.dryRun) {
         await restoreOne(home, archiveId);
       }
       result.restored.push(archiveId);
+      if (skipped.length) result.skippedAgents = [...new Set([...(result.skippedAgents ?? []), ...skipped])];
     } catch (error) {
       result.failed.push({ ref: archiveId, error: messageFromError(error) });
     }
@@ -467,5 +475,5 @@ function validateSimpleId(value: string, label: string): void {
 }
 
 export function enabledAgentIds(skill: InstalledSkill | ArchivedSkill): string[] {
-  return AGENTS.filter((agent) => skill.apps[agent.id]).map((agent) => agent.id);
+  return Object.keys(skill.apps).filter((id) => skill.apps[id]);
 }

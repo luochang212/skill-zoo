@@ -1,0 +1,13 @@
+$ vitest run "--maxWorkers=1"
+
+ RUN  v5.0.1 /Users/alex/Documents/GitHub/skill-zoo/src
+
+
+ Test Files  29 passed (29)
+      Tests  164 passed (164)
+   Start at  02:47:51
+   Duration  83.04s (environment 44%, tests 24%, import 20%, setup 7%, transform 5%)
+
+Environment  jsdom was created 29 times · 33.96s total, 44% of tracked time
+             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)
+             learn more: https://vitest.dev/guide/improving-performance#test-environments

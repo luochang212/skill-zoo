@@ -112,6 +112,7 @@ export interface AgentPathInfo {
   label: string;
   path: string;
   exists: boolean;
+  suppressedBy?: string;
 }
 
 export interface AgentConfig {
@@ -119,6 +120,22 @@ export interface AgentConfig {
   label: string;
   skillsSubdir: string;
   hasUsageTracking: boolean;
+  skillsDir?: string;
+}
+
+export interface AgentPreview {
+  path: string;
+  exists: boolean;
+  retainedSkills: number;
+  ownedLinks: number;
+  archivedReferences: number;
+}
+
+export interface AgentChangeResult {
+  agentId: string;
+  hidden: boolean;
+  cleanupFailed: boolean;
+  refreshFailed: boolean;
 }
 
 export interface VisibleAgents {

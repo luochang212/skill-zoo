@@ -354,6 +354,33 @@ pub(crate) fn is_app_owned_link(
     resolved.starts_with(ssot_root) || known_home_paths.contains(&resolved)
 }
 
+pub(crate) fn directory_identity(path: &Path) -> Option<String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let metadata = std::fs::metadata(path).ok()?;
+        metadata
+            .is_dir()
+            .then(|| format!("unix:{}:{}", metadata.dev(), metadata.ino()))
+    }
+    #[cfg(windows)]
+    {
+        path.is_dir()
+            .then(|| {
+                path.canonicalize()
+                    .ok()
+                    .map(|p| p.to_string_lossy().to_lowercase())
+            })
+            .flatten()
+    }
+}
+
+pub(crate) fn same_directory(left: &Path, right: &Path) -> bool {
+    directory_identity(left)
+        .zip(directory_identity(right))
+        .is_some_and(|(a, b)| a == b)
+}
+
 pub(crate) fn symlink_target_matches(
     link_path: &std::path::Path,
     expected_target: &std::path::Path,
@@ -406,18 +433,16 @@ fn symlink_target_state(
     }
 }
 
-fn external_source_under_known_skill_root(source_path: &Path) -> bool {
+fn external_source_under_ssot(source_path: &Path) -> bool {
     let Ok(source_path) = source_path.canonicalize() else {
         return false;
     };
-    std::iter::once(config::get_agents_skills_dir())
-        .chain(
-            config::AGENTS
-                .iter()
-                .filter_map(|agent| config::get_agent_skills_dir(agent.id)),
-        )
-        .filter_map(|root| root.canonicalize().ok())
-        .any(|root| source_path == root || source_path.starts_with(root))
+    // Existing imports keep ownership when a shipped agent starts covering them.
+    // New import authoring still rejects agent roots in commands::skill.
+    config::get_agents_skills_dir()
+        .canonicalize()
+        .ok()
+        .is_some_and(|root| source_path == root || source_path.starts_with(root))
 }
 
 pub struct SkillService;
@@ -455,8 +480,8 @@ impl SkillService {
     pub fn detect_agents(skill_dir: &str, home_path: &Option<String>) -> HashMap<String, bool> {
         let mut enabled = HashMap::new();
         let home = home_path.as_ref().map(std::path::Path::new);
-        for agent in config::AGENTS {
-            if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
+        for agent in config::agents().iter() {
+            if let Some(agent_dir) = config::agent_skills_dir(agent) {
                 // If homePath is directly under this agent dir, it's natively available
                 if let Some(h) = home {
                     if h.starts_with(&agent_dir) {
@@ -475,19 +500,6 @@ impl SkillService {
             }
         }
         enabled
-    }
-
-    /// Determine which agent a scan root directory belongs to.
-    /// Returns None for the SSOT directory.
-    fn detect_agent_for_path(scan_root: &PathBuf) -> Option<&'static str> {
-        for agent in config::AGENTS {
-            if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
-                if scan_root == &agent_dir {
-                    return Some(agent.id);
-                }
-            }
-        }
-        None
     }
 
     /// Determine origin of a skill based on where it exists on disk
@@ -512,8 +524,8 @@ impl SkillService {
                 ));
             }
         }
-        for agent in config::AGENTS {
-            if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
+        for agent in config::agents().iter() {
+            if let Some(agent_dir) = config::agent_skills_dir(agent) {
                 let path = agent_dir.join(skill_dir);
                 if path.exists() && !is_symlink_or_junction(&path) {
                     return Some(crate::persistence::normalize_path_separators(
@@ -537,8 +549,8 @@ impl SkillService {
             return None;
         }
         let hp = std::path::Path::new(home_path.as_deref()?);
-        for agent in config::AGENTS {
-            if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
+        for agent in config::agents().iter() {
+            if let Some(agent_dir) = config::agent_skills_dir(agent) {
                 if hp.starts_with(&agent_dir) {
                     return Some(agent.id.to_string());
                 }
@@ -682,11 +694,14 @@ impl SkillService {
 
         // Run the heavy filesystem scan on the blocking thread pool so
         // the async runtime stays free to handle incoming Tauri commands.
+        let snapshot = config::agents();
         let entries = tokio::task::spawn_blocking(move || {
-            let mut entries: Vec<SkillCacheEntry> = Vec::new();
-            Self::scan_filesystem_into(&mut entries);
-            Self::scan_external_imports_into(&mut entries);
-            entries
+            config::with_agent_snapshot(snapshot, || {
+                let mut entries: Vec<SkillCacheEntry> = Vec::new();
+                Self::scan_filesystem_into(&mut entries);
+                Self::scan_external_imports_into(&mut entries);
+                entries
+            })
         })
         .await
         .map_err(|e| AppError::Parse(format!("Cache rebuild panicked: {e}")))?;
@@ -737,15 +752,15 @@ impl SkillService {
 
     /// Scan filesystem for skill directories and push into entries.
     fn scan_filesystem_into(entries: &mut Vec<SkillCacheEntry>) {
-        let mut scan_dirs: Vec<PathBuf> = Vec::new();
+        let mut scan_dirs: Vec<(PathBuf, Option<String>)> = Vec::new();
         let agents_dir = config::get_agents_skills_dir();
         if agents_dir.exists() {
-            scan_dirs.push(agents_dir);
+            scan_dirs.push((agents_dir, None));
         }
-        for agent in config::AGENTS {
-            if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
+        for agent in config::agents().iter() {
+            if let Some(agent_dir) = config::agent_skills_dir(agent) {
                 if agent_dir.exists() {
-                    scan_dirs.push(agent_dir);
+                    scan_dirs.push((agent_dir, Some(agent.id.clone())));
                 }
             }
         }
@@ -753,30 +768,29 @@ impl SkillService {
             return;
         }
 
+        let lock = SkillLock::read().ok();
         let imports = ExternalImports::load().ok();
-        let imports_by_source: HashMap<PathBuf, &ExternalImportEntry> = imports
+        let imports_by_source: HashMap<String, &ExternalImportEntry> = imports
             .as_ref()
             .map(|i| {
                 i.imports
                     .values()
                     .filter_map(|entry| {
-                        PathBuf::from(&entry.source_path)
-                            .canonicalize()
-                            .ok()
-                            .map(|p| (p, entry))
+                        directory_identity(Path::new(&entry.source_path)).map(|key| (key, entry))
                     })
                     .collect()
             })
             .unwrap_or_default();
 
         let mut seen_ids: HashSet<String> = HashSet::new();
-        for scan_dir in &scan_dirs {
+        for (scan_dir, agent_id) in &scan_dirs {
             Self::scan_dir_recursive_into(
                 scan_dir,
                 entries,
                 &mut seen_ids,
                 scan_dir,
-                &imports_by_source,
+                (&imports_by_source, lock.as_ref()),
+                agent_id.as_deref(),
             );
         }
     }
@@ -787,7 +801,7 @@ impl SkillService {
         };
         let mut seen_ids: HashSet<String> = entries.iter().map(|entry| entry.id.clone()).collect();
         for import in imports.imports.values() {
-            if external_source_under_known_skill_root(Path::new(&import.source_path)) {
+            if external_source_under_ssot(Path::new(&import.source_path)) {
                 continue;
             }
             let Ok(entry) = Self::scan_external_import(import) else {
@@ -853,7 +867,7 @@ impl SkillService {
     /// True when a directory name matches the app's own temp/backup naming
     /// (`.{name}.{install|update|backup}.`). Dot-prefixed namespaces such as
     /// `.system` are real skill directories and must not be skipped.
-    fn is_app_temp_dir(name: &str) -> bool {
+    pub(crate) fn is_app_temp_dir(name: &str) -> bool {
         name.starts_with('.')
             && [".install.", ".backup.", ".update."]
                 .iter()
@@ -865,8 +879,10 @@ impl SkillService {
         entries: &mut Vec<SkillCacheEntry>,
         seen_ids: &mut HashSet<String>,
         scan_root: &PathBuf,
-        imports_by_source: &HashMap<PathBuf, &ExternalImportEntry>,
+        scan_sources: (&HashMap<String, &ExternalImportEntry>, Option<&SkillLock>),
+        agent_id: Option<&str>,
     ) {
+        let (imports_by_source, lock) = scan_sources;
         let Ok(dir_entries) = std::fs::read_dir(dir) else {
             return;
         };
@@ -881,7 +897,7 @@ impl SkillService {
                 // If the symlink target is an external import source, scan it
                 // here with origin = "external". Otherwise it's a symlink to
                 // SSOT which is already scanned from the SSOT root — skip it.
-                if let Ok(target) = path.canonicalize() {
+                if let Some(target) = directory_identity(&path) {
                     if let Some(import) = imports_by_source.get(&target) {
                         if let Ok(ext_entry) = Self::scan_external_import(import) {
                             if seen_ids.insert(ext_entry.id.clone()) {
@@ -906,17 +922,21 @@ impl SkillService {
             if crate::config::SKIP_DIRS.contains(&dir_name) || Self::is_app_temp_dir(dir_name) {
                 continue;
             }
+            if !imports_by_source.is_empty() {
+                if let Some(import) =
+                    directory_identity(&path).and_then(|key| imports_by_source.get(&key))
+                {
+                    if let Ok(entry) = Self::scan_external_import(import) {
+                        if seen_ids.insert(entry.id.clone()) {
+                            entries.push(entry);
+                        }
+                    }
+                    continue;
+                }
+            }
             if path.join("SKILL.md").exists() {
-                let is_ssot = config::get_agents_skills_dir() == *scan_root;
-                let agent_id = if is_ssot {
-                    None
-                } else {
-                    Some(
-                        Self::detect_agent_for_path(scan_root)
-                            .expect("scan_root should be SSOT or a known agent directory"),
-                    )
-                };
-                let Ok(entry) = Self::scan_skill_root(&path, scan_root, agent_id) else {
+                let Ok(entry) = Self::scan_skill_root_with_lock(&path, scan_root, agent_id, lock)
+                else {
                     continue;
                 };
                 if !seen_ids.insert(entry.id.clone()) {
@@ -929,7 +949,8 @@ impl SkillService {
                     entries,
                     seen_ids,
                     scan_root,
-                    imports_by_source,
+                    scan_sources,
+                    agent_id,
                 );
             }
         }
@@ -1468,12 +1489,30 @@ impl SkillService {
     pub fn scan_skill_roots_batch(
         skill_roots: &[(PathBuf, PathBuf, Option<String>)],
     ) -> Result<Vec<SkillCacheEntry>, AppError> {
+        let lock = SkillLock::read().ok();
+        let imports = ExternalImports::load().unwrap_or_default();
+        let imports_by_source: HashMap<_, _> = imports
+            .imports
+            .values()
+            .filter_map(|entry| {
+                directory_identity(Path::new(&entry.source_path)).map(|key| (key, entry))
+            })
+            .collect();
         let mut entries = Vec::with_capacity(skill_roots.len());
         for (skill_root, scan_root, agent_id) in skill_roots {
-            entries.push(Self::scan_skill_root(
+            if !imports_by_source.is_empty() {
+                if let Some(import) =
+                    directory_identity(skill_root).and_then(|key| imports_by_source.get(&key))
+                {
+                    entries.push(Self::scan_external_import(import)?);
+                    continue;
+                }
+            }
+            entries.push(Self::scan_skill_root_with_lock(
                 skill_root,
                 scan_root,
                 agent_id.as_deref(),
+                lock.as_ref(),
             )?);
         }
         Ok(entries)
@@ -1481,7 +1520,7 @@ impl SkillService {
 
     pub fn scan_external_import(import: &ExternalImportEntry) -> Result<SkillCacheEntry, AppError> {
         let skill_root = PathBuf::from(&import.source_path);
-        if external_source_under_known_skill_root(&skill_root) {
+        if external_source_under_ssot(&skill_root) {
             return Err(AppError::BadRequest(
                 "External import source is inside a Skill Zoo-managed skill directory.".to_string(),
             ));
@@ -1514,6 +1553,24 @@ impl SkillService {
         let content_hash = Self::compute_content_hash(&import.source_path);
         let apps = Self::detect_agents(&import.directory, &home_path);
 
+        // External references keep their original spelling and ownership.
+        // On case-insensitive filesystems an enclosing registered root may
+        // have another spelling even after canonicalization.
+        let mut apps = apps;
+        for agent in config::agents().iter() {
+            if apps.get(&agent.id) == Some(&true) {
+                continue;
+            }
+            if let Some(root) = config::agent_skills_dir(agent) {
+                if skill_root
+                    .ancestors()
+                    .any(|parent| same_directory(parent, &root))
+                {
+                    apps.insert(agent.id.clone(), true);
+                }
+            }
+        }
+
         Ok(SkillCacheEntry {
             id: import.id.clone(),
             name: dir_name.to_string(),
@@ -1537,6 +1594,16 @@ impl SkillService {
         skill_root: &Path,
         scan_root: &Path,
         agent_id: Option<&str>,
+    ) -> Result<SkillCacheEntry, AppError> {
+        let lock = SkillLock::read().ok();
+        Self::scan_skill_root_with_lock(skill_root, scan_root, agent_id, lock.as_ref())
+    }
+
+    fn scan_skill_root_with_lock(
+        skill_root: &Path,
+        scan_root: &Path,
+        agent_id: Option<&str>,
+        lock: Option<&SkillLock>,
     ) -> Result<SkillCacheEntry, AppError> {
         let skill_md = skill_root.join("SKILL.md");
         if !skill_md.exists() {
@@ -1563,8 +1630,7 @@ impl SkillService {
         // Normalize to forward slashes for cross-platform consistency.
         let relative_dir = relative_dir.replace('\\', "/");
 
-        let lock_data: Option<SkillLock> = SkillLock::read().ok();
-        let lock_entry = lock_data.as_ref().and_then(|lock| {
+        let lock_entry = lock.and_then(|lock| {
             lock.skills
                 .get(&relative_dir)
                 .or_else(|| lock.skills.get(dir_name))
@@ -1672,14 +1738,16 @@ impl SkillService {
     // ──────────────────────────────────────────────
 
     pub fn get_visible_agents(settings: &Settings) -> HashMap<String, bool> {
-        let mut map: HashMap<String, bool> = config::AGENTS
+        let mut map: HashMap<String, bool> = config::agents()
             .iter()
-            .map(|a| (a.id.to_string(), config::default_visibility(a.id)))
+            .map(|a| (a.id.to_string(), config::default_visibility(&a.id)))
             .collect();
         if let Some(json) = settings.get("visible_agents") {
             if let Ok(parsed) = serde_json::from_str::<HashMap<String, bool>>(json) {
                 for (k, v) in parsed {
-                    map.insert(k, v);
+                    if let Some(visible) = map.get_mut(&k) {
+                        *visible = v;
+                    }
                 }
             }
         }
@@ -1720,15 +1788,15 @@ impl SkillService {
                 agents_dir.join(&skill.directory)
             };
             let target_path = std::fs::canonicalize(&target_path).unwrap_or(target_path);
-            for agent in config::AGENTS {
+            for agent in config::agents().iter() {
                 if !visible_agents
-                    .get(agent.id)
+                    .get(&agent.id)
                     .copied()
-                    .unwrap_or_else(|| config::default_visibility(agent.id))
+                    .unwrap_or_else(|| config::default_visibility(&agent.id))
                 {
                     continue;
                 }
-                if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
+                if let Some(agent_dir) = config::agent_skills_dir(agent) {
                     let symlink_path = agent_dir.join(Self::agent_link_name(&skill.directory));
                     let exists = symlink_path.exists();
                     let is_valid = if exists {
@@ -1820,8 +1888,8 @@ impl SkillService {
         target_path: &std::path::Path,
     ) -> Result<usize, AppError> {
         let mut removed = 0;
-        for agent in config::AGENTS {
-            if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
+        for agent in config::agents().iter() {
+            if let Some(agent_dir) = config::agent_skills_dir(agent) {
                 let symlink_path = agent_dir.join(Self::agent_link_name(skill_name));
                 if is_symlink_or_junction(&symlink_path)
                     && (symlink_target_matches(&symlink_path, target_path)
@@ -1900,8 +1968,8 @@ impl SkillService {
 
         // Clean up symlinks while the entity directory still exists, so target
         // matching can canonicalize the link target reliably.
-        for agent in config::AGENTS {
-            if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
+        for agent in config::agents().iter() {
+            if let Some(agent_dir) = config::agent_skills_dir(agent) {
                 let symlink_path = agent_dir.join(Self::agent_link_name(skill_name));
                 if is_symlink_or_junction(&symlink_path)
                     && symlink_target_state(&symlink_path, home) == LinkTargetState::Matches
@@ -2296,6 +2364,51 @@ impl SkillService {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
+    #[test]
+    fn imported_directory_alias_keeps_one_external_record_after_agent_registration() {
+        let tmp = tempfile::tempdir().unwrap();
+        crate::config::with_test_home(tmp.path(), || {
+            let root = tmp.path().join("tool/skills");
+            let source = root.join("demo");
+            std::fs::create_dir_all(&source).unwrap();
+            std::fs::write(source.join("SKILL.md"), "# Demo").unwrap();
+            let alias = tmp.path().join("alias");
+            std::os::unix::fs::symlink(&root, &alias).unwrap();
+            let id = "custom-00000000-0000-4000-a000-000000000000";
+            crate::config::publish_agents(crate::persistence::agents::AgentRegistry {
+                version: 1,
+                agents: vec![crate::persistence::agents::CustomAgent {
+                    id: id.into(),
+                    label: "Tool".into(),
+                    skills_dir: root.canonicalize().unwrap(),
+                }],
+            });
+            let mut imports = crate::persistence::ExternalImports::default();
+            imports.imports.insert(
+                "external:demo".into(),
+                crate::persistence::ExternalImportEntry {
+                    id: "external:demo".into(),
+                    source_path: alias.join("demo").to_string_lossy().into(),
+                    directory: "demo".into(),
+                    imported_at: 1,
+                    updated_at: 1,
+                },
+            );
+            imports.save().unwrap();
+            let mut entries = Vec::new();
+            super::SkillService::scan_filesystem_into(&mut entries);
+            super::SkillService::scan_external_imports_into(&mut entries);
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].id, "external:demo");
+            assert_eq!(entries[0].origin, "external");
+            assert!(entries[0].apps[id]);
+            assert_eq!(
+                std::fs::read_to_string(source.join("SKILL.md")).unwrap(),
+                "# Demo"
+            );
+        });
+    }
     use super::*;
     use crate::services::lock::SUPPORTED_LOCK_VERSION;
 

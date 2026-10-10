@@ -2,7 +2,8 @@ import { promises as fs } from "node:fs";
 import crypto from "node:crypto";
 import path from "node:path";
 import YAML from "yaml";
-import { AGENTS, SKIP_DIRS } from "./agents.js";
+import { SKIP_DIRS } from "./agents.js";
+import { getAgents } from "./custom-agents.js";
 import { agentLinkName, getAgentSkillsDir, getPaths } from "./paths.js";
 import { readExternalImports, readLock, readMetadata, writeCache } from "./store.js";
 import type {
@@ -19,7 +20,6 @@ import {
   lstatSafe,
   normalizePath,
   pathExists,
-  pathStartsWith,
   pathsEqual,
 } from "../lib/io.js";
 
@@ -72,7 +72,7 @@ export async function scanCacheEntries(home?: string): Promise<SkillCacheEntry[]
     scanRoots.push(paths.agentsSkillsDir);
   }
 
-  for (const agent of AGENTS) {
+  for (const agent of getAgents(home)) {
     const agentDir = getAgentSkillsDir(home, agent.id);
     if (agentDir && (await pathExists(agentDir))) {
       scanRoots.push(agentDir);
@@ -87,8 +87,18 @@ export async function scanCacheEntries(home?: string): Promise<SkillCacheEntry[]
     await scanDirRecursive(home, scanRoot, scanRoot, lock, seenIds, entries);
   }
   await scanExternalImports(home, seenIds, entries);
+  // Registered external references win over agent ownership even when a new
+  // custom root encloses their source. Return one record per physical source.
+  const externalHomes = new Set(entries.filter((e) => e.origin === "external").map((e) => e.homePath));
+  if (externalHomes.size === 0) return entries;
+  const externalIdentities = new Set(await Promise.all([...externalHomes].map((home) => directoryIdentity(home ?? undefined))));
+  externalIdentities.delete(undefined);
+  const result: SkillCacheEntry[] = [];
+  for (const entry of entries) {
+    if (entry.origin === "external" || (!externalHomes.has(entry.homePath) && !externalIdentities.has(await directoryIdentity(entry.homePath ?? undefined)))) result.push(entry);
+  }
+  return result;
 
-  return entries;
 }
 
 async function scanExternalImports(
@@ -104,6 +114,17 @@ async function scanExternalImports(
     const skillMd = path.join(entry.sourcePath, "SKILL.md");
     if (!(await pathExists(skillMd))) {
       continue;
+    }
+    const physicalParents = new Set<string>();
+    let parent = entry.sourcePath;
+    while (true) {
+      const key = await directoryIdentity(parent); if (key) physicalParents.add(key);
+      const next = path.dirname(parent); if (next === parent) break; parent = next;
+    }
+    const physicalApps: SkillApps = {};
+    for (const agent of getAgents(home)) {
+      const key = await directoryIdentity(getAgentSkillsDir(home, agent.id));
+      if (key && physicalParents.has(key)) physicalApps[agent.id] = true;
     }
     const dirName = path.basename(entry.sourcePath);
     const parsed = await parseSkillMd(skillMd, dirName);
@@ -125,7 +146,7 @@ async function scanExternalImports(
       homePath: normalizePath(entry.sourcePath),
       contentHash: await computeContentHash(entry.sourcePath),
       homeAgent: null,
-      apps: await detectAgents(home, entry.directory, entry.sourcePath),
+      apps: { ...(await detectAgents(home, entry.directory, entry.sourcePath)), ...physicalApps },
       installedAt: entry.importedAt,
       updatedAt: entry.updatedAt,
     });
@@ -415,13 +436,16 @@ async function detectAgents(
 ): Promise<SkillApps> {
   const apps: SkillApps = {};
 
-  for (const agent of AGENTS) {
+  for (const agent of getAgents(home)) {
     const agentDir = getAgentSkillsDir(home, agent.id);
     if (!agentDir) {
       continue;
     }
 
-    if (homePath && (await pathStartsWith(homePath, agentDir))) {
+    // Scan roots and custom registry paths already identify the owning root.
+    // Match desktop's component-based check; realpath on both sides for every
+    // skill/agent pair turns a warm scan into thousands of redundant I/O calls.
+    if (homePath && isInsideRoot(homePath, agentDir)) {
       apps[agent.id] = true;
       continue;
     }
@@ -438,7 +462,7 @@ async function detectAgents(
 }
 
 function detectAgentForPath(home: string | undefined, scanRoot: string): string | undefined {
-  for (const agent of AGENTS) {
+  for (const agent of getAgents(home)) {
     const agentDir = getAgentSkillsDir(home, agent.id);
     if (agentDir && path.resolve(agentDir) === path.resolve(scanRoot)) {
       return agent.id;
@@ -456,12 +480,23 @@ async function detectHomeAgent(
     return null;
   }
 
-  for (const agent of AGENTS) {
+  for (const agent of getAgents(home)) {
     const agentDir = getAgentSkillsDir(home, agent.id);
-    if (agentDir && (await pathStartsWith(homePath, agentDir))) {
+    if (agentDir && isInsideRoot(homePath, agentDir)) {
       return agent.id;
     }
   }
 
   return null;
+}
+
+function isInsideRoot(candidate: string, root: string): boolean {
+  const relative = path.relative(root, candidate);
+  return relative === "" || (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
+}
+
+async function directoryIdentity(directory?: string): Promise<string | undefined> {
+  if (!directory) return undefined;
+  try { const metadata = await fs.stat(directory, { bigint: true }); return metadata.isDirectory() ? `${metadata.dev}:${metadata.ino}` : undefined; }
+  catch { return undefined; }
 }

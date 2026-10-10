@@ -59,6 +59,33 @@ describe("AgentPathsSettings", () => {
     await i18n.changeLanguage("en");
   });
 
+  it("explains suppressed built-ins without exposing them as visibility targets", async () => {
+    const id = "custom-11111111-1111-4111-a111-111111111111";
+    const paths = [
+      { agent: id, label: "Codex", path: "/custom/skills", exists: true },
+      { agent: "codex", label: "Codex", path: "/builtin/skills", exists: true, suppressedBy: id },
+      { agent: "gemini", label: "Gemini", path: "/gemini/skills", exists: false },
+    ];
+    mockAgentSettings(paths, { [id]: true, gemini: false }, [id, "gemini"]);
+    renderSettings();
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Manage Coding Agents" }));
+    expect(screen.getByRole("region", { name: "Not enabled" })).toHaveTextContent(
+      /directory overlaps custom agent/,
+    );
+    expect(screen.getByRole("region", { name: "Not enabled" })).toHaveTextContent(
+      "/builtin/skills",
+    );
+    expect(screen.getAllByRole("switch")).toHaveLength(2);
+    expect(screen.getByText("Custom")).toBeInTheDocument();
+    const edit = screen.getByRole("button", { name: "Edit Codex" });
+    expect(edit).toHaveTextContent("Codex");
+    expect(screen.getByText("Gemini").closest("button")).toBeNull();
+    await userEvent.setup().click(edit);
+    expect(await screen.findByText("Edit Custom Agent")).toBeInTheDocument();
+  });
+
   it("shows all visible agents in the settings summary", async () => {
     const paths = Array.from({ length: 7 }, (_, index) => ({
       agent: `agent-${index + 1}`,
@@ -100,18 +127,22 @@ describe("AgentPathsSettings", () => {
   it("appends a newly visible agent and disables controls while saving", async () => {
     const user = userEvent.setup();
     const update = createDeferred<AgentPreferences>();
+    const customId = "custom-3e572935-73ca-4f2a-9b36-2cdbd6d0a689";
     const paths = [
       { agent: "claude-code", label: "Claude Code", path: "/claude", exists: true },
       { agent: "codex", label: "Codex", path: "/codex", exists: true },
+      { agent: customId, label: "My Tool", path: "/custom", exists: true },
     ];
     vi.mocked(invoke).mockImplementation((command) => {
       switch (command) {
         case "get_agent_paths":
           return Promise.resolve(paths);
         case "get_visible_agents":
-          return Promise.resolve({ "claude-code": true, codex: false });
+          return Promise.resolve({ "claude-code": true, codex: false, [customId]: true });
         case "get_settings":
-          return Promise.resolve({ agent_order: JSON.stringify(["claude-code", "codex"]) });
+          return Promise.resolve({
+            agent_order: JSON.stringify(["claude-code", "codex", customId]),
+          });
         case "update_agent_preferences":
           return update.promise;
         default:
@@ -130,14 +161,19 @@ describe("AgentPathsSettings", () => {
       expect(screen.getByRole("switch", { name: "Toggle visibility for Codex" })).toBeDisabled();
     });
     expect(invoke).toHaveBeenCalledWith("update_agent_preferences", {
-      visibleAgents: { "claude-code": true, codex: true },
-      agentOrder: ["claude-code", "codex"],
+      visibleAgents: { "claude-code": true, codex: true, [customId]: true },
+      agentOrder: ["claude-code", customId, "codex"],
     });
 
+    await user.click(screen.getByRole("button", { name: "Edit My Tool" }));
+    expect(screen.queryByText("Edit Custom Agent")).not.toBeInTheDocument();
+
     update.resolve({
-      visibleAgents: { "claude-code": true, codex: true },
-      agentOrder: ["claude-code", "codex"],
+      visibleAgents: { "claude-code": true, codex: true, [customId]: true },
+      agentOrder: ["claude-code", customId, "codex"],
     });
+    await user.click(await screen.findByRole("button", { name: "Edit My Tool" }));
+    expect(await screen.findByText("Edit Custom Agent")).toBeInTheDocument();
   });
 
   it("keeps the final visible agent enabled", async () => {

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "agents": [
+    {
+      "id": "custom-3e572935-73ca-4f2a-9b36-2cdbd6d0a689",
+      "label": "Custom Tool",
+      "skillsDir": "/Users/fixture/custom-tool/skills"
+    }
+  ]
+}

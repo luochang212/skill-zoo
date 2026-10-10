@@ -1,0 +1,122 @@
+[
+  {
+    "role": "dialog",
+    "name": "Edit Custom Agent"
+  },
+  {
+    "role": "heading",
+    "name": "Edit Custom Agent"
+  },
+  {
+    "role": "button",
+    "name": "Manage Agents"
+  },
+  {
+    "role": "group",
+    "name": "Remove this agent?"
+  },
+  {
+    "role": "button",
+    "name": "Close"
+  },
+  {
+    "role": "StaticText",
+    "name": "Edit Custom Agent"
+  },
+  {
+    "role": "StaticText",
+    "name": "Choose a name and the folder containing this tool’s skills."
+  },
+  {
+    "role": "StaticText",
+    "name": "Manage Agents"
+  },
+  {
+    "role": "heading",
+    "name": "Remove this agent?"
+  },
+  {
+    "role": "button",
+    "name": "Cancel"
+  },
+  {
+    "role": "button",
+    "name": "Remove Agent"
+  },
+  {
+    "role": "StaticText",
+    "name": "Close"
+  },
+  {
+    "role": "InlineTextBox",
+    "name": "Edit Custom Agent"
+  },
+  {
+    "role": "InlineTextBox",
+    "name": "Choose a name and the folder containing this tool’s skills."
+  },
+  {
+    "role": "InlineTextBox",
+    "name": "Manage Agents"
+  },
+  {
+    "role": "StaticText",
+    "name": "Remove this agent?"
+  },
+  {
+    "role": "StaticText",
+    "name": "Your skill files stay where they are. Existing local skills remain available as external imports; links from other agents are preserved."
+  },
+  {
+    "role": "StaticText",
+    "name": "/Users/preview/my-coding-tool/skills"
+  },
+  {
+    "role": "StaticText",
+    "name": "4 real skills retained · 2 managed links eligible for cleanup · 1 archive references preserved"
+  },
+  {
+    "role": "StaticText",
+    "name": "Cancel"
+  },
+  {
+    "role": "StaticText",
+    "name": "Remove Agent"
+  },
+  {
+    "role": "InlineTextBox",
+    "name": "Close"
+  },
+  {
+    "role": "InlineTextBox",
+    "name": "Remove this agent?"
+  },
+  {
+    "role": "InlineTextBox",
+    "name": "Your skill files stay where they are. Existing local skills remain available as external "
+  },
+  {
+    "role": "InlineTextBox",
+    "name": "imports; links from other agents are preserved."
+  },
+  {
+    "role": "InlineTextBox",
+    "name": "/Users/preview/my-coding-tool/skills"
+  },
+  {
+    "role": "InlineTextBox",
+    "name": "4 real skills retained · 2 managed links eligible for cleanup · 1 archive references "
+  },
+  {
+    "role": "InlineTextBox",
+    "name": "preserved"
+  },
+  {
+    "role": "InlineTextBox",
+    "name": "Cancel"
+  },
+  {
+    "role": "InlineTextBox",
+    "name": "Remove Agent"
+  }
+]

@@ -1,0 +1,17 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.34s
+     Running tests/custom_agent_performance_test.rs (src-tauri/target/debug/deps/custom_agent_performance_test-98b314647cb23566)
+
+running 1 test
+BENCH skills=100 customs=0 populated=false scan=(23.809791, 26.739915999999997) incremental=(1.1646670000000001, 2.936791) detect=(5.4084579999999995, 6.661125) lookup10000=(6.290958, 9.289667)
+BENCH skills=100 customs=5 populated=false scan=(24.427500000000002, 30.569834) incremental=(1.247583, 1.606584) detect=(9.81225, 10.373917) lookup10000=(6.653375, 7.703083)
+BENCH skills=100 customs=5 populated=true scan=(61.386791, 126.35208300000001) incremental=(1.438083, 2.3137499999999998) detect=(17.631041, 44.633834) lookup10000=(20.956459, 103.35908400000001)
+BENCH skills=100 customs=20 populated=false scan=(203.13833300000002, 1487.936167) incremental=(3.868333, 10.930625) detect=(35.65, 264.023458) lookup10000=(12.324333999999999, 29.056874999999998)
+BENCH skills=100 customs=20 populated=true scan=(31.188125, 53.242625000000004) incremental=(1.0140419999999999, 2.089625) detect=(12.954833, 17.817125) lookup10000=(7.161459, 25.09525)
+BENCH skills=1000 customs=0 populated=false scan=(210.98404200000002, 550.2200419999999) incremental=(0.6874579999999999, 0.749625) detect=(41.532667000000004, 44.332667) lookup10000=(4.25575, 4.6409590000000005)
+BENCH skills=1000 customs=5 populated=false scan=(160.657125, 175.49304199999997) incremental=(0.567208, 0.6099159999999999) detect=(46.213416, 47.347625) lookup10000=(3.988875, 4.40375)
+BENCH skills=1000 customs=5 populated=true scan=(181.991292, 366.476625) incremental=(0.798542, 2.202416) detect=(47.883541, 52.192958) lookup10000=(3.947875, 4.546875)
+BENCH skills=1000 customs=20 populated=false scan=(219.344833, 458.387833) incremental=(0.7829999999999999, 0.9872920000000001) detect=(76.752334, 78.695333) lookup10000=(3.997833, 4.408208999999999)
+BENCH skills=1000 customs=20 populated=true scan=(206.674708, 251.26137500000002) incremental=(0.8227920000000001, 3.023583) detect=(205.048, 241.03575) lookup10000=(4.408874999999999, 5.149542)
+test custom_agent_performance ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 20.87s

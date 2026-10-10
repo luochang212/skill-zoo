@@ -124,7 +124,10 @@ export function AgentPathsSettings() {
   const { data: agentOrder = EMPTY_AGENT_ORDER } = useAgentOrder();
   const visibleAgents = getVisibleAgentsOrDefault(visibleAgentsData);
   const ssotPath = paths.find((info) => info.agent === "ssot");
-  const agentPaths = useMemo(() => paths.filter((info) => info.agent !== "ssot"), [paths]);
+  const agentPaths = useMemo(
+    () => paths.filter((info) => info.agent !== "ssot" && !info.suppressedBy),
+    [paths],
+  );
   const pathById = useMemo(
     () => new Map(agentPaths.map((info) => [info.agent, info])),
     [agentPaths],

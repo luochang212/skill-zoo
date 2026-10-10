@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { settingsApi } from "@/lib/api/settings";
@@ -261,4 +261,19 @@ export function useAgentPreferences({
     isPending: updatePreferences.isPending,
     hiddenOrder,
   };
+}
+
+export async function invalidateAgentState(qc: QueryClient) {
+  await Promise.all(
+    [
+      ["agents"],
+      ["agentPaths"],
+      ["settings"],
+      ["skills"],
+      ["repos", "skills"],
+      ["skills.sh", "search"],
+      ["consistency"],
+      ["externalImports"],
+    ].map((queryKey) => qc.invalidateQueries({ queryKey })),
+  );
 }

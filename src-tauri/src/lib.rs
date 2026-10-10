@@ -40,6 +40,16 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
+            {
+                let _lease = persistence::agent_transaction::AgentLease::acquire(
+                    &config::get_app_config_dir(),
+                )?;
+                // An unreadable registry degrades to built-in agents: saves still
+                // refuse to overwrite the broken file (AgentRegistry::save_to).
+                if let Err(e) = config::refresh_agents() {
+                    eprintln!("Failed to load agent registry, using built-in agents: {e}");
+                }
+            }
             // Clean up residual .tmp files from interrupted downloads
             let cache_dir = config::get_repo_zip_cache_dir();
             if cache_dir.exists() {
@@ -140,6 +150,11 @@ pub fn run() {
             commands::skill::open_skill_path,
             commands::skill::get_agent_paths,
             commands::skill::get_agent_configs,
+            commands::agents::preview_custom_agent,
+            commands::agents::preview_agent_removal,
+            commands::agents::pick_agent_directory,
+            commands::agents::save_custom_agent,
+            commands::agents::remove_custom_agent,
             commands::skill::get_banners,
             commands::skill::get_recommended_repos,
             commands::skill::search_repo,

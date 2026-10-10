@@ -1,12 +1,27 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AgentPreferences,
+  AgentPreview,
+  AgentChangeResult,
   SkillCompanionItem,
   SkillUsage,
   VisibleAgents,
 } from "@/types/skills";
 
 export const settingsApi = {
+  previewCustomAgent: (name: string, skillsDir: string, agentId?: string) =>
+    invoke<AgentPreview>("preview_custom_agent", { name, skillsDir, agentId }),
+
+  previewAgentRemoval: (agentId: string) =>
+    invoke<AgentPreview>("preview_agent_removal", { agentId }),
+
+  pickAgentDirectory: () => invoke<string | null>("pick_agent_directory"),
+
+  saveCustomAgent: (name: string, skillsDir: string, createDirectory: boolean, agentId?: string) =>
+    invoke<AgentChangeResult>("save_custom_agent", { name, skillsDir, createDirectory, agentId }),
+
+  removeCustomAgent: (agentId: string) =>
+    invoke<AgentChangeResult>("remove_custom_agent", { agentId }),
   getSettings: () => invoke<Record<string, string>>("get_settings"),
 
   updateSetting: (key: string, value: string) => invoke<void>("update_setting", { key, value }),

@@ -107,6 +107,26 @@ describe("CLI output", () => {
     expect(payload.data).toHaveLength(1);
   });
 
+  it("reports suppressed built-ins in paths and rejects their use as active targets", async () => {
+    const home = await makeTempHome();
+    const config = path.join(home, ".skill-zoo");
+    await fs.mkdir(config, { recursive: true });
+    const id = "custom-11111111-1111-4111-a111-111111111111";
+    await fs.writeFile(path.join(config, "agents.json"), JSON.stringify({ version: 1, agents: [{
+      id, label: "Codex", skillsDir: path.join(home, ".codex/skills"),
+    }] }));
+    const stdout = new CaptureStream();
+    const stderr = new CaptureStream();
+    await runCli(["--home", home, "paths", "--json"], { stdout, stderr, stdin: process.stdin });
+    const payload = JSON.parse(stdout.toString());
+    expect(payload.ok).toBe(true);
+    expect(payload.data.find((a: { agent: string }) => a.agent === "codex")).toMatchObject({ suppressedBy: id });
+    stdout.chunks = [];
+    await runCli(["--home", home, "list", "--agent", "codex", "--json"], { stdout, stderr, stdin: process.stdin });
+    expect(stdout.toString()).toContain("not enabled");
+    expect(stdout.toString()).toContain(id);
+  });
+
   it("marks batch JSON output as not ok when every item fails", async () => {
     const home = await makeTempHome();
     const stdout = new CaptureStream();

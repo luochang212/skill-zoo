@@ -55,8 +55,8 @@ fn collect_watch_roots() -> Vec<WatchRoot> {
             kind: WatchRootKind::Archive,
         });
     }
-    for agent in config::AGENTS {
-        if let Some(agent_dir) = config::get_agent_skills_dir(agent.id) {
+    for agent in config::agents().iter() {
+        if let Some(agent_dir) = config::agent_skills_dir(agent) {
             if agent_dir.exists() {
                 roots.push(WatchRoot {
                     path: agent_dir,
@@ -411,10 +411,95 @@ pub fn unwatch_external_path(state: &AppState, source_path: &Path) {
     }
 }
 
+pub fn restart_skill_watcher(app: &tauri::AppHandle, state: &AppState) -> Result<(), String> {
+    // Build the complete union first. Retained external imports continue to
+    // receive updates even after their home agent is unregistered.
+    let (watcher, task) = start_skill_watcher(app.clone()).map_err(|e| e.to_string())?;
+    state
+        .fs_watcher
+        .lock()
+        .map_err(|e| e.to_string())?
+        .replace(watcher);
+    if let Some(old) = state
+        .watcher_task
+        .lock()
+        .map_err(|e| e.to_string())?
+        .replace(task)
+    {
+        old.abort();
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use notify::event::{CreateKind, DataChange, RemoveKind};
+
+    #[test]
+    fn registry_changes_reconcile_agent_and_retained_external_roots() {
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            let path = tmp.path().join("custom/skills");
+            let skill = path.join("demo");
+            std::fs::create_dir_all(&skill).unwrap();
+            std::fs::write(skill.join("SKILL.md"), "# Demo").unwrap();
+            let path = path.canonicalize().unwrap();
+            let skill = skill.canonicalize().unwrap();
+            let id = "custom-00000000-0000-4000-a000-000000000000";
+            config::publish_agents(crate::persistence::agents::AgentRegistry {
+                version: 1,
+                agents: vec![crate::persistence::agents::CustomAgent {
+                    id: id.into(),
+                    label: "Tool".into(),
+                    skills_dir: path.clone(),
+                }],
+            });
+            let roots = collect_watch_roots();
+            assert!(roots
+                .iter()
+                .any(|r| r.path == path && r.kind == WatchRootKind::Agent(id.into())));
+            let plan = classify_events(
+                &[event(
+                    EventKind::Modify(ModifyKind::Data(DataChange::Content)),
+                    skill.join("SKILL.md"),
+                )],
+                &roots,
+            );
+            assert!(
+                matches!(plan, RefreshPlan::Incremental(ref items) if items[0].agent_id.as_deref() == Some(id))
+            );
+            let mut imports = crate::persistence::ExternalImports::default();
+            imports.imports.insert(
+                "retained".into(),
+                crate::persistence::ExternalImportEntry {
+                    id: "retained".into(),
+                    source_path: skill.to_string_lossy().into(),
+                    directory: "demo".into(),
+                    imported_at: 1,
+                    updated_at: 1,
+                },
+            );
+            imports.save().unwrap();
+            config::publish_agents(Default::default());
+            assert!(!collect_watch_roots().iter().any(|r| r.path == path));
+            let mut roots = collect_watch_roots();
+            roots.extend(collect_external_watch_roots());
+            assert!(roots
+                .iter()
+                .any(|r| r.path == skill && r.kind == WatchRootKind::External));
+            assert_eq!(
+                classify_events(
+                    &[event(
+                        EventKind::Modify(ModifyKind::Data(DataChange::Content)),
+                        skill.join("SKILL.md")
+                    )],
+                    &roots
+                ),
+                RefreshPlan::FullRebuild
+            );
+        });
+    }
 
     fn event(kind: EventKind, path: PathBuf) -> Event {
         Event::new(kind).add_path(path)

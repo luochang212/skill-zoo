@@ -1,0 +1,66 @@
+   Compiling skill-zoo v0.3.50 (/Users/alex/Documents/GitHub/skill-zoo/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 10s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/skill_zoo_lib-851cb4af3398a96a)
+
+running 1 test
+LIFECYCLE skills=100 customs=5 rename=(26.881542, 35.258834) path_change=(64.229625, 112.392291)
+LIFECYCLE skills=100 customs=20 rename=(54.076375000000006, 57.936458) path_change=(69.824291, 77.802834)
+LIFECYCLE skills=1000 customs=5 rename=(41.153416, 48.740625) path_change=(263.816583, 300.26375)
+LIFECYCLE skills=1000 customs=20 rename=(48.605416, 59.744416) path_change=(232.255042, 338.791416)
+test commands::agents::tests::custom_agent_lifecycle_performance ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 176 filtered out; finished in 8.68s
+
+     Running unittests src/main.rs (src-tauri/target/debug/deps/skill_zoo-e60a82537467f170)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/archive_persistence_test.rs (src-tauri/target/debug/deps/archive_persistence_test-dff2c53942dfa2aa)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+
+     Running tests/custom_agent_performance_test.rs (src-tauri/target/debug/deps/custom_agent_performance_test-98b314647cb23566)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/lock_test.rs (src-tauri/target/debug/deps/lock_test-7f40d36f9e52c595)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+
+     Running tests/path_boundary_test.rs (src-tauri/target/debug/deps/path_boundary_test-55c65de6bfbf625a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests/persistence_test.rs (src-tauri/target/debug/deps/persistence_test-f4612e539160d93d)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.00s
+
+     Running tests/protocol_fixtures_test.rs (src-tauri/target/debug/deps/protocol_fixtures_test-91f960afc43f3870)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests/remove_skill_dir_test.rs (src-tauri/target/debug/deps/remove_skill_dir_test-20bf193a4ca8ec80)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests/skill_service_test.rs (src-tauri/target/debug/deps/skill_service_test-786b959d24ff5ab5)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 15 filtered out; finished in 0.00s

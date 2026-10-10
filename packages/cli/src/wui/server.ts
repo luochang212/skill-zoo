@@ -1,3 +1,4 @@
+import { acquireAgentLease } from "../protocol/agent-transaction.js";
 import crypto from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { existsSync } from "node:fs";
@@ -150,7 +151,9 @@ async function handleRequest(
         writeJson(response, 401, { ok: false, error: "Unauthorized" });
         return;
       }
-      await handleApi(request, response, url, context);
+      const release = await acquireAgentLease(context.home);
+      try { await handleApi(request, response, url, context); }
+      finally { await release(); }
       return;
     }
 

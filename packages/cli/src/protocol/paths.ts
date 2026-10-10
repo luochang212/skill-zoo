@@ -1,6 +1,6 @@
 import os from "node:os";
 import path from "node:path";
-import { AGENTS } from "./agents.js";
+import { getAgents, getSuppressedAgents } from "./custom-agents.js";
 
 export interface SkillZooPaths {
   home: string;
@@ -20,6 +20,7 @@ export interface AgentPathInfo {
   label: string;
   path: string;
   exists?: boolean;
+  suppressedBy?: string;
 }
 
 export function resolveHome(home?: string): string {
@@ -51,26 +52,27 @@ export function getAgentSkillsDir(homeInput: string | undefined, agentId: string
     return getPaths(homeInput).agentsSkillsDir;
   }
 
-  const agent = AGENTS.find((candidate) => candidate.id === agentId);
+  const agent = getAgents(homeInput).find((candidate) => candidate.id === agentId);
   if (!agent) {
     return undefined;
   }
 
-  return path.join(resolveHome(homeInput), agent.skillsSubdir, "skills");
+  return agent.skillsDir ?? path.join(resolveHome(homeInput), agent.skillsSubdir, "skills");
 }
 
 export function agentLinkName(directory: string): string {
   return directory.split(/[\\/]/).filter(Boolean).at(-1) ?? directory;
 }
 
-export function getAllAgentPaths(homeInput?: string): AgentPathInfo[] {
+export function getAllAgentPaths(homeInput?: string, includeSuppressed = false): AgentPathInfo[] {
   const paths = getPaths(homeInput);
   return [
     { agent: "ssot", label: "Skills Store", path: paths.agentsSkillsDir },
-    ...AGENTS.map((agent) => ({
+    ...(includeSuppressed ? [...getAgents(homeInput), ...getSuppressedAgents(homeInput)] : getAgents(homeInput)).map((agent) => ({
       agent: agent.id,
       label: agent.label,
-      path: path.join(paths.home, agent.skillsSubdir, "skills"),
+      ...("suppressedBy" in agent ? { suppressedBy: agent.suppressedBy as string } : {}),
+      path: agent.skillsDir ?? path.join(paths.home, agent.skillsSubdir, "skills"),
     })),
   ];
 }

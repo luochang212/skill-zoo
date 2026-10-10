@@ -1,3 +1,4 @@
+import { acquireAgentLease } from "./protocol/agent-transaction.js";
 import { Command, Option } from "commander";
 import { createInterface } from "node:readline/promises";
 import { stdin as defaultStdin, stdout as defaultStdout } from "node:process";
@@ -13,7 +14,7 @@ import {
   type DoctorReport,
   type InspectSkillData,
 } from "./protocol/diagnostics.js";
-import { AGENTS } from "./protocol/agents.js";
+import { getAgents, getSuppressedAgents, resetAgentSnapshot } from "./protocol/custom-agents.js";
 import { getAllAgentPaths } from "./protocol/paths.js";
 import { rebuildCache, scanInstalledSkills } from "./protocol/scan.js";
 import type { InstalledSkill, SkillOrigin } from "./protocol/types.js";
@@ -73,6 +74,16 @@ type ListIssueFilter = ConsistencyIssueKind | "any";
 
 export function createProgram(io: IO = defaultIO()): Command {
   const program = new Command();
+  let releaseLease: (() => Promise<void>) | undefined;
+  program.hook("preAction", async (_command, action) => {
+    const home = (program.opts() as GlobalOptions).home;
+    resetAgentSnapshot(home);
+    if (action.name() !== "wui") releaseLease = await acquireAgentLease(home);
+  });
+  program.hook("postAction", async () => {
+    await releaseLease?.();
+    releaseLease = undefined;
+  });
 
   program
     .name("skill-zoo")
@@ -248,13 +259,13 @@ Examples:
     .action(async (options: CommonOptions) =>
       withErrors(io, withHome(program, options), async () => {
         const opts = withHome(program, options);
-        const paths = getAllAgentPaths(opts.home);
+        const paths = getAllAgentPaths(opts.home, true);
         writeSuccess(
           io,
           opts,
           paths,
           undefined,
-          `${paths.map((item) => `${item.agent}: ${item.path}`).join("\n")}\n`,
+          `${paths.map((item) => `${item.agent}: ${item.path}${item.suppressedBy ? ` (not enabled: overlaps ${item.suppressedBy})` : ""}`).join("\n")}\n`,
         );
       }),
     );
@@ -443,7 +454,7 @@ Safe workflow:
           exitCode === 0,
           formatRestoreData(result, Boolean(opts.dryRun)),
           result.changes,
-          formatBatch(opts.dryRun ? "Would restore" : "Restored", result.restored, result.failed),
+          formatBatch(opts.dryRun ? "Would restore" : "Restored", result.restored, result.failed) + (result.skippedAgents?.length ? `Skipped links to unavailable agents: ${result.skippedAgents.join(", ")}\n` : ""),
         );
         if (exitCode !== 0) {
           process.exitCode = exitCode;
@@ -530,7 +541,7 @@ Target specific agents:
       };
       return withErrors(io, withHome(program, localOptions), async () => {
         const opts = withHome(program, localOptions);
-        const agents = validateAgentSelections(opts.agent);
+        const agents = validateAgentSelections(opts.agent, opts.home);
         await requireConfirmation(io, opts, `Import ${paths.length} external skill(s)?`);
         const result = await importExternalSkills(opts.home, paths, agents, { dryRun: opts.dryRun });
         const exitCode = importsBatchExitCode(result.added, result.failed);
@@ -675,7 +686,8 @@ function withHome<T extends CommonOptions>(program: Command, options: T): T {
 
 export async function runCli(argv: string[], io: IO = defaultIO()): Promise<void> {
   const program = createProgram(io);
-  await program.parseAsync(argv, { from: "user" });
+  try { await program.parseAsync(argv, { from: "user" }); }
+  catch (error) { await withErrors(io, { json: argv.includes("--json") }, async () => { throw error; }); }
 }
 
 function defaultIO(): IO {
@@ -694,7 +706,7 @@ async function filterInstalledSkills(
   let filtered = skills;
 
   if (options.agent) {
-    const agent = validateAgentFilter(options.agent);
+    const agent = validateAgentFilter(options.agent, home);
     filtered = filtered.filter((skill) => skill.apps[agent] === true);
   }
 
@@ -723,9 +735,11 @@ function assertNoInstalledListFilters(options: ListOptions): void {
   }
 }
 
-function validateAgentFilter(agent: string): string {
-  if (!AGENTS.some((item) => item.id === agent)) {
-    throw new CliError(`Unknown agent: ${agent}. Expected one of: ${AGENTS.map((item) => item.id).join(", ")}`);
+function validateAgentFilter(agent: string, home?: string): string {
+  const suppressed = getSuppressedAgents(home).find((a) => a.id === agent);
+  if (suppressed) throw new CliError(`Agent ${agent} is not enabled: its directory overlaps custom agent ${suppressed.suppressedBy}. Use the custom agent ID.`);
+  if (!getAgents(home).some((item) => item.id === agent)) {
+    throw new CliError(`Unknown agent: ${agent}. Expected one of: ${getAgents(home).map((item) => item.id).join(", ")}`);
   }
   return agent;
 }
@@ -958,16 +972,10 @@ function formatAddData(
   };
 }
 
-function validateAgentSelections(agents?: string[]): string[] {
+function validateAgentSelections(agents?: string[], home?: string): string[] {
   if (!agents || agents.length === 0) {
-    return AGENTS.map((a) => a.id);
+    return getAgents(home).map((a) => a.id);
   }
-  for (const agent of agents) {
-    if (!AGENTS.some((a) => a.id === agent)) {
-      throw new CliError(
-        `Unknown agent: ${agent}. Expected one of: ${AGENTS.map((a) => a.id).join(", ")}`,
-      );
-    }
-  }
+  for (const agent of agents) validateAgentFilter(agent, home);
   return agents;
 }

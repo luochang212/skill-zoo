@@ -200,6 +200,7 @@ export interface ArchiveSkillFailure {
 }
 
 export interface RestoreArchivedSkillsResult {
+  skippedAgents?: string[];
   restored: { archiveId: string; skill: InstalledSkill }[];
   failed: RestoreArchivedSkillFailure[];
 }
