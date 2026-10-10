@@ -36,8 +36,35 @@ impl AgentLease {
             .to_lowercase();
         let hash = Sha256::digest(identity.as_bytes());
         let port = 10240 + (u16::from_be_bytes([hash[0], hash[1]]) % 16384);
+        // SO_REUSEADDR keeps a fast release-and-reacquire (desktop restart, or
+        // the release test) immune to kernel linger state on the closed
+        // listener. A live listener elsewhere still fails the bind, so the
+        // cross-process exclusivity contract is unchanged.
+        #[cfg(unix)]
+        let listener = {
+            use socket2::{Domain, Protocol, Socket, Type};
+            let socket = Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP))
+                .map_err(|e| error::io(dir, e))?;
+            socket
+                .set_reuse_address(true)
+                .map_err(|e| error::io(dir, e))?;
+            socket
+                .bind(&std::net::SocketAddr::from((
+                    std::net::Ipv4Addr::LOCALHOST,
+                    port,
+                ))
+                .into())
+                .map_err(|_| {
+                    AppError::BadRequest("Another agent operation is running or the local lease is unavailable. Try again when it finishes.".into())
+                })?;
+            socket.listen(1).map_err(|e| error::io(dir, e))?;
+            std::net::TcpListener::from(socket)
+        };
+        #[cfg(not(unix))]
         let listener = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port))
-            .map_err(|_| AppError::BadRequest("Another agent operation is running or the local lease is unavailable. Try again when it finishes.".into()))?;
+            .map_err(|_| {
+                AppError::BadRequest("Another agent operation is running or the local lease is unavailable. Try again when it finishes.".into())
+            })?;
         let lease = Self {
             _listener: listener,
         };

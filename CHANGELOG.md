@@ -13,6 +13,7 @@
 
 ### Fixed
 - Unreadable subdirectories no longer block agent removal or path changes; they are skipped, matching the skill scanner's behavior.
+- The local mutation lease sets `SO_REUSEADDR` on its loopback listener, so a fast release-and-reacquire (app restart, or the CLI following the desktop) no longer fails while the kernel keeps the closed port in a linger state. An actively held lease still fails the bind, preserving cross-process exclusivity.
 - Badge row images in rendered markdown prose align correctly.
 
 ## [0.3.50] — 2026-10-09

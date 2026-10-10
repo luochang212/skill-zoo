@@ -53,6 +53,7 @@ urlencoding = "2.1"
 arboard = { version = "3.6.1", default-features = false }
 rusqlite = { version = "0.40", features = ["bundled"] }
 unicode-width = "0.2"
+socket2 = { version = "0.6", features = ["all"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
