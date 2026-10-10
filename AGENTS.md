@@ -102,7 +102,7 @@ The repo manages behavior-level changes through OpenSpec: open a change (proposa
 - `openspec/specs/` is the living truth of system behavior — behavior-level changes should sync the main specs, or the specs go stale.
 - `openspec/changes/archive/` is the decision record (with verification evidence and trade-offs) — worth reading before evaluating a change.
 - Project context lives in `openspec/config.yaml`; principle-level conventions are this file.
-- Gate: `openspec validate --strict`.
+- Gate: `openspec validate --all --strict`.
 - Typo-level or pure-tooling fixes don't need a change — match ceremony to stakes (see How We Work).
 
 ## Testing

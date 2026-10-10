@@ -2,9 +2,41 @@
 
 ## Purpose
 
-定义从 Git 仓库归档安装或更新技能时，将技能文件复制进 SSOT 存储的内容边界：哪些条目允许进入安装目标、软链接如何处理、以及递归深度的安全上限。
+定义技能安装与接入的文件所有权契约：远程技能保存到 SSOT，本地技能保持原位并通过链接共享；安装预检保护目标目录，仓库归档复制遵守软链接与递归深度边界。
 
 ## Requirements
+
+### Requirement: 远程安装保存到 SSOT 并以链接接入 agent
+
+远程技能安装 MUST 将仓库归档中的技能文件复制到 `~/.agents/skills/` 下的安装目标，选中的 agent MUST 通过符号链接或平台等价链接引用该目标。应用 MUST NOT 为各 agent 创建独立的技能文件副本。
+
+#### Scenario: 同一远程技能安装到多个 agent
+- **WHEN** 用户将一个远程技能安装到两个 agent
+- **THEN** SSOT 中存在该技能的实体目录，两个 agent 的技能入口均指向该目录
+
+### Requirement: 本地技能接入保持源目录原位
+
+用户已有的本地技能在接入其它 agent 时 MUST 保留于原始实体目录，应用 MUST NOT 复制或移动源目录。其它 agent 的入口 MUST 直接链接到该技能的实际主目录。
+
+#### Scenario: 接入已有 agent 中的本地技能
+- **WHEN** 用户将一个已存在于 agent A 的实体技能目录接入 agent B
+- **THEN** agent A 的实体目录保持原位，agent B 的入口指向该目录，SSOT 中不产生副本
+
+### Requirement: 安装预检只检查本次目标范围
+
+安装前系统 MUST 检查 SSOT 和本次安装选中的 agent 目录。任一目标已存在或同一批次包含重复目标时，安装 MUST 在写入技能文件前被拒绝。未选中的 agent 目录 MUST NOT 因同名条目阻断本次安装。
+
+#### Scenario: 所选 agent 存在同名目标
+- **WHEN** SSOT 或本次所选 agent 目录存在待安装技能的同名目标
+- **THEN** 安装被拒绝，已有目标保持不变
+
+#### Scenario: 未选中的 agent 不制造冲突
+- **WHEN** 只有未被本次安装选中的 agent 目录存在同名目标
+- **THEN** 该条目不阻断安装
+
+#### Scenario: 批次包含重复安装目标
+- **WHEN** 用户选择的多个技能会写入同一个安装目标
+- **THEN** 预检拒绝该批次，尚未写入任何技能文件
 
 ### Requirement: 复制不得跟随目录软链接
 
