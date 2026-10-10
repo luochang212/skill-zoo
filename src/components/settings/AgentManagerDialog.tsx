@@ -282,6 +282,12 @@ export function AgentManagerDialog({
 
   const visibleOrder = draftOrder.filter((agent) => visibleAgents[agent] !== false);
   const hiddenOrder = draftOrder.filter((agent) => visibleAgents[agent] === false);
+  // The list needs the tall fixed shell; the editor is a short form and only
+  // caps the height so long reviews still scroll.
+  const contentHeight =
+    editor === undefined
+      ? "h-[min(720px,calc(100vh-6rem))]"
+      : "max-h-[min(720px,calc(100vh-6rem))]";
 
   const handleToggle = (agent: string) => {
     if (updatePreferences.isPending) return;
@@ -350,7 +356,7 @@ export function AgentManagerDialog({
           event.preventDefault();
           returnFocusRef.current?.focus();
         }}
-        className="flex h-[min(720px,calc(100vh-6rem))] w-[calc(100vw-2rem)] max-w-[600px] flex-col gap-0 overflow-hidden p-0 sm:rounded-xl"
+        className={`flex ${contentHeight} w-[calc(100vw-2rem)] max-w-[600px] flex-col gap-0 overflow-hidden p-0 sm:rounded-xl`}
         data-selectable
       >
         <DialogHeader className="shrink-0 border-b border-border/50 px-4 py-4 text-left">

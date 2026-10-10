@@ -1,11 +1,12 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, FolderOpen, LoaderCircle } from "lucide-react";
+import { FolderOpen, LoaderCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { settingsApi } from "@/lib/api/settings";
 import type { AgentChangeResult, AgentPathInfo, AgentPreview } from "@/types/skills";
 import { Button } from "@/components/ui/button";
+import { BackButton } from "@/components/ui/BackButton";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { invalidateAgentState } from "@/hooks/useSettings";
@@ -19,10 +20,6 @@ export function suggestName(path: string): string {
     last?.toLowerCase() === "skills" && segments.length > 1 ? segments[segments.length - 2] : last;
   if (!candidate || candidate === "~") return "";
   return candidate.replace(/^\.+/, "");
-}
-
-function stripTrailingSlashes(value: string): string {
-  return value.trim().replace(/[\\/]+$/, "");
 }
 
 export function CustomAgentEditor({
@@ -62,8 +59,6 @@ export function CustomAgentEditor({
   const sequence = useRef(0);
   const lastClose = useRef(closeRequest);
   const dirty = name !== (agent?.label ?? "") || path !== (agent?.path ?? "") || create;
-  const resolvedPathDiffers =
-    preview !== undefined && stripTrailingSlashes(preview.path) !== stripTrailingSlashes(path);
   const showError = (failure: unknown) => {
     const message = failure instanceof Error ? failure.message : String(failure);
     const nameConflict = message.includes("name already exists");
@@ -227,17 +222,9 @@ export function CustomAgentEditor({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-4">
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="mb-5 w-fit shrink-0 gap-2 px-0"
-        onClick={cancel}
-        disabled={busy}
-      >
-        <ArrowLeft className="h-4 w-4" />
-        {t("settings.customAgents.back")}
-      </Button>
+      <div className="mb-4 shrink-0">
+        <BackButton onClick={cancel} title={t("settings.customAgents.back")} disabled={busy} />
+      </div>
       {discard ? (
         <div role="alert" className="min-h-0 space-y-4 overflow-y-auto">
           <p className="text-sm">{t("settings.customAgents.discardQuestion")}</p>
@@ -324,7 +311,7 @@ export function CustomAgentEditor({
         >
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1">
             <div className="space-y-2">
-              <label htmlFor={`${id}-path`} className="text-sm font-medium">
+              <label htmlFor={`${id}-path`} className="text-xs font-medium text-muted-foreground">
                 {t("settings.customAgents.directory")} *
               </label>
               <div className="flex gap-2">
@@ -366,9 +353,6 @@ export function CustomAgentEditor({
               <p id={`${id}-hint`} className="text-xs text-muted-foreground">
                 {t("settings.customAgents.directoryHint")}
               </p>
-              {resolvedPathDiffers && (
-                <p className="break-all font-mono text-xs text-muted-foreground">{preview?.path}</p>
-              )}
               {preview && !preview.exists && (
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
@@ -382,7 +366,7 @@ export function CustomAgentEditor({
               )}
             </div>
             <div className="space-y-2">
-              <label htmlFor={`${id}-name`} className="text-sm font-medium">
+              <label htmlFor={`${id}-name`} className="text-xs font-medium text-muted-foreground">
                 {t("settings.customAgents.name")} *
               </label>
               <Input

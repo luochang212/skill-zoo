@@ -156,24 +156,6 @@ describe("CustomAgentEditor", () => {
     expect(name).toHaveValue("Mine");
   });
 
-  it("shows the resolved directory only when it differs from the input", async () => {
-    setup();
-    const user = userEvent.setup();
-    const directory = screen.getByLabelText(/^Skills directory/);
-    await user.type(directory, "/tool/skills");
-    await user.tab();
-    await waitFor(() => expect(settingsApi.previewCustomAgent).toHaveBeenCalled());
-    expect(screen.queryByText("/tool/skills")).not.toBeInTheDocument();
-    vi.mocked(settingsApi.previewCustomAgent).mockResolvedValue({
-      ...preview,
-      path: "/private/resolved/path",
-    });
-    await user.clear(directory);
-    await user.type(directory, "/resolved/path");
-    await user.tab();
-    await waitFor(() => expect(screen.getByText("/private/resolved/path")).toBeInTheDocument());
-  });
-
   it.each([
     ["~/.hermes/skills", "hermes"],
     ["/Users/me/Library/MyAgent", "MyAgent"],
