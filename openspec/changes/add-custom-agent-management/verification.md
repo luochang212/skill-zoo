@@ -83,3 +83,20 @@ Frontend full suite: 165 passed. CLI full suite: 109 passed. Rust final full sui
 The zero-custom production benchmark was explicitly rerun after adding incremental external-import precedence: median batch100=23.40ms, batch1000=225.35ms, incremental≈0.85–0.97ms, lookup10k≈5.48–5.67ms. These remain within the recorded baseline budget; registry reconciliation is not performed per skill/path lookup.
 
 The real manager/editor components were rendered at 800×600 in Chrome with injected registration data: `ui/upgrade-overlap-800-zh-light.png` and `ui/add-after-copy-removal-800-zh-light.png`. The suppressed row is read-only, describes the conflicting custom registration and full root, is outside visibility/cap, and exposes no switch. Browser reported no page errors; the removed editor copy is absent. These screenshots do not simulate an actual desktop update or native picker. Live desktop interaction review remains user-owned and unconfirmed; task 5.4 stays open.
+
+## Review fixes (2026-10-11)
+
+An independent review of the branch landed three corrections; deferred items and verification boundaries are recorded with them.
+
+- Startup no longer aborts when `agents.json` is unreadable (corrupt, hand-edited, or missing `version`): after lease-guarded recovery the desktop boots with built-in agents and logs the parse error. Saves still refuse to overwrite the broken file (`AgentRegistry::save_to` re-reads), and later registry mutations surface the parse error when the user acts. Lease acquisition stays fail-closed per design — it performs journal recovery and its port range sits below the automatic ephemeral-client range. Verification is structural (the change lives in the Tauri setup closure) plus the existing `absent_is_empty_but_invalid_is_never_overwritten` persistence test.
+- The visible-agent cap has one spelling now: `config::MAX_VISIBLE_AGENTS` replaces the private `settings.rs` constant and the two inline `< 7` literals in `agents.rs`. The differing policies are unchanged and documented at the const: preference saves guard growth past the cap, registration checks it directly.
+- Unreadable directories no longer block agent removal, path changes or previews. `real_skills` and the preview's owned-link count skip them, matching `services::skill::collect_files_recursive` and the protocol's best-effort link cleanup. Red→green regression test: `unreadable_subdirectory_skips_instead_of_blocking_removal` (Unix `chmod 000`; passes trivially when run as root).
+
+Deferred with reasoning:
+
+- Holding the mutation lease across install/update downloads blocks unrelated settings saves and link toggles for the download duration. `CliService::add_skills` bundles download, extraction and registration writes, so narrowing the lease requires splitting that service; queued. The contention failure is a retryable command error, not data loss.
+- `InstalledSkills.test.tsx` "shows SSOT, visible-agent entity…" failed intermittently (3/36 branch runs, 0/8 on main — not statistically separable). Every dependency of that test is mocked and unchanged by this branch and the component is untouched, so it is treated as an environment-level flake, not a regression. No fix landed; rerun if CI reports it.
+
+The review also observed a discarded, never-staged ~224-line test expansion of `commands/agents.rs` that did not compile (`AgentLease` lacked `Debug` for `unwrap_err` on the commit tuple). Its intended scenarios are already covered by `rename_and_removal_preserve_identity_files_metadata_and_other_links`, so it was not recreated.
+
+Validation for these fixes: Rust full suite 229 passed (185 unit including the new test, plus 44 integration), clippy `-D warnings`, `cargo fmt --check`, `oxlint`, `oxfmt --check`, and the frontend suite (29 files / 165 tests) all passed.

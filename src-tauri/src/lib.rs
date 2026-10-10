@@ -44,7 +44,11 @@ pub fn run() {
                 let _lease = persistence::agent_transaction::AgentLease::acquire(
                     &config::get_app_config_dir(),
                 )?;
-                config::refresh_agents()?;
+                // An unreadable registry degrades to built-in agents: saves still
+                // refuse to overwrite the broken file (AgentRegistry::save_to).
+                if let Err(e) = config::refresh_agents() {
+                    eprintln!("Failed to load agent registry, using built-in agents: {e}");
+                }
             }
             // Clean up residual .tmp files from interrupted downloads
             let cache_dir = config::get_repo_zip_cache_dir();

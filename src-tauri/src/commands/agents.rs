@@ -131,8 +131,13 @@ fn real_skills(root: &Path) -> Result<Vec<PathBuf>, String> {
             skills.push(path.to_path_buf());
             return Ok(());
         }
-        for entry in std::fs::read_dir(path).map_err(|e| e.to_string())? {
-            let entry = entry.map_err(|e| e.to_string())?;
+        // Unreadable directories are skipped, matching the scanner's behavior
+        // (services::skill::collect_files_recursive), so a permissions problem
+        // cannot block agent removal or path changes.
+        let Ok(entries) = std::fs::read_dir(path) else {
+            return Ok(());
+        };
+        for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
             if config::SKIP_DIRS.contains(&name.as_str()) || SkillService::is_app_temp_dir(&name) {
                 continue;
@@ -170,12 +175,15 @@ fn preview_path(state: &AppState, path: &Path, id: Option<&str>) -> Result<Agent
     );
     let mut owned_links = 0;
     if path.is_dir() {
-        for entry in std::fs::read_dir(path).map_err(|e| e.to_string())? {
-            let path = entry.map_err(|e| e.to_string())?.path();
-            if is_symlink_or_junction(&path)
-                && is_app_owned_link(&path, &config::get_agents_skills_dir(), &known)
-            {
-                owned_links += 1;
+        // Best-effort count, like the link cleanup this previews.
+        if let Ok(entries) = std::fs::read_dir(path) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if is_symlink_or_junction(&path)
+                    && is_app_owned_link(&path, &config::get_agents_skills_dir(), &known)
+                {
+                    owned_links += 1;
+                }
             }
         }
     }
@@ -451,7 +459,10 @@ fn commit_agent_change(
         registry.agents.retain(|a| a.id != id);
     }
     if old.is_none() {
-        visible.insert(id.clone(), visible.values().filter(|v| **v).count() < 7);
+        visible.insert(
+            id.clone(),
+            visible.values().filter(|v| **v).count() < config::MAX_VISIBLE_AGENTS,
+        );
     }
     if next.is_none() {
         visible.remove(&id);
@@ -470,7 +481,7 @@ fn commit_agent_change(
                 .unwrap_or_else(|| config::default_visibility(&agent.id));
             visible.insert(
                 agent.id.clone(),
-                desired && visible.values().filter(|v| **v).count() < 7,
+                desired && visible.values().filter(|v| **v).count() < config::MAX_VISIBLE_AGENTS,
             );
         }
     }
@@ -699,6 +710,23 @@ mod tests {
             assert_eq!(std::fs::canonicalize(other.join("demo")).unwrap(), skill);
             assert!(config::get_agent_skills_dir(&added.agent_id).is_none());
         });
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unreadable_subdirectory_skips_instead_of_blocking_removal() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("tool/skills");
+        let readable = root.join("demo");
+        std::fs::create_dir_all(&readable).unwrap();
+        std::fs::write(readable.join("SKILL.md"), "# Demo").unwrap();
+        let locked = root.join("locked");
+        std::fs::create_dir_all(&locked).unwrap();
+        std::fs::write(locked.join("SKILL.md"), "# Locked").unwrap();
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o000)).unwrap();
+        let skills = real_skills(&root).unwrap();
+        assert_eq!(skills, vec![readable]);
     }
 
     #[test]

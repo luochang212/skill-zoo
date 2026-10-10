@@ -195,6 +195,10 @@ pub static AGENTS: LazyLock<Vec<AgentConfig>> = LazyLock::new(|| {
     ]
 });
 
+/// Visible-agent cap. Preference saves only guard growth past it
+/// (`commands::settings::exceeds_visible_agent_cap`); registration checks it directly.
+pub const MAX_VISIBLE_AGENTS: usize = 7;
+
 pub fn default_visibility(agent_id: &str) -> bool {
     !matches!(
         agent_id,

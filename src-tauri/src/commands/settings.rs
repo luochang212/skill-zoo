@@ -370,7 +370,7 @@ fn cleanup_hidden_agent_links(
     }
 }
 
-const MAX_VISIBLE_AGENTS: usize = 7;
+use crate::config::MAX_VISIBLE_AGENTS;
 
 fn merge_registered_visibility(
     requested: &HashMap<String, bool>,
