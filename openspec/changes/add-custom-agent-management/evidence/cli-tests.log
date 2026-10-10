@@ -1,0 +1,13 @@
+$ cd packages/cli && bun run test "--maxWorkers=1"
+$ vitest run "--maxWorkers=1"
+
+ RUN  v5.0.1 /Users/alex/Documents/GitHub/skill-zoo/packages/cli
+
+
+ Test Files  12 passed (12)
+      Tests  106 passed (106)
+   Start at  02:49:15
+   Duration  12.60s (tests 64%, import 28%, transform 7%, worker 1%)
+
+    Isolate  12 workers spawned · ~244ms startup each (spawn + environment, per file)
+             at least ~2.69s faster with isolate: false — reuses workers across files instead of one per file

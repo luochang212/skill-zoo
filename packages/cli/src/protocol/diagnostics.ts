@@ -1,5 +1,5 @@
 import path from "node:path";
-import { AGENTS } from "./agents.js";
+import { getAgents } from "./custom-agents.js";
 import { agentLinkName, getAgentSkillsDir, getPaths } from "./paths.js";
 import { resolveOneSkillRef } from "./refs.js";
 import { rebuildCache, scanCacheEntries, scanInstalledSkills } from "./scan.js";
@@ -259,7 +259,7 @@ async function findContestedAgentLinks(
       continue;
     }
 
-    for (const agent of AGENTS) {
+    for (const agent of getAgents(home)) {
       const agentDir = getAgentSkillsDir(home, agent.id);
       if (!agentDir || (await pathStartsWith(skill.homePath, agentDir))) {
         continue;
@@ -332,7 +332,7 @@ async function checkSkillAgentLinks(
     return;
   }
 
-  for (const agent of AGENTS) {
+  for (const agent of getAgents(home)) {
     const agentDir = getAgentSkillsDir(home, agent.id);
     if (!agentDir) {
       continue;

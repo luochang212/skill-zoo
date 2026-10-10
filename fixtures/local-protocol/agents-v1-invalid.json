@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "agents": [
+    {
+      "id": "custom-1",
+      "label": "Invalid",
+      "skillsDir": "relative"
+    }
+  ]
+}

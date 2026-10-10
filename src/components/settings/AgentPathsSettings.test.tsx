@@ -59,6 +59,29 @@ describe("AgentPathsSettings", () => {
     await i18n.changeLanguage("en");
   });
 
+  it("explains suppressed built-ins without exposing them as visibility targets", async () => {
+    const id = "custom-11111111-1111-4111-a111-111111111111";
+    const paths = [
+      { agent: id, label: "Codex", path: "/custom/skills", exists: true },
+      { agent: "codex", label: "Codex", path: "/builtin/skills", exists: true, suppressedBy: id },
+      { agent: "gemini", label: "Gemini", path: "/gemini/skills", exists: false },
+    ];
+    mockAgentSettings(paths, { [id]: true, gemini: false }, [id, "gemini"]);
+    renderSettings();
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Manage Coding Agents" }));
+    expect(screen.getByRole("region", { name: "Not enabled" })).toHaveTextContent(
+      /directory overlaps custom agent/,
+    );
+    expect(screen.getByRole("region", { name: "Not enabled" })).toHaveTextContent(
+      "/builtin/skills",
+    );
+    expect(screen.getAllByRole("switch")).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "Edit Codex" })).toHaveLength(1);
+    expect(screen.getByText("Custom")).toBeInTheDocument();
+  });
+
   it("shows all visible agents in the settings summary", async () => {
     const paths = Array.from({ length: 7 }, (_, index) => ({
       agent: `agent-${index + 1}`,

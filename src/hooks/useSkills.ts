@@ -1,3 +1,4 @@
+import { invalidateAgentState } from "@/hooks/useSettings";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
 import i18n from "@/i18n";
@@ -50,9 +51,10 @@ export function useSkillsWatcher() {
   useEffect(() => {
     let disposed = false;
     let unlisten: (() => void) | undefined;
-    void listen("skills-changed", () => {
+    void listen<{ agentsChanged?: boolean } | null>("skills-changed", (event) => {
       invalidateFor(qc, "rescanSkills");
       invalidateFor(qc, "externalImports");
+      if (event.payload?.agentsChanged) void invalidateAgentState(qc);
     }).then((registeredUnlisten) => {
       if (disposed) {
         registeredUnlisten();
@@ -207,6 +209,8 @@ export function useRestoreArchivedSkill() {
       const result = await skillsApi.restoreArchivedSkills([archiveId]);
       const restored = result.restored[0];
       if (!restored) throw new Error(result.failed[0]?.error ?? "Restore failed");
+      if (result.skippedAgents?.length)
+        toast.warning(i18n.t("settings.customAgents.restoreSkipped"));
       return restored.skill;
     },
     onSuccess: (skill) => {
@@ -224,7 +228,11 @@ export function useRestoreArchivedSkills() {
   const qc = useQueryClient();
   return useMutation<RestoreArchivedSkillsResult, Error, string[]>({
     mutationFn: (archiveIds: string[]) => skillsApi.restoreArchivedSkills(archiveIds),
-    onSuccess: () => invalidateFor(qc, "restoreArchivedSkills"),
+    onSuccess: (result) => {
+      if (result.restored.length && result.skippedAgents?.length)
+        toast.warning(i18n.t("settings.customAgents.restoreSkipped"));
+      invalidateFor(qc, "restoreArchivedSkills");
+    },
   });
 }
 

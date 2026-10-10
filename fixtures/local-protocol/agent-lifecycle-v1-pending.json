@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "committed": false,
+  "before": {
+    "agents.json": null,
+    "imports.json": null,
+    "settings.json": "{\"values\":{\"theme\":\"dark\"}}\n"
+  },
+  "after": {
+    "agents.json": "{\"version\":1,\"agents\":[]}\n",
+    "imports.json": "{\"version\":1,\"imports\":{}}\n",
+    "settings.json": "{\"values\":{\"theme\":\"dark\",\"agent_order\":\"[]\"}}\n"
+  }
+}

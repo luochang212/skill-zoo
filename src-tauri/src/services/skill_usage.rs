@@ -149,6 +149,12 @@ struct UsageCollectorEntry {
     collect: EventCollector,
 }
 
+pub fn supports_agent(agent_id: &str) -> bool {
+    USAGE_COLLECTORS
+        .iter()
+        .any(|collector| collector.agent_id == agent_id)
+}
+
 static USAGE_COLLECTORS: &[UsageCollectorEntry] = &[
     UsageCollectorEntry {
         agent_id: "claude-code",

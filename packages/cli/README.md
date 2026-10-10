@@ -118,3 +118,15 @@ The CLI uses these local files and directories:
 ```
 
 Do not edit those protocol files by hand for normal archive or restore tasks.
+
+### Custom coding agents
+
+Agents registered in desktop Settings are also available to CLI path lookup,
+`--agent` filtering, imports, diagnostics and archive/restore operations using
+their stable `custom-<UUID>` IDs. Run `skill-zoo paths --json` to find the IDs.
+Use matching desktop and CLI versions. Registration editing stays in desktop
+Settings; removing a registration keeps real skills as external imports and
+preserves their files and links from other agents. Unsupported usage-log formats
+do not affect shared skill management.
+
+When a newer release ships built-in support for an existing custom agent, the custom ID and directory remain unchanged. Disjoint directories can share a display name. A built-in with an overlapping directory is excluded from scanning and install/link targets; `skill-zoo paths` explains the conflict (`suppressedBy` in JSON). Use the custom ID while the overlap remains. Removing/changing that custom registration makes the built-in available again without converting retained external skills or reassigning usage tracking.

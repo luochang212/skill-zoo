@@ -1,0 +1,291 @@
+   Compiling skill-zoo v0.3.50 (/Users/alex/Documents/GitHub/skill-zoo/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4m 04s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/skill_zoo_lib-851cb4af3398a96a)
+
+running 179 tests
+test commands::agents::tests::custom_agent_lifecycle_performance ... ignored, filesystem lifecycle latency evidence; run explicitly
+test commands::agents::tests::real_skill_scan_keeps_dot_namespaces_and_skips_links ... ok
+test commands::agents::tests::path_aliases_and_protected_roots_are_rejected ... ok
+test commands::agents::tests::removing_last_visible_agent_is_rejected_and_adding_at_cap_is_hidden ... ok
+test commands::agents::tests::registration_around_an_existing_import_keeps_external_ownership ... ok
+test commands::settings::agent_preferences_tests::cleanup_failure_on_readonly_agent_home_degrades_instead_of_failing ... ok
+test commands::settings::agent_preferences_tests::cleanup_failure_on_readonly_skills_dir_degrades_instead_of_failing ... ok
+test commands::settings::agent_preferences_tests::cleanup_skips_foreign_links_without_failing ... ok
+test commands::settings::agent_preferences_tests::normalizes_known_agents_with_visible_agents_first ... ok
+test commands::settings::agent_preferences_tests::persist_failure_restores_settings_and_reports_error ... ok
+test commands::settings::agent_preferences_tests::rejects_preferences_without_a_visible_agent ... ok
+test commands::settings::agent_preferences_tests::stale_preferences_keep_new_hidden_agents_hidden_and_discard_removed_ids ... ok
+test commands::settings::agent_preferences_tests::updates_visibility_and_order_together ... ok
+test commands::settings::agent_preferences_tests::visible_agent_cap_only_blocks_growth ... ok
+test commands::settings::agent_preferences_tests::cleanup_success_returns_false_and_removes_owned_links ... ok
+test commands::settings::skill_update_check_tests::missing_remote_path_error_names_repo_branch_and_path ... ok
+test commands::agents::tests::cleanup_failure_does_not_roll_back_removal_or_touch_foreign_links ... ok
+test commands::settings::tests::rejects_invalid_base64_png_data_url ... ok
+test commands::settings::tests::decodes_png_data_url ... ok
+test commands::settings::tests::rejects_non_png_data_url ... ok
+test commands::skill::tests::added_update_error_changes_history_status_from_success_to_partial ... ok
+test commands::skill::tests::checked_update_candidates_keep_latest_sha_for_reuse ... ok
+test commands::skill::tests::checked_update_candidates_reject_stale_sha_and_non_ssot ... ok
+test commands::agents::tests::path_changes_keep_old_skills_and_stop_using_the_old_root_as_agent_home ... ok
+test commands::skill::tests::external_imports_are_not_archiveable ... ok
+test commands::skill::tests::dangling_external_import_symlink_still_matches_raw_target ... ok
+test commands::skill::tests::failed_skill_names_only_extracts_skill_prefixed_errors ... ok
+test commands::skill::tests::external_import_links_reject_ssot_store ... ok
+test commands::skill::tests::install_error_reports_every_incomplete_recovery_step ... ok
+test commands::skill::tests::external_import_status_ignores_unmanaged_agent_conflicts ... ok
+test commands::skill::tests::install_preflight_uses_selected_agents_not_all_visible_agents ... ok
+test commands::skill::tests::invalid_utf8_root_skill_metadata_is_not_treated_as_valid ... ok
+test commands::skill::tests::maps_supported_image_extensions_to_mime_types ... ok
+test commands::skill::tests::metadata_cache_clears_branch_when_default_branch_is_present ... ok
+test commands::skill::tests::metadata_cache_treats_legacy_branch_as_default_branch_only ... ok
+test commands::skill::tests::ignores_nested_readme_in_cached_repo_zip ... ok
+test commands::skill::tests::reads_root_readme_from_cached_repo_zip ... ok
+test commands::skill::tests::reads_default_readme_from_cached_branch_zip_when_default_zip_is_missing ... ok
+test commands::skill::tests::root_preview_requires_valid_root_skill_metadata ... ok
+test commands::skill::tests::skill_file_error_uses_stable_command_error_code ... ok
+test commands::skill::tests::strip_verbatim_prefix_local_verbatim ... ok
+test commands::skill::tests::strip_verbatim_prefix_no_prefix_passthrough ... ok
+test commands::skill::tests::strip_verbatim_prefix_unc_verbatim ... ok
+test commands::skill::tests::update_all_candidates_only_include_ssot_skills ... ok
+test commands::skill::tests::update_result_error_count_matches_errors ... ok
+test error::tests::command_error_classifies_download_unavailable_separately_from_rate_limit ... ok
+test error::tests::command_error_classifies_repo_too_large ... ok
+test commands::skill::tests::removes_historical_external_import_link_from_ssot_store ... ok
+test error::tests::classify_download_error_handles_connect_failure ... ok
+test error::tests::command_error_preserves_download_repo_and_code ... ok
+test commands::skill::tests::remove_cached_skill_from_disk_removes_selected_home_not_same_named_duplicate ... ok
+test commands::agents::tests::archived_local_skill_restores_to_original_path_after_agent_removal ... ok
+test persistence::agent_transaction::tests::live_lease_is_exclusive_and_released ... ok
+test commands::agents::tests::rename_and_removal_preserve_identity_files_metadata_and_other_links ... ok
+test persistence::agents::tests::absent_is_empty_but_invalid_is_never_overwritten ... ok
+test persistence::agent_transaction::tests::interrupted_postcommit_cleanup_rolls_forward ... ok
+test persistence::metadata::tests::empty_metadata_file_loads_as_empty_store ... ok
+test persistence::agents::tests::shared_registry_fixtures ... ok
+test persistence::update_history::tests::empty_history_file_loads_as_default_history ... ok
+test persistence::update_history::tests::clear_resets_future_version_so_history_can_be_saved ... ok
+test services::cli::tests::backup_path_candidate_is_unique_and_not_created ... ok
+test persistence::agent_transaction::tests::replays_shared_crash_fixtures ... ok
+test persistence::update_history::tests::persists_sorts_deletes_and_clears_history_records ... ok
+test services::cli::tests::cli_discovery_ignores_invalid_root_and_scans_nested_skills ... ok
+test services::cli::tests::cli_discovery_skips_symlinked_skill_directories ... ok
+test services::cli::tests::cli_discovery_stops_at_valid_root_skill ... ok
+test services::cli::tests::copy_dir_contents_does_not_resolve_symlink_target_against_cwd ... ok
+test services::cli::tests::copy_dir_contents_copies_file_symlink_target_relative_to_link_dir ... ok
+test persistence::agent_transaction::tests::every_precommit_failure_restores_all_files ... ok
+test services::cli::tests::copy_dir_contents_skips_directory_symlink_to_external_dir ... ok
+test services::cli::tests::create_install_temp_dir_uses_unique_paths_for_same_skill ... ok
+test services::cli::tests::copy_dir_contents_skips_loop_directory_symlink ... ok
+test services::cli::tests::default_branch_zip_uses_head_url_and_separate_cache_key ... ok
+test services::cli::tests::create_update_temp_dir_uses_unique_paths_for_same_skill ... ok
+test services::cli::tests::find_discovered_skill_for_update_accepts_legacy_skill_md_suffix ... ok
+test services::cli::tests::find_discovered_skill_for_update_falls_back_to_name_without_lock_path ... ok
+test services::cli::tests::find_discovered_skill_for_update_prefers_lock_skill_path_over_duplicate_leaf_name ... ok
+test services::cli::tests::groups_known_updates_by_repo_for_single_zip_download ... ok
+test services::cli::tests::find_discovered_skill_for_update_uses_repo_root_for_root_lock_paths ... ok
+test services::cli::tests::install_preflight_accepts_unused_destinations ... ok
+test services::cli::tests::install_preflight_ignores_agent_dirs_outside_requested_scope ... ok
+test services::cli::tests::install_preflight_rejects_duplicate_destinations_in_selection ... ok
+test services::cli::tests::install_preflight_rejects_existing_destination_before_writes ... ok
+test services::cli::tests::copy_dir_contents_rejects_excessive_nesting_depth ... ok
+test services::cli::tests::install_selection_keeps_true_duplicate_destinations_visible_to_preflight ... ok
+test services::cli::tests::install_selection_matches_root_skill_directory_key ... ok
+test services::cli::tests::install_selection_matches_windows_backslash_selector_for_nested_skill ... ok
+test services::cli::tests::install_selection_root_key_does_not_match_nested_same_name ... ok
+test services::cli::tests::known_update_from_tree_reports_missing_skill_path ... ok
+test services::cli::tests::normalize_repo_skill_path_converts_windows_backslashes_to_forward_slashes ... ok
+test services::cli::tests::lock_skill_path_preserves_discovered_relative_directory ... ok
+test services::cli::tests::install_temp_dir_keep_preserves_renamed_destination ... ok
+test services::cli::tests::install_selection_uses_relative_path_to_disambiguate_duplicate_leaf_names ... ok
+test services::cli::tests::single_update_without_commit_sha_returns_baseline_error ... ok
+test services::cli::tests::update_download_request_forces_fresh_zip ... ok
+test services::cli::tests::replace_skill_dir_with_rollback_replaces_existing_dest ... ok
+test services::cli::tests::root_path_variants_use_repository_tree_sha ... ok
+test services::cli::tests::replace_skill_dir_with_rollback_restores_dest_when_tmp_rename_fails ... ok
+test services::cli::tests::update_repo_info_preserves_missing_ref_as_default_branch ... ok
+test services::cli::tests::update_repo_info_uses_effective_source_url_fallback ... ok
+test services::cli::tests::zip_tmp_path_is_unique_per_call ... ok
+test services::github::tests::parser_rejects_non_github_hosts_and_invalid_segments ... ok
+test services::github::tests::repo_query_only_returns_a_branch_when_explicitly_provided ... ok
+test services::skill::tests::agent_link_name_uses_directory_leaf ... ok
+test services::github::tests::repo_ref_parses_github_urls_and_tree_branch ... ok
+test services::skill::tests::cache_batch_commit_persists_all_entries_once ... ok
+test services::skill::tests::cache_batch_commit_restores_memory_when_persistence_fails ... ok
+test services::github::tests::repo_ref_preserves_unknown_default_branch ... ok
+test services::github::tests::repo_ref_strips_dot_git ... ok
+test services::skill::tests::discoverable_classification_ignores_external_imports ... ok
+test services::skill::tests::discoverable_classification_matches_legacy_root_install_by_root_lock_path ... ok
+test services::skill::tests::create_link_to_target_uses_flat_agent_link_name_for_nested_skill ... ok
+test services::skill::tests::committed_agent_link_removal_deletes_links_without_deleting_targets ... ok
+test services::skill::tests::discoverable_classification_reports_available_when_cache_is_empty ... ok
+test services::skill::tests::discoverable_classification_uses_repo_path_for_installed_match ... ok
+test services::skill::tests::external_managed_skill_is_read_only ... ok
+test services::skill::tests::is_app_temp_dir_matches_temp_backup_but_not_namespaces ... ok
+test services::skill::tests::managed_skill_allows_paths_inside_root ... ok
+test services::skill::tests::is_app_owned_link_classifies_by_ssot_prefix_and_known_home ... ok
+test services::skill::tests::managed_skill_rejects_untrusted_relative_paths ... ok
+test services::skill::tests::managed_skill_rejects_symlink_escape ... ok
+test services::skill::tests::repo_discovery_scans_nested_skills_when_root_metadata_is_invalid ... ok
+test services::skill::tests::imported_directory_alias_keeps_one_external_record_after_agent_registration ... ok
+test services::skill::tests::repo_discovery_uses_directory_name_as_root_skill_key ... ok
+test services::skill::tests::repo_discovery_skips_symlinked_skill_directories ... ok
+test services::skill::tests::repo_root_normalization_uses_safe_skill_name ... ok
+test services::skill::tests::repo_root_normalization_slugifies_unsafe_skill_name ... ok
+test services::skill::tests::installed_skill_refresh_waits_for_an_active_cache_refresh ... ok
+test services::skill::tests::staged_agent_link_removal_reports_a_missing_backup ... ok
+test services::skill::tests::rollback_reports_recreated_link_collision ... ok
+test services::skill::tests::staging_stages_dangling_link_pointing_at_known_home ... ok
+test services::skill::tests::staged_agent_link_removal_rolls_back_all_agents_and_ignores_real_directories ... ok
+test services::skill::tests::symlink_target_state_treats_dangling_link_as_unknown ... ok
+test services::skill::tests::staged_agent_link_removal_restores_earlier_links_when_a_later_move_fails ... ok
+test services::skill::tests::toggle_symlink_does_not_remove_dangling_unknown_link ... ok
+test services::skill::tests::unsafe_skill_name_falls_back_to_repo_name_when_slug_is_empty_or_reserved ... ok
+test services::skill::tests::visible_local_scope_includes_ssot_external_and_visible_agent_home ... ok
+test services::skill_usage::tests::aggregates_periods_and_recent_skills ... ok
+test services::skill::tests::staging_collects_only_app_owned_links_and_counts_skipped ... ok
+test services::skill_usage::tests::aggregate_keeps_valid_lines_around_garbage ... ok
+test services::skill_usage::tests::aggregate_skips_invalid_utf8_line ... ok
+test services::skill_usage::tests::discovers_claude_logs_with_whitelist_filtering ... ok
+test services::skill_usage::tests::codex_parser_ignores_non_skill_commands ... ok
+test services::skill_usage::tests::extract_dollar_skill_from_user_message ... ok
+test services::skill_usage::tests::extract_heading_from_skill_md_text ... ok
+test services::skill_usage::tests::match_heading_finds_whitelist_entry ... ok
+test services::skill_usage::tests::heading_to_kebab_normalizes_titles ... ok
+test services::skill_usage::tests::discovers_codex_dollar_skill_with_whitelist ... ok
+test services::skill_usage::tests::discovers_codex_logs_with_whitelist_filtering ... ok
+test services::skill_usage::tests::normalizes_plugin_and_path_names ... ok
+test services::skill_usage::tests::opencode_filters_by_whitelist ... ok
+test services::skill_usage::tests::opencode_deduplicates_by_call_id ... ok
+test services::skill_usage::tests::opencode_handles_missing_db ... ok
+test services::skill_usage::tests::opencode_extracts_skill_events_from_sqlite ... ok
+test services::skill_usage::tests::parses_assistant_skill_tool_use ... ok
+test services::skill_usage::tests::parses_codex_skill_read ... ok
+test services::skill_usage::tests::parses_codex_user_message_skill ... ok
+test services::skill_usage::tests::parses_user_command_tag ... ok
+test services::skill_usage::tests::opencode_detects_injected_skill_from_text_part ... ok
+test services::tray::tests::maps_tray_labels_by_language ... ok
+test services::tray::tests::derives_menu_titles_from_content ... ok
+test services::tray::tests::parse_items_from_settings ... ok
+test services::tray::tests::parse_missing_or_invalid_items_as_empty ... ok
+test services::tray::tests::parses_companion_menu_item_ids ... ok
+test services::tray::tests::validate_rejects_empty_fields_and_duplicate_ids ... ok
+test services::skill_usage::tests::registry_unknown_agent_returns_empty ... ok
+test services::watcher::tests::classify_agent_skill_with_agent_id ... ok
+test services::watcher::tests::classify_agent_symlink_change_as_notify_only ... ok
+test services::watcher::tests::classify_archive_change_as_notify_only ... ok
+test services::watcher::tests::classify_full_rebuild_wins_over_incremental ... ok
+test services::watcher::tests::classify_new_skill_md_as_incremental ... ok
+test services::watcher::tests::classify_modify_skill_file_as_incremental ... ok
+test services::skill_usage::tests::opencode_injected_skill_dedup_with_tool_call ... ok
+test services::watcher::tests::classify_nested_file_by_nearest_skill_root ... ok
+test services::watcher::tests::classify_remove_as_full_rebuild ... ok
+test services::watcher::tests::classify_skip_dir_change_as_noop ... ok
+test services::watcher::tests::registry_changes_reconcile_agent_and_retained_external_roots ... ok
+test error::tests::command_error_maps_dns_connect_tls_variants ... ok
+test persistence::agent_transaction::tests::desktop_lease_excludes_the_real_cli_then_allows_it_after_release ... ok
+
+test result: ok. 178 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.97s
+
+     Running unittests src/main.rs (src-tauri/target/debug/deps/skill_zoo-e60a82537467f170)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/archive_persistence_test.rs (src-tauri/target/debug/deps/archive_persistence_test-dff2c53942dfa2aa)
+
+running 4 tests
+test test_archive_id_handles_nested_directory ... ok
+test test_archive_id_is_stable_and_path_safe ... ok
+test test_refuses_to_write_future_archive_version ... ok
+test test_archive_manifest_round_trips_skill_metadata ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/custom_agent_performance_test.rs (src-tauri/target/debug/deps/custom_agent_performance_test-98b314647cb23566)
+
+running 1 test
+test custom_agent_performance ... ignored, production-path performance evidence; run explicitly
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/lock_test.rs (src-tauri/target/debug/deps/lock_test-7f40d36f9e52c595)
+
+running 4 tests
+test test_effective_url_derives_from_source ... ok
+test test_effective_url_empty_source_url_falls_back ... ok
+test test_effective_url_non_github_source_type ... ok
+test test_refuses_to_write_future_lock_version ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/path_boundary_test.rs (src-tauri/target/debug/deps/path_boundary_test-55c65de6bfbf625a)
+
+running 5 tests
+test test_path_boundary_rejects_broken_symlink_file_for_writes ... ok
+test test_path_boundary_allows_new_file_under_real_root ... ok
+test test_path_boundary_allows_real_file_under_root ... ok
+test test_path_boundary_rejects_new_file_under_symlinked_directory_escape ... ok
+test test_path_boundary_rejects_symlink_file_escape ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/persistence_test.rs (src-tauri/target/debug/deps/persistence_test-f4612e539160d93d)
+
+running 12 tests
+test test_skill_cache_remove_rebuilds_id_index ... ok
+test test_skill_cache_builds_id_index_from_entries ... ok
+test test_skill_cache_duplicate_id_index_points_to_last_entry ... ok
+test test_skill_cache_from_entries_normalizes_home_path ... ok
+test test_skill_cache_deserialize_rebuilds_id_index ... ok
+test test_skill_cache_remove_where_rebuilds_id_index ... ok
+test test_skill_cache_upsert_dedup_by_directory_fallback ... ok
+test test_skill_cache_upsert_dedup_by_home_path ... ok
+test test_skill_cache_upsert_normalizes_home_path_to_forward_slashes ... ok
+test test_skill_cache_upsert_replaces_existing_id_without_duplicate ... ok
+test test_metadata_load_returns_valid_store_when_no_file ... ok
+test test_skill_lock_read_returns_valid_lock_when_no_file ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/protocol_fixtures_test.rs (src-tauri/target/debug/deps/protocol_fixtures_test-91f960afc43f3870)
+
+running 2 tests
+test test_desktop_applies_defaults_for_minimal_protocol_fixtures ... ok
+test test_desktop_reads_current_protocol_fixtures ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/remove_skill_dir_test.rs (src-tauri/target/debug/deps/remove_skill_dir_test-20bf193a4ca8ec80)
+
+running 2 tests
+test test_remove_skill_dir_non_existent_is_noop ... ok
+test test_remove_skill_dir_deletes_directory ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/skill_service_test.rs (src-tauri/target/debug/deps/skill_service_test-786b959d24ff5ab5)
+
+running 15 tests
+test test_extract_frontmatter_empty_frontmatter ... ok
+test test_classify_discoverable_skill_treats_multiple_same_directory_entries_as_conflict ... ok
+test test_duplicate_merge_requires_complete_matching_hashes ... ok
+test test_classify_discoverable_skill_distinguishes_installed_and_conflict ... ok
+test test_classify_discoverable_skill_treats_missing_and_local_entries_conservatively ... ok
+test test_extract_frontmatter_no_closing_delimiter ... ok
+test test_read_all_skills_uses_cached_apps ... ok
+test test_parse_skill_md_falls_back_to_dir_name_when_no_frontmatter ... ok
+test test_parse_skill_md_extracts_name_from_frontmatter ... ok
+test test_skill_cache_entry_defaults_missing_apps ... ok
+test test_build_file_tree_level_does_not_recurse ... ok
+test test_scan_skill_root_for_test_scans_agent_origin_without_ssot_fallback ... ok
+test test_scan_skill_root_normalizes_nested_directory_to_forward_slashes ... ok
+test test_scan_skill_root_for_test_scans_ssot_root_without_directory_guessing ... ok
+test test_scan_skill_root_recomputes_hash_after_file_deletion ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+   Doc-tests skill_zoo_lib
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

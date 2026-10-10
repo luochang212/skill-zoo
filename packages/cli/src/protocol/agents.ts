@@ -2,6 +2,7 @@ export interface AgentConfig {
   id: string;
   label: string;
   skillsSubdir: string;
+  skillsDir?: string;
 }
 
 export const AGENTS: AgentConfig[] = [

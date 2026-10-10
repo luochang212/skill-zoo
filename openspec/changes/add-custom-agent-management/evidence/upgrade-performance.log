@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.69s
+     Running tests/custom_agent_performance_test.rs (src-tauri/target/debug/deps/custom_agent_performance_test-98b314647cb23566)
+
+running 1 test
+BENCH skills=100 customs=0 populated=false scan=(23.400333, 28.403916000000002) incremental=(0.972208, 1.089625) detect=(5.511209, 6.948208) lookup10000=(5.48025, 6.088083)
+BENCH skills=1000 customs=0 populated=false scan=(225.353916, 247.70808399999999) incremental=(0.851208, 0.952458) detect=(61.470166, 65.512125) lookup10000=(5.672833000000001, 6.519375)
+test custom_agent_performance ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.09s

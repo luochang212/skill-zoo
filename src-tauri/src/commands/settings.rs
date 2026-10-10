@@ -110,6 +110,10 @@ pub fn update_setting(
     key: String,
     value: String,
 ) -> Result<(), String> {
+    let _agent_lease = crate::persistence::agent_transaction::AgentLease::acquire(
+        &crate::config::get_app_config_dir(),
+    )
+    .map_err(|e| e.to_string())?;
     let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
     settings.set(key, value);
     settings.save().map_err(|e| e.to_string())
@@ -131,6 +135,10 @@ pub fn save_skill_companion_items(
     state: State<'_, AppState>,
     items: Vec<SkillCompanionItem>,
 ) -> Result<Vec<SkillCompanionItem>, String> {
+    let _agent_lease = crate::persistence::agent_transaction::AgentLease::acquire(
+        &crate::config::get_app_config_dir(),
+    )
+    .map_err(|e| e.to_string())?;
     validate_skill_companion_items(&items)?;
     let json = serde_json::to_string(&items).map_err(|e| e.to_string())?;
     {
@@ -229,20 +237,20 @@ fn normalize_agent_order(
     visible_agents: &HashMap<String, bool>,
     agent_order: &[String],
 ) -> Vec<String> {
-    let mut ordered = Vec::with_capacity(crate::config::AGENTS.len());
+    let mut ordered = Vec::with_capacity(crate::config::agents().len());
 
     for agent_id in agent_order {
-        if crate::config::AGENTS
+        if crate::config::agents()
             .iter()
-            .any(|agent| agent.id == agent_id)
+            .any(|agent| agent.id == *agent_id)
             && !ordered.contains(agent_id)
         {
             ordered.push(agent_id.clone());
         }
     }
 
-    for agent in crate::config::AGENTS {
-        if !ordered.iter().any(|agent_id| agent_id == agent.id) {
+    for agent in crate::config::agents().iter() {
+        if !ordered.contains(&agent.id) {
             ordered.push(agent.id.to_string());
         }
     }
@@ -260,11 +268,11 @@ fn normalize_agent_order(
 }
 
 fn has_visible_agent(visible_agents: &HashMap<String, bool>) -> bool {
-    crate::config::AGENTS.iter().any(|agent| {
+    crate::config::agents().iter().any(|agent| {
         visible_agents
-            .get(agent.id)
+            .get(&agent.id)
             .copied()
-            .unwrap_or_else(|| crate::config::default_visibility(agent.id))
+            .unwrap_or_else(|| crate::config::default_visibility(&agent.id))
     })
 }
 
@@ -281,8 +289,30 @@ fn set_agent_preference_values(
     visible_agents: &HashMap<String, bool>,
     agent_order: &[String],
 ) -> Result<(), String> {
-    let visible_json = serde_json::to_string(visible_agents).map_err(|e| e.to_string())?;
-    let order_json = serde_json::to_string(agent_order).map_err(|e| e.to_string())?;
+    let mut persisted_visible = visible_agents.clone();
+    let mut persisted_order = agent_order.to_vec();
+    let previous_visible: HashMap<String, bool> = settings
+        .get("visible_agents")
+        .and_then(|s| serde_json::from_str(s).ok())
+        .unwrap_or_default();
+    let previous_order: Vec<String> = settings
+        .get("agent_order")
+        .and_then(|s| serde_json::from_str(s).ok())
+        .unwrap_or_default();
+    let snapshot = crate::config::agents();
+    for builtin in crate::config::AGENTS
+        .iter()
+        .filter(|a| !snapshot.iter().any(|e| e.id == a.id))
+    {
+        if let Some(value) = previous_visible.get(&builtin.id) {
+            persisted_visible.insert(builtin.id.clone(), *value);
+        }
+        if previous_order.contains(&builtin.id) {
+            persisted_order.push(builtin.id.clone());
+        }
+    }
+    let visible_json = serde_json::to_string(&persisted_visible).map_err(|e| e.to_string())?;
+    let order_json = serde_json::to_string(&persisted_order).map_err(|e| e.to_string())?;
     settings.set("visible_agents".to_string(), visible_json);
     settings.set("agent_order".to_string(), order_json);
     Ok(())
@@ -342,20 +372,43 @@ fn cleanup_hidden_agent_links(
 
 const MAX_VISIBLE_AGENTS: usize = 7;
 
+fn merge_registered_visibility(
+    requested: &HashMap<String, bool>,
+    current: &HashMap<String, bool>,
+) -> HashMap<String, bool> {
+    crate::config::agents()
+        .iter()
+        .map(|agent| {
+            let visible = requested
+                .get(&agent.id)
+                .or_else(|| current.get(&agent.id))
+                .copied()
+                .unwrap_or_else(|| crate::config::default_visibility(&agent.id));
+            (agent.id.clone(), visible)
+        })
+        .collect()
+}
+
 #[tauri::command]
 pub fn update_agent_preferences(
     state: State<'_, AppState>,
     visible_agents: HashMap<String, bool>,
     agent_order: Vec<String>,
 ) -> Result<AgentPreferences, String> {
-    if !has_visible_agent(&visible_agents) {
-        return Err("At least one agent must remain visible".to_string());
-    }
-
+    let _agent_lease = crate::persistence::agent_transaction::AgentLease::acquire(
+        &crate::config::get_app_config_dir(),
+    )
+    .map_err(|e| e.to_string())?;
     let old_visible = {
         let settings = state.settings.lock().map_err(|e| e.to_string())?;
         crate::services::skill::SkillService::get_visible_agents(&settings)
     };
+    // A dialog opened before registration may omit the new ID. Preserve its
+    // committed preference rather than resetting it to a visible default.
+    let visible_agents = merge_registered_visibility(&visible_agents, &old_visible);
+    if !has_visible_agent(&visible_agents) {
+        return Err("At least one agent must remain visible".to_string());
+    }
     let visible_count = visible_agents.values().filter(|v| **v).count();
     if exceeds_visible_agent_cap(old_visible.values().filter(|v| **v).count(), visible_count) {
         return Err(format!(
@@ -379,17 +432,17 @@ pub fn update_agent_preferences(
     }
 
     let mut hidden_agents = Vec::new();
-    for agent in crate::config::AGENTS {
+    for agent in crate::config::agents().iter() {
         let was_visible = old_visible
-            .get(agent.id)
+            .get(&agent.id)
             .copied()
-            .unwrap_or(crate::config::default_visibility(agent.id));
+            .unwrap_or(crate::config::default_visibility(&agent.id));
         let now_visible = visible_agents
-            .get(agent.id)
+            .get(&agent.id)
             .copied()
-            .unwrap_or(crate::config::default_visibility(agent.id));
+            .unwrap_or(crate::config::default_visibility(&agent.id));
         if was_visible && !now_visible {
-            hidden_agents.push(agent.id);
+            hidden_agents.push(agent.id.clone());
         }
     }
 
@@ -410,8 +463,11 @@ pub fn update_agent_preferences(
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
-        link_cleanup_failed =
-            cleanup_hidden_agent_links(&hidden_agents, &agent_dirs, &known_home_paths);
+        link_cleanup_failed = cleanup_hidden_agent_links(
+            &hidden_agents.iter().map(String::as_str).collect::<Vec<_>>(),
+            &agent_dirs,
+            &known_home_paths,
+        );
         if let Err(error) = refresh_cached_agent_apps(&state) {
             eprintln!("Failed to refresh cached agent links after hiding agents: {error}");
         }
@@ -426,6 +482,28 @@ pub fn update_agent_preferences(
 
 #[cfg(test)]
 mod agent_preferences_tests {
+    #[test]
+    fn stale_preferences_keep_new_hidden_agents_hidden_and_discard_removed_ids() {
+        crate::config::with_test_home(tempfile::tempdir().unwrap().path(), || {
+            let id = "custom-00000000-0000-4000-a000-000000000000";
+            crate::config::publish_agents(crate::persistence::agents::AgentRegistry {
+                version: 1,
+                agents: vec![crate::persistence::agents::CustomAgent {
+                    id: id.into(),
+                    label: "Tool".into(),
+                    skills_dir: std::path::PathBuf::from("/custom/skills"),
+                }],
+            });
+            let requested = std::collections::HashMap::from([
+                ("codex".into(), true),
+                ("removed-id".into(), true),
+            ]);
+            let current = std::collections::HashMap::from([(id.into(), false)]);
+            let merged = super::merge_registered_visibility(&requested, &current);
+            assert_eq!(merged.get(id), Some(&false));
+            assert!(!merged.contains_key("removed-id"));
+        });
+    }
     use super::{
         cleanup_hidden_agent_links, exceeds_visible_agent_cap, has_visible_agent,
         normalize_agent_order, persist_agent_preferences, set_agent_preference_values,
@@ -434,6 +512,43 @@ mod agent_preferences_tests {
     use crate::services::skill::{symlink_target_matches, SkillService};
     use std::collections::HashMap;
     use std::path::PathBuf;
+
+    #[test]
+    fn preference_save_preserves_suppressed_builtin_preferences_without_activating_them() {
+        let tmp = tempfile::tempdir().unwrap();
+        crate::config::with_test_home(tmp.path(), || {
+            crate::config::publish_agents(crate::persistence::agents::AgentRegistry {
+                version: 1,
+                agents: vec![crate::persistence::agents::CustomAgent {
+                    id: "custom-11111111-1111-4111-a111-111111111111".into(),
+                    label: "Codex".into(),
+                    skills_dir: tmp.path().join(".codex/skills"),
+                }],
+            });
+            let mut settings = crate::persistence::Settings {
+                values: HashMap::from([
+                    (
+                        "visible_agents".into(),
+                        r#"{"codex":false,"claude-code":true}"#.into(),
+                    ),
+                    ("agent_order".into(), r#"["codex","claude-code"]"#.into()),
+                ]),
+            };
+            set_agent_preference_values(
+                &mut settings,
+                &HashMap::from([("claude-code".into(), true)]),
+                &["claude-code".into()],
+            )
+            .unwrap();
+            let saved: HashMap<String, bool> =
+                serde_json::from_str(settings.get("visible_agents").unwrap()).unwrap();
+            assert_eq!(saved.get("codex"), Some(&false));
+            let order: Vec<String> =
+                serde_json::from_str(settings.get("agent_order").unwrap()).unwrap();
+            assert!(order.contains(&"codex".into()));
+            assert!(!SkillService::get_visible_agents(&settings).contains_key("codex"));
+        });
+    }
 
     #[test]
     fn normalizes_known_agents_with_visible_agents_first() {
@@ -455,12 +570,12 @@ mod agent_preferences_tests {
         assert_eq!(&normalized[..2], ["cursor", "claude-code"]);
         assert!(normalized.iter().position(|id| id == "codex").unwrap() >= 2);
         assert!(!normalized.iter().any(|id| id == "unknown"));
-        assert_eq!(normalized.len(), crate::config::AGENTS.len());
+        assert_eq!(normalized.len(), crate::config::agents().len());
     }
 
     #[test]
     fn rejects_preferences_without_a_visible_agent() {
-        let hidden = crate::config::AGENTS
+        let hidden = crate::config::agents()
             .iter()
             .map(|agent| (agent.id.to_string(), false))
             .collect();
