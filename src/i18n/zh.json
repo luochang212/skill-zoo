@@ -441,7 +441,6 @@
       "manageTitle": "管理编程工具",
       "manageDescription": "选择要显示的编程工具，并调整它们的显示顺序。",
       "searchPlaceholder": "搜索编程工具",
-      "visibleCount": "已显示 {{visible}} / {{total}}",
       "visibleGroup": "已显示（{{count}}）",
       "hiddenGroup": "已隐藏（{{count}}）",
       "toggleVisibility": "切换 {{agent}} 可见性",

@@ -406,12 +406,6 @@ export function AgentManagerDialog({
                 <Plus className="h-4 w-4" />
                 {t("settings.customAgents.add")}
               </Button>
-              <span className="shrink-0 text-xs text-muted-foreground">
-                {t("settings.agentPaths.visibleCount", {
-                  visible: visibleOrder.length,
-                  total: agentPaths.length,
-                })}
-              </span>
             </div>
 
             <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">

@@ -441,7 +441,6 @@
       "manageTitle": "Manage Coding Agents",
       "manageDescription": "Choose which coding agents are visible and control their display order.",
       "searchPlaceholder": "Search coding agents",
-      "visibleCount": "{{visible}} / {{total}} visible",
       "visibleGroup": "Visible ({{count}})",
       "hiddenGroup": "Hidden ({{count}})",
       "toggleVisibility": "Toggle visibility for {{agent}}",
