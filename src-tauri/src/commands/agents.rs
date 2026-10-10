@@ -1069,6 +1069,21 @@ mod tests {
     }
 
     #[test]
+    fn unicode_name_limits_and_file_paths_are_validated() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("skills");
+        std::fs::create_dir_all(&root).unwrap();
+        // 64 Unicode scalar values are accepted; 65 are not, proving the limit
+        // counts characters rather than bytes.
+        let limit = "工".repeat(64);
+        assert!(validate(&limit, &root, None, &[], &[]).is_ok());
+        assert!(validate(&format!("{limit}工"), &root, None, &[], &[]).is_err());
+        let file = tmp.path().join("plain.txt");
+        std::fs::write(&file, "x").unwrap();
+        assert!(validate("Tool", &file, None, &[], &[]).is_err());
+    }
+
+    #[test]
     fn real_skill_scan_keeps_dot_namespaces_and_skips_links() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path().join(".system/demo");
