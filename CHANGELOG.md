@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.51] — 2026-10-11
+
+### Added
+- Custom coding agents can be registered, renamed, repointed and removed from Settings → Manage Coding Agents. Registrations live in a desktop-owned registry (`~/.skill-zoo/agents.json`, schema version 1) with stable UUID identities, and flow through the same install, link, archive and usage paths as the shipped built-ins. Lifecycle changes commit atomically through a recoverable journal, and a cross-process lease keeps the desktop app and the CLI from racing on local state.
+- The add form derives the agent name from the chosen directory (last path segment, skipping a conventional `skills` leaf); a name edited by hand is never overwritten by later directory changes. In the manager list, the custom agent's label is itself the edit control, so built-in and custom rows keep the same layout.
+- Registration checks real directory identity and overlap with existing agent roots, the SSOT store and Skill Zoo storage before saving; missing directories require explicit creation consent, and failed saves retain the draft with a field-level error.
+
+### Changed
+- Compatibility for existing users: with no `agents.json` present, behavior is unchanged (built-ins only). A shipped built-in whose directory collides with a custom registration is suppressed while the custom one stays active; equal names at disjoint directories coexist. Dormant visibility preferences survive and respect the 7-agent cap on reactivation. This introduces the versioned local protocol file `agents.json`; the CLI conforms to the desktop-owned schema.
+- If `agents.json` is unreadable (corrupt, hand-edited, or written by a newer version), the app now starts with built-in agents and logs the parse error instead of failing to launch; saves refuse to overwrite the broken file and later registry changes surface the parse error.
+
+### Fixed
+- Unreadable subdirectories no longer block agent removal or path changes; they are skipped, matching the skill scanner's behavior.
+- Badge row images in rendered markdown prose align correctly.
+
 ## [0.3.50] — 2026-10-09
 
 ### Fixed
