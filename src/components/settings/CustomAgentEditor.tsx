@@ -10,6 +10,21 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { invalidateAgentState } from "@/hooks/useSettings";
 
+// The suggested label is the directory's own name; the conventional `skills`
+// leaf is skipped so `~/.hermes/skills` suggests "hermes".
+export function suggestName(path: string): string {
+  const segments = path.split(/[\\/]/).filter((segment) => segment && segment !== ".");
+  const last = segments[segments.length - 1];
+  const candidate =
+    last?.toLowerCase() === "skills" && segments.length > 1 ? segments[segments.length - 2] : last;
+  if (!candidate || candidate === "~") return "";
+  return candidate.replace(/^\.+/, "");
+}
+
+function stripTrailingSlashes(value: string): string {
+  return value.trim().replace(/[\\/]+$/, "");
+}
+
 export function CustomAgentEditor({
   agent,
   closeRequest,
@@ -28,6 +43,9 @@ export function CustomAgentEditor({
   const id = useId();
   const [name, setName] = useState(agent?.label ?? "");
   const [path, setPath] = useState(agent?.path ?? "");
+  // Once the user touches the name field, later directory changes must not
+  // overwrite their label; editing an existing agent starts frozen.
+  const [nameEdited, setNameEdited] = useState(Boolean(agent));
   const [create, setCreate] = useState(false);
   const [preview, setPreview] = useState<AgentPreview>();
   const [review, setReview] = useState<"remove" | "path">();
@@ -44,6 +62,8 @@ export function CustomAgentEditor({
   const sequence = useRef(0);
   const lastClose = useRef(closeRequest);
   const dirty = name !== (agent?.label ?? "") || path !== (agent?.path ?? "") || create;
+  const resolvedPathDiffers =
+    preview !== undefined && stripTrailingSlashes(preview.path) !== stripTrailingSlashes(path);
   const showError = (failure: unknown) => {
     const message = failure instanceof Error ? failure.message : String(failure);
     const nameConflict = message.includes("name already exists");
@@ -104,8 +124,10 @@ export function CustomAgentEditor({
     return () => onBusyChange(false);
   }, [busy, onBusyChange]);
   useEffect(() => {
-    if (!review && !discard) nameRef.current?.focus();
-  }, [review, discard]);
+    // Adding starts at the directory (the name follows it); editing starts at
+    // the label so a stray keystroke cannot dirty the registered path.
+    if (!review && !discard) (agent ? nameRef : pathRef).current?.focus();
+  }, [review, discard, agent]);
   useEffect(() => {
     if (busy || !focusErrorAfterSubmit.current) return;
     focusErrorAfterSubmit.current = false;
@@ -126,16 +148,16 @@ export function CustomAgentEditor({
     else onCancel();
   };
   const validate = async () => {
-    if (!name.trim() || [...name.trim()].length > 64) {
-      setInvalid("name");
-      setError(t("settings.customAgents.nameError"));
-      nameRef.current?.focus();
-      return undefined;
-    }
     if (!path.trim()) {
       setInvalid("path");
       setError(t("settings.customAgents.pathError"));
       pathRef.current?.focus();
+      return undefined;
+    }
+    if (!name.trim() || [...name.trim()].length > 64) {
+      setInvalid("name");
+      setError(t("settings.customAgents.nameError"));
+      nameRef.current?.focus();
       return undefined;
     }
     const token = ++sequence.current;
@@ -195,6 +217,12 @@ export function CustomAgentEditor({
     setError("");
     setInvalid(undefined);
     setPreview(undefined);
+  };
+  const applyPath = (value: string) => {
+    setPath(value);
+    setCreate(false);
+    resetErrors();
+    if (!nameEdited) setName(suggestName(value));
   };
 
   return (
@@ -296,26 +324,6 @@ export function CustomAgentEditor({
         >
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1">
             <div className="space-y-2">
-              <label htmlFor={`${id}-name`} className="text-sm font-medium">
-                {t("settings.customAgents.name")} *
-              </label>
-              <Input
-                id={`${id}-name`}
-                ref={nameRef}
-                value={name}
-                disabled={busy}
-                aria-invalid={invalid === "name"}
-                aria-describedby={error ? `${id}-error` : undefined}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  resetErrors();
-                }}
-                onBlur={() => {
-                  if (name.trim() && path.trim()) void validate();
-                }}
-              />
-            </div>
-            <div className="space-y-2">
               <label htmlFor={`${id}-path`} className="text-sm font-medium">
                 {t("settings.customAgents.directory")} *
               </label>
@@ -330,11 +338,7 @@ export function CustomAgentEditor({
                   autoCapitalize="none"
                   aria-invalid={invalid === "path"}
                   aria-describedby={`${id}-hint${error ? ` ${id}-error` : ""}`}
-                  onChange={(e) => {
-                    setPath(e.target.value);
-                    setCreate(false);
-                    resetErrors();
-                  }}
+                  onChange={(e) => applyPath(e.target.value)}
                   onBlur={() => {
                     if (name.trim() && path.trim()) void validate();
                   }}
@@ -348,11 +352,7 @@ export function CustomAgentEditor({
                     setPicking(true);
                     try {
                       const selected = await settingsApi.pickAgentDirectory();
-                      if (selected) {
-                        setPath(selected);
-                        setCreate(false);
-                        resetErrors();
-                      }
+                      if (selected) applyPath(selected);
                     } catch (e) {
                       showError(e);
                     } finally {
@@ -366,10 +366,8 @@ export function CustomAgentEditor({
               <p id={`${id}-hint`} className="text-xs text-muted-foreground">
                 {t("settings.customAgents.directoryHint")}
               </p>
-              {path && (
-                <p className="break-all font-mono text-xs text-muted-foreground">
-                  {preview?.path ?? path}
-                </p>
+              {resolvedPathDiffers && (
+                <p className="break-all font-mono text-xs text-muted-foreground">{preview?.path}</p>
               )}
               {preview && !preview.exists && (
                 <label className="flex items-center gap-2 text-sm">
@@ -382,6 +380,27 @@ export function CustomAgentEditor({
                   {t("settings.customAgents.createDirectory")}
                 </label>
               )}
+            </div>
+            <div className="space-y-2">
+              <label htmlFor={`${id}-name`} className="text-sm font-medium">
+                {t("settings.customAgents.name")} *
+              </label>
+              <Input
+                id={`${id}-name`}
+                ref={nameRef}
+                value={name}
+                disabled={busy}
+                aria-invalid={invalid === "name"}
+                aria-describedby={error ? `${id}-error` : undefined}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setNameEdited(true);
+                  resetErrors();
+                }}
+                onBlur={() => {
+                  if (name.trim() && path.trim()) void validate();
+                }}
+              />
             </div>
             {error && (
               <p id={`${id}-error`} role="alert" className="text-sm text-destructive">

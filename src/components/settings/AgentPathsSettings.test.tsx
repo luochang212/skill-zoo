@@ -80,6 +80,10 @@ describe("AgentPathsSettings", () => {
     expect(screen.getAllByRole("switch")).toHaveLength(2);
     expect(screen.getAllByRole("button", { name: "Edit Codex" })).toHaveLength(1);
     expect(screen.getByText("Custom")).toBeInTheDocument();
+    const edit = screen.getByRole("button", { name: "Edit Codex" });
+    expect(edit.parentElement?.firstElementChild).toBe(edit);
+    const builtinRow = screen.getByText("Gemini").closest("div.min-h-14");
+    expect(builtinRow?.querySelector("button[aria-hidden='true']")).not.toBeNull();
   });
 
   it("shows all visible agents in the settings summary", async () => {

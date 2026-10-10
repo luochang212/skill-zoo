@@ -69,6 +69,8 @@ function OpenPathButton({ info }: { info: AgentPathInfo }) {
   );
 }
 
+// Every row renders this slot so the folder, action and switch columns stay
+// aligned; built-in rows fill it with an invisible, inert placeholder.
 function EditAgentButton({
   info,
   disabled,
@@ -79,16 +81,21 @@ function EditAgentButton({
   onEdit: (info: AgentPathInfo) => void;
 }) {
   const { t } = useTranslation();
-  if (!info.agent.startsWith("custom-")) return null;
+  const custom = info.agent.startsWith("custom-");
   return (
     <Button
       type="button"
       variant="ghost"
       size="sm"
+      className={custom ? "shrink-0" : "pointer-events-none invisible shrink-0"}
       disabled={disabled}
-      data-agent-id={info.agent}
-      aria-label={t("settings.customAgents.edit", { agent: info.label })}
-      onClick={() => onEdit(info)}
+      data-agent-id={custom ? info.agent : undefined}
+      aria-label={custom ? t("settings.customAgents.edit", { agent: info.label }) : undefined}
+      aria-hidden={!custom}
+      tabIndex={custom ? 0 : -1}
+      onClick={() => {
+        if (custom) onEdit(info);
+      }}
     >
       <Pencil className="h-4 w-4" />
     </Button>
@@ -130,6 +137,7 @@ function SortableAgentRow({
       onDragEnd={onDragEnd}
       className="flex min-h-14 list-none items-center gap-3 border-b border-border/40 bg-background px-4 py-2.5 last:border-b-0"
     >
+      <EditAgentButton info={info} disabled={disabled} onEdit={onEdit} />
       <button
         type="button"
         onPointerDown={(event) => !disabled && dragControls.start(event)}
@@ -146,7 +154,6 @@ function SortableAgentRow({
         <AgentPathDetails info={info} />
       </div>
       <OpenPathButton info={info} />
-      <EditAgentButton info={info} disabled={disabled} onEdit={onEdit} />
       <Switch
         checked={isVisible}
         onCheckedChange={onToggle}
@@ -426,6 +433,11 @@ export function AgentManagerDialog({
                             key={info.agent}
                             className="flex min-h-14 items-center gap-3 border-b border-border/40 px-4 py-2.5 last:border-b-0"
                           >
+                            <EditAgentButton
+                              info={info}
+                              disabled={updatePreferences.isPending}
+                              onEdit={enterEditor}
+                            />
                             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/60">
                               <FolderOpen className="h-4 w-4 text-muted-foreground" />
                             </div>
@@ -433,11 +445,6 @@ export function AgentManagerDialog({
                               <AgentPathDetails info={info} />
                             </div>
                             <OpenPathButton info={info} />
-                            <EditAgentButton
-                              info={info}
-                              disabled={updatePreferences.isPending}
-                              onEdit={enterEditor}
-                            />
                             <Switch
                               checked
                               onCheckedChange={() => handleToggle(info.agent)}
@@ -550,6 +557,11 @@ export function AgentManagerDialog({
                             key={info.agent}
                             className="flex min-h-14 items-center gap-3 border-b border-border/40 px-4 py-2.5 last:border-b-0"
                           >
+                            <EditAgentButton
+                              info={info}
+                              disabled={updatePreferences.isPending}
+                              onEdit={enterEditor}
+                            />
                             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/60">
                               <FolderOpen className="h-4 w-4 text-muted-foreground" />
                             </div>
@@ -557,11 +569,6 @@ export function AgentManagerDialog({
                               <AgentPathDetails info={info} />
                             </div>
                             <OpenPathButton info={info} />
-                            <EditAgentButton
-                              info={info}
-                              disabled={updatePreferences.isPending}
-                              onEdit={enterEditor}
-                            />
                             <Switch
                               checked={false}
                               onCheckedChange={() => handleToggle(info.agent)}

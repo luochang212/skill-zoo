@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "@/i18n";
 import { settingsApi } from "@/lib/api/settings";
-import { CustomAgentEditor } from "./CustomAgentEditor";
+import { CustomAgentEditor, suggestName } from "./CustomAgentEditor";
 
 const agent = {
   agent: "custom-3e572935-73ca-4f2a-9b36-2cdbd6d0a689",
@@ -120,7 +120,7 @@ describe("CustomAgentEditor", () => {
   it("focuses invalid fields and suppresses Enter during IME composition", async () => {
     setup();
     await userEvent.setup().click(screen.getByRole("button", { name: "Add Agent" }));
-    expect(screen.getByLabelText(/Name/)).toHaveFocus();
+    expect(screen.getByLabelText(/^Skills directory/)).toHaveFocus();
     expect(
       fireEvent.keyDown(screen.getByLabelText(/Name/), { key: "Enter", isComposing: true }),
     ).toBe(false);
@@ -136,7 +136,53 @@ describe("CustomAgentEditor", () => {
     expect(props.onCancel).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Keep Editing" }));
     expect(screen.getByLabelText(/Name/)).toHaveValue("Draft");
-    expect(screen.getByLabelText(/Name/)).toHaveFocus();
+    expect(screen.getByLabelText(/^Skills directory/)).toHaveFocus();
+  });
+
+  it("derives the name from the directory until the user edits the name", async () => {
+    setup();
+    const user = userEvent.setup();
+    const name = screen.getByLabelText(/Name/);
+    const directory = screen.getByLabelText(/^Skills directory/);
+    await user.type(directory, "/tool/skills");
+    expect(name).toHaveValue("tool");
+    await user.clear(directory);
+    await user.type(directory, "~/.hermes/skills/");
+    expect(name).toHaveValue("hermes");
+    await user.clear(name);
+    await user.type(name, "Mine");
+    await user.clear(directory);
+    await user.type(directory, "/other/skills");
+    expect(name).toHaveValue("Mine");
+  });
+
+  it("shows the resolved directory only when it differs from the input", async () => {
+    setup();
+    const user = userEvent.setup();
+    const directory = screen.getByLabelText(/^Skills directory/);
+    await user.type(directory, "/tool/skills");
+    await user.tab();
+    await waitFor(() => expect(settingsApi.previewCustomAgent).toHaveBeenCalled());
+    expect(screen.queryByText("/tool/skills")).not.toBeInTheDocument();
+    vi.mocked(settingsApi.previewCustomAgent).mockResolvedValue({
+      ...preview,
+      path: "/private/resolved/path",
+    });
+    await user.clear(directory);
+    await user.type(directory, "/resolved/path");
+    await user.tab();
+    await waitFor(() => expect(screen.getByText("/private/resolved/path")).toBeInTheDocument());
+  });
+
+  it.each([
+    ["~/.hermes/skills", "hermes"],
+    ["/Users/me/Library/MyAgent", "MyAgent"],
+    ["C:\\Tools\\Agent/skills", "Agent"],
+    ["/plain/dir/", "dir"],
+    ["~", ""],
+    ["/", ""],
+  ])("%j suggests %j", (input, expected) => {
+    expect(suggestName(input)).toBe(expected);
   });
 
   it("invalidates agent configuration and remote candidate conflicts after saving", async () => {
