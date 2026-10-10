@@ -98,12 +98,13 @@ fn validate(
         if agent.id.starts_with("custom-") && agent.label.to_lowercase() == name.to_lowercase() {
             return Err("An agent with this name already exists".into());
         }
-        let root = agent.skills_dir.clone().unwrap_or_else(|| {
-            config::home_dir()
-                .unwrap()
+        let root = match agent.skills_dir.clone() {
+            Some(dir) => dir,
+            None => config::home_dir()
+                .ok_or("Home directory is unavailable")?
                 .join(&agent.skills_subdir)
-                .join("skills")
-        });
+                .join("skills"),
+        };
         if let Ok(root) = resolve_missing_path(&root) {
             if overlaps(path, &root) {
                 return Err(format!("Skills directory overlaps {}", agent.label));
@@ -716,6 +717,9 @@ mod tests {
     #[test]
     fn unreadable_subdirectory_skips_instead_of_blocking_removal() {
         use std::os::unix::fs::PermissionsExt;
+        let restore = |locked: &std::path::Path| {
+            std::fs::set_permissions(locked, std::fs::Permissions::from_mode(0o755)).unwrap();
+        };
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path().join("tool/skills");
         let readable = root.join("demo");
@@ -725,7 +729,12 @@ mod tests {
         std::fs::create_dir_all(&locked).unwrap();
         std::fs::write(locked.join("SKILL.md"), "# Locked").unwrap();
         std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o000)).unwrap();
+        if std::fs::read_dir(&locked).is_ok() {
+            restore(&locked); // Privileged runners can read mode-000 directories.
+            return;
+        }
         let skills = real_skills(&root).unwrap();
+        restore(&locked);
         assert_eq!(skills, vec![readable]);
     }
 

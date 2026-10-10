@@ -127,18 +127,22 @@ describe("AgentPathsSettings", () => {
   it("appends a newly visible agent and disables controls while saving", async () => {
     const user = userEvent.setup();
     const update = createDeferred<AgentPreferences>();
+    const customId = "custom-3e572935-73ca-4f2a-9b36-2cdbd6d0a689";
     const paths = [
       { agent: "claude-code", label: "Claude Code", path: "/claude", exists: true },
       { agent: "codex", label: "Codex", path: "/codex", exists: true },
+      { agent: customId, label: "My Tool", path: "/custom", exists: true },
     ];
     vi.mocked(invoke).mockImplementation((command) => {
       switch (command) {
         case "get_agent_paths":
           return Promise.resolve(paths);
         case "get_visible_agents":
-          return Promise.resolve({ "claude-code": true, codex: false });
+          return Promise.resolve({ "claude-code": true, codex: false, [customId]: true });
         case "get_settings":
-          return Promise.resolve({ agent_order: JSON.stringify(["claude-code", "codex"]) });
+          return Promise.resolve({
+            agent_order: JSON.stringify(["claude-code", "codex", customId]),
+          });
         case "update_agent_preferences":
           return update.promise;
         default:
@@ -157,14 +161,19 @@ describe("AgentPathsSettings", () => {
       expect(screen.getByRole("switch", { name: "Toggle visibility for Codex" })).toBeDisabled();
     });
     expect(invoke).toHaveBeenCalledWith("update_agent_preferences", {
-      visibleAgents: { "claude-code": true, codex: true },
-      agentOrder: ["claude-code", "codex"],
+      visibleAgents: { "claude-code": true, codex: true, [customId]: true },
+      agentOrder: ["claude-code", customId, "codex"],
     });
 
+    await user.click(screen.getByRole("button", { name: "Edit My Tool" }));
+    expect(screen.queryByText("Edit Custom Agent")).not.toBeInTheDocument();
+
     update.resolve({
-      visibleAgents: { "claude-code": true, codex: true },
-      agentOrder: ["claude-code", "codex"],
+      visibleAgents: { "claude-code": true, codex: true, [customId]: true },
+      agentOrder: ["claude-code", customId, "codex"],
     });
+    await user.click(await screen.findByRole("button", { name: "Edit My Tool" }));
+    expect(await screen.findByText("Edit Custom Agent")).toBeInTheDocument();
   });
 
   it("keeps the final visible agent enabled", async () => {

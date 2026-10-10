@@ -32,7 +32,7 @@
 
 ### Requirement: Desktop-owned custom agent registry
 
-Desktop and CLI MUST interpret custom-agent registrations using docs/local-protocol.md and shared fixtures/local-protocol/ samples. Missing registry data MUST preserve built-in-only behavior. Malformed or unsupported registry versions MUST produce an actionable error without being silently treated as an empty registry or overwritten.
+Desktop and CLI MUST interpret custom-agent registrations using docs/local-protocol.md and shared fixtures/local-protocol/ samples. Missing registry data MUST preserve built-in-only behavior. Malformed or unsupported registry versions MUST be reported rather than silently treated as an empty registry or overwritten: desktop startup degrades to built-in agents while logging the parse failure, subsequent registry mutations surface the parse error, and writers preserve the original bytes.
 
 #### Scenario: Same registration on both surfaces
 - **WHEN** desktop and CLI read the complete custom-agent fixture

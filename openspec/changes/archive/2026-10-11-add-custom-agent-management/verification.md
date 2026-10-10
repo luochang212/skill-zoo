@@ -64,7 +64,7 @@ Registry allocation/read behavior is structurally verified: one merged CLI snaps
 
 ## Remaining verification
 
-Task 5.4 remains open for the complete manual Escape/return-focus and screen-reader pass. Component tests and browser Tab/accessibility-tree checks passed; do not present those as a live VoiceOver verification.
+Waived by user decision (2026-10-11): the manual Escape/return-focus and screen-reader pass for task 5.4 will not be performed; the user does not consider it necessary. Component tests and browser Tab/accessibility-tree checks passed and remain the recorded verification boundary — they were never a live VoiceOver verification.
 
 ## Open implementation decision
 
@@ -106,3 +106,16 @@ Validation for these fixes: Rust full suite 229 passed (185 unit including the n
 The Skills directory field now precedes the name, and an untouched name auto-fills from the directory (last path segment, skipping a conventional `skills` leaf and leading dots). Once the user edits the name, later directory changes never overwrite it; editing an existing agent starts frozen on its current label. In the manager list, the custom label itself is the edit affordance — rendered as a real button with hover underline, a focus ring, an enlarged hit area and the existing edit aria-label, carrying the `data-agent-id` return-focus marker — after a leading-slot variant proved to displace the drag handles of every row; built-in labels stay plain text and all rows keep the shared grip/folder/details/open/switch columns. Validation and focus follow the new field order — adding focuses the directory while editing focuses the label, so a stray keystroke cannot dirty a registered path. Covered by `suggestName` rule cases, autofill-follows-then-freezes, edit-slot DOM-order/placeholder assertions, and the updated empty-submit focus test.
 
 A live-use review then removed the resolved-path echo entirely: when the backend's resolution differs invisibly from the typed input the line reads as a confusing duplicate, and overlap/case errors plus the path-change review already cover the failure modes. The back affordance settled on a padded ghost button — arrow plus destination label (`返回管理列表` / `Back to manage agents`), following the existing `backToDiscover` destination-naming convention — after an icon-only interlude; the shared `BackButton` remains untouched. Field labels adopt the create view's lighter muted style with a deliberate rhythm (10px label-to-input, 20px between field groups; the under-input directory hint was later removed as redundant), and the dialog shell switches by mode — the list keeps its fixed 600px frame while the editor uses natural height (cap retained) and a narrower form frame (480px) — so the short form no longer floats in the list-sized frame. The full frontend suite (29 files / 172 tests), `tsc --noEmit`, lint and format checks passed after these changes; pixel-level appearance remains user-owned review.
+
+### Worth-fix re-verification and doc reconciliation (2026-10-11)
+
+A second review pass re-verified each open finding against the code before fixing; per-finding verdicts recorded to prevent re-litigating.
+
+- `validate()`'s `skills_dir` fallback in `commands/agents.rs` now propagates a missing home directory as an error (`ok_or("Home directory is unavailable")`, matching `expanded_path`) instead of unwrapping. Unreachable in desktop sessions, but consistent with the file's only other `home_dir()` call site.
+- The delta and main local-protocol specs' malformed-registry requirement now states the decided startup behavior — degrade to built-in agents while logging, subsequent mutations surface the parse error, writers preserve the original bytes — instead of demanding an "actionable error" that the review fix above deliberately weakened. Both texts amended together.
+- design.md §1's add/edit layout, name bullet and focus rule now match the implemented editor (directory first, auto-derived name, initial focus by mode); previously recorded only in this file.
+- Removed a dead trailing `update.resolve` in `AgentPathsSettings.test.tsx` (resolving an already-settled deferred is a no-op).
+
+Re-verified as not worth fixing: the hand-rolled UUID v4 is safe because `AgentRegistry::validate` is a permissive superset of the generator (length/dashes/hex, no version check), so drift cannot cause rejection; the `get_installed_skills(force)` watcher restart is unreachable in production (no caller passes `force`); lease-acquisition duplication (22 sites) and the two dormant-preference carry-forward loops stay as-is; `showError` substring mapping matches all five current backend messages — typed error codes are queued for the next IPC-touching change.
+
+Validation for this round: frontend settings suite 49 passed, oxlint clean, Rust full suite 229 passed, clippy clean, `openspec validate --all --strict` 11/11.

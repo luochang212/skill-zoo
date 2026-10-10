@@ -23,18 +23,18 @@ Add/edit layout:
 ```text
 ← Manage Agents               Add Custom Agent / Edit Agent
 
-Name *                        [My coding tool             ]
 Skills directory *            [/absolute/path/skills       ] [Choose…]
-                              Select the directory containing skill folders.
 [ ] Create this directory     (only when the path is missing)
+Name *                        [My coding tool             ]
+                              Auto-filled from the directory until edited.
 
 
                               [Cancel] [Add Agent / Save Changes]
 ```
 
-- Name: trimmed, 1–64 Unicode scalar values; case-insensitive uniqueness among custom labels; built-in/custom label collisions are allowed when directories are disjoint. IDs are generated UUIDs prefixed `custom-`, immutable and never derived from names or reused.
-- Path: accepts an absolute path or leading `~/`, with backend expansion; no environment-variable or shell expansion. File picker uses a typed Rust IPC command; all existence and identity checks happen in Rust. Display the normalized full destination before saving; long paths remain copyable and wrap in editor/details.
-- Validate after blur or submit, clear stale errors on edits; do not flag untouched fields. Associate errors with controls, announce errors and focus the first invalid field. Submit remains actionable for validation, disabled only while a mutation is pending. IME candidate confirmation does not submit.
+- Name: trimmed, 1–64 Unicode scalar values; case-insensitive uniqueness among custom labels; built-in/custom label collisions are allowed when directories are disjoint. An untouched name auto-fills from the directory (last path segment, skipping a conventional `skills` leaf and leading dots); once edited it never follows later directory changes, and editing an existing agent starts frozen on its current label. IDs are generated UUIDs prefixed `custom-`, immutable and never derived from names or reused.
+- Path: accepts an absolute path or leading `~/`, with backend expansion; no environment-variable or shell expansion. File picker uses a typed Rust IPC command; all existence and identity checks happen in Rust. The resolved destination appears only in the path-change review (old → new); long paths remain copyable and wrap in editor/details.
+- Validate after blur or submit, clear stale errors on edits; do not flag untouched fields. Associate errors with controls, announce errors and focus the first invalid field. Initial focus follows field order: adding focuses the directory while editing focuses the label. Submit remains actionable for validation, disabled only while a mutation is pending. IME candidate confirmation does not submit.
 - Missing-directory checkbox explicitly authorizes creation. Validation and confirmation are repeated server-side at commit; selecting a folder alone never creates it. If later persistence fails, remove only empty directories created by this operation, never pre-existing directories.
 - Busy submission serializes lifecycle mutations, keeps a visible progress state and blocks duplicate submit/back/close. Failure keeps the draft with a local error. Unsaved back/Escape/outside-close opens an inline discard/continue decision; picker cancellation changes nothing.
 - Save returns to the manager, reveals and focuses the saved row (clear a search only if it would conceal that row), preserves group/order state, and emits one concise success status. At the cap the added row is hidden and the status explains how to make space.

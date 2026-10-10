@@ -166,6 +166,7 @@ export function AgentManagerDialog({
   const [closeRequest, setCloseRequest] = useState(0);
   const scrollBeforeEdit = useRef(0);
   const enterEditor = (info: AgentPathInfo | null) => {
+    if (updatePreferences.isPending) return;
     scrollBeforeEdit.current = listRef.current?.scrollTop ?? 0;
     setEditor(info);
   };
