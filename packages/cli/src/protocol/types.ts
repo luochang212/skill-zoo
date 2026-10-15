@@ -14,6 +14,8 @@ export interface SkillLockEntry {
   installedAt?: string | null;
   updatedAt?: string | null;
   commitSha?: string | null;
+  /** External pin marker written by `gh skill`; never written by this CLI. */
+  pinnedRef?: string | null;
 }
 
 export interface SkillLock {

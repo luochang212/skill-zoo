@@ -11,6 +11,7 @@ import {
   readLock,
 } from "../src/protocol/store.js";
 import { makeTempHome } from "./helpers.js";
+import type { SkillLock } from "../src/protocol/types.js";
 
 describe("desktop local protocol fixtures", () => {
   it("reads current lock and archive fixtures", async () => {
@@ -31,7 +32,7 @@ describe("desktop local protocol fixtures", () => {
       sourceUrl: "https://github.com/owner/repo",
       ref: "main",
       skillPath: "skills/demo",
-      commitSha: "abc123",
+      commitSha: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0",
     });
     expect(manifest.version).toBe(1);
     expect(manifest.skills["demo-abc123"]).toMatchObject({
@@ -68,6 +69,52 @@ describe("desktop local protocol fixtures", () => {
     expect(manifest.skills).toEqual({});
     expect(imports.version).toBe(1);
     expect(imports.imports).toEqual({});
+  });
+
+  it("preserves undeclared lock fields across a desktop-shaped rewrite", async () => {
+    const home = await makeTempHome();
+    const paths = getPaths(home);
+    await copyFixture("lock-v3-external-writers.json", paths.agentLockFile);
+
+    type LockWithUndeclared = SkillLock & { futureTopLevel?: unknown };
+    const lock = (await readLock(home)) as LockWithUndeclared;
+    expect(lock.skills.demo?.pinnedRef).toBeUndefined();
+    expect(lock.skills.foreignPinned?.pinnedRef ?? lock.skills["foreign-pinned"]?.pinnedRef).toBe(
+      "abc1234",
+    );
+    expect(lock.skills.conflicted).toMatchObject({
+      skillFolderHash: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0",
+      commitSha: "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0a1",
+    });
+    expect(lock.skills.unrecorded?.skillFolderHash).toBeUndefined();
+    expect(lock.futureTopLevel).toEqual({
+      note: "preserve me",
+    });
+
+    // Rewrite the lock exactly like the desktop does (read → mutate unrelated
+    // entry → write) and confirm nothing undeclared is lost.
+    lock.skills["added-by-rewrite"] = { source: "owner/other" };
+    const { writeLock } = await import("../src/protocol/store.js");
+    await writeLock(home, lock);
+
+    const reread = JSON.parse(
+      await fs.readFile(paths.agentLockFile, "utf8"),
+    ) as LockWithUndeclared;
+    expect(reread.skills.demo).toMatchObject({
+      externalNote: { kept: true },
+      skillFolderHash: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0",
+    });
+    expect(reread.skills.demo?.pinnedRef).toBeUndefined();
+    expect(reread.skills["foreign-pinned"]?.pinnedRef).toBe("abc1234");
+    expect(reread.skills["added-by-rewrite"]?.source).toBe("owner/other");
+    expect(reread.skills.conflicted).toMatchObject({
+      skillFolderHash: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0",
+      commitSha: "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0a1",
+    });
+    expect(reread.skills.unrecorded?.skillFolderHash).toBeUndefined();
+    expect(reread.futureTopLevel).toEqual({
+      note: "preserve me",
+    });
   });
 
   it("tolerates legacy skills cache entries without apps", async () => {
