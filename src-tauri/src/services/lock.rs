@@ -11,7 +11,7 @@ pub const SUPPORTED_LOCK_VERSION: i32 = 3;
 /// `SkillLock::update` calls don't lose fields to interleaved writes.
 static LOCK_WRITE: Mutex<()> = Mutex::new(());
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillLockEntry {
     pub source: Option<String>,
@@ -65,6 +65,228 @@ impl Default for SkillLock {
 
 fn default_version() -> i32 {
     SUPPORTED_LOCK_VERSION
+}
+
+/// Ephemeral physical installation evidence; never persisted in shared state.
+#[derive(Debug, Clone)]
+pub struct Installation {
+    pub owning_root: std::path::PathBuf,
+    pub install_directory: String,
+    pub home_path: std::path::PathBuf,
+    pub origin: String,
+    pub provenance: InstallationProvenance,
+}
+
+#[derive(Debug, Clone)]
+pub enum InstallationProvenance {
+    Absent,
+    Tracking {
+        repo: Option<String>,
+        path: Option<String>,
+    },
+    Unreadable(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct LockCandidate {
+    pub lock_key: String,
+    pub physical_directories: Vec<String>,
+    pub reason: &'static str,
+}
+
+impl std::fmt::Display for LockCandidate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} [{}] ({})",
+            self.lock_key,
+            self.physical_directories.join(", "),
+            self.reason
+        )
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum LockResolution {
+    Resolved {
+        lock_key: String,
+        entry: SkillLockEntry,
+    },
+    Missing {
+        reason: &'static str,
+    },
+    Ambiguous {
+        reason: &'static str,
+        candidates: Vec<LockCandidate>,
+    },
+}
+
+impl LockResolution {
+    pub fn association(self) -> Result<Option<(String, SkillLockEntry)>, AppError> {
+        match self {
+            Self::Resolved { lock_key, entry } => Ok(Some((lock_key, entry))),
+            Self::Missing { .. } => Ok(None),
+            Self::Ambiguous { reason, candidates } => Err(AppError::BadRequest(format!(
+                "lockAmbiguous: {reason}: {}",
+                candidates
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ))),
+        }
+    }
+}
+
+/// A read-only directory view. Never normalize the original lock key or field.
+pub fn normalize_lock_skill_path(raw: &str) -> Result<String, AppError> {
+    let path = raw.replace('\\', "/");
+    if path.starts_with('/') || path.contains(':') || path.split('/').any(|p| p == "..") {
+        return Err(AppError::BadRequest(format!(
+            "Unsupported skillPath: {raw}"
+        )));
+    }
+    let mut parts: Vec<_> = path
+        .split('/')
+        .filter(|p| !p.is_empty() && *p != ".")
+        .collect();
+    if parts.last() == Some(&"SKILL.md") {
+        parts.pop();
+    }
+    Ok(parts.join("/"))
+}
+
+fn github_repo(raw: &str) -> Option<String> {
+    let url = url::Url::parse(raw).ok()?;
+    if !url.username().is_empty()
+        || url.password().is_some()
+        || url.port_or_known_default() != Some(443)
+        || url.scheme() != "https"
+        || url.host_str()? != "github.com"
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return None;
+    }
+    let path = url.path().trim_end_matches('/').strip_prefix('/')?;
+    let path = path.strip_suffix(".git").unwrap_or(path);
+    let parts: Vec<_> = path.split('/').collect();
+    (parts.len() == 2 && parts.iter().all(|p| !p.is_empty())).then(|| path.to_ascii_lowercase())
+}
+
+fn corroborates(target: &Installation, entry: &SkillLockEntry) -> Option<bool> {
+    let InstallationProvenance::Tracking {
+        repo: Some(repo),
+        path: Some(path),
+    } = &target.provenance
+    else {
+        return None;
+    };
+    let repo = github_repo(repo)?;
+    let (Some(owner), Some(name)) = entry.parse_source_owner_name() else {
+        return Some(false);
+    };
+    let source_matches = repo == format!("{owner}/{name}").to_ascii_lowercase()
+        && entry
+            .source_url
+            .as_deref()
+            .is_none_or(|url| github_repo(url).as_deref() == Some(repo.as_str()));
+    let Ok(path) = normalize_lock_skill_path(path) else {
+        return None;
+    };
+    Some(
+        source_matches
+            && entry
+                .skill_path
+                .as_deref()
+                .and_then(|p| normalize_lock_skill_path(p).ok())
+                .as_deref()
+                == Some(path.as_str()),
+    )
+}
+
+fn candidate(target: &Installation, key: &str, entry: &SkillLockEntry) -> bool {
+    if target.origin == "external" {
+        return false;
+    }
+    let leaf = target.install_directory.rsplit('/').next().unwrap_or("");
+    let traditional = target.origin == "ssot" && (key == target.install_directory || key == leaf);
+    traditional
+        || (key.contains('/')
+            && key
+                .split('/')
+                .all(|p| !p.is_empty() && p != "." && p != "..")
+            && !key.contains('\\')
+            && key.rsplit('/').next() == Some(leaf)
+            && corroborates(target, entry) == Some(true))
+        || (target.origin == "agent"
+            && (key == target.install_directory || key == leaf)
+            && corroborates(target, entry) == Some(true))
+}
+
+pub fn resolve_installation_lock(
+    target: &Installation,
+    installations: &[Installation],
+    lock: &SkillLock,
+) -> LockResolution {
+    if target.origin == "external" {
+        return LockResolution::Missing {
+            reason: "outsideLockScope",
+        };
+    }
+    let candidates: Vec<_> = lock
+        .skills
+        .iter()
+        .filter(|(key, entry)| candidate(target, key, entry))
+        .collect();
+    let evidence = |reason| {
+        candidates
+            .iter()
+            .map(|(key, entry)| LockCandidate {
+                lock_key: (*key).clone(),
+                physical_directories: installations
+                    .iter()
+                    .filter(|i| candidate(i, key, entry))
+                    .map(|i| i.home_path.to_string_lossy().into_owned())
+                    .collect(),
+                reason,
+            })
+            .collect()
+    };
+    if candidates.len() > 1 {
+        return LockResolution::Ambiguous {
+            reason: "multipleEntries",
+            candidates: evidence("multipleEntries"),
+        };
+    }
+    let Some((key, entry)) = candidates.first() else {
+        return LockResolution::Missing {
+            reason: if lock.skills.is_empty() {
+                "noEntry"
+            } else {
+                "noCorroboratedAssociation"
+            },
+        };
+    };
+    if corroborates(target, entry) == Some(false) {
+        return LockResolution::Ambiguous {
+            reason: "conflictingEvidence",
+            candidates: evidence("conflictingEvidence"),
+        };
+    }
+    if installations
+        .iter()
+        .any(|other| other.home_path != target.home_path && candidate(other, key, entry))
+    {
+        return LockResolution::Ambiguous {
+            reason: "sharedEntry",
+            candidates: evidence("sharedEntry"),
+        };
+    }
+    LockResolution::Resolved {
+        lock_key: (*key).clone(),
+        entry: (*entry).clone(),
+    }
 }
 
 impl SkillLock {

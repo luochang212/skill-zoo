@@ -36,9 +36,17 @@ pub struct UpdateResult {
 
 #[derive(Clone)]
 pub struct KnownSkillUpdate {
-    pub name: String,
+    pub install_directory: String,
+    pub lock_key: String,
     pub entry: SkillLockEntry,
     pub latest_sha: String,
+}
+
+#[derive(Clone)]
+struct PreparedSkillUpdate {
+    install_directory: String,
+    lock_key: String,
+    entry: SkillLockEntry,
 }
 
 struct RepoZipRequest {
@@ -56,7 +64,7 @@ struct KnownUpdateRepoGroup {
 }
 
 type RepoUpdateKey = (String, String, Option<String>);
-type RepoLockEntries = Vec<(String, SkillLockEntry)>;
+type RepoLockEntries = Vec<PreparedSkillUpdate>;
 
 // Test-only URL substitution exercises real HTTP/ZIP/update paths without GitHub.
 #[cfg(test)]
@@ -298,17 +306,32 @@ impl CliService {
     /// example excluding agent-origin skills from "update all".
     pub async fn update_skill_names(skill_names: &[String]) -> Result<UpdateResult, AppError> {
         let lock = SkillLock::read()?;
-        let to_update: Vec<(String, SkillLockEntry)> = skill_names
-            .iter()
-            .filter_map(|name| {
-                lock.skills
-                    .get(name)
-                    .cloned()
-                    .map(|entry| (name.clone(), entry))
-            })
-            .collect();
-
-        Self::update_skill_entries(to_update).await
+        let mut to_update = Vec::new();
+        let mut errors = Vec::new();
+        let mut snapshots = HashMap::new();
+        for name in skill_names {
+            match skill_provenance::prepare_update(name) {
+                Ok(snapshot) => {
+                    snapshots.insert(name.clone(), snapshot);
+                }
+                Err(issue) => {
+                    errors.push(format!("{name}: {issue}"));
+                    continue;
+                }
+            }
+            match SkillService::resolve_ssot_lock(name, &lock) {
+                Ok((lock_key, entry)) => to_update.push(PreparedSkillUpdate {
+                    install_directory: name.clone(),
+                    lock_key,
+                    entry,
+                }),
+                Err(error) => errors.push(format!("{name}: {error}")),
+            }
+        }
+        let mut result = Self::update_skill_entries(to_update, snapshots).await?;
+        result.errors.extend(errors);
+        result.fail_count = result.errors.len();
+        Ok(result)
     }
 
     /// Refuse candidates that must never auto-update before any network work:
@@ -317,12 +340,14 @@ impl CliService {
     /// no recorded baseline. Applies on every path that reaches the shared
     /// update entry point.
     fn filter_updatable_candidates(
-        to_update: Vec<(String, SkillLockEntry)>,
+        to_update: Vec<PreparedSkillUpdate>,
         report_missing_baseline: bool,
         errors: &mut Vec<String>,
-    ) -> Vec<(String, SkillLockEntry)> {
+    ) -> Vec<PreparedSkillUpdate> {
         let mut allowed = Vec::new();
-        for (name, entry) in to_update {
+        for update in to_update {
+            let name = &update.install_directory;
+            let entry = &update.entry;
             if entry.is_externally_pinned() {
                 errors.push(format!(
                     "{name}: Externally pinned. Remove the pin to enable updates."
@@ -347,13 +372,14 @@ impl CliService {
                 }
                 continue;
             }
-            allowed.push((name, entry));
+            allowed.push(update);
         }
         allowed
     }
 
     async fn update_skill_entries(
-        to_update: Vec<(String, SkillLockEntry)>,
+        to_update: Vec<PreparedSkillUpdate>,
+        mut snapshots: HashMap<String, UpdateSnapshot>,
     ) -> Result<UpdateResult, AppError> {
         if to_update.is_empty() {
             return Ok(UpdateResult {
@@ -365,18 +391,45 @@ impl CliService {
         }
 
         let mut errors: Vec<String> = Vec::new();
-        let mut snapshots = HashMap::new();
+        let current_lock = SkillLock::read()?;
+        let to_update: Vec<_> = to_update
+            .into_iter()
+            .filter(|update| {
+                let name = &update.install_directory;
+                match SkillService::resolve_ssot_lock(name, &current_lock) {
+                    Ok((key, current)) if current == update.entry && key == update.lock_key => true,
+                    other => {
+                        errors.push(format!("{name}: updateStateChanged: {other:?}"));
+                        false
+                    }
+                }
+            })
+            .collect();
         let report_missing_baseline = to_update.len() == 1;
         let to_update = to_update
             .into_iter()
-            .filter(|(name, _)| match skill_provenance::prepare_update(name) {
-                Ok(snapshot) => {
-                    snapshots.insert(name.clone(), snapshot);
-                    true
-                }
-                Err(issue) => {
-                    errors.push(format!("{name}: {issue}"));
-                    false
+            .filter(|update| {
+                let name = &update.install_directory;
+                let guard = if let Some(snapshot) = snapshots.get(name) {
+                    skill_provenance::revalidate_update_target(
+                        &config::get_agents_skills_dir().join(name),
+                        snapshot,
+                    )
+                    .map(|()| None)
+                } else {
+                    skill_provenance::prepare_update(name).map(Some)
+                };
+                match guard {
+                    Ok(snapshot) => {
+                        if let Some(snapshot) = snapshot {
+                            snapshots.insert(name.clone(), snapshot);
+                        }
+                        true
+                    }
+                    Err(issue) => {
+                        errors.push(format!("{name}: {issue}"));
+                        false
+                    }
                 }
             })
             .collect();
@@ -386,7 +439,9 @@ impl CliService {
         // Group skills by (owner, repo, branch/default) so each repo is fetched only once
         let mut by_repo: std::collections::HashMap<RepoUpdateKey, RepoLockEntries> =
             std::collections::HashMap::new();
-        for (name, entry) in &to_update {
+        for update in &to_update {
+            let name = &update.install_directory;
+            let entry = &update.entry;
             if entry.effective_url().is_none() {
                 continue;
             }
@@ -400,7 +455,7 @@ impl CliService {
             by_repo
                 .entry((owner, repo, branch))
                 .or_default()
-                .push((name.clone(), entry.clone()));
+                .push(update.clone());
         }
 
         let mut known_updates = Vec::new();
@@ -409,7 +464,8 @@ impl CliService {
             let tree = match Self::fetch_repo_tree(owner, repo, branch.as_deref()).await {
                 Ok(Some(t)) => t,
                 Ok(None) => {
-                    errors.extend(skills.iter().map(|(name, _)| {
+                    errors.extend(skills.iter().map(|update| {
+                        let name = &update.install_directory;
                         format!(
                             "{name}: repository or branch not found for {}",
                             Self::repo_ref_label(owner, repo, branch.as_deref())
@@ -418,21 +474,28 @@ impl CliService {
                     continue;
                 }
                 Err(e) => {
-                    errors.extend(skills.iter().map(|(name, _)| format!("{name}: {e}")));
+                    errors.extend(
+                        skills
+                            .iter()
+                            .map(|update| format!("{}: {e}", update.install_directory)),
+                    );
                     continue;
                 }
             };
 
-            for (name, entry) in skills {
+            for update in skills {
                 match Self::known_update_from_tree(
-                    name,
-                    entry,
+                    &update.install_directory,
+                    &update.entry,
                     &tree,
                     owner,
                     repo,
                     branch.as_deref(),
                 ) {
-                    Ok(Some(update)) => known_updates.push(update),
+                    Ok(Some(mut known)) => {
+                        known.lock_key = update.lock_key.clone();
+                        known_updates.push(known);
+                    }
                     Ok(None) => {}
                     Err(error) => errors.push(error),
                 }
@@ -467,7 +530,8 @@ impl CliService {
         // Only reinstall when we can confirm the SHA actually changed
         match old_sha {
             Some(old) if old != new_sha => Ok(Some(KnownSkillUpdate {
-                name: name.to_string(),
+                install_directory: name.to_string(),
+                lock_key: name.to_string(),
                 entry: entry.clone(),
                 latest_sha: new_sha,
             })),
@@ -498,20 +562,26 @@ impl CliService {
         let to_update = to_update
             .into_iter()
             .filter(|update| {
-                let result = if let Some(snapshot) = snapshots.get(&update.name) {
+                let result = if let Some(snapshot) = snapshots.get(&update.install_directory) {
                     skill_provenance::revalidate_update_target(
-                        &config::get_agents_skills_dir().join(&update.name),
+                        &config::get_agents_skills_dir().join(&update.install_directory),
                         snapshot,
                     )
                 } else {
-                    skill_provenance::prepare_update(&update.name).map(|snapshot| {
-                        snapshots.insert(update.name.clone(), snapshot);
+                    skill_provenance::prepare_update(&update.install_directory).map(|snapshot| {
+                        snapshots.insert(update.install_directory.clone(), snapshot);
                     })
                 };
                 match result {
-                    Ok(()) => true,
+                    Ok(()) => {
+                        if let Err(error) = Self::revalidate_lock_association(update) {
+                            guard_errors.push(format!("{}: {error}", update.install_directory));
+                            return false;
+                        }
+                        true
+                    }
                     Err(issue) => {
-                        guard_errors.push(format!("{}: {issue}", update.name));
+                        guard_errors.push(format!("{}: {issue}", update.install_directory));
                         false
                     }
                 }
@@ -520,7 +590,7 @@ impl CliService {
         let (groups, mut errors) = Self::group_known_updates_by_repo(to_update);
         errors.extend(guard_errors);
         let mut updated: Vec<String> = Vec::new();
-        let mut updated_shas: Vec<(String, String)> = Vec::new();
+        let mut updated_shas: Vec<(String, SkillLockEntry, String)> = Vec::new();
 
         for group in &groups {
             let request =
@@ -539,7 +609,7 @@ impl CliService {
                         group
                             .skills
                             .iter()
-                            .map(|skill| format!("{}: {e}", skill.name)),
+                            .map(|skill| format!("{}: {e}", skill.install_directory)),
                     );
                     continue;
                 }
@@ -548,19 +618,24 @@ impl CliService {
             let discovered = Self::discover_skills_in_tree(&clone_path);
             for skill in &group.skills {
                 match Self::reinstall_skill_from_discovered(
-                    &skill.name,
+                    &skill.install_directory,
                     &group.owner,
                     &group.repo,
                     &clone_path,
                     skill.entry.skill_path.as_deref(),
                     &discovered,
-                    &snapshots[&skill.name],
+                    &snapshots[&skill.install_directory],
+                    skill,
                 ) {
                     Ok(()) => {
-                        updated.push(skill.name.clone());
-                        updated_shas.push((skill.name.clone(), skill.latest_sha.clone()));
+                        updated.push(skill.install_directory.clone());
+                        updated_shas.push((
+                            skill.lock_key.clone(),
+                            skill.entry.clone(),
+                            skill.latest_sha.clone(),
+                        ));
                     }
-                    Err(e) => errors.push(format!("{}: {e}", skill.name)),
+                    Err(e) => errors.push(format!("{}: {e}", skill.install_directory)),
                 }
             }
         }
@@ -568,7 +643,12 @@ impl CliService {
         if !updated_shas.is_empty() {
             let now = chrono::Utc::now().to_rfc3339();
             SkillLock::update(|lock| {
-                for (name, sha) in &updated_shas {
+                for (name, before, sha) in &updated_shas {
+                    if lock.skills.get(name) != Some(before) {
+                        return Err(AppError::BadRequest(
+                            "updateStateChanged: lock entry changed before baseline commit".into(),
+                        ));
+                    }
                     if let Some(entry) = lock.skills.get_mut(name) {
                         entry.updated_at = Some(now.clone());
                         entry.skill_folder_hash = Some(sha.clone());
@@ -587,6 +667,22 @@ impl CliService {
         })
     }
 
+    fn revalidate_lock_association(update: &KnownSkillUpdate) -> Result<(), AppError> {
+        let lock = SkillLock::read()?;
+        let (key, entry) = SkillService::resolve_ssot_lock(&update.install_directory, &lock)
+            .map_err(|error| AppError::UpdateGuard {
+                code: "updateStateChanged",
+                message: error.to_string(),
+            })?;
+        if key != update.lock_key || entry != update.entry {
+            return Err(AppError::UpdateGuard {
+                code: "updateStateChanged",
+                message: "Lock association changed".into(),
+            });
+        }
+        Ok(())
+    }
+
     fn group_known_updates_by_repo(
         to_update: Vec<KnownSkillUpdate>,
     ) -> (Vec<KnownUpdateRepoGroup>, Vec<String>) {
@@ -597,7 +693,7 @@ impl CliService {
             let (owner, repo, branch) = match Self::update_repo_info(&update.entry) {
                 Ok(info) => info,
                 Err(e) => {
-                    errors.push(format!("{}: {e}", update.name));
+                    errors.push(format!("{}: {e}", update.install_directory));
                     continue;
                 }
             };
@@ -681,7 +777,7 @@ impl CliService {
 
     /// Get the folder SHA for a specific path from a repo tree.
     pub fn get_folder_sha_from_tree(tree: &RepoTreeResponse, path: &str) -> Option<String> {
-        let normalized_path = normalize_repo_skill_path(path);
+        let normalized_path = crate::services::lock::normalize_lock_skill_path(path).ok()?;
 
         // Root-level skill
         if normalized_path.is_empty() {
@@ -1188,6 +1284,7 @@ impl CliService {
         lock_skill_path: Option<&str>,
         discovered: &[(String, String, PathBuf)],
         snapshot: &UpdateSnapshot,
+        update: &KnownSkillUpdate,
     ) -> Result<(), AppError> {
         let dest = config::get_agents_skills_dir().join(name);
         skill_provenance::revalidate_update_target(&dest, snapshot).map_err(AppError::from)?;
@@ -1217,6 +1314,7 @@ impl CliService {
         if let Some(before_replace) = TEST_BEFORE_UPDATE_REPLACE.with(|v| v.borrow_mut().take()) {
             before_replace();
         }
+        Self::revalidate_lock_association(update)?;
         skill_provenance::revalidate_update_target(&dest, snapshot).map_err(AppError::from)?;
         Self::replace_skill_dir_with_rollback(&dest, &tmp_path)
     }
@@ -1227,9 +1325,10 @@ impl CliService {
         lock_skill_path: Option<&str>,
         discovered: &'a [(String, String, PathBuf)],
     ) -> Option<&'a PathBuf> {
-        let expected_path = lock_skill_path
-            .map(normalize_repo_skill_path)
-            .unwrap_or_default();
+        let expected_path = match lock_skill_path {
+            Some(path) => crate::services::lock::normalize_lock_skill_path(path).ok()?,
+            None => String::new(),
+        };
         if !expected_path.is_empty() {
             return discovered
                 .iter()
@@ -1247,10 +1346,15 @@ impl CliService {
                 .map(|(_, _, path)| path);
         }
 
-        discovered
+        let leaf = name.rsplit('/').next().unwrap_or(name);
+        let mut matches = discovered
             .iter()
-            .find(|(discovered_name, _, _)| discovered_name == name)
-            .map(|(_, _, path)| path)
+            .filter(|(discovered_name, _, _)| discovered_name == leaf);
+        let first = matches.next()?;
+        if matches.next().is_some() {
+            return None;
+        }
+        Some(&first.2)
     }
 
     fn replace_skill_dir_with_rollback(dest: &Path, tmp: &Path) -> Result<(), AppError> {
@@ -1520,11 +1624,20 @@ mod tests {
                 .build()
                 .unwrap();
             let entry = test_lock_entry("owner/repo", Some("skills/demo"), None);
+            SkillLock::update(|lock| {
+                lock.skills.insert("demo".into(), entry.clone());
+                Ok(())
+            })
+            .unwrap();
             let result = runtime
-                .block_on(CliService::update_skill_entries(vec![(
-                    "demo".to_string(),
-                    entry,
-                )]))
+                .block_on(CliService::update_skill_entries(
+                    vec![PreparedSkillUpdate {
+                        install_directory: "demo".into(),
+                        lock_key: "demo".into(),
+                        entry,
+                    }],
+                    HashMap::new(),
+                ))
                 .expect("update result");
             assert_eq!(result.success_count, 0);
             assert_eq!(result.fail_count, 1);
@@ -2147,7 +2260,8 @@ mod tests {
 
     fn test_known_update(name: &str, source: &str, latest_sha: &str) -> KnownSkillUpdate {
         KnownSkillUpdate {
-            name: name.to_string(),
+            install_directory: name.to_string(),
+            lock_key: name.to_string(),
             entry: test_lock_entry(source, Some(&format!("skills/{name}")), Some("old")),
             latest_sha: latest_sha.to_string(),
         }
@@ -2264,10 +2378,21 @@ mod tests {
             ),
         ];
 
+        let entries: Vec<_> = entries
+            .into_iter()
+            .map(|(name, entry)| PreparedSkillUpdate {
+                install_directory: name.clone(),
+                lock_key: name,
+                entry,
+            })
+            .collect();
         // Single-skill path surfaces the missing-baseline reason too.
         let mut errors = Vec::new();
         let allowed = CliService::filter_updatable_candidates(entries.clone(), true, &mut errors);
-        let allowed_names: Vec<&str> = allowed.iter().map(|(name, _)| name.as_str()).collect();
+        let allowed_names: Vec<&str> = allowed
+            .iter()
+            .map(|update| update.install_directory.as_str())
+            .collect();
         assert_eq!(allowed_names, vec!["ok"]);
         assert_eq!(errors.len(), 3);
         assert!(errors

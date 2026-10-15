@@ -1101,19 +1101,54 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
 
     let lock = SkillLock::read().map_err(|e| e.to_string())?;
 
+    let inventory =
+        crate::services::skill::SkillService::collect_installations().map_err(|e| e.to_string())?;
+    let targets: Vec<_> = inventory
+        .iter()
+        .filter(|i| i.origin == "ssot")
+        .map(|i| {
+            let resolution = crate::services::lock::resolve_installation_lock(i, &inventory, &lock);
+            let guard =
+                crate::services::skill_provenance::prepare_update(&i.install_directory).err();
+            let diagnostic_entry = match &resolution {
+                crate::services::lock::LockResolution::Resolved { entry, .. } => {
+                    Some(entry.clone())
+                }
+                crate::services::lock::LockResolution::Ambiguous { candidates, .. }
+                    if candidates.len() == 1 =>
+                {
+                    lock.skills.get(&candidates[0].lock_key).cloned()
+                }
+                _ => None,
+            };
+            CheckTarget {
+                install_directory: i.install_directory.clone(),
+                resolution,
+                guard,
+                diagnostic_entry,
+            }
+        })
+        .collect();
     let mut checked_skills: HashMap<String, CheckedRemoteSkill> = HashMap::new();
 
     // Group skills by (owner, repo, branch) to minimize API calls
     let mut skills_by_repo: HashMap<UpdateRepoKey, UpdateRepoEntries> = HashMap::new();
 
-    for (skill_name, entry) in &lock.skills {
-        if let Err(issue) = crate::services::skill_provenance::prepare_update(skill_name) {
+    for target in &targets {
+        let crate::services::lock::LockResolution::Resolved {
+            lock_key: skill_name,
+            entry,
+        } = &target.resolution
+        else {
+            continue;
+        };
+        if let Some(issue) = &target.guard {
             checked_skills.insert(
                 skill_name.clone(),
                 CheckedRemoteSkill::error(
                     entry.source.clone().unwrap_or_default(),
                     issue.code,
-                    issue.message,
+                    issue.message.clone(),
                 ),
             );
             continue;
@@ -1233,7 +1268,7 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
     // snapshot cannot prove the installed content still matches the remote
     // tip, and writing it here would silently rebase an entry another writer
     // changed during the check.
-    let skills = build_check_outcome(&lock, &checked_skills, rate_limited);
+    let skills = build_check_outcome(&targets, &checked_skills, rate_limited);
 
     Ok(CheckUpdatesResult {
         skills,
@@ -1243,113 +1278,200 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
     })
 }
 
-/// Pure decision core of `check_skill_updates`: builds per-skill status from
-/// already-fetched remote results. Never touches the network or the lock file.
+struct CheckTarget {
+    install_directory: String,
+    resolution: crate::services::lock::LockResolution,
+    guard: Option<crate::services::skill_provenance::GuardIssue>,
+    // A sole candidate can retain truthful pin/baseline diagnostics even when
+    // provenance contradicts it. This never authorizes an update or attribution.
+    diagnostic_entry: Option<SkillLockEntry>,
+}
+
+/// Pure physical-target projection: dangling lock entries never become targets.
 fn build_check_outcome(
-    lock: &SkillLock,
-    checked_skills: &HashMap<String, CheckedRemoteSkill>,
+    targets: &[CheckTarget],
+    checked: &HashMap<String, CheckedRemoteSkill>,
     rate_limited: bool,
 ) -> Vec<SkillUpdateStatus> {
-    let mut skills: Vec<SkillUpdateStatus> = Vec::new();
-    for (skill_name, entry) in lock.skills.iter() {
-        let (owner, name) = entry.parse_source_owner_name();
-        let repo_label = match (&owner, &name) {
-            (Some(owner), Some(name)) => format!("{owner}/{name}"),
-            _ => entry
-                .source
-                .clone()
-                .unwrap_or_else(|| "unknown".to_string()),
-        };
-        let current_sha = entry.recorded_baseline().map(str::to_string);
-        let baseline_state = if entry.baseline_conflict().is_some() {
-            "conflict"
-        } else if current_sha.is_none() {
-            "missing"
-        } else {
-            "ok"
-        };
-        let pinned = entry.is_externally_pinned();
+    use crate::services::lock::LockResolution;
+    targets
+        .iter()
+        .map(|target| {
+            let directory = &target.install_directory;
+            let (entry, remote) = if let Some(issue) = &target.guard {
+                (
+                    target.diagnostic_entry.clone().unwrap_or_default(),
+                    Some(CheckedRemoteSkill::error(
+                        "unknown".into(),
+                        issue.code,
+                        issue.message.clone(),
+                    )),
+                )
+            } else {
+                match &target.resolution {
+                    LockResolution::Resolved { lock_key, entry } => {
+                        (entry.clone(), checked.get(lock_key).cloned())
+                    }
+                    LockResolution::Missing { reason } => (
+                        SkillLockEntry::default(),
+                        Some(CheckedRemoteSkill::error(
+                            "unknown".into(),
+                            "lockMissing",
+                            format!("{directory}: {reason}"),
+                        )),
+                    ),
+                    LockResolution::Ambiguous { reason, candidates } => (
+                        SkillLockEntry::default(),
+                        Some(CheckedRemoteSkill::error(
+                            "unknown".into(),
+                            "lockAmbiguous",
+                            format!(
+                                "{directory}: {reason}: {}",
+                                candidates
+                                    .iter()
+                                    .map(ToString::to_string)
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            ),
+                        )),
+                    ),
+                }
+            };
+            build_entry_check_outcome(directory, &entry, remote.as_ref(), rate_limited)
+        })
+        .collect()
+}
 
-        // Entries excluded from the fetch (pinned, conflicting, unparseable
-        // source) get an explicit skip state instead of a silent pass.
-        let local_issue = checked_skills.get(skill_name).filter(|checked| {
-            matches!(
-                checked.check_error_code.as_deref(),
-                Some("ghProvenanceProtected" | "skillProvenanceUnreadable" | "updateStateChanged")
+/// Pure decision core of `check_skill_updates`: builds per-skill status from
+/// already-fetched remote results. Never touches the network or the lock file.
+fn build_entry_check_outcome(
+    skill_name: &str,
+    entry: &SkillLockEntry,
+    remote: Option<&CheckedRemoteSkill>,
+    rate_limited: bool,
+) -> SkillUpdateStatus {
+    let (owner, name) = entry.parse_source_owner_name();
+    let repo_label = match (&owner, &name) {
+        (Some(owner), Some(name)) => format!("{owner}/{name}"),
+        _ => entry
+            .source
+            .clone()
+            .unwrap_or_else(|| "unknown".to_string()),
+    };
+    let current_sha = entry.recorded_baseline().map(str::to_string);
+    let baseline_state = if entry.baseline_conflict().is_some() {
+        "conflict"
+    } else if current_sha.is_none() {
+        "missing"
+    } else {
+        "ok"
+    };
+    let pinned = entry.is_externally_pinned();
+
+    // Entries excluded from the fetch (pinned, conflicting, unparseable
+    // source) get an explicit skip state instead of a silent pass.
+    let local_issue = remote.filter(|checked| {
+        matches!(
+            checked.check_error_code.as_deref(),
+            Some(
+                "ghProvenanceProtected"
+                    | "skillProvenanceUnreadable"
+                    | "updateStateChanged"
+                    | "lockMissing"
+                    | "lockAmbiguous"
             )
-        });
-        let checked = if let Some(issue) = local_issue {
-            issue.clone()
-        } else if owner.is_none() || name.is_none() {
-            CheckedRemoteSkill::error(
-                repo_label.clone(),
-                "invalidSource",
-                "Lock entry source could not be parsed. Reinstall the skill to restore update checks.",
-            )
-        } else if pinned {
-            CheckedRemoteSkill::error(
-                repo_label.clone(),
-                "externallyPinned",
-                "Updates are skipped for externally pinned skills.",
-            )
-        } else if let Some((carrier, mirror)) = entry.baseline_conflict() {
-            CheckedRemoteSkill::error(
+        )
+    });
+    let checked = if let Some(issue) = local_issue {
+        issue.clone()
+    } else if owner.is_none() || name.is_none() {
+        CheckedRemoteSkill::error(
+            repo_label.clone(),
+            "invalidSource",
+            "Lock entry source could not be parsed. Reinstall the skill to restore update checks.",
+        )
+    } else if pinned {
+        CheckedRemoteSkill::error(
+            repo_label.clone(),
+            "externallyPinned",
+            "Updates are skipped for externally pinned skills.",
+        )
+    } else if let Some((carrier, mirror)) = entry.baseline_conflict() {
+        CheckedRemoteSkill::error(
                 repo_label.clone(),
                 "baselineConflict",
                 format!(
                     "Baseline records disagree (skillFolderHash {carrier}, commitSha {mirror}). Reinstall the skill to resolve."
                 ),
             )
-        } else {
-            checked_skills.get(skill_name).cloned().unwrap_or_else(|| {
-                if rate_limited {
-                    CheckedRemoteSkill::error(
-                        repo_label.clone(),
-                        "rateLimited",
-                        "Skipped because GitHub rate limit stopped update checks.",
-                    )
-                } else {
-                    CheckedRemoteSkill::ok(None, repo_label.clone())
-                }
-            })
-        };
+    } else {
+        remote.cloned().unwrap_or_else(|| {
+            if rate_limited {
+                CheckedRemoteSkill::error(
+                    repo_label.clone(),
+                    "rateLimited",
+                    "Skipped because GitHub rate limit stopped update checks.",
+                )
+            } else {
+                CheckedRemoteSkill::ok(None, repo_label.clone())
+            }
+        })
+    };
 
-        // Surface a missing baseline as its own needs-attention state when the
-        // remote check itself did not already fail with a more specific error.
-        let checked = if baseline_state == "missing" && checked.check_error_code.is_none() {
-            CheckedRemoteSkill::error(
+    // Surface a missing baseline as its own needs-attention state when the
+    // remote check itself did not already fail with a more specific error.
+    let checked = if baseline_state == "missing" && checked.check_error_code.is_none() {
+        CheckedRemoteSkill::error(
                 checked.repo,
                 "baselineMissing",
                 "Installed version could not be verified: no update baseline is recorded. Reinstall the skill, or restore its baseline as described in the release notes, to restore update checks.",
             )
-        } else {
-            checked
+    } else {
+        checked
+    };
+
+    let has_update = checked.check_error_code.is_none()
+        && match (&checked.latest_sha, &current_sha) {
+            (Some(latest), Some(current)) => latest != current,
+            _ => false,
         };
 
-        let has_update = checked.check_error_code.is_none()
-            && match (&checked.latest_sha, &current_sha) {
-                (Some(latest), Some(current)) => latest != current,
-                _ => false,
-            };
-
-        skills.push(SkillUpdateStatus {
-            skill_name: skill_name.clone(),
-            has_update,
-            current_sha,
-            latest_sha: checked.latest_sha,
-            repo: checked.repo,
-            check_error_code: checked.check_error_code,
-            check_error: checked.check_error,
-            baseline_state: baseline_state.to_string(),
-            pinned,
-        });
+    SkillUpdateStatus {
+        skill_name: skill_name.to_string(),
+        has_update,
+        current_sha,
+        latest_sha: checked.latest_sha,
+        repo: checked.repo,
+        check_error_code: checked.check_error_code,
+        check_error: checked.check_error,
+        baseline_state: baseline_state.to_string(),
+        pinned,
     }
-
-    skills
 }
 
 #[cfg(test)]
 mod skill_update_check_tests {
+    fn check_lock(
+        lock: &SkillLock,
+        checked: &HashMap<String, CheckedRemoteSkill>,
+        rate_limited: bool,
+    ) -> Vec<SkillUpdateStatus> {
+        let targets: Vec<_> = lock
+            .skills
+            .iter()
+            .map(|(key, entry)| CheckTarget {
+                install_directory: key.clone(),
+                resolution: crate::services::lock::LockResolution::Resolved {
+                    lock_key: key.clone(),
+                    entry: entry.clone(),
+                },
+                diagnostic_entry: Some(entry.clone()),
+                guard: None,
+            })
+            .collect();
+        build_check_outcome(&targets, checked, rate_limited)
+    }
+
     use super::*;
 
     fn lock_with(entries: &[(&str, SkillLockEntry)]) -> SkillLock {
@@ -1391,7 +1513,7 @@ mod skill_update_check_tests {
             CheckedRemoteSkill::ok(Some("new-sha".to_string()), "owner/repo".to_string()),
         );
 
-        let skills = build_check_outcome(&lock, &checked, false);
+        let skills = check_lock(&lock, &checked, false);
 
         let status = status_for(&skills, "demo");
         assert!(status.has_update);
@@ -1411,7 +1533,7 @@ mod skill_update_check_tests {
         // A check never invents a baseline: the entry is surfaced and the lock
         // is untouched no matter how many times it is checked.
         for _ in 0..3 {
-            let skills = build_check_outcome(&lock, &checked, false);
+            let skills = check_lock(&lock, &checked, false);
             let status = status_for(&skills, "demo");
             assert!(!status.has_update);
             assert_eq!(status.baseline_state, "missing");
@@ -1425,7 +1547,7 @@ mod skill_update_check_tests {
                 r#"{"source": "owner/repo", "skillFolderHash": "latest-sha", "commitSha": "latest-sha"}"#,
             ),
         )]);
-        let skills = build_check_outcome(&updated_lock, &checked, false);
+        let skills = check_lock(&updated_lock, &checked, false);
         let status = status_for(&skills, "demo");
         assert!(!status.has_update);
         assert_eq!(status.baseline_state, "ok");
@@ -1444,7 +1566,7 @@ mod skill_update_check_tests {
             CheckedRemoteSkill::ok(Some("latest-sha".to_string()), "owner/repo".to_string()),
         );
 
-        let skills = build_check_outcome(&lock, &checked, false);
+        let skills = check_lock(&lock, &checked, false);
 
         let status = status_for(&skills, "demo");
         assert_eq!(status.baseline_state, "missing");
@@ -1470,7 +1592,7 @@ mod skill_update_check_tests {
             CheckedRemoteSkill::ok(Some("new-sha".to_string()), "owner/repo".to_string()),
         );
 
-        let skills = build_check_outcome(&lock, &checked, false);
+        let skills = check_lock(&lock, &checked, false);
 
         let pinned = status_for(&skills, "pinned");
         assert!(pinned.pinned);
@@ -1491,7 +1613,7 @@ mod skill_update_check_tests {
         let lock = lock_with(&[("broken", entry_json(r#"{"source": "owner"}"#))]);
 
         // The fetch grouping skips unparseable sources, so nothing is checked.
-        let skills = build_check_outcome(&lock, &HashMap::new(), false);
+        let skills = check_lock(&lock, &HashMap::new(), false);
 
         let status = status_for(&skills, "broken");
         assert_eq!(status.check_error_code.as_deref(), Some("invalidSource"));
@@ -1511,7 +1633,7 @@ mod skill_update_check_tests {
             ),
         );
 
-        let skills = build_check_outcome(&lock, &checked, false);
+        let skills = check_lock(&lock, &checked, false);
 
         let status = status_for(&skills, "demo");
         assert_eq!(status.baseline_state, "missing");
@@ -1523,7 +1645,7 @@ mod skill_update_check_tests {
     fn rate_limited_unchecked_entries_report_rate_limit() {
         let lock = lock_with(&[("demo", entry_json(r#"{"source": "owner/repo"}"#))]);
 
-        let skills = build_check_outcome(&lock, &HashMap::new(), true);
+        let skills = check_lock(&lock, &HashMap::new(), true);
 
         let status = status_for(&skills, "demo");
         assert_eq!(status.check_error_code.as_deref(), Some("rateLimited"));

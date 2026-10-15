@@ -1,3 +1,4 @@
+import { lockEntriesEqual, resolveHomeLock, collectInstallations, installationEvidence, resolveInstallationLock } from "./lock-resolution.js";
 import { metadataKey, assertWritableMetadata } from "./store.js";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -28,7 +29,6 @@ import {
   ensureDir,
   isSymlinkOrJunction,
   movePath,
-  normalizePath,
   pathExists,
   pathsEqual,
   removeAgentLink,
@@ -150,6 +150,7 @@ async function planArchive(home: string | undefined, skill: InstalledSkill): Pro
     throw new CliError(`Skill home path is not an archiveable directory: ${homePath ?? "(missing)"}`);
   }
 
+  await resolveHomeLock(home, homePath, skill.origin, await readLock(home));
   const archiveId = makeArchiveId(skill.id, skill.directory);
   validateSimpleId(archiveId, "archive id");
   const archiveDir = path.join(getPaths(home).archiveSkillsDir, archiveId);
@@ -202,16 +203,17 @@ async function archiveOne(home: string | undefined, skill: InstalledSkill): Prom
   assertWritableMetadata(await readMetadata(home));
   const snapshots = await Promise.all([
     snapshotFile(paths.archiveManifestFile),
-    snapshotFile(paths.agentLockFile),
     snapshotFile(paths.metadataFile),
     snapshotFile(paths.skillsCacheFile),
   ]);
   const archiveId = makeArchiveId(skill.id, skill.directory);
   const archiveDir = path.join(paths.archiveSkillsDir, archiveId);
-  const lockKey = lock.skills[skill.directory] ? skill.directory : lock.skills[skill.name] ? skill.name : null;
+  const resolution = await resolveHomeLock(home, homePath, skill.origin, lock);
+  const lockKey = resolution.kind === "Resolved" ? resolution.lockKey : null;
   const lockEntryRaw = lockKey ? lock.skills[lockKey] : null;
   const lockEntry = lockEntryRaw ? structuredClone(lockEntryRaw) : null;
   const removedAgents: string[] = [];
+  let lockChanged = false;
 
   try {
     await planArchive(home, skill);
@@ -238,6 +240,7 @@ async function archiveOne(home: string | undefined, skill: InstalledSkill): Prom
     if (lockKey) {
       delete lock.skills[lockKey];
       await writeLock(home, lock);
+      lockChanged = true;
     }
 
     const metadata = await readMetadata(home);
@@ -246,6 +249,7 @@ async function archiveOne(home: string | undefined, skill: InstalledSkill): Prom
     await rebuildCache(home);
   } catch (error) {
     await rollbackArchive(home, skill, homePath, archiveDir, removedAgents, snapshots);
+    if (lockChanged && lockKey && lockEntry) await restoreLockKey(home, lockKey, lockEntry);
     throw error;
   }
 }
@@ -263,6 +267,19 @@ async function planRestore(home: string | undefined, archiveId: string): Promise
   }
 
   const restorePath = getRestorePath(home, archived);
+  if (archived.lockEntry) {
+    const lock = await readLock(home);
+    const key = archived.lockKey ?? archived.directory;
+    if (lock.skills[key] && !lockEntriesEqual(lock.skills[key], archived.lockEntry)) throw new CliError(`Restore lock key conflict: ${key}`);
+    const inventory = await collectInstallations(home);
+    const target = await installationEvidence(path.dirname(archiveDir), archiveDir, archived.origin);
+    target.installDirectory = archived.directory;
+    target.homePath = restorePath;
+    lock.skills[key] = archived.lockEntry;
+    const resolution = resolveInstallationLock(target, [...inventory, target], lock);
+    if (resolution.kind === "Ambiguous" || (resolution.kind === "Resolved" && resolution.lockKey !== key)) throw new CliError(`Restore lock association conflict: ${key}`);
+  }
+
   if (await pathExists(restorePath)) {
     throw new CliError(`Cannot restore: destination already exists at ${restorePath}`);
   }
@@ -319,20 +336,23 @@ async function restoreOne(home: string | undefined, archiveId: string): Promise<
   assertWritableMetadata(await readMetadata(home));
   const snapshots = await Promise.all([
     snapshotFile(paths.archiveManifestFile),
-    snapshotFile(paths.agentLockFile),
     snapshotFile(paths.metadataFile),
     snapshotFile(paths.skillsCacheFile),
   ]);
   const restoredAgents: string[] = [];
+  const restoreKey = archived.lockKey ?? archived.directory;
+  const beforeEntry = lock.skills[restoreKey];
+  let lockChanged = false;
 
   try {
     await planRestore(home, archiveId);
     await ensureDir(path.dirname(restorePath));
     await movePath(archiveDir, restorePath);
 
-    if (archived.lockEntry) {
-      lock.skills[normalizePath(archived.lockKey ?? archived.directory)] = archived.lockEntry;
+    if (archived.lockEntry && (!beforeEntry || !lockEntriesEqual(beforeEntry, archived.lockEntry))) {
+      lock.skills[restoreKey] = archived.lockEntry;
       await writeLock(home, lock);
+      lockChanged = true;
     }
 
     const metadata = await readMetadata(home);
@@ -377,6 +397,7 @@ async function restoreOne(home: string | undefined, archiveId: string): Promise<
     await rebuildCache(home);
   } catch (error) {
     await rollbackRestore(home, archived, archiveDir, restorePath, restoredAgents, snapshots);
+    if (lockChanged) await restoreLockKey(home, restoreKey, beforeEntry);
     throw error;
   }
 }
@@ -481,4 +502,11 @@ function validateSimpleId(value: string, label: string): void {
 
 export function enabledAgentIds(skill: InstalledSkill | ArchivedSkill): string[] {
   return Object.keys(skill.apps).filter((id) => skill.apps[id]);
+}
+
+async function restoreLockKey(home: string | undefined, key: string, before: SkillLockEntry | undefined) {
+  const lock = await readLock(home);
+  if (before) lock.skills[key] = before;
+  else delete lock.skills[key];
+  await writeLock(home, lock);
 }

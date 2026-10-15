@@ -962,12 +962,8 @@ pub(crate) async fn update_skill_inner(
         .map_err(CommandError::from)?;
 
     let lock = SkillLock::read().map_err(CommandError::from)?;
-    let lock_entry = lock.skills.get(&skill.directory).cloned().ok_or_else(|| {
-        CommandError::not_found(format!(
-            "Skill {} is not tracked in the lock file. Reinstall from GitHub to enable updates.",
-            skill.directory
-        ))
-    })?;
+    let (lock_key, lock_entry) =
+        SkillService::resolve_ssot_lock(&skill.directory, &lock).map_err(CommandError::from)?;
 
     if lock_entry.is_externally_pinned() {
         return Err(CommandError::bad_request(format!(
@@ -1030,7 +1026,8 @@ pub(crate) async fn update_skill_inner(
 
     // Perform update
     let known_update = KnownSkillUpdate {
-        name: skill.directory.clone(),
+        install_directory: skill.directory.clone(),
+        lock_key,
         entry: lock_entry,
         latest_sha: new_sha,
     };
@@ -1317,12 +1314,12 @@ fn checked_update_entries_from_lock(
             errors.push(format!("{}: {issue}", checked.skill_name));
             continue;
         }
-        let Some(entry) = lock.skills.get(&checked.skill_name).cloned() else {
-            errors.push(format!(
-                "{}: Skill no longer exists in the lock file. Check updates again.",
-                checked.skill_name
-            ));
-            continue;
+        let (lock_key, entry) = match SkillService::resolve_ssot_lock(&checked.skill_name, lock) {
+            Ok(association) => association,
+            Err(error) => {
+                errors.push(format!("{}: {error}", checked.skill_name));
+                continue;
+            }
         };
         if entry.is_externally_pinned() {
             errors.push(format!(
@@ -1353,7 +1350,8 @@ fn checked_update_entries_from_lock(
             continue;
         }
         updates.push(KnownSkillUpdate {
-            name: checked.skill_name.clone(),
+            install_directory: checked.skill_name.clone(),
+            lock_key,
             entry,
             latest_sha: checked.latest_sha.clone(),
         });
@@ -1377,27 +1375,20 @@ fn update_result_with_added_error(
     update_result_with_error_count(result)
 }
 
-fn remove_lock_entry_for_skill(skill: &SkillCacheEntry) {
-    if skill.origin != "ssot" {
-        return;
+fn skill_lock_association(
+    skill: &SkillCacheEntry,
+    lock: &SkillLock,
+) -> Result<Option<(String, crate::services::lock::SkillLockEntry)>, String> {
+    if skill.origin == "external" {
+        return Ok(None);
     }
-    // Mirror archive's lookup order: full directory first, leaf name as legacy fallback.
-    if let Err(e) = SkillLock::update(|lock| {
-        let key = if lock.skills.contains_key(&skill.directory) {
-            skill.directory.clone()
-        } else if lock.skills.contains_key(&skill.name) {
-            skill.name.clone()
-        } else {
-            return Ok::<(), AppError>(());
-        };
-        lock.skills.remove(&key);
-        Ok::<(), AppError>(())
-    }) {
-        eprintln!(
-            "Failed to write lock after removing {}: {e}",
-            skill.directory
-        );
-    }
+    let home = skill
+        .home_path
+        .as_deref()
+        .ok_or_else(|| "Skill has no home".to_string())?;
+    SkillService::resolve_home_lock(Path::new(home), &skill.origin, lock)
+        .and_then(|r| r.association())
+        .map_err(|e| e.to_string())
 }
 
 fn remove_cached_skill_from_disk(skill: &SkillCacheEntry) -> Result<(), String> {
@@ -1419,8 +1410,19 @@ fn remove_cached_skill_from_disk(skill: &SkillCacheEntry) -> Result<(), String> 
         .home_path
         .as_ref()
         .ok_or_else(|| "Skill has no physical home path, cannot remove".to_string())?;
+    let association =
+        skill_lock_association(skill, &SkillLock::read().map_err(|e| e.to_string())?)?;
     SkillService::remove_skill_dir(&skill.directory, home_path).map_err(|e| e.to_string())?;
-    remove_lock_entry_for_skill(skill);
+    if let Some((key, before)) = association {
+        SkillLock::update(|lock| {
+            if lock.skills.get(&key) != Some(&before) {
+                return Err(AppError::BadRequest("Lock changed during removal".into()));
+            }
+            lock.skills.remove(&key);
+            Ok(())
+        })
+        .map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 
@@ -1693,16 +1695,12 @@ pub(crate) fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<
     let old_metadata = state.metadata.read().map_err(|e| e.to_string())?.clone();
     let old_lock = SkillLock::read().map_err(|e| e.to_string())?;
     assert_writable_schema(&old_lock, &old_manifest)?;
-    let lock_key = if old_lock.skills.contains_key(&skill.directory) {
-        Some(skill.directory.clone())
-    } else if old_lock.skills.contains_key(&skill.name) {
-        Some(skill.name.clone())
-    } else {
-        None
-    };
-    let lock_entry = lock_key
-        .as_ref()
-        .and_then(|key| old_lock.skills.get(key).cloned());
+    let association =
+        SkillService::resolve_home_lock(Path::new(&home_path), &skill.origin, &old_lock)
+            .and_then(|r| r.association())
+            .map_err(|e| e.to_string())?;
+    let lock_key = association.as_ref().map(|(key, _)| key.clone());
+    let lock_entry = association.map(|(_, entry)| entry);
     let archived_skill = ArchivedSkill::from_installed(
         skill.clone(),
         archive_id.clone(),
@@ -1990,6 +1988,37 @@ pub(crate) fn restore_archived_skill_inner(
     let old_metadata = state.metadata.read().map_err(|e| e.to_string())?.clone();
     let old_lock = SkillLock::read().map_err(|e| e.to_string())?;
     assert_writable_schema(&old_lock, &old_manifest)?;
+    let restore_key = archived_skill
+        .lock_key
+        .clone()
+        .unwrap_or_else(|| archived_skill.directory.clone());
+    let before_entry = old_lock.skills.get(&restore_key).cloned();
+    if let Some(entry) = archived_skill.lock_entry.as_ref().filter(|_| !is_external) {
+        if before_entry.as_ref().is_some_and(|before| before != entry) {
+            return Err(format!("Restore lock key conflict: {restore_key}"));
+        }
+        let mut inventory = SkillService::collect_installations().map_err(|e| e.to_string())?;
+        let target = crate::services::lock::Installation {
+            owning_root: restore_path.parent().unwrap().into(),
+            install_directory: archived_skill.directory.clone(),
+            home_path: restore_path.clone(),
+            origin: archived_skill.origin.clone(),
+            provenance: skill_provenance::installation_provenance(&archive_dir),
+        };
+        inventory.push(target.clone());
+        let mut proposed = old_lock.clone();
+        proposed.skills.insert(restore_key.clone(), entry.clone());
+        let resolution =
+            crate::services::lock::resolve_installation_lock(&target, &inventory, &proposed);
+        if !matches!(
+            &resolution,
+            crate::services::lock::LockResolution::Missing { .. }
+        ) && !matches!(&resolution, crate::services::lock::LockResolution::Resolved { lock_key, .. } if lock_key == &restore_key)
+        {
+            return Err(format!("Restore lock association conflict: {resolution:?}"));
+        }
+    }
+    let lock_changed = std::cell::Cell::new(false);
 
     if !is_external {
         if let Some(parent) = restore_path.parent() {
@@ -2032,31 +2061,41 @@ pub(crate) fn restore_archived_skill_inner(
             &old_manifest,
             "restore failure",
         );
-        let restore_key = archived_skill
-            .lock_key
-            .clone()
-            .unwrap_or_else(|| archived_skill.directory.clone());
-        if let Err(e) = SkillLock::update(|lock| {
-            lock.skills.remove(&restore_key);
-            Ok::<(), AppError>(())
-        }) {
-            log_archive_rollback_error("remove restored lock entry after restore failure", e);
+        if lock_changed.get() {
+            if let Err(e) = SkillLock::update(|lock| {
+                if let Some(before) = &before_entry {
+                    lock.skills.insert(restore_key.clone(), before.clone());
+                } else {
+                    lock.skills.remove(&restore_key);
+                }
+                Ok::<(), AppError>(())
+            }) {
+                log_archive_rollback_error("restore changed lock key after failure", e);
+            }
         }
         message
     };
 
     if !is_external {
-        if let Some(lock_entry) = archived_skill.lock_entry.clone() {
+        if let Some(lock_entry) = archived_skill
+            .lock_entry
+            .clone()
+            .filter(|entry| before_entry.as_ref() != Some(entry))
+        {
             let key = archived_skill
                 .lock_key
                 .clone()
                 .unwrap_or_else(|| archived_skill.directory.clone());
             if let Err(e) = SkillLock::update(|lock| {
+                if lock.skills.get(&key) != before_entry.as_ref() {
+                    return Err(AppError::BadRequest("Restore lock key changed".into()));
+                }
                 lock.skills.insert(key, lock_entry);
                 Ok::<(), AppError>(())
             }) {
                 return Err(rollback(e.to_string(), &restored_agents));
             }
+            lock_changed.set(true);
         }
     }
 
@@ -2446,6 +2485,15 @@ pub fn write_skill_text(
     relative_path: String,
     content: String,
 ) -> Result<(), String> {
+    write_skill_text_inner(&state, skill_id, relative_path, content)
+}
+
+fn write_skill_text_inner(
+    state: &AppState,
+    skill_id: String,
+    relative_path: String,
+    content: String,
+) -> Result<(), String> {
     let skill = {
         let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
         ManagedSkill::resolve(&cache, &skill_id, true).map_err(|e| e.to_string())?
@@ -2453,15 +2501,21 @@ pub fn write_skill_text(
     let path = skill
         .writable_path(&relative_path)
         .map_err(|e| e.to_string())?;
+    let association =
+        skill_lock_association(&skill.entry, &SkillLock::read().map_err(|e| e.to_string())?)?;
     atomic_write(&path, content).map_err(|e| e.to_string())?;
 
-    if skill.entry.origin == "ssot" {
-        let _ = SkillLock::update(|lock| {
-            if let Some(entry) = lock.skills.get_mut(&skill.entry.directory) {
+    if let Some((key, before)) = association {
+        SkillLock::update(|lock| {
+            if lock.skills.get(&key) != Some(&before) {
+                return Err(AppError::BadRequest("Lock changed during edit".into()));
+            }
+            if let Some(entry) = lock.skills.get_mut(&key) {
                 entry.updated_at = Some(chrono::Utc::now().to_rfc3339());
             }
             Ok::<(), AppError>(())
-        });
+        })
+        .map_err(|e| e.to_string())?;
     }
     let entry = scan_cached_skill_home(&skill.entry, &skill.root)?;
     SkillService::upsert_cache_entry(&state.skill_cache, entry).map_err(|e| e.to_string())?;
@@ -3741,7 +3795,7 @@ mod tests {
 
             assert!(errors.is_empty());
             assert_eq!(entries.len(), 1);
-            assert_eq!(entries[0].name, "ssot-skill");
+            assert_eq!(entries[0].install_directory, "ssot-skill");
             assert_eq!(entries[0].latest_sha, "new-ssot");
         });
     }
@@ -3851,22 +3905,26 @@ mod tests {
     #[test]
     fn remove_cached_skill_from_disk_removes_selected_home_not_same_named_duplicate() {
         let root = tempfile::tempdir().expect("tempdir");
-        let ssot_home = root.path().join(".agents").join("skills").join("demo");
-        let agent_home = root.path().join(".codex").join("skills").join("demo");
-        std::fs::create_dir_all(&ssot_home).expect("create ssot skill");
-        std::fs::create_dir_all(&agent_home).expect("create agent skill");
+        config::with_test_home(root.path(), || {
+            let ssot_home = root.path().join(".agents").join("skills").join("demo");
+            let agent_home = root.path().join(".codex").join("skills").join("demo");
+            std::fs::create_dir_all(&ssot_home).expect("create ssot skill");
+            std::fs::create_dir_all(&agent_home).expect("create agent skill");
 
-        let skill = test_cache_entry_with_home(
-            "agent:codex:demo",
-            "demo",
-            "agent",
-            Some(agent_home.to_string_lossy().to_string()),
-        );
+            std::fs::write(ssot_home.join("SKILL.md"), "# SSOT").unwrap();
+            std::fs::write(agent_home.join("SKILL.md"), "# Agent").unwrap();
+            let skill = test_cache_entry_with_home(
+                "agent:codex:demo",
+                "demo",
+                "agent",
+                Some(agent_home.to_string_lossy().to_string()),
+            );
 
-        remove_cached_skill_from_disk(&skill).expect("remove selected skill");
+            remove_cached_skill_from_disk(&skill).expect("remove selected skill");
 
-        assert!(ssot_home.exists());
-        assert!(!agent_home.exists());
+            assert!(ssot_home.exists());
+            assert!(!agent_home.exists());
+        });
     }
 
     #[test]
@@ -4162,6 +4220,11 @@ mod metadata_identity_tests {
                 SkillService::read_all_skills(&state.skill_cache, &state.metadata).unwrap();
             assert!(skills[0].starred && skills[0].is_mine);
             // Consume the unmodified shared historical archive shape at the current destination.
+            SkillLock::update(|lock| {
+                lock.skills.remove("demo");
+                Ok(())
+            })
+            .unwrap();
             std::fs::remove_dir_all(root.join("demo")).unwrap();
             let mut manifest: ArchiveManifest =
                 serde_json::from_str(&fixture("archive-v1-full.json")).unwrap();
@@ -4179,6 +4242,316 @@ mod metadata_identity_tests {
             assert!(meta.get("ssot:demo").starred);
             assert!(!meta.get("ssot:demo").is_mine);
         });
+    }
+
+    #[test]
+    fn b1_namespace_cross_surface_archive_restore_delete_and_equal_entry_rollback() {
+        for first_desktop in [true, false] {
+            let tmp = tempfile::tempdir().unwrap();
+            config::with_test_home(tmp.path(), || {
+                let state = state();
+                let root = config::get_agents_skills_dir();
+                let home = root.join("demo");
+                write_skill(&home);
+                let cases: serde_json::Value =
+                    serde_json::from_str(&fixture("lock-resolution-layouts.json")).unwrap();
+                let case = cases
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|c| c["name"] == "flat-namespace")
+                    .unwrap();
+                std::fs::write(
+                    home.join("SKILL.md"),
+                    case["directories"][0]["text"].as_str().unwrap(),
+                )
+                .unwrap();
+                let original: SkillLock = serde_json::from_value(case["lock"].clone()).unwrap();
+                original.write().unwrap();
+                let entry = SkillService::scan_single_skill("demo").unwrap();
+                state.skill_cache.write().unwrap().upsert(entry.clone());
+                if first_desktop {
+                    archive_skill_inner(&state, entry.id.clone()).unwrap();
+                } else {
+                    cli(tmp.path(), &["archive", "demo", "--yes", "--json"]);
+                }
+                let archived = ArchiveManifest::load()
+                    .unwrap()
+                    .skills
+                    .values()
+                    .next()
+                    .unwrap()
+                    .clone();
+                assert_eq!(archived.lock_key.as_deref(), Some("author/demo"));
+                assert_eq!(
+                    archived.lock_entry.as_ref(),
+                    Some(&original.skills["author/demo"])
+                );
+                // A different original key must fail before moving the archive.
+                SkillLock::update(|lock| {
+                    let mut entry = original.skills["author/demo"].clone();
+                    entry.source = Some("other/repo".into());
+                    lock.skills.insert("author/demo".into(), entry);
+                    Ok(())
+                })
+                .unwrap();
+                assert!(
+                    restore_archived_skill_inner(&state, archived.archive_id.clone())
+                        .unwrap_err()
+                        .contains("key conflict")
+                );
+                assert!(!home.exists());
+                assert!(ArchiveManifest::archive_skill_dir(&archived.archive_id).exists());
+                // Equal preexisting record survives a subsequent link failure.
+                original.write().unwrap();
+                let agent = config::get_agent_skills_dir("codex").unwrap();
+                std::fs::create_dir_all(agent.join("demo")).unwrap();
+                let mut manifest = ArchiveManifest::load().unwrap();
+                manifest
+                    .skills
+                    .get_mut(&archived.archive_id)
+                    .unwrap()
+                    .apps
+                    .insert("codex".into(), true);
+                manifest.save().unwrap();
+                let before = std::fs::read(config::get_agent_lock_file()).unwrap();
+                assert!(restore_archived_skill_inner(&state, archived.archive_id.clone()).is_err());
+                assert_eq!(
+                    std::fs::read(config::get_agent_lock_file()).unwrap(),
+                    before
+                );
+                assert!(!home.exists());
+                std::fs::remove_dir_all(agent.join("demo")).unwrap();
+                let mut manifest = ArchiveManifest::load().unwrap();
+                manifest
+                    .skills
+                    .get_mut(&archived.archive_id)
+                    .unwrap()
+                    .apps
+                    .clear();
+                manifest.save().unwrap();
+                if first_desktop {
+                    cli(
+                        tmp.path(),
+                        &["restore", &archived.archive_id, "--yes", "--json"],
+                    );
+                } else {
+                    restore_archived_skill_inner(&state, archived.archive_id.clone()).unwrap();
+                }
+                assert_eq!(SkillLock::read().unwrap().skills, original.skills);
+                assert_eq!(
+                    std::fs::read_to_string(home.join("SKILL.md")).unwrap(),
+                    case["directories"][0]["text"]
+                );
+                let entry = SkillService::scan_single_skill("demo").unwrap();
+                remove_cached_skill_from_disk(&entry).unwrap();
+                assert!(!home.exists());
+                assert!(SkillLock::read().unwrap().skills.is_empty());
+            });
+        }
+    }
+
+    #[test]
+    fn b1_ambiguous_delete_and_archive_fail_before_side_effects() {
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            let state = state();
+            let home = config::get_agents_skills_dir().join(".system/demo");
+            write_skill(&home);
+            SkillLock::update(|lock| {
+                for key in ["demo", ".system/demo"] {
+                    lock.skills
+                        .insert(key.into(), crate::services::lock::SkillLockEntry::default());
+                }
+                Ok(())
+            })
+            .unwrap();
+            let before = std::fs::read(config::get_agent_lock_file()).unwrap();
+            let entry = SkillService::scan_single_skill(".system/demo").unwrap();
+            state.skill_cache.write().unwrap().upsert(entry.clone());
+            assert!(remove_cached_skill_from_disk(&entry)
+                .unwrap_err()
+                .contains("lockAmbiguous"));
+            assert!(archive_skill_inner(&state, entry.id)
+                .unwrap_err()
+                .contains("lockAmbiguous"));
+            assert!(home.join("SKILL.md").exists());
+            assert_eq!(
+                before,
+                std::fs::read(config::get_agent_lock_file()).unwrap()
+            );
+            assert!(ArchiveManifest::load().unwrap().skills.is_empty());
+        });
+    }
+
+    #[test]
+    fn b1_edit_uses_original_key_and_refuses_ambiguity_before_writing() {
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            let state = state();
+            let home = config::get_agents_skills_dir().join(".system/demo");
+            write_skill(&home);
+            SkillLock::update(|lock| {
+                lock.skills.insert(
+                    "demo".into(),
+                    crate::services::lock::SkillLockEntry::default(),
+                );
+                Ok(())
+            })
+            .unwrap();
+            let entry = SkillService::scan_single_skill(".system/demo").unwrap();
+            state.skill_cache.write().unwrap().upsert(entry.clone());
+            write_skill_text_inner(
+                &state,
+                entry.id.clone(),
+                "SKILL.md".into(),
+                "# Edited".into(),
+            )
+            .unwrap();
+            let lock = SkillLock::read().unwrap();
+            assert_eq!(lock.skills.len(), 1);
+            assert!(lock.skills["demo"].updated_at.is_some());
+            SkillLock::update(|lock| {
+                lock.skills
+                    .insert(".system/demo".into(), lock.skills["demo"].clone());
+                Ok(())
+            })
+            .unwrap();
+            let before = std::fs::read(config::get_agent_lock_file()).unwrap();
+            assert!(write_skill_text_inner(
+                &state,
+                entry.id,
+                "SKILL.md".into(),
+                "# Must not write".into()
+            )
+            .unwrap_err()
+            .contains("lockAmbiguous"));
+            assert_eq!(
+                std::fs::read_to_string(home.join("SKILL.md")).unwrap(),
+                "# Edited"
+            );
+            assert_eq!(
+                before,
+                std::fs::read(config::get_agent_lock_file()).unwrap()
+            );
+        });
+    }
+
+    #[test]
+    fn b1_plain_agent_archive_and_delete_do_not_take_ssot_lock() {
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            let state = state();
+            let ssot = config::get_agents_skills_dir().join("demo");
+            let root = config::get_agent_skills_dir("codex").unwrap();
+            let agent = root.join("demo");
+            write_skill(&ssot);
+            write_skill(&agent);
+            SkillLock::update(|lock| {
+                lock.skills.insert(
+                    "demo".into(),
+                    crate::services::lock::SkillLockEntry::default(),
+                );
+                Ok(())
+            })
+            .unwrap();
+            let before = std::fs::read(config::get_agent_lock_file()).unwrap();
+            let entry = SkillService::scan_skill_root(&agent, &root, Some("codex")).unwrap();
+            assert!(entry.repo_owner.is_none());
+            state.skill_cache.write().unwrap().upsert(entry.clone());
+            archive_skill_inner(&state, entry.id).unwrap();
+            let archived = ArchiveManifest::load()
+                .unwrap()
+                .skills
+                .values()
+                .next()
+                .unwrap()
+                .clone();
+            assert!(archived.lock_key.is_none() && archived.lock_entry.is_none());
+            assert_eq!(
+                before,
+                std::fs::read(config::get_agent_lock_file()).unwrap()
+            );
+            restore_archived_skill_inner(&state, archived.archive_id).unwrap();
+            let restored = SkillService::scan_skill_root(&agent, &root, Some("codex")).unwrap();
+            remove_cached_skill_from_disk(&restored).unwrap();
+            assert!(ssot.join("SKILL.md").exists());
+            assert!(!agent.exists());
+            assert_eq!(
+                before,
+                std::fs::read(config::get_agent_lock_file()).unwrap()
+            );
+        });
+    }
+
+    #[test]
+    fn b1_all_ambiguity_layouts_refuse_archive_and_delete() {
+        let cases: serde_json::Value =
+            serde_json::from_str(&fixture("lock-resolution-layouts.json")).unwrap();
+        for case in cases.as_array().unwrap().iter().filter(|c| {
+            c["expected"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|v| v.as_str().unwrap().starts_with("Ambiguous"))
+        }) {
+            let tmp = tempfile::tempdir().unwrap();
+            config::with_test_home(tmp.path(), || {
+                let state = state();
+                let mut targets = Vec::new();
+                for d in case["directories"].as_array().unwrap() {
+                    let ssot = d["origin"] == "ssot";
+                    let root = if ssot {
+                        config::get_agents_skills_dir()
+                    } else {
+                        config::get_agent_skills_dir("codex").unwrap()
+                    };
+                    let home = root.join(d["directory"].as_str().unwrap());
+                    write_skill(&home);
+                    std::fs::write(home.join("SKILL.md"), d["text"].as_str().unwrap()).unwrap();
+                    targets.push((home, root, ssot));
+                }
+                let lock: SkillLock = serde_json::from_value(case["lock"].clone()).unwrap();
+                lock.write().unwrap();
+                let before = std::fs::read(config::get_agent_lock_file()).unwrap();
+                for (i, (home, root, ssot)) in targets.iter().enumerate() {
+                    if !case["expected"][i]
+                        .as_str()
+                        .unwrap()
+                        .starts_with("Ambiguous")
+                    {
+                        continue;
+                    }
+                    let entry =
+                        SkillService::scan_skill_root(home, root, (!ssot).then_some("codex"))
+                            .unwrap();
+                    state.skill_cache.write().unwrap().upsert(entry.clone());
+                    assert!(
+                        remove_cached_skill_from_disk(&entry)
+                            .unwrap_err()
+                            .contains("lockAmbiguous"),
+                        "{}",
+                        case["name"]
+                    );
+                    assert!(
+                        archive_skill_inner(&state, entry.id)
+                            .unwrap_err()
+                            .contains("lockAmbiguous"),
+                        "{}",
+                        case["name"]
+                    );
+                    assert_eq!(
+                        std::fs::read_to_string(home.join("SKILL.md")).unwrap(),
+                        case["directories"][i]["text"]
+                    );
+                }
+                assert_eq!(
+                    before,
+                    std::fs::read(config::get_agent_lock_file()).unwrap()
+                );
+                assert!(ArchiveManifest::load().unwrap().skills.is_empty());
+            });
+        }
     }
 
     #[test]

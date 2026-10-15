@@ -227,7 +227,8 @@ fn protected_commands_and_direct_service_never_fetch_or_write() {
             assert_eq!(checked.fail_count, 1);
             assert!(checked.errors[0].contains("[ghProvenanceProtected]"));
             let direct = CliService::update_known_skill_entries(vec![KnownSkillUpdate {
-                name: "demo".into(),
+                install_directory: "demo".into(),
+                lock_key: "demo".into(),
                 entry: entry(),
                 latest_sha: "new".into(),
             }])
@@ -418,7 +419,8 @@ fn all_unsafe_yaml_cases_refuse_direct_updates_without_writes() {
                 let before = directory_bytes(&config::get_agents_skills_dir());
                 let lock_before = fs::read(lock_path()).unwrap();
                 let result = CliService::update_known_skill_entries(vec![KnownSkillUpdate {
-                    name: "demo".into(),
+                    install_directory: "demo".into(),
+                    lock_key: "demo".into(),
                     entry: entry(),
                     latest_sha: "new".into(),
                 }])
@@ -462,7 +464,8 @@ fn final_recheck_discards_staging_and_keeps_external_edit() {
             let zip = archive(&mut server, 1).await;
             let _network = network(&server.url());
             let result = CliService::update_known_skill_entries(vec![KnownSkillUpdate {
-                name: "demo".into(),
+                install_directory: "demo".into(),
+                lock_key: "demo".into(),
                 entry: entry(),
                 latest_sha: "new".into(),
             }])
@@ -613,7 +616,8 @@ fn directory_identity_change_is_refused_even_with_identical_skill_bytes() {
             let zip = archive(&mut server, 1).await;
             let _network = network(&server.url());
             let result = CliService::update_known_skill_entries(vec![KnownSkillUpdate {
-                name: "demo".into(),
+                install_directory: "demo".into(),
+                lock_key: "demo".into(),
                 entry: entry(),
                 latest_sha: "new".into(),
             }])
@@ -680,6 +684,211 @@ fn single_guard_is_independent_of_missing_or_namespaced_lock_association() {
                 assert_eq!(fs::read(lock_path()).ok(), before);
                 assert_eq!(directory_bytes(&config::get_agents_skills_dir()), files);
             })
+        });
+    }
+}
+
+#[test]
+fn b1_historical_leaf_single_all_and_check_checked_update_the_physical_slot() {
+    for mode in ["single", "all", "checked"] {
+        for remote_path in ["skills/demo", "skills/demo/SKILL.md"] {
+            isolated(|| {
+                runtime().block_on(async {
+                    install(
+                        ".system/demo",
+                        b"---\nname: demo\ndescription: demo\n---\nold body",
+                    );
+                    SkillLock::update(|lock| {
+                        let mut old = lock.skills.remove(".system/demo").unwrap();
+                        old.skill_path = Some(remote_path.into());
+                        lock.skills.insert("demo".into(), old);
+                        // A dangling record must not become a Check target.
+                        lock.skills.insert("dangling".into(), entry());
+                        Ok(())
+                    })
+                    .unwrap();
+                    let state = state(&[".system/demo"]);
+                    let id = state
+                        .skill_cache
+                        .read()
+                        .unwrap()
+                        .iter()
+                        .next()
+                        .unwrap()
+                        .id
+                        .clone();
+                    let mut server = mockito::Server::new_async().await;
+                    let tree_mock = tree(&mut server, 1).await;
+                    let zip_mock = archive(&mut server, 1).await;
+                    let _network = network(&server.url());
+                    match mode {
+                        "single" => {
+                            assert!(update_skill_inner(&state, id).await.unwrap().updated);
+                        }
+                        "all" => {
+                            let result = update_all_skills_inner(&state, None).await.unwrap();
+                            assert_eq!(result.updated, vec![".system/demo"]);
+                            assert!(result.errors.is_empty(), "{:?}", result.errors);
+                        }
+                        _ => {
+                            let before = fs::read(lock_path()).unwrap();
+                            let check = check_skill_updates().await.unwrap();
+                            assert_eq!(check.skills.len(), 1);
+                            let status = &check.skills[0];
+                            assert_eq!(status.skill_name, ".system/demo");
+                            assert!(status.has_update);
+                            assert_eq!(before, fs::read(lock_path()).unwrap());
+                            let result = update_all_skills_inner(
+                                &state,
+                                Some(vec![CheckedSkillUpdate {
+                                    skill_name: status.skill_name.clone(),
+                                    current_sha: status.current_sha.clone().unwrap(),
+                                    latest_sha: status.latest_sha.clone().unwrap(),
+                                }]),
+                            )
+                            .await
+                            .unwrap();
+                            assert_eq!(result.updated, vec![".system/demo"]);
+                            assert!(result.errors.is_empty(), "{:?}", result.errors);
+                        }
+                    }
+                    let lock = SkillLock::read().unwrap();
+                    assert_eq!(lock.skills.len(), 2);
+                    assert_eq!(lock.skills["demo"].recorded_baseline(), Some("new"));
+                    assert_eq!(lock.skills["demo"].commit_sha.as_deref(), Some("new"));
+                    assert_eq!(lock.skills["demo"].skill_path.as_deref(), Some(remote_path));
+                    assert!(!config::get_agents_skills_dir().join("demo").exists());
+                    assert!(fs::read_to_string(
+                        config::get_agents_skills_dir().join(".system/demo/SKILL.md")
+                    )
+                    .unwrap()
+                    .contains("new body"));
+                    assert_eq!(
+                        SkillService::scan_single_skill(".system/demo")
+                            .unwrap()
+                            .repo_owner
+                            .as_deref(),
+                        Some("owner")
+                    );
+                    tree_mock.assert_async().await;
+                    zip_mock.assert_async().await;
+                })
+            });
+        }
+    }
+}
+
+#[test]
+fn b1_network_barrier_lock_changes_refuse_before_replacement() {
+    for change in ["source", "rekey", "competitor"] {
+        isolated(|| {
+            runtime().block_on(async {
+                install(
+                    ".system/demo",
+                    b"---\nname: demo\ndescription: demo\n---\nold body",
+                );
+                SkillLock::update(|lock| {
+                    let entry = lock.skills.remove(".system/demo").unwrap();
+                    lock.skills.insert("demo".into(), entry);
+                    Ok(())
+                })
+                .unwrap();
+                let state = state(&[".system/demo"]);
+                let before_dir = directory_bytes(&config::get_agents_skills_dir());
+                let entered = std::sync::Arc::new(std::sync::Barrier::new(2));
+                let release = std::sync::Arc::new(std::sync::Barrier::new(2));
+                let (a, b) = (entered.clone(), release.clone());
+                let target_lock = lock_path();
+                let writer = std::thread::spawn(move || {
+                    a.wait();
+                    let mut lock: SkillLock =
+                        serde_json::from_slice(&fs::read(&target_lock).unwrap()).unwrap();
+                    match change {
+                        "source" => {
+                            lock.skills.get_mut("demo").unwrap().source = Some("other/repo".into())
+                        }
+                        "rekey" => {
+                            let entry = lock.skills.remove("demo").unwrap();
+                            lock.skills.insert(".system/demo".into(), entry);
+                        }
+                        _ => {
+                            lock.skills
+                                .insert(".system/demo".into(), lock.skills["demo"].clone());
+                        }
+                    }
+                    lock.write_to(&target_lock).unwrap();
+                    let after = fs::read(target_lock).unwrap();
+                    b.wait();
+                    after
+                });
+                let mut server = mockito::Server::new_async().await;
+                let tree_mock = tree(&mut server, 1).await;
+                let zip_mock = server
+                    .mock("GET", "/owner/repo/archive/refs/heads/main.zip")
+                    .expect(1)
+                    .with_status(200)
+                    .with_body_from_request(move |_| {
+                        entered.wait();
+                        release.wait();
+                        zip()
+                    })
+                    .create_async()
+                    .await;
+                let _network = network(&server.url());
+                let result = update_all_skills_inner(&state, None).await.unwrap();
+                assert_eq!(result.success_count, 0);
+                assert!(
+                    result.errors[0].contains("updateStateChanged"),
+                    "{:?}",
+                    result.errors
+                );
+                assert_eq!(
+                    directory_bytes(&config::get_agents_skills_dir()),
+                    before_dir
+                );
+                assert_eq!(fs::read(lock_path()).unwrap(), writer.join().unwrap());
+                tree_mock.assert_async().await;
+                zip_mock.assert_async().await;
+            })
+        });
+    }
+}
+
+#[test]
+fn b1_duplicate_remote_leaves_use_recorded_path_or_refuse_missing_path() {
+    for skill_path in [Some("second/demo"), Some("second/demo/SKILL.md"), None] {
+        isolated(|| {
+            runtime().block_on(async {
+            install("demo", b"---\nname: demo\ndescription: demo\n---\nold body");
+            SkillLock::update(|lock| { lock.skills.get_mut("demo").unwrap().skill_path = skill_path.map(str::to_string); Ok(()) }).unwrap();
+            let state = state(&["demo"]);
+            let before = fs::read(lock_path()).unwrap();
+            let before_dir = directory_bytes(&config::get_agents_skills_dir());
+            let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+            for (directory, body) in [("first/demo", "wrong body"), ("second/demo", "chosen body")] {
+                writer.start_file(format!("repo-main/{directory}/SKILL.md"), zip::write::SimpleFileOptions::default()).unwrap();
+                writer.write_all(format!("---\nname: demo\ndescription: test\n---\n{body}").as_bytes()).unwrap();
+            }
+            let bytes = writer.finish().unwrap().into_inner();
+            let mut server = mockito::Server::new_async().await;
+            let tree_mock = server.mock("GET", "/repos/owner/repo/git/trees/main?recursive=1").expect(1).with_status(200)
+                .with_header("content-type", "application/json").with_body(r#"{"sha":"new-root","tree":[{"type":"tree","path":"first/demo","sha":"wrong"},{"type":"tree","path":"second/demo","sha":"new"}]}"#).create_async().await;
+            let zip_mock = server.mock("GET", "/owner/repo/archive/refs/heads/main.zip").expect(1).with_status(200).with_body(bytes).create_async().await;
+            let _network = network(&server.url());
+            let result = update_all_skills_inner(&state, None).await.unwrap();
+            if skill_path.is_some() {
+                assert_eq!(result.updated, vec!["demo"], "{:?}", result.errors);
+                assert!(fs::read_to_string(config::get_agents_skills_dir().join("demo/SKILL.md")).unwrap().contains("chosen body"));
+                assert_eq!(SkillLock::read().unwrap().skills["demo"].recorded_baseline(), Some("new"));
+            } else {
+                assert_eq!(result.success_count, 0);
+                assert_eq!(result.fail_count, 1);
+                assert_eq!(fs::read(lock_path()).unwrap(), before);
+                assert_eq!(directory_bytes(&config::get_agents_skills_dir()), before_dir);
+            }
+            tree_mock.assert_async().await;
+            zip_mock.assert_async().await;
+        })
         });
     }
 }

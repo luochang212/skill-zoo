@@ -1,0 +1,569 @@
+[
+  {
+    "name": "flat-exact",
+    "directories": [
+      {
+        "directory": "demo",
+        "origin": "ssot",
+        "text": "---\nname: display-name\ndescription: demo\n---\nbody"
+      }
+    ],
+    "lock": {
+      "version": 3,
+      "skills": {
+        "demo": {
+          "source": "owner/repo",
+          "sourceUrl": "https://github.com/owner/repo",
+          "skillPath": "skills/demo/SKILL.md",
+          "skillFolderHash": "old",
+          "commitSha": "old",
+          "pinnedRef": "v1",
+          "unknown": {
+            "kept": true
+          }
+        }
+      },
+      "dismissed": {}
+    },
+    "expected": [
+      "Resolved:demo"
+    ]
+  },
+  {
+    "name": "nested-historical-leaf",
+    "directories": [
+      {
+        "directory": ".system/demo",
+        "origin": "ssot",
+        "text": "---\nname: display-name\ndescription: demo\n---\nbody"
+      }
+    ],
+    "lock": {
+      "version": 3,
+      "skills": {
+        "demo": {
+          "source": "owner/repo",
+          "sourceUrl": "https://github.com/owner/repo",
+          "skillPath": "skills/demo/SKILL.md",
+          "skillFolderHash": "old",
+          "commitSha": "old",
+          "pinnedRef": "v1",
+          "unknown": {
+            "kept": true
+          }
+        }
+      },
+      "dismissed": {}
+    },
+    "expected": [
+      "Resolved:demo"
+    ]
+  },
+  {
+    "name": "nested-exact",
+    "directories": [
+      {
+        "directory": "category/demo",
+        "origin": "ssot",
+        "text": "---\nname: display-name\ndescription: demo\n---\nbody"
+      }
+    ],
+    "lock": {
+      "version": 3,
+      "skills": {
+        "category/demo": {
+          "source": "owner/repo",
+          "sourceUrl": "https://github.com/owner/repo",
+          "skillPath": "skills/demo/SKILL.md",
+          "skillFolderHash": "old",
+          "commitSha": "old",
+          "pinnedRef": "v1",
+          "unknown": {
+            "kept": true
+          }
+        }
+      },
+      "dismissed": {}
+    },
+    "expected": [
+      "Resolved:category/demo"
+    ]
+  },
+  {
+    "name": "flat-namespace",
+    "directories": [
+      {
+        "directory": "demo",
+        "origin": "ssot",
+        "text": "---\nname: display-name\nmetadata:\n  github-repo: https://github.com/OWNER/Repo.git/\n  github-path: skills/demo\n---\nbody"
+      }
+    ],
+    "lock": {
+      "version": 3,
+      "skills": {
+        "author/demo": {
+          "source": "owner/repo",
+          "sourceUrl": "https://github.com/owner/repo",
+          "skillPath": "skills/demo/SKILL.md",
+          "skillFolderHash": "old",
+          "commitSha": "old",
+          "pinnedRef": "v1",
+          "unknown": {
+            "kept": true
+          }
+        }
+      },
+      "dismissed": {}
+    },
+    "expected": [
+      "Resolved:author/demo"
+    ]
+  },
+  {
+    "name": "suffix-without-evidence",
+    "directories": [
+      {
+        "directory": "demo",
+        "origin": "ssot",
+        "text": "---\nname: display-name\ndescription: demo\n---\nbody"
+      }
+    ],
+    "lock": {
+      "version": 3,
+      "skills": {
+        "author/demo": {
+          "source": "owner/repo",
+          "sourceUrl": "https://github.com/owner/repo",
+          "skillPath": "skills/demo/SKILL.md",
+          "skillFolderHash": "old",
+          "commitSha": "old",
+          "pinnedRef": "v1",
+          "unknown": {
+            "kept": true
+          }
+        }
+      },
+      "dismissed": {}
+    },
+    "expected": [
+      "Missing"
+    ]
+  },
+  {
+    "name": "yaml-name-is-not-directory",
+    "directories": [
+      {
+        "directory": "actual",
+        "origin": "ssot",
+        "text": "---\nname: display-name\ndescription: demo\n---\nbody"
+      }
+    ],
+    "lock": {
+      "version": 3,
+      "skills": {
+        "display-name": {
+          "source": "owner/repo",
+          "sourceUrl": "https://github.com/owner/repo",
+          "skillPath": "skills/demo/SKILL.md",
+          "skillFolderHash": "old",
+          "commitSha": "old",
+          "pinnedRef": "v1",
+          "unknown": {
+            "kept": true
+          }
+        }
+      },
+      "dismissed": {}
+    },
+    "expected": [
+      "Missing"
+    ]
+  },
+  {
+    "name": "two-namespace-keys",
+    "directories": [
+      {
+        "directory": "demo",
+        "origin": "ssot",
+        "text": "---\nname: display-name\nmetadata:\n  github-repo: https://github.com/OWNER/Repo.git/\n  github-path: skills/demo\n---\nbody"
+      }
+    ],
+    "lock": {
+      "version": 3,
+      "skills": {
+        "author/demo": {
+          "source": "owner/repo",
+          "sourceUrl": "https://github.com/owner/repo",
+          "skillPath": "skills/demo/SKILL.md",
+          "skillFolderHash": "old",
+          "commitSha": "old",
+          "pinnedRef": "v1",
+          "unknown": {
+            "kept": true
+          }
+        },
+        "team/demo": {
+          "source": "owner/repo",
+          "sourceUrl": "https://github.com/owner/repo",
+          "skillPath": "skills/demo/SKILL.md",
+          "skillFolderHash": "old",
+          "commitSha": "old",
+          "pinnedRef": "v1",
+          "unknown": {
+            "kept": true
+          }
+        }
+      },
+      "dismissed": {}
+    },
+    "expected": [
+      "Ambiguous:multipleEntries"
+    ]
+  },
+  {
+    "name": "exact-plus-leaf",
+    "directories": [
+      {
+        "directory": ".system/demo",
+        "origin": "ssot",
+        "text": "---\nname: display-name\ndescription: demo\n---\nbody"
+      }
+    ],
+    "lock": {
+      "version": 3,
+      "skills": {
+        "demo": {
+          "source": "owner/repo",
+          "sourceUrl": "https://github.com/owner/repo",
+          "skillPath": "skills/demo/SKILL.md",
+          "skillFolderHash": "old",
+          "commitSha": "old",
+          "pinnedRef": "v1",
+          "unknown": {
+            "kept": true
+          }
+        },
+        ".system/demo": {
+          "source": "owner/repo",
+          "sourceUrl": "https://github.com/owner/repo",
+          "skillPath": "skills/demo/SKILL.md",
+          "skillFolderHash": "old",
+          "commitSha": "old",
+          "pinnedRef": "v1",
+          "unknown": {
+            "kept": true
+          }
+        }
+      },
+      "dismissed": {}
+    },
+    "expected": [
+      "Ambiguous:multipleEntries"
+    ]
+  },
+  {
+    "name": "exact-plus-namespace",
+    "directories": [
+      {
+        "directory": "demo",
+        "origin": "ssot",
+        "text": "---\nname: display-name\nmetadata:\n  github-repo: https://github.com/OWNER/Repo.git/\n  github-path: skills/demo\n---\nbody"
+      }
+    ],
+    "lock": {
+      "version": 3,
+      "skills": {
+        "demo": {
+          "source": "owner/repo",
+          "sourceUrl": "https://github.com/owner/repo",
+          "skillPath": "skills/demo/SKILL.md",
+          "skillFolderHash": "old",
+          "commitSha": "old",
+          "pinnedRef": "v1",
+          "unknown": {
+            "kept": true
+          }
+        },
+        "author/demo": {
+          "source": "owner/repo",
+          "sourceUrl": "https://github.com/owner/repo",
+          "skillPath": "skills/demo/SKILL.md",
+          "skillFolderHash": "old",
+          "commitSha": "old",
+          "pinnedRef": "v1",
+          "unknown": {
+            "kept": true
+          }
+        }
+      },
+      "dismissed": {}
+    },
+    "expected": [
+      "Ambiguous:multipleEntries"
+    ]
+  },
+  {
+    "name": "same-leaf-two-real-directories",
+    "directories": [
+      {
+        "directory": "a/demo",
+        "origin": "ssot",
+        "text": "---\nname: display-name\ndescription: demo\n---\nbody"
+      },
+      {
+        "directory": "b/demo",
+        "origin": "ssot",
+        "text": "---\nname: display-name\ndescription: demo\n---\nbody"
+      }
+    ],
+    "lock": {
+      "version": 3,
+      "skills": {
+        "demo": {
+          "source": "owner/repo",
+          "sourceUrl": "https://github.com/owner/repo",
+          "skillPath": "skills/demo/SKILL.md",
+          "skillFolderHash": "old",
+          "commitSha": "old",
+          "pinnedRef": "v1",
+          "unknown": {
+            "kept": true
+          }
+        }
+      },
+      "dismissed": {}
+    },
+    "expected": [
+      "Ambiguous:sharedEntry",
+      "Ambiguous:sharedEntry"
+    ]
+  },
+  {
+    "name": "plain-agent-does-not-inherit",
+    "directories": [
+      {
+        "directory": "demo",
+        "origin": "ssot",
+        "text": "---\nname: display-name\ndescription: demo\n---\nbody"
+      },
+      {
+        "directory": "demo",
+        "origin": "agent",
+        "text": "---\nname: display-name\ndescription: demo\n---\nbody"
+      }
+    ],
+    "lock": {
+      "version": 3,
+      "skills": {
+        "demo": {
+          "source": "owner/repo",
+          "sourceUrl": "https://github.com/owner/repo",
+          "skillPath": "skills/demo/SKILL.md",
+          "skillFolderHash": "old",
+          "commitSha": "old",
+          "pinnedRef": "v1",
+          "unknown": {
+            "kept": true
+          }
+        }
+      },
+      "dismissed": {}
+    },
+    "expected": [
+      "Resolved:demo",
+      "Missing"
+    ]
+  },
+  {
+    "name": "positive-evidence-competes",
+    "directories": [
+      {
+        "directory": "demo",
+        "origin": "ssot",
+        "text": "---\nname: display-name\nmetadata:\n  github-repo: https://github.com/OWNER/Repo.git/\n  github-path: skills/demo\n---\nbody"
+      },
+      {
+        "directory": "demo",
+        "origin": "agent",
+        "text": "---\nname: display-name\nmetadata:\n  github-repo: https://github.com/OWNER/Repo.git/\n  github-path: skills/demo\n---\nbody"
+      }
+    ],
+    "lock": {
+      "version": 3,
+      "skills": {
+        "author/demo": {
+          "source": "owner/repo",
+          "sourceUrl": "https://github.com/owner/repo",
+          "skillPath": "skills/demo/SKILL.md",
+          "skillFolderHash": "old",
+          "commitSha": "old",
+          "pinnedRef": "v1",
+          "unknown": {
+            "kept": true
+          }
+        }
+      },
+      "dismissed": {}
+    },
+    "expected": [
+      "Ambiguous:sharedEntry",
+      "Ambiguous:sharedEntry"
+    ]
+  },
+  {
+    "name": "contradictory-repo",
+    "directories": [
+      {
+        "directory": "demo",
+        "origin": "ssot",
+        "text": "---\nname: display-name\nmetadata:\n  github-repo: https://github.com/other/repo.git/\n  github-path: skills/demo\n---\nbody"
+      }
+    ],
+    "lock": {
+      "version": 3,
+      "skills": {
+        "demo": {
+          "source": "owner/repo",
+          "sourceUrl": "https://github.com/owner/repo",
+          "skillPath": "skills/demo/SKILL.md",
+          "skillFolderHash": "old",
+          "commitSha": "old",
+          "pinnedRef": "v1",
+          "unknown": {
+            "kept": true
+          }
+        }
+      },
+      "dismissed": {}
+    },
+    "expected": [
+      "Ambiguous:conflictingEvidence"
+    ]
+  },
+  {
+    "name": "contradictory-path",
+    "directories": [
+      {
+        "directory": "demo",
+        "origin": "ssot",
+        "text": "---\nname: display-name\nmetadata:\n  github-repo: https://github.com/OWNER/Repo.git/\n  github-path: skills/other\n---\nbody"
+      }
+    ],
+    "lock": {
+      "version": 3,
+      "skills": {
+        "demo": {
+          "source": "owner/repo",
+          "sourceUrl": "https://github.com/owner/repo",
+          "skillPath": "skills/demo/SKILL.md",
+          "skillFolderHash": "old",
+          "commitSha": "old",
+          "pinnedRef": "v1",
+          "unknown": {
+            "kept": true
+          }
+        }
+      },
+      "dismissed": {}
+    },
+    "expected": [
+      "Ambiguous:conflictingEvidence"
+    ]
+  },
+  {
+    "name": "enterprise-not-github",
+    "directories": [
+      {
+        "directory": "demo",
+        "origin": "ssot",
+        "text": "---\nname: display-name\nmetadata:\n  github-repo: https://github.example.com/OWNER/Repo.git/\n  github-path: skills/demo\n---\nbody"
+      }
+    ],
+    "lock": {
+      "version": 3,
+      "skills": {
+        "author/demo": {
+          "source": "owner/repo",
+          "sourceUrl": "https://github.com/owner/repo",
+          "skillPath": "skills/demo/SKILL.md",
+          "skillFolderHash": "old",
+          "commitSha": "old",
+          "pinnedRef": "v1",
+          "unknown": {
+            "kept": true
+          }
+        }
+      },
+      "dismissed": {}
+    },
+    "expected": [
+      "Missing"
+    ]
+  },
+  {
+    "name": "external-does-not-own",
+    "directories": [
+      {
+        "directory": "demo",
+        "origin": "external",
+        "text": "---\nname: display-name\nmetadata:\n  github-repo: https://github.com/OWNER/Repo.git/\n  github-path: skills/demo\n---\nbody"
+      }
+    ],
+    "lock": {
+      "version": 3,
+      "skills": {
+        "demo": {
+          "source": "owner/repo",
+          "sourceUrl": "https://github.com/owner/repo",
+          "skillPath": "skills/demo/SKILL.md",
+          "skillFolderHash": "old",
+          "commitSha": "old",
+          "pinnedRef": "v1",
+          "unknown": {
+            "kept": true
+          }
+        }
+      },
+      "dismissed": {}
+    },
+    "expected": [
+      "Missing"
+    ]
+  },
+  {
+    "name": "symlink-alias-not-independent",
+    "directories": [
+      {
+        "directory": "demo",
+        "origin": "ssot",
+        "text": "---\nname: display-name\ndescription: demo\n---\nbody"
+      }
+    ],
+    "lock": {
+      "version": 3,
+      "skills": {
+        "demo": {
+          "source": "owner/repo",
+          "sourceUrl": "https://github.com/owner/repo",
+          "skillPath": "skills/demo/SKILL.md",
+          "skillFolderHash": "old",
+          "commitSha": "old",
+          "pinnedRef": "v1",
+          "unknown": {
+            "kept": true
+          }
+        }
+      },
+      "dismissed": {}
+    },
+    "expected": [
+      "Resolved:demo"
+    ],
+    "links": [
+      {
+        "directory": "alias",
+        "target": 0
+      }
+    ]
+  }
+]

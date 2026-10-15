@@ -24,6 +24,9 @@ describe("desktop local protocol fixtures", () => {
     const original = await fs.readFile(fixturePath("gh-injected.md"));
     await fs.writeFile(path.join(skillDir, "SKILL.md"), original);
     await copyFixture("lock-v3-full.json", paths.agentLockFile);
+    const matching = await readLock(home);
+    matching.skills.demo = { ...matching.skills.demo, source: "vercel-labs/skills", sourceUrl: "https://github.com/vercel-labs/skills", skillPath: "skills/find-skills" };
+    await fs.writeFile(paths.agentLockFile, JSON.stringify(matching));
     const lockBefore = await fs.readFile(paths.agentLockFile);
     const entryBefore = (await readLock(home)).skills.demo;
     const scanned = await rebuildCache(home);

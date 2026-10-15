@@ -13,17 +13,8 @@ use std::sync::RwLock;
 use tauri::Emitter;
 
 pub(crate) fn normalize_repo_skill_path(path: &str) -> String {
-    let normalized = path
-        .replace('\\', "/")
-        .trim_end_matches("/SKILL.md")
-        .trim_end_matches("SKILL.md")
-        .trim_end_matches('/')
-        .to_string();
-    if normalized == "." {
-        String::new()
-    } else {
-        normalized
-    }
+    crate::services::lock::normalize_lock_skill_path(path)
+        .unwrap_or_else(|_| "<unsupported-path>".into())
 }
 
 fn commit_cache_entries(
@@ -698,13 +689,13 @@ impl SkillService {
         let entries = tokio::task::spawn_blocking(move || {
             config::with_agent_snapshot(snapshot, || {
                 let mut entries: Vec<SkillCacheEntry> = Vec::new();
-                Self::scan_filesystem_into(&mut entries);
+                Self::scan_filesystem_into(&mut entries)?;
                 Self::scan_external_imports_into(&mut entries);
-                entries
+                Ok::<_, AppError>(entries)
             })
         })
         .await
-        .map_err(|e| AppError::Parse(format!("Cache rebuild panicked: {e}")))?;
+        .map_err(|e| AppError::Parse(format!("Cache rebuild panicked: {e}")))??;
 
         let mut new_cache = cache
             .write()
@@ -751,7 +742,7 @@ impl SkillService {
     }
 
     /// Scan filesystem for skill directories and push into entries.
-    fn scan_filesystem_into(entries: &mut Vec<SkillCacheEntry>) {
+    fn scan_filesystem_into(entries: &mut Vec<SkillCacheEntry>) -> Result<(), AppError> {
         let mut scan_dirs: Vec<(PathBuf, Option<String>)> = Vec::new();
         let agents_dir = config::get_agents_skills_dir();
         if agents_dir.exists() {
@@ -765,10 +756,10 @@ impl SkillService {
             }
         }
         if scan_dirs.is_empty() {
-            return;
+            return Ok(());
         }
-
-        let lock = SkillLock::read().ok();
+        let inventory = Self::collect_installations()?;
+        let lock = Some(SkillLock::read()?);
         let imports = ExternalImports::load().ok();
         let imports_by_source: HashMap<String, &ExternalImportEntry> = imports
             .as_ref()
@@ -789,10 +780,11 @@ impl SkillService {
                 entries,
                 &mut seen_ids,
                 scan_dir,
-                (&imports_by_source, lock.as_ref()),
+                (&imports_by_source, lock.as_ref(), &inventory),
                 agent_id.as_deref(),
             );
         }
+        Ok(())
     }
 
     fn scan_external_imports_into(entries: &mut Vec<SkillCacheEntry>) {
@@ -879,10 +871,14 @@ impl SkillService {
         entries: &mut Vec<SkillCacheEntry>,
         seen_ids: &mut HashSet<String>,
         scan_root: &PathBuf,
-        scan_sources: (&HashMap<String, &ExternalImportEntry>, Option<&SkillLock>),
+        scan_sources: (
+            &HashMap<String, &ExternalImportEntry>,
+            Option<&SkillLock>,
+            &[crate::services::lock::Installation],
+        ),
         agent_id: Option<&str>,
     ) {
-        let (imports_by_source, lock) = scan_sources;
+        let (imports_by_source, lock, inventory) = scan_sources;
         let Ok(dir_entries) = std::fs::read_dir(dir) else {
             return;
         };
@@ -935,7 +931,8 @@ impl SkillService {
                 }
             }
             if path.join("SKILL.md").exists() {
-                let Ok(entry) = Self::scan_skill_root_with_lock(&path, scan_root, agent_id, lock)
+                let Ok(entry) =
+                    Self::scan_skill_root_with_lock(&path, scan_root, agent_id, lock, inventory)
                 else {
                     continue;
                 };
@@ -1350,21 +1347,38 @@ impl SkillService {
                 .skills()
                 .iter()
                 .filter(|entry| {
-                    entry.origin == "ssot"
-                        && entry
-                            .repo_owner
-                            .as_deref()
-                            .is_some_and(|owner| owner.eq_ignore_ascii_case(repo_owner))
-                        && entry
-                            .repo_name
-                            .as_deref()
-                            .is_some_and(|name| name.eq_ignore_ascii_case(repo_name))
-                        && lock
-                            .skills
-                            .get(&entry.directory)
-                            .and_then(|lock_entry| lock_entry.skill_path.as_deref())
-                            .map(normalize_repo_skill_path)
-                            .is_some_and(|path| path.is_empty())
+                    if entry.origin == "external" {
+                        return false;
+                    }
+                    let Some(home) = entry.home_path.as_deref() else {
+                        return false;
+                    };
+                    let Ok(resolution) =
+                        Self::resolve_home_lock(Path::new(home), &entry.origin, lock)
+                    else {
+                        return false;
+                    };
+                    let matches_root = |entry: &SkillLockEntry| {
+                        let (owner, name) = entry.parse_source_owner_name();
+                        owner.is_some_and(|owner| owner.eq_ignore_ascii_case(repo_owner))
+                            && name.is_some_and(|name| name.eq_ignore_ascii_case(repo_name))
+                            && entry
+                                .skill_path
+                                .as_deref()
+                                .is_some_and(|p| normalize_repo_skill_path(p).is_empty())
+                    };
+                    match resolution {
+                        crate::services::lock::LockResolution::Resolved { entry, .. } => {
+                            matches_root(&entry)
+                        }
+                        crate::services::lock::LockResolution::Ambiguous { candidates, .. } => {
+                            candidates
+                                .iter()
+                                .filter_map(|c| lock.skills.get(&c.lock_key))
+                                .any(matches_root)
+                        }
+                        _ => false,
+                    }
                 })
                 .collect();
         }
@@ -1377,19 +1391,24 @@ impl SkillService {
         }
 
         let installed = matches[0];
-        let lock_entry = lock
-            .skills
-            .get(&installed.directory)
-            .or_else(|| lock.skills.get(install_directory));
-        let same_repo = installed.origin == "ssot"
-            && installed
-                .repo_owner
-                .as_deref()
-                .is_some_and(|owner| owner.eq_ignore_ascii_case(repo_owner))
-            && installed
-                .repo_name
-                .as_deref()
-                .is_some_and(|name| name.eq_ignore_ascii_case(repo_name));
+        let resolution = installed.home_path.as_deref().and_then(|home| {
+            Self::resolve_home_lock(Path::new(home), &installed.origin, lock).ok()
+        });
+        if matches!(
+            resolution,
+            Some(crate::services::lock::LockResolution::Ambiguous { .. })
+        ) {
+            return (DiscoverableSkillInstallStatus::Conflict, None);
+        }
+        let lock_entry = match &resolution {
+            Some(crate::services::lock::LockResolution::Resolved { entry, .. }) => Some(entry),
+            _ => None,
+        };
+        let same_repo = lock_entry.is_some_and(|entry| {
+            let (owner, name) = entry.parse_source_owner_name();
+            owner.is_some_and(|owner| owner.eq_ignore_ascii_case(repo_owner))
+                && name.is_some_and(|name| name.eq_ignore_ascii_case(repo_name))
+        });
         let same_branch = branch.is_none_or(|expected| {
             lock_entry.and_then(|entry| entry.branch.as_deref()) == Some(expected)
         });
@@ -1413,6 +1432,115 @@ impl SkillService {
     /// Scan a single skill directory and return a cache entry for it.
     /// Used for incremental cache updates after install/update.
     /// Looks in SSOT first, then agent directories, to handle both origins.
+    /// Enumerate all real installations before resolving any leaf or namespace key.
+    fn collect_installation_root(
+        root: &Path,
+        dir: &Path,
+        origin: &str,
+        out: &mut Vec<crate::services::lock::Installation>,
+    ) -> Result<(), AppError> {
+        for entry in std::fs::read_dir(dir)? {
+            let path = entry?.path();
+            let metadata = std::fs::symlink_metadata(&path)?;
+            if is_symlink_or_junction(&path) || !metadata.is_dir() {
+                continue;
+            }
+            let name = path.file_name().and_then(|v| v.to_str()).unwrap_or("");
+            if config::SKIP_DIRS.contains(&name) || SkillService::is_app_temp_dir(name) {
+                continue;
+            }
+            let has_skill = match std::fs::metadata(path.join("SKILL.md")) {
+                Ok(metadata) => metadata.is_file(),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+                Err(error) => return Err(error.into()),
+            };
+            if has_skill {
+                let home_path = path.canonicalize()?;
+                if !home_path.starts_with(root.canonicalize()?) {
+                    return Err(AppError::BadRequest("Installation outside root".into()));
+                }
+                if !out.iter().any(|i| i.home_path == home_path) {
+                    out.push(crate::services::lock::Installation {
+                        owning_root: root.into(),
+                        install_directory: path
+                            .strip_prefix(root)
+                            .unwrap()
+                            .to_string_lossy()
+                            .replace('\\', "/"),
+                        home_path,
+                        origin: origin.into(),
+                        provenance: crate::services::skill_provenance::installation_provenance(
+                            &path,
+                        ),
+                    });
+                }
+            } else {
+                Self::collect_installation_root(root, &path, origin, out)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn collect_installations() -> Result<Vec<crate::services::lock::Installation>, AppError> {
+        let mut out = Vec::new();
+        let ssot = config::get_agents_skills_dir();
+        if ssot.try_exists()? {
+            Self::collect_installation_root(&ssot, &ssot, "ssot", &mut out)?;
+        }
+        for agent in config::agents().iter() {
+            if let Some(root) = config::agent_skills_dir(agent) {
+                if root.try_exists()? {
+                    Self::collect_installation_root(&root, &root, "agent", &mut out)?;
+                }
+            }
+        }
+        let imports = ExternalImports::load()?;
+        for import in imports.imports.values() {
+            match Path::new(&import.source_path).canonicalize() {
+                Ok(home) => out.retain(|i| i.home_path != home),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error.into()),
+            }
+        }
+        Ok(out)
+    }
+
+    pub fn resolve_home_lock(
+        home: &Path,
+        origin: &str,
+        lock: &SkillLock,
+    ) -> Result<crate::services::lock::LockResolution, AppError> {
+        let inventory = Self::collect_installations()?;
+        let real = home.canonicalize()?;
+        if origin == "external" {
+            return Ok(crate::services::lock::LockResolution::Missing {
+                reason: "outsideLockScope",
+            });
+        }
+        let target = inventory
+            .iter()
+            .find(|i| i.home_path == real)
+            .ok_or_else(|| {
+                AppError::NotFound(format!("Installation not in inventory: {}", home.display()))
+            })?;
+        Ok(crate::services::lock::resolve_installation_lock(
+            target, &inventory, lock,
+        ))
+    }
+
+    pub fn resolve_ssot_lock(
+        directory: &str,
+        lock: &SkillLock,
+    ) -> Result<(String, SkillLockEntry), AppError> {
+        Self::resolve_home_lock(
+            &config::get_agents_skills_dir().join(directory),
+            "ssot",
+            lock,
+        )?
+        .association()?
+        .ok_or_else(|| AppError::BadRequest(format!("lockMissing: {directory}")))
+    }
+
     pub fn scan_single_skill(skill_dir: &str) -> Result<SkillCacheEntry, AppError> {
         let origin = Self::detect_origin(skill_dir);
         let home_path = Self::detect_home_path(skill_dir, origin);
@@ -1432,10 +1560,12 @@ impl SkillService {
             )));
         }
 
-        let lock_data: Option<SkillLock> = SkillLock::read().ok();
-        let lock_entry = lock_data
-            .as_ref()
-            .and_then(|lock| lock.skills.get(skill_dir));
+        let lock_data = SkillLock::read()?;
+        let association = Self::resolve_home_lock(skill_md.parent().unwrap(), origin, &lock_data)?;
+        let lock_entry = match &association {
+            crate::services::lock::LockResolution::Resolved { entry, .. } => Some(entry),
+            _ => None,
+        };
 
         let (repo_owner, repo_name, source_url) = lock_entry
             .map(|e| e.to_repo_info())
@@ -1498,8 +1628,9 @@ impl SkillService {
     pub fn scan_skill_roots_batch(
         skill_roots: &[(PathBuf, PathBuf, Option<String>)],
     ) -> Result<Vec<SkillCacheEntry>, AppError> {
-        let lock = SkillLock::read().ok();
-        let imports = ExternalImports::load().unwrap_or_default();
+        let lock = Some(SkillLock::read()?);
+        let inventory = Self::collect_installations()?;
+        let imports = ExternalImports::load()?;
         let imports_by_source: HashMap<_, _> = imports
             .imports
             .values()
@@ -1522,6 +1653,7 @@ impl SkillService {
                 scan_root,
                 agent_id.as_deref(),
                 lock.as_ref(),
+                &inventory,
             )?);
         }
         Ok(entries)
@@ -1604,8 +1736,9 @@ impl SkillService {
         scan_root: &Path,
         agent_id: Option<&str>,
     ) -> Result<SkillCacheEntry, AppError> {
-        let lock = SkillLock::read().ok();
-        Self::scan_skill_root_with_lock(skill_root, scan_root, agent_id, lock.as_ref())
+        let lock = SkillLock::read()?;
+        let inventory = Self::collect_installations()?;
+        Self::scan_skill_root_with_lock(skill_root, scan_root, agent_id, Some(&lock), &inventory)
     }
 
     fn scan_skill_root_with_lock(
@@ -1613,6 +1746,7 @@ impl SkillService {
         scan_root: &Path,
         agent_id: Option<&str>,
         lock: Option<&SkillLock>,
+        inventory: &[crate::services::lock::Installation],
     ) -> Result<SkillCacheEntry, AppError> {
         let skill_md = skill_root.join("SKILL.md");
         if !skill_md.exists() {
@@ -1639,11 +1773,22 @@ impl SkillService {
         // Normalize to forward slashes for cross-platform consistency.
         let relative_dir = relative_dir.replace('\\', "/");
 
-        let lock_entry = lock.and_then(|lock| {
-            lock.skills
-                .get(&relative_dir)
-                .or_else(|| lock.skills.get(dir_name))
-        });
+        let real = skill_root.canonicalize()?;
+        let target = inventory
+            .iter()
+            .find(|i| i.home_path == real)
+            .ok_or_else(|| {
+                AppError::NotFound(format!(
+                    "Installation missing from inventory: {}",
+                    skill_root.display()
+                ))
+            })?;
+        let resolution = lock
+            .map(|lock| crate::services::lock::resolve_installation_lock(target, inventory, lock));
+        let lock_entry = match &resolution {
+            Some(crate::services::lock::LockResolution::Resolved { entry, .. }) => Some(entry),
+            _ => None,
+        };
 
         let (repo_owner, repo_name, source_url) = lock_entry
             .map(|e| e.to_repo_info())
@@ -1700,12 +1845,40 @@ impl SkillService {
     }
 
     #[cfg(feature = "test-helpers")]
+    pub fn scan_filesystem_for_test() -> Result<Vec<SkillCacheEntry>, AppError> {
+        let mut entries = Vec::new();
+        Self::scan_filesystem_into(&mut entries)?;
+        Self::scan_external_imports_into(&mut entries);
+        Ok(entries)
+    }
+
+    #[cfg(feature = "test-helpers")]
     pub fn scan_skill_root_for_test(
         skill_root: &Path,
         scan_root: &Path,
         agent_id: Option<&str>,
     ) -> Result<SkillCacheEntry, AppError> {
-        Self::scan_skill_root(skill_root, scan_root, agent_id)
+        let inventory = Self::collect_installations()?;
+        if inventory
+            .iter()
+            .any(|i| skill_root.canonicalize().ok().as_ref() == Some(&i.home_path))
+        {
+            return Self::scan_skill_root(skill_root, scan_root, agent_id);
+        }
+        let mut inventory = Vec::new();
+        Self::collect_installation_root(
+            scan_root,
+            scan_root,
+            if agent_id.is_none() { "ssot" } else { "agent" },
+            &mut inventory,
+        )?;
+        Self::scan_skill_root_with_lock(
+            skill_root,
+            scan_root,
+            agent_id,
+            Some(&SkillLock::default()),
+            &inventory,
+        )
     }
 
     /// Insert or replace a cache entry and persist.
@@ -1884,8 +2057,8 @@ impl SkillService {
         Ok(())
     }
 
-    #[cfg(test)]
-    pub(crate) fn create_link_to_target_for_test(
+    #[cfg(feature = "test-helpers")]
+    pub fn create_link_to_target_for_test(
         target_path: &std::path::Path,
         symlink_path: &std::path::Path,
     ) -> Result<(), AppError> {
@@ -2406,7 +2579,7 @@ mod tests {
             );
             imports.save().unwrap();
             let mut entries = Vec::new();
-            super::SkillService::scan_filesystem_into(&mut entries);
+            super::SkillService::scan_filesystem_into(&mut entries).unwrap();
             super::SkillService::scan_external_imports_into(&mut entries);
             assert_eq!(entries.len(), 1);
             assert_eq!(entries[0].id, "external:demo");
@@ -2896,78 +3069,96 @@ mod tests {
 
     #[test]
     fn discoverable_classification_uses_repo_path_for_installed_match() {
-        let cache = SkillCache::from_entries(vec![test_cache_entry(
-            "repo:anthropics/skills:recap",
-            "recap",
-            "anthropics",
-            "skills",
-        )]);
-        let mut lock = SkillLock {
-            version: SUPPORTED_LOCK_VERSION,
-            skills: Default::default(),
-            dismissed: serde_json::json!({}),
-            extra: Default::default(),
-        };
-        lock.skills.insert(
-            "recap".to_string(),
-            test_lock_entry("anthropics/skills", ".claude/skills/recap"),
-        );
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            let dir = config::get_agents_skills_dir().join("recap");
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join("SKILL.md"), "# Demo").unwrap();
 
-        let (installed_status, installed_id) = SkillService::classify_discoverable_skill(
-            &cache,
-            &lock,
-            "recap",
-            ".claude/skills/recap",
-            "anthropics",
-            "skills",
-            None,
-        );
-        let (conflict_status, conflict_id) = SkillService::classify_discoverable_skill(
-            &cache,
-            &lock,
-            "recap",
-            ".codex/skills/recap",
-            "anthropics",
-            "skills",
-            None,
-        );
+            let mut entry = test_cache_entry(
+                "repo:anthropics/skills:recap",
+                "recap",
+                "anthropics",
+                "skills",
+            );
+            entry.home_path = Some(dir.to_string_lossy().into());
+            let cache = SkillCache::from_entries(vec![entry]);
+            let mut lock = SkillLock {
+                version: SUPPORTED_LOCK_VERSION,
+                skills: Default::default(),
+                dismissed: serde_json::json!({}),
+                extra: Default::default(),
+            };
+            lock.skills.insert(
+                "recap".to_string(),
+                test_lock_entry("anthropics/skills", ".claude/skills/recap"),
+            );
 
-        assert_eq!(installed_status, DiscoverableSkillInstallStatus::Installed);
-        assert_eq!(
-            installed_id.as_deref(),
-            Some("repo:anthropics/skills:recap")
-        );
-        assert_eq!(conflict_status, DiscoverableSkillInstallStatus::Conflict);
-        assert_eq!(conflict_id, None);
+            let (installed_status, installed_id) = SkillService::classify_discoverable_skill(
+                &cache,
+                &lock,
+                "recap",
+                ".claude/skills/recap",
+                "anthropics",
+                "skills",
+                None,
+            );
+            let (conflict_status, conflict_id) = SkillService::classify_discoverable_skill(
+                &cache,
+                &lock,
+                "recap",
+                ".codex/skills/recap",
+                "anthropics",
+                "skills",
+                None,
+            );
+
+            assert_eq!(installed_status, DiscoverableSkillInstallStatus::Installed);
+            assert_eq!(
+                installed_id.as_deref(),
+                Some("repo:anthropics/skills:recap")
+            );
+            assert_eq!(conflict_status, DiscoverableSkillInstallStatus::Conflict);
+            assert_eq!(conflict_id, None);
+        });
     }
 
     #[test]
     fn discoverable_classification_matches_legacy_root_install_by_root_lock_path() {
-        let cache = SkillCache::from_entries(vec![test_cache_entry(
-            "repo:owner/repo:legacy-root",
-            "repo-deadbeef",
-            "owner",
-            "repo",
-        )]);
-        let mut lock = SkillLock {
-            version: SUPPORTED_LOCK_VERSION,
-            skills: Default::default(),
-            dismissed: serde_json::json!({}),
-            extra: Default::default(),
-        };
-        for lock_path in ["", ".", "SKILL.md", "./SKILL.md"] {
-            lock.skills.insert(
-                "repo-deadbeef".to_string(),
-                test_lock_entry("owner/repo", lock_path),
-            );
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            let dir = config::get_agents_skills_dir().join("repo-deadbeef");
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join("SKILL.md"), "# Demo").unwrap();
 
-            let (status, installed_id) = SkillService::classify_discoverable_skill(
-                &cache, &lock, "repo", ".", "owner", "repo", None,
+            let mut entry = test_cache_entry(
+                "repo:owner/repo:legacy-root",
+                "repo-deadbeef",
+                "owner",
+                "repo",
             );
+            entry.home_path = Some(dir.to_string_lossy().into());
+            let cache = SkillCache::from_entries(vec![entry]);
+            let mut lock = SkillLock {
+                version: SUPPORTED_LOCK_VERSION,
+                skills: Default::default(),
+                dismissed: serde_json::json!({}),
+                extra: Default::default(),
+            };
+            for lock_path in ["", ".", "SKILL.md", "./SKILL.md"] {
+                lock.skills.insert(
+                    "repo-deadbeef".to_string(),
+                    test_lock_entry("owner/repo", lock_path),
+                );
 
-            assert_eq!(status, DiscoverableSkillInstallStatus::Installed);
-            assert_eq!(installed_id.as_deref(), Some("repo:owner/repo:legacy-root"));
-        }
+                let (status, installed_id) = SkillService::classify_discoverable_skill(
+                    &cache, &lock, "repo", ".", "owner", "repo", None,
+                );
+
+                assert_eq!(status, DiscoverableSkillInstallStatus::Installed);
+                assert_eq!(installed_id.as_deref(), Some("repo:owner/repo:legacy-root"));
+            }
+        });
     }
 
     #[test]

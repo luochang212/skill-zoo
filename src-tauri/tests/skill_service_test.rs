@@ -94,73 +94,80 @@ fn test_read_all_skills_uses_cached_apps() {
 
 #[test]
 fn test_classify_discoverable_skill_distinguishes_installed_and_conflict() {
-    let mut installed = make_cache_entry("repo:owner/repo:demo", "demo", "demo");
-    installed.repo_owner = Some("owner".to_string());
-    installed.repo_name = Some("repo".to_string());
-    let cache = SkillCache::from_entries(vec![installed]);
-    let mut lock = SkillLock {
-        version: 3,
-        skills: Default::default(),
-        dismissed: serde_json::json!({}),
-        extra: Default::default(),
-    };
-    lock.skills
-        .insert("demo".to_string(), make_lock_entry("owner/repo"));
+    let tmp = tempfile::tempdir().unwrap();
+    skill_zoo_lib::config::with_test_home(tmp.path(), || {
+        let home = skill_zoo_lib::config::get_agents_skills_dir().join("demo");
+        std::fs::create_dir_all(&home).unwrap();
+        std::fs::write(home.join("SKILL.md"), "# Demo").unwrap();
+        let mut installed = make_cache_entry("repo:owner/repo:demo", "demo", "demo");
+        installed.home_path = Some(home.to_string_lossy().into());
+        installed.repo_owner = Some("owner".to_string());
+        installed.repo_name = Some("repo".to_string());
+        let cache = SkillCache::from_entries(vec![installed]);
+        let mut lock = SkillLock {
+            version: 3,
+            skills: Default::default(),
+            dismissed: serde_json::json!({}),
+            extra: Default::default(),
+        };
+        lock.skills
+            .insert("demo".to_string(), make_lock_entry("owner/repo"));
 
-    assert_eq!(
-        SkillService::classify_discoverable_skill(
-            &cache,
-            &lock,
-            "demo",
-            "demo",
-            "owner",
-            "repo",
-            Some("main"),
-        ),
-        (
-            DiscoverableSkillInstallStatus::Installed,
-            Some("repo:owner/repo:demo".to_string()),
-        )
-    );
-    assert_eq!(
-        SkillService::classify_discoverable_skill(
-            &cache,
-            &lock,
-            "demo",
-            "demo",
-            "OWNER",
-            "REPO",
-            Some("main"),
-        ),
-        (
-            DiscoverableSkillInstallStatus::Installed,
-            Some("repo:owner/repo:demo".to_string()),
-        )
-    );
-    assert_eq!(
-        SkillService::classify_discoverable_skill(
-            &cache,
-            &lock,
-            "demo",
-            "demo",
-            "other",
-            "repo",
-            Some("main"),
-        ),
-        (DiscoverableSkillInstallStatus::Conflict, None)
-    );
-    assert_eq!(
-        SkillService::classify_discoverable_skill(
-            &cache,
-            &lock,
-            "demo",
-            "demo",
-            "owner",
-            "repo",
-            Some("other-branch"),
-        ),
-        (DiscoverableSkillInstallStatus::Conflict, None)
-    );
+        assert_eq!(
+            SkillService::classify_discoverable_skill(
+                &cache,
+                &lock,
+                "demo",
+                "demo",
+                "owner",
+                "repo",
+                Some("main"),
+            ),
+            (
+                DiscoverableSkillInstallStatus::Installed,
+                Some("repo:owner/repo:demo".to_string()),
+            )
+        );
+        assert_eq!(
+            SkillService::classify_discoverable_skill(
+                &cache,
+                &lock,
+                "demo",
+                "demo",
+                "OWNER",
+                "REPO",
+                Some("main"),
+            ),
+            (
+                DiscoverableSkillInstallStatus::Installed,
+                Some("repo:owner/repo:demo".to_string()),
+            )
+        );
+        assert_eq!(
+            SkillService::classify_discoverable_skill(
+                &cache,
+                &lock,
+                "demo",
+                "demo",
+                "other",
+                "repo",
+                Some("main"),
+            ),
+            (DiscoverableSkillInstallStatus::Conflict, None)
+        );
+        assert_eq!(
+            SkillService::classify_discoverable_skill(
+                &cache,
+                &lock,
+                "demo",
+                "demo",
+                "owner",
+                "repo",
+                Some("other-branch"),
+            ),
+            (DiscoverableSkillInstallStatus::Conflict, None)
+        );
+    });
 }
 
 #[test]

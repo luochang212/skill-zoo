@@ -1,3 +1,4 @@
+import { collectInstallations, resolveInstallationLock, type Installation } from "./lock-resolution.js";
 import { promises as fs } from "node:fs";
 import crypto from "node:crypto";
 import path from "node:path";
@@ -79,12 +80,13 @@ export async function scanCacheEntries(home?: string): Promise<SkillCacheEntry[]
     }
   }
 
-  const lock = await readLock(home).catch(() => undefined);
+  const lock = await readLock(home);
+  const inventory = await collectInstallations(home);
   const seenIds = new Set<string>();
   const entries: SkillCacheEntry[] = [];
 
   for (const scanRoot of scanRoots) {
-    await scanDirRecursive(home, scanRoot, scanRoot, lock, seenIds, entries);
+    await scanDirRecursive(home, scanRoot, scanRoot, lock, inventory, seenIds, entries);
   }
   await scanExternalImports(home, seenIds, entries);
   // Registered external references win over agent ownership even when a new
@@ -158,6 +160,7 @@ async function scanDirRecursive(
   dir: string,
   scanRoot: string,
   lock: SkillLock | undefined,
+  inventory: Installation[],
   seenIds: Set<string>,
   entries: SkillCacheEntry[],
 ): Promise<void> {
@@ -191,7 +194,10 @@ async function scanDirRecursive(
     const skillMd = path.join(entryPath, "SKILL.md");
     if (await pathExists(skillMd)) {
       const relativeDir = normalizePath(path.relative(scanRoot, entryPath) || entryName);
-      const lockEntry = lock?.skills[relativeDir] ?? lock?.skills[entryName];
+      const realHome = await fs.realpath(entryPath);
+      const target = inventory.find((item) => item.homePath === realHome);
+      const resolution = target && lock ? resolveInstallationLock(target, inventory, lock) : undefined;
+      const lockEntry = resolution?.kind === "Resolved" ? resolution.entry : undefined;
       const { repoOwner, repoName, sourceUrl } = repoInfoFromLock(lockEntry);
       const parsed = await parseSkillMd(skillMd, entryName);
       const yamlName = parsed.name === entryName ? null : parsed.name;
@@ -228,7 +234,7 @@ async function scanDirRecursive(
         updatedAt,
       });
     } else {
-      await scanDirRecursive(home, entryPath, scanRoot, lock, seenIds, entries);
+      await scanDirRecursive(home, entryPath, scanRoot, lock, inventory, seenIds, entries);
     }
   }
 }

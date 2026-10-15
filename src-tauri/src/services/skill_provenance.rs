@@ -75,6 +75,46 @@ pub fn inspect_gh_tracking(text: &str) -> Provenance {
     Provenance::Absent
 }
 
+pub fn installation_provenance(home: &Path) -> crate::services::lock::InstallationProvenance {
+    use crate::services::lock::InstallationProvenance;
+    let text = match std::fs::read_to_string(home.join("SKILL.md")) {
+        Ok(text) => text,
+        Err(error) => return InstallationProvenance::Unreadable(error.to_string()),
+    };
+    match inspect_gh_tracking(&text) {
+        Provenance::Absent => InstallationProvenance::Absent,
+        Provenance::Unreadable(reason) => InstallationProvenance::Unreadable(reason),
+        Provenance::Tracking => {
+            let evidence = association_evidence_from_text(&text);
+            InstallationProvenance::Tracking {
+                repo: evidence.as_ref().map(|e| e.0.clone()),
+                path: evidence.map(|e| e.1),
+            }
+        }
+    }
+}
+
+/// Association evidence uses the same strict YAML acceptance as the update guard.
+fn association_evidence_from_text(text: &str) -> Option<(String, String)> {
+    if inspect_gh_tracking(text) != Provenance::Tracking {
+        return None;
+    }
+    let text = text.trim_start_matches('\u{feff}');
+    let mut lines = text.lines().skip_while(|line| line.trim().is_empty());
+    lines.next()?;
+    let yaml = lines
+        .take_while(|line| line.trim_end_matches([' ', '\t']) != "---")
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut value: Value = serde_yaml::from_str(&yaml).ok()?;
+    value.apply_merge().ok()?;
+    let metadata = value.get("metadata")?;
+    Some((
+        metadata.get("github-repo")?.as_str()?.into(),
+        metadata.get("github-path")?.as_str()?.into(),
+    ))
+}
+
 #[derive(Debug, Clone)]
 pub struct GuardIssue {
     pub code: &'static str,

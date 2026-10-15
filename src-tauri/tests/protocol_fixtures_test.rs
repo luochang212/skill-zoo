@@ -175,3 +175,123 @@ fn desktop_provenance_fixture_refusal_preserves_physical_files_and_lock() {
         }
     });
 }
+
+#[test]
+fn real_installation_layouts_share_scan_and_resolution_semantics() {
+    use skill_zoo_lib::{
+        config,
+        services::{
+            lock::{resolve_installation_lock, LockResolution},
+            skill::SkillService,
+        },
+    };
+    let cases: serde_json::Value = read_fixture_json("lock-resolution-layouts.json");
+    for case in cases.as_array().unwrap() {
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            let mut paths = Vec::new();
+            let mut imports = ExternalImports::default();
+            for d in case["directories"].as_array().unwrap() {
+                let origin = d["origin"].as_str().unwrap();
+                let root = match origin {
+                    "ssot" => config::get_agents_skills_dir(),
+                    "agent" => config::get_agent_skills_dir("codex").unwrap(),
+                    _ => tmp.path().join("external"),
+                };
+                let home = root.join(d["directory"].as_str().unwrap());
+                fs::create_dir_all(&home).unwrap();
+                fs::write(home.join("SKILL.md"), d["text"].as_str().unwrap()).unwrap();
+                if origin == "external" {
+                    imports.imports.insert(
+                        "external:demo".into(),
+                        skill_zoo_lib::persistence::ExternalImportEntry {
+                            id: "external:demo".into(),
+                            directory: "demo".into(),
+                            source_path: home.to_string_lossy().into(),
+                            imported_at: 1,
+                            updated_at: 1,
+                        },
+                    );
+                }
+                paths.push((home, root, origin.to_string()));
+            }
+            imports.save().unwrap();
+            if let Some(links) = case["links"].as_array() {
+                for link in links {
+                    let root = config::get_agent_skills_dir("codex").unwrap();
+                    fs::create_dir_all(&root).unwrap();
+                    SkillService::create_link_to_target_for_test(
+                        &paths[link["target"].as_u64().unwrap() as usize].0,
+                        &root.join(link["directory"].as_str().unwrap()),
+                    )
+                    .unwrap();
+                }
+            }
+            let lock: SkillLock = serde_json::from_value(case["lock"].clone()).unwrap();
+            lock.write().unwrap();
+            let lock_path = config::get_agent_lock_file();
+            let before = fs::read(&lock_path).unwrap();
+            let inventory = SkillService::collect_installations().unwrap();
+            let full_scan = SkillService::scan_filesystem_for_test().unwrap();
+            for (index, (home, root, origin)) in paths.iter().enumerate() {
+                let result = if let Some(target) = inventory
+                    .iter()
+                    .find(|i| i.home_path == home.canonicalize().unwrap())
+                {
+                    resolve_installation_lock(target, &inventory, &lock)
+                } else {
+                    LockResolution::Missing {
+                        reason: "outsideLockScope",
+                    }
+                };
+                let actual = match &result {
+                    LockResolution::Resolved { lock_key, .. } => format!("Resolved:{lock_key}"),
+                    LockResolution::Missing { .. } => "Missing".into(),
+                    LockResolution::Ambiguous { reason, .. } => format!("Ambiguous:{reason}"),
+                };
+                assert_eq!(
+                    actual,
+                    case["expected"][index].as_str().unwrap(),
+                    "{}",
+                    case["name"]
+                );
+                if origin != "external" {
+                    let scanned = SkillService::scan_skill_root(
+                        home,
+                        root,
+                        (origin == "agent").then_some("codex"),
+                    )
+                    .unwrap();
+                    assert_eq!(scanned.directory, case["directories"][index]["directory"]);
+                    assert_eq!(
+                        scanned.repo_owner.is_some(),
+                        matches!(result, LockResolution::Resolved { .. }),
+                        "{}",
+                        case["name"]
+                    );
+                    if origin == "ssot" {
+                        assert_eq!(
+                            SkillService::scan_single_skill(&scanned.directory)
+                                .unwrap()
+                                .repo_owner,
+                            scanned.repo_owner
+                        );
+                    }
+                    let batch = SkillService::scan_skill_roots_batch(&[(
+                        home.clone(),
+                        root.clone(),
+                        (origin == "agent").then(|| "codex".into()),
+                    )])
+                    .unwrap();
+                    assert_eq!(batch[0].repo_owner, scanned.repo_owner);
+                    let full = full_scan
+                        .iter()
+                        .find(|i| i.directory == scanned.directory && i.origin == scanned.origin)
+                        .unwrap();
+                    assert_eq!(full.repo_owner, scanned.repo_owner);
+                }
+            }
+            assert_eq!(before, fs::read(lock_path).unwrap());
+        });
+    }
+}
