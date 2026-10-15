@@ -2,13 +2,13 @@
 
 ## 1. 协议载体（契约先行）
 
-- [x] 1.1 `docs/local-protocol.md`：定义基线读序（`skillFolderHash` 权威 → `commitSha` 镜像回落 → 显式状态）、自动补基线规则（仅从未记录过基线时一次）、双载体冲突语义、`pinnedRef` 闸门；勘误 `commitSha` 命名（实际为子树 tree SHA）
+- [x] 1.1 `docs/local-protocol.md`：定义基线读序（`skillFolderHash` 权威 → `commitSha` 镜像回落 → 显式状态）、不回写基线规则、双载体冲突语义、`pinnedRef` 闸门；勘误 `commitSha` 命名（实际为子树 tree SHA）
 - [x] 1.2 `fixtures/local-protocol/` 新增：gh 形态往返样例（含 `pinnedRef`、未知键、仅 `skillFolderHash` 的条目）、双载体冲突样例、pin 条目样例
 - [x] 1.3 AGENTS.md：澄清「native Rust 重实现」指 `src-tauri` 的 `CliService`，`packages/cli` 是 TS companion CLI
 
 ## 2. Rust 锁层
 
-- [x] 2.1 `services/lock.rs`：`SkillLockEntry` 增加类型化 `pinnedRef` + `#[serde(flatten)]` 未声明字段往返；`SkillLock` 顶层同样处理；提供「同时写两基线字段」的更新入口
+- [x] 2.1 `services/lock.rs`：`SkillLockEntry` 增加类型化 `pinnedRef` + `#[serde(flatten)]` 未声明字段往返；`SkillLock` 顶层同样处理
 - [x] 2.2 单测：未知条目级/顶层键与 `pinnedRef` 在 read-modify-write 后值不变；既有构造点补默认值
 
 ## 3. Rust 安装/更新写入点
@@ -18,7 +18,7 @@
 
 ## 4. Rust 更新检查语义
 
-- [x] 4.1 `commands/settings.rs`：按读序取基线；无基线 → 显式 needs-re-confirmation 状态（不再静默「无更新」）；自动补基线仅限「从未记录过基线」；冲突 → 显式状态且不取更新
+- [x] 4.1 `commands/settings.rs`：按读序取基线；无基线 → 显式 needs-re-confirmation 状态（不再静默「无更新」）；检查绝不回写基线；冲突 → 显式状态且不取更新
 - [x] 4.2 含 `pinnedRef` 条目在检查与批量更新候选中跳过并显式报告；单技能更新拒绝并说明原因
 - [x] 4.3 IPC 类型与命令输出暴露新状态变体
 
@@ -33,10 +33,17 @@
 
 ## 7. 验证
 
-- [x] 7.1 回归：gh 形态 JSON 往返本方条目后未知字段不丢、基线读序生效、自动补基线只在「从未记录」分支发生
+- [x] 7.1 回归：gh 形态 JSON 往返本方条目后未知字段不丢、基线读序生效、检查绝不回写基线
 - [x] 7.2 `cargo test --features test-helpers --manifest-path src-tauri/Cargo.toml`、`bun run test`、`packages/cli` 测试；`bun run lint`、`bun run format` 与 Rust format check
 - [x] 7.3 `openspec validate --all --strict` 通过；核对 `local-protocol` 主 spec 合并一致性
 - [x] 7.4 手工冒烟：模拟 gh 写锁（剥镜像字段 + pinnedRef 条目 + 双字段冲突）后，应用呈显式状态、不静默改写基线
+
+## 8. 检查不回写基线（E1 评审修订）
+
+- [x] 8.1 `commands/settings.rs`：删除 `check_skill_updates` 的自愈回写、`BASELINE_SELF_HEAL_WINDOW_HOURS` 与 `installed_within_self_heal_window`；`build_check_outcome` 只返回状态
+- [x] 8.2 `services/lock.rs`：删除因此失去调用方的 `SkillLock::update_baselines`
+- [x] 8.3 单测：无基线条目连续检查仍为 missing、不回写（`missing_baseline_is_surfaced_and_repeated_checks_do_not_rebase`）
+- [x] 8.4 docs/spec/proposal/design 同步为「检查绝不回写基线」
 
 ## Workflow follow-up
 

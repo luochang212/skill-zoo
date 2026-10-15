@@ -22,9 +22,9 @@
 
 - **基线载体对齐共享 schema**：安装/更新把子树 tree SHA 同时写入 `skillFolderHash`（权威载体）与 `commitSha`（兼容镜像）；更新检查按 `docs/local-protocol.md` 定义的读序取基线。值的语义由 git 对象模型定义，不依赖 gh 存在与否。
 - **双端未知字段无损往返**：桌面 Rust 侧保留本方未声明的条目级与顶层字段（companion CLI 已天然保留，以回归测试固化）。
-- **缺失/冲突基线的显式状态**：无任何可信基线的条目呈现 needs-re-confirmation 状态（不再静默「无更新」）；远端 latest 仅在「从未记录过基线」时自动补写（保持现有降级安装的一周期设计）；两载体值冲突 → 显式状态，不静默择一。
+- **缺失/冲突基线的显式状态**：无任何可信基线的条目呈现 needs-re-confirmation 状态（不再静默「无更新」）；更新检查绝不回写基线，只呈现状态；两载体值冲突 → 显式状态，不静默择一。
 - **外部 pin 闸门**：含 `pinnedRef` 的条目被更新流跳过并显式报告，字段不被本方改写。
-- **协议载体同步**：按 Local Protocol Guardrails 更新 `docs/local-protocol.md`（字段语义、读序、自动补基线规则、`commitSha` 命名勘误）、`fixtures/local-protocol/` 与 Rust/CLI 双端测试。
+- **协议载体同步**：按 Local Protocol Guardrails 更新 `docs/local-protocol.md`（字段语义、读序、不回写基线规则、`commitSha` 命名勘误）、`fixtures/local-protocol/` 与 Rust/CLI 双端测试。
 - **明确不做（本期）**：来源归属（同名接管）检测——git tree SHA 在对象模型上不含来源身份（不同仓库的相同子树哈希相同；本方复制管线自身也会改变树哈希），且无独立可信记录时无法区分「剥离」与「接管」。该项收缩为二期选项（私有记录方向，触发条件见 design 的 watch 清单），本期 spec 不承诺。显式 `ref` 丢失遵循既有文档语义（回落默认分支），是接受信息丢失，不包装成恢复。
 
 ## Capabilities

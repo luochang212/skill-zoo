@@ -33,24 +33,24 @@ Update checks MUST derive a skill's content baseline according to docs/local-pro
 - **WHEN** a lock entry has no explicit `ref` recorded
 - **THEN** it continues to follow the repository default branch per docs/local-protocol.md and no branch is guessed on its behalf
 
-### Requirement: Baseline establishment is gated on fresh installs within the self-heal window
+### Requirement: Update checks never write baselines
 
-The checker MUST write the remote latest revision as a baseline only for an entry that never recorded one and whose install time falls within the self-heal window defined in docs/local-protocol.md. It MUST NOT write baselines for externally pinned entries. Entries without a recorded baseline outside the window keep the needs-re-confirmation state until the skill is reinstalled or its baseline is repaired externally.
+The checker MUST NOT write or modify any skill's baseline. Baselines are established only by install and update flows recording the content they actually installed, and repaired only by the documented external-repair procedure. An entry with no recorded baseline keeps its explicit needs-re-confirmation state, no matter how many times it is checked or how recently it was installed.
 
-#### Scenario: Fresh or degraded install establishes a baseline once
+#### Scenario: A check never invents a baseline
 
-- **WHEN** a skill was installed through the app within the self-heal window and no baseline was ever recorded (for example the tree query failed at install time)
-- **THEN** the next successful update check establishes the baseline once, and later checks compare without rewriting it
+- **WHEN** an entry has no recorded baseline and a successful update check fetches the remote tree
+- **THEN** the check reports the needs-re-confirmation state and writes no baseline, so any masked pending update stays visible
 
-#### Scenario: Stale entry without a baseline is not silently rebased
+#### Scenario: Repeated checks do not converge to up to date
 
-- **WHEN** an entry has neither carrier field recorded and its install time predates the self-heal window, and the user checks updates
-- **THEN** the check keeps the needs-re-confirmation state and writes no baseline, so any masked pending update stays visible for explicit repair
+- **WHEN** the same entry with no recorded baseline is checked more than once
+- **THEN** every check reports the needs-re-confirmation state and no baseline is written
 
-#### Scenario: Externally pinned entries never gain a baseline automatically
+#### Scenario: Externally pinned entries are never baselined by a check
 
 - **WHEN** an externally pinned entry has no recorded baseline and the user checks updates
-- **THEN** the check skips it, reports the pinned state, and writes no baseline for it
+- **THEN** the check reports the pinned state and writes nothing
 
 ### Requirement: Conflicting or incomplete provenance is surfaced
 

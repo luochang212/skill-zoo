@@ -160,10 +160,10 @@ impl CliService {
         // Persist metadata to lock file, including folder SHAs so future
         // update checks can detect changes even after a fresh install.
         //
-        // Fetch the repo tree to get the per-folder SHA. If that fails,
-        // commit_sha stays None and check_skill_updates will auto-baseline
-        // on a successful check within the self-heal window
-        // (BASELINE_SELF_HEAL_WINDOW_HOURS; one-cycle degradation).
+        // Fetch the repo tree to get the per-folder SHA. If that fails, the
+        // entry is written without a baseline; update checks surface it as
+        // needing re-confirmation until it is reinstalled or repaired —
+        // checks never write a baseline.
         let folder_shas: std::collections::HashMap<String, Option<String>> =
             match Self::fetch_repo_tree(&owner, &repo, branch.as_deref()).await {
                 Ok(Some(tree)) => installed_skills
@@ -178,7 +178,7 @@ impl CliService {
                 Ok(None) => {
                     eprintln!(
                         "install: tree not found for {}, \
-                         update detection will auto-baseline within the self-heal window",
+                         update detection will report a missing baseline until reinstall",
                         Self::repo_ref_label(&owner, &repo, branch.as_deref())
                     );
                     std::collections::HashMap::new()
@@ -186,7 +186,7 @@ impl CliService {
                 Err(e) => {
                     eprintln!(
                         "install: tree fetch failed for {}: {e}, \
-                         update detection will auto-baseline within the self-heal window",
+                         update detection will report a missing baseline until reinstall",
                         Self::repo_ref_label(&owner, &repo, branch.as_deref())
                     );
                     std::collections::HashMap::new()

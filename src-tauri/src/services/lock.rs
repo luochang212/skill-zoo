@@ -121,20 +121,6 @@ impl SkillLock {
     }
 }
 
-impl SkillLock {
-    /// Record the content baseline for a skill on both carrier fields, keeping
-    /// the legacy `commitSha` mirror in sync for older readers.
-    pub fn update_baselines(skill_name: &str, sha: &str) -> Result<(), AppError> {
-        Self::update(|lock| {
-            if let Some(entry) = lock.skills.get_mut(skill_name) {
-                entry.skill_folder_hash = Some(sha.to_string());
-                entry.commit_sha = Some(sha.to_string());
-            }
-            Ok(())
-        })
-    }
-}
-
 impl SkillLockEntry {
     /// Recorded content baseline per the documented read order:
     /// non-empty `skillFolderHash` first, then the legacy `commitSha` mirror.

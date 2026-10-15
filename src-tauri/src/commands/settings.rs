@@ -1217,17 +1217,12 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
         }
     }
 
-    // Build per-skill status and decide baseline writes from the fetched
-    // results; the pure decision core lives in `build_check_outcome`.
-    let (skills, baseline_writes) = build_check_outcome(&lock, &checked_skills, rate_limited);
-
-    // Baselines are established once, for entries that never recorded one
-    // (they were up-to-date at install time). Entries with an existing
-    // baseline — including externally stripped ones whose carrier survived —
-    // are never silently rebased.
-    for (skill_name, latest) in baseline_writes {
-        let _ = SkillLock::update_baselines(&skill_name, &latest);
-    }
+    // Build per-skill status; the pure decision core lives in
+    // `build_check_outcome`. Checking never writes the lock: a network-time
+    // snapshot cannot prove the installed content still matches the remote
+    // tip, and writing it here would silently rebase an entry another writer
+    // changed during the check.
+    let skills = build_check_outcome(&lock, &checked_skills, rate_limited);
 
     Ok(CheckUpdatesResult {
         skills,
@@ -1237,35 +1232,13 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
     })
 }
 
-/// How long after install an entry without a baseline may be auto-baselined.
-/// Inside the window, "no baseline" means a degraded fresh install whose
-/// content still matches the remote tip. Outside it, the entry is most likely
-/// historical damage from an external writer, and auto-baselining would
-/// permanently bury its pending update — the state persists for explicit
-/// repair instead (reinstall, or external baseline repair per
-/// docs/local-protocol.md).
-const BASELINE_SELF_HEAL_WINDOW_HOURS: i64 = 48;
-
-fn installed_within_self_heal_window(entry: &SkillLockEntry) -> bool {
-    entry
-        .installed_at
-        .as_deref()
-        .and_then(|ts| chrono::DateTime::parse_from_rfc3339(ts).ok())
-        .map(|installed| {
-            (chrono::Utc::now() - installed.with_timezone(&chrono::Utc)).num_hours()
-                < BASELINE_SELF_HEAL_WINDOW_HOURS
-        })
-        .unwrap_or(false)
-}
-
 /// Pure decision core of `check_skill_updates`: builds per-skill status from
-/// already-fetched remote results and returns the baselines that may be
-/// established. Never touches the network or the lock file.
+/// already-fetched remote results. Never touches the network or the lock file.
 fn build_check_outcome(
     lock: &SkillLock,
     checked_skills: &HashMap<String, CheckedRemoteSkill>,
     rate_limited: bool,
-) -> (Vec<SkillUpdateStatus>, Vec<(String, String)>) {
+) -> Vec<SkillUpdateStatus> {
     let mut skills: Vec<SkillUpdateStatus> = Vec::new();
     for (skill_name, entry) in lock.skills.iter() {
         let (owner, name) = entry.parse_source_owner_name();
@@ -1328,7 +1301,7 @@ fn build_check_outcome(
             CheckedRemoteSkill::error(
                 checked.repo,
                 "baselineMissing",
-                "Installed version could not be verified this check. Re-run Check Updates to establish the baseline; if this state persists, reinstall the skill or restore its baseline as described in the release notes.",
+                "Installed version could not be verified: no update baseline is recorded. Reinstall the skill, or restore its baseline as described in the release notes, to restore update checks.",
             )
         } else {
             checked
@@ -1352,29 +1325,7 @@ fn build_check_outcome(
         });
     }
 
-    // A baseline may be established only for an entry that has no baseline
-    // recorded (both carriers absent) and whose remote check succeeded.
-    // Externally pinned entries never gain a baseline automatically, and
-    // entries installed outside the self-heal window keep their state for
-    // explicit repair instead of being silently rebased to the remote tip.
-    let mut baseline_writes: Vec<(String, String)> = Vec::new();
-    for (skill_name, entry) in lock.skills.iter() {
-        if entry.is_externally_pinned() || !installed_within_self_heal_window(entry) {
-            continue;
-        }
-        if let (
-            Some(CheckedRemoteSkill {
-                latest_sha: Some(latest),
-                ..
-            }),
-            None,
-        ) = (checked_skills.get(skill_name), entry.recorded_baseline())
-        {
-            baseline_writes.push((skill_name.clone(), latest.clone()));
-        }
-    }
-
-    (skills, baseline_writes)
+    skills
 }
 
 #[cfg(test)]
@@ -1391,12 +1342,6 @@ mod skill_update_check_tests {
 
     fn entry_json(json: &str) -> SkillLockEntry {
         serde_json::from_str(json).unwrap()
-    }
-
-    fn entry_installed_hours_ago(mut entry: SkillLockEntry, hours: i64) -> SkillLockEntry {
-        entry.installed_at =
-            Some((chrono::Utc::now() - chrono::Duration::hours(hours)).to_rfc3339());
-        entry
     }
 
     fn status_for<'a>(result: &'a [SkillUpdateStatus], name: &str) -> &'a SkillUpdateStatus {
@@ -1426,75 +1371,16 @@ mod skill_update_check_tests {
             CheckedRemoteSkill::ok(Some("new-sha".to_string()), "owner/repo".to_string()),
         );
 
-        let (skills, writes) = build_check_outcome(&lock, &checked, false);
+        let skills = build_check_outcome(&lock, &checked, false);
 
         let status = status_for(&skills, "demo");
         assert!(status.has_update);
         assert_eq!(status.current_sha.as_deref(), Some("old-sha"));
         assert_eq!(status.baseline_state, "ok");
-        // The surviving carrier is a valid baseline: never silently rebased.
-        assert!(writes.is_empty());
     }
 
     #[test]
-    fn missing_baseline_is_surfaced_once_then_compares_normally() {
-        let lock = lock_with(&[(
-            "demo",
-            entry_installed_hours_ago(entry_json(r#"{"source": "owner/repo"}"#), 1),
-        )]);
-        let mut checked = HashMap::new();
-        checked.insert(
-            "demo".to_string(),
-            CheckedRemoteSkill::ok(Some("latest-sha".to_string()), "owner/repo".to_string()),
-        );
-
-        // First check: explicit needs-re-confirmation state + one write.
-        let (skills, writes) = build_check_outcome(&lock, &checked, false);
-        let status = status_for(&skills, "demo");
-        assert!(!status.has_update);
-        assert_eq!(status.baseline_state, "missing");
-        assert_eq!(status.check_error_code.as_deref(), Some("baselineMissing"));
-        assert_eq!(writes, vec![("demo".to_string(), "latest-sha".to_string())]);
-
-        // Second check: baseline recorded, compares normally, never rewritten.
-        let updated_lock = lock_with(&[(
-            "demo",
-            entry_json(
-                r#"{"source": "owner/repo", "skillFolderHash": "latest-sha", "commitSha": "latest-sha"}"#,
-            ),
-        )]);
-        let (skills, writes) = build_check_outcome(&updated_lock, &checked, false);
-        let status = status_for(&skills, "demo");
-        assert!(!status.has_update);
-        assert_eq!(status.baseline_state, "ok");
-        assert_eq!(status.check_error_code, None);
-        assert!(writes.is_empty());
-    }
-
-    #[test]
-    fn stale_entries_without_baseline_keep_needs_reconfirmation_state() {
-        // Historical damage from an external writer: the pending update must
-        // stay visible for explicit repair, not be silently rebased away.
-        let lock = lock_with(&[(
-            "demo",
-            entry_installed_hours_ago(entry_json(r#"{"source": "owner/repo"}"#), 24 * 30),
-        )]);
-        let mut checked = HashMap::new();
-        checked.insert(
-            "demo".to_string(),
-            CheckedRemoteSkill::ok(Some("latest-sha".to_string()), "owner/repo".to_string()),
-        );
-
-        let (skills, writes) = build_check_outcome(&lock, &checked, false);
-
-        let status = status_for(&skills, "demo");
-        assert_eq!(status.baseline_state, "missing");
-        assert_eq!(status.check_error_code.as_deref(), Some("baselineMissing"));
-        assert!(writes.is_empty());
-    }
-
-    #[test]
-    fn entries_without_parseable_install_time_never_auto_baseline() {
+    fn missing_baseline_is_surfaced_and_repeated_checks_do_not_rebase() {
         let lock = lock_with(&[("demo", entry_json(r#"{"source": "owner/repo"}"#))]);
         let mut checked = HashMap::new();
         checked.insert(
@@ -1502,13 +1388,51 @@ mod skill_update_check_tests {
             CheckedRemoteSkill::ok(Some("latest-sha".to_string()), "owner/repo".to_string()),
         );
 
-        let (_skills, writes) = build_check_outcome(&lock, &checked, false);
+        // A check never invents a baseline: the entry is surfaced and the lock
+        // is untouched no matter how many times it is checked.
+        for _ in 0..3 {
+            let skills = build_check_outcome(&lock, &checked, false);
+            let status = status_for(&skills, "demo");
+            assert!(!status.has_update);
+            assert_eq!(status.baseline_state, "missing");
+            assert_eq!(status.check_error_code.as_deref(), Some("baselineMissing"));
+        }
 
-        assert!(writes.is_empty());
+        // A baseline recorded by install/update compares normally.
+        let updated_lock = lock_with(&[(
+            "demo",
+            entry_json(
+                r#"{"source": "owner/repo", "skillFolderHash": "latest-sha", "commitSha": "latest-sha"}"#,
+            ),
+        )]);
+        let skills = build_check_outcome(&updated_lock, &checked, false);
+        let status = status_for(&skills, "demo");
+        assert!(!status.has_update);
+        assert_eq!(status.baseline_state, "ok");
+        assert_eq!(status.check_error_code, None);
     }
 
     #[test]
-    fn pinned_and_conflicting_entries_are_skipped_without_fetch_or_writes() {
+    fn entries_without_baseline_keep_needs_reconfirmation_state() {
+        // Historical damage from an external writer, or any entry whose tree
+        // query failed at install time: the pending update must stay visible
+        // for explicit repair, never silently rebased away by a check.
+        let lock = lock_with(&[("demo", entry_json(r#"{"source": "owner/repo"}"#))]);
+        let mut checked = HashMap::new();
+        checked.insert(
+            "demo".to_string(),
+            CheckedRemoteSkill::ok(Some("latest-sha".to_string()), "owner/repo".to_string()),
+        );
+
+        let skills = build_check_outcome(&lock, &checked, false);
+
+        let status = status_for(&skills, "demo");
+        assert_eq!(status.baseline_state, "missing");
+        assert_eq!(status.check_error_code.as_deref(), Some("baselineMissing"));
+    }
+
+    #[test]
+    fn pinned_and_conflicting_entries_are_skipped_without_fetch() {
         let lock = lock_with(&[
             (
                 "pinned",
@@ -1526,7 +1450,7 @@ mod skill_update_check_tests {
             CheckedRemoteSkill::ok(Some("new-sha".to_string()), "owner/repo".to_string()),
         );
 
-        let (skills, writes) = build_check_outcome(&lock, &checked, false);
+        let skills = build_check_outcome(&lock, &checked, false);
 
         let pinned = status_for(&skills, "pinned");
         assert!(pinned.pinned);
@@ -1540,25 +1464,6 @@ mod skill_update_check_tests {
             conflicted.check_error_code.as_deref(),
             Some("baselineConflict")
         );
-
-        assert!(writes.is_empty());
-    }
-
-    #[test]
-    fn pinned_entry_without_baseline_never_gains_one() {
-        let lock = lock_with(&[(
-            "pinned",
-            entry_json(r#"{"source": "owner/repo", "pinnedRef": "v1"}"#),
-        )]);
-        let mut checked = HashMap::new();
-        checked.insert(
-            "pinned".to_string(),
-            CheckedRemoteSkill::ok(Some("latest-sha".to_string()), "owner/repo".to_string()),
-        );
-
-        let (_skills, writes) = build_check_outcome(&lock, &checked, false);
-
-        assert!(writes.is_empty());
     }
 
     #[test]
@@ -1566,12 +1471,11 @@ mod skill_update_check_tests {
         let lock = lock_with(&[("broken", entry_json(r#"{"source": "owner"}"#))]);
 
         // The fetch grouping skips unparseable sources, so nothing is checked.
-        let (skills, writes) = build_check_outcome(&lock, &HashMap::new(), false);
+        let skills = build_check_outcome(&lock, &HashMap::new(), false);
 
         let status = status_for(&skills, "broken");
         assert_eq!(status.check_error_code.as_deref(), Some("invalidSource"));
         assert_eq!(status.repo, "owner");
-        assert!(writes.is_empty());
     }
 
     #[test]
@@ -1587,20 +1491,19 @@ mod skill_update_check_tests {
             ),
         );
 
-        let (skills, writes) = build_check_outcome(&lock, &checked, false);
+        let skills = build_check_outcome(&lock, &checked, false);
 
         let status = status_for(&skills, "demo");
         assert_eq!(status.baseline_state, "missing");
         // The remote failure explains why nothing could be established.
         assert_eq!(status.check_error_code.as_deref(), Some("repoUnavailable"));
-        assert!(writes.is_empty());
     }
 
     #[test]
     fn rate_limited_unchecked_entries_report_rate_limit() {
         let lock = lock_with(&[("demo", entry_json(r#"{"source": "owner/repo"}"#))]);
 
-        let (skills, _) = build_check_outcome(&lock, &HashMap::new(), true);
+        let skills = build_check_outcome(&lock, &HashMap::new(), true);
 
         let status = status_for(&skills, "demo");
         assert_eq!(status.check_error_code.as_deref(), Some("rateLimited"));
