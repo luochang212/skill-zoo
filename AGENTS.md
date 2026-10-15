@@ -77,7 +77,7 @@ The fixtures under `fixtures/local-protocol/` represent the desktop app's curren
 
 ### Compatibility with `npx skill`
 
-`CliService` is a native Rust reimplementation of the `npx skill` CLI (vercel-labs/skills v1.5.3) — the app no longer shells out to it. We must stay at least on par with the CLI and remain compatible where possible, since users may use both. Watch for upstream changes and mirror them.
+`CliService` (the Rust service in `src-tauri/`) is a native Rust reimplementation of the `npx skill` CLI (vercel-labs/skills v1.5.3) — the app no longer shells out to it. Note the two "CLI" meanings in this repo: `CliService` is the desktop's internal service layer, while `packages/cli/` is the TS companion CLI, a separate adjunct surface that follows desktop-owned protocol. We must stay at least on par with the CLI and remain compatible where possible, since users may use both. Watch for upstream changes and mirror them.
 
 ### Tauri IPC Is the Only Bridge
 

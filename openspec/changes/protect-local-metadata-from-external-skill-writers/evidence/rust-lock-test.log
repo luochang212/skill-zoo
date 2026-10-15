@@ -1,0 +1,1 @@
+Rust production SkillLock roundtrip: {"dismissed":null,"skills":{"demo":{"commitSha":null,"installedAt":"2026-01-01T00:00:00Z","ref":null,"skillFolderHash":"gh-tree","skillPath":"skills/demo/SKILL.md","source":"cli/cli","sourceType":"github","sourceUrl":"https://github.com/cli/cli.git","updatedAt":"2026-01-01T00:00:00Z"}},"version":3}

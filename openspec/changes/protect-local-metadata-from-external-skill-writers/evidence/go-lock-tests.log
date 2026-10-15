@@ -1,0 +1,8 @@
+=== RUN   TestReviewDesktopRoundTrip
+    review_test.go:12: existing desktop entry after gh write: map[installedAt:2026-01-02T03:04:05Z skillFolderHash:sha256-demo skillPath:skills/demo source:owner/repo sourceType:github sourceUrl:https://github.com/owner/repo updatedAt:2026-01-03T03:04:05Z]
+--- PASS: TestReviewDesktopRoundTrip (0.00s)
+=== RUN   TestReviewFutureVersionRead
+    review_test.go:18: future version read: version=3, skills=0
+--- PASS: TestReviewFutureVersionRead (0.00s)
+PASS
+ok  	github.com/cli/cli/v2/internal/skills/lockfile	0.713s

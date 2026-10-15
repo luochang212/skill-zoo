@@ -1,0 +1,10 @@
+Read-only repository review on 2026-10-15.
+GH source: v2.102.0, archived API ref fc4b137cdef0a6bd28fd461b7cf9c84a5812a8cd; 28 skills Go blobs independently verified against archived API tree.
+Vercel main: 13e4063a1cf913f5606d57d42ab83a86f5001e04. Published npm: 1.5.3 and 1.7.2.
+Go real RecordInstall probe passed; unrelated hash preserved, same-name source/hash replaced.
+Published JS function probes passed for both versions: unrelated unknown fields preserved; same-name private fields dropped.
+Rust probe uses zip 8.6.0 and copy_dir_contents copied verbatim from workspace with platform/error shims.
+Git archive tree = extracted tree = c5ce9b42359d2e38349fd76460f801efb2587b04.
+After workspace copy rules tree = 032c015b13e10a017b001ea5a3ede6f3b7547fc8; executable mode retained, file symlink dereferenced, tracked dist omitted, CRLF preserved.
+APFS filename test preserved individual NFC/NFD byte names in separate directories; equivalent names in same directory alias. Foo/foo also alias.
+No remote install / desktop E2E / Windows or Linux runtime probe was run.

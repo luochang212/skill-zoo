@@ -43,6 +43,30 @@ Use matching desktop/CLI releases for custom agents: older releases ignore this 
 
 For GitHub lock entries, `ref` stores an explicit branch only when the user or curated source selected one, for example a `/tree/<branch>` URL. Missing `ref` means the skill follows the repository's default branch. Readers must not treat a missing `ref` as `main`; writers must omit `ref` when the branch is unknown/default rather than guessing.
 
+## Shared Lock Baselines and External Writers
+
+`~/.agents/.skill-lock.json` is a shared interop surface: `npx skill` and `gh skill` also read and rewrite it. Their rewrites are lossy for fields their own schemas do not declare, and a same-name install from an external tool rebuilds the whole entry. The lock therefore carries the update baseline (the skill folder's git tree SHA) in two fields:
+
+- `skillFolderHash` is the authoritative baseline carrier. `gh skill` preserves it across rewrites of unrelated entries and `npx skill`'s update path consumes it as a git tree hash.
+- `commitSha` is the legacy mirror. Its historical name is misleading: the value has always been the skill subtree's git tree SHA, not a commit SHA. It is kept in sync for older readers and as a downgrade path.
+
+Read order for update checks: use `skillFolderHash` when it holds a value; otherwise fall back to `commitSha`; if both hold different values, that is an explicit conflict state requiring user decision, never silently reconciled; if neither holds a value, the entry has no recorded baseline and is shown as needing re-confirmation rather than reported up to date. Missing, `null`, and empty-string baseline values all count as unrecorded — older writers left empty-string placeholders, and JSON rewrites may omit fields entirely.
+
+Baseline write rules: install and update flows write both fields with the same value. The remote latest tree SHA may be written as a baseline only for an entry that never had one recorded **and whose `installedAt` falls within the self-heal window of 48 hours** (a fresh install whose tree query failed at install time — its content still matches the remote tip). Entries with an existing or conflicting baseline are never silently rebased. An entry with no recorded baseline outside the self-heal window — most likely historical damage from an external writer — keeps its needs-re-confirmation state until the skill is reinstalled or its baseline is repaired externally (see "External baseline repair" below); auto-writing the remote tip there would permanently bury any masked pending update. A missing or unparseable `installedAt` is treated as outside the window. A missing `ref` keeps the default-branch semantics above and must not be guessed during recovery.
+
+### External baseline repair
+
+An entry with no recorded baseline can be repaired without reinstalling by reconstructing the baseline from the skill's repository history. This procedure is protocol-legitimate for any tool, including the user's AI assistant:
+
+1. Read the entry's `source` (`owner/name`), `skillPath`, and `installedAt` from the lock.
+2. Resolve the last commit that touched `skillPath` at or before `installedAt`: `GET /repos/{owner}/{repo}/commits?path={skillPath}&until={installedAt}` and take the first result.
+3. Fetch that commit's repository tree (`GET /repos/{owner}/{repo}/git/trees/{sha}?recursive=1`) and locate the blob SHA of the `skillPath` directory.
+4. Write that tree SHA into **both** `skillFolderHash` and `commitSha` of the entry (the two fields carry the same value by protocol).
+
+If any step fails, or the entry has no parseable `installedAt`, reinstalling the skill is the fallback repair. Repair must never invent values: an unverifiable baseline is worse than none.
+
+Writers preserve lock fields they do not declare — entry-level and top-level, including `pinnedRef` — across every read-modify-write. Entries carrying a non-empty `pinnedRef` are externally pinned: update flows skip them with an explicit status until pin semantics are supported, and single-skill updates refuse them. Missing, `null`, and empty `pinnedRef` values do not pin. No pin installation UX is defined by this protocol.
+
 ## External Imports
 
 External imports are separately registered user-owned skill directories. New imports must originate outside Skill Zoo's SSOT and registered agent skill directories; existing external sources retain external ownership when a subsequently registered custom agent encloses them. The desktop app records these references in `~/.skill-zoo/imports.json`; the source directory remains the user's source of truth and must not be copied, moved, deleted, or archived by Skill Zoo-compatible tools.

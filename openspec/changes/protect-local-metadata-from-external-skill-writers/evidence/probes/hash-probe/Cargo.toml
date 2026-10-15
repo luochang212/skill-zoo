@@ -1,0 +1,6 @@
+[package]
+name="hash-probe"
+version="0.1.0"
+edition="2024"
+[dependencies]
+zip="=8.6.0"
