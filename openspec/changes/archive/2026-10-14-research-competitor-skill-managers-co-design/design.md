@@ -17,6 +17,8 @@
 1. **SSOT+symlink 是品类收敛形态,我方核心架构无需动摇。** chops(`SkillRegistry.swift:277` 注释 "Canonical location — matches the official skills CLI behavior")、chrlsio(`install.rs:38` "Canonical model")、jiweiyeah、skm 四家独立演化到「中央库 + agent 目录链接」;gh skill 官方更把 `.agents/skills/` 认定为 project 层 9 宿主共享目录(9 宿主解析到同一天然目的地时每技能只装一次)。
 2. **CLI 赛道四家(asm/OpenPackage/skillfish/paks)无一强制 SSOT。** 它们最精巧的子系统——OpenPackage 双哈希 divergence 同步与 key 级合并卸载、skillfish sidecar 清单、asm disable-rename——全部在治理「副本漂移」,一个我方已从根上消除的问题。**别把别的架构的药当自己的补品**是本次研究最大的反向收获。OpenPackage 的 40 平台能力矩阵还反证了 skills-only 范围的正确性:skills 是唯一在所有平台都有「每文件目录」语义的资源类型。
 3. **官方信号明确:gh skill 的 install/publish/update 语义就是事实规范。** `@version`/`--pin` 是用户肌肉记忆,agentskills.io 校验清单可直接作为我方 preflight 验收基准。
+
+   （2026-10-15 勘误:「事实规范」为价值推断过强——gh skill 仍是 public preview 且 subject to change,官方实现是重要参考而非跨工具强制协议,不能据此改写桌面拥有本地协议的原则;且本次研究仅按文档进行,未核实其锁文件行为——共享锁有损重写由 `protect-local-metadata-from-external-skill-writers` 承接。）
 4. **竞争主战场正从「装技能」(已同质化)移向两端:agent 自管理接口与信任**(风险扫描、审计日志、「这个 app 对我的磁盘做了什么」)。这恰是我方「桌面拥有协议 + 配套 CLI」优势的延长线——四家 GUI 竞品里只有 xingkongliang 把这件事做闭环了,而它是 ★6.3k 的那一家。
 
 ## 2. 吸收项 co-design
@@ -162,4 +164,6 @@ xingkongliang git 备份对象级三方合并(`merge/protocol.rs` + `decision.rs
 1. §2-A:CLI 桥接发布 vs 依赖 npm 安装;companion skill 分发通道(随应用 vs skills.sh 公开包)。
 2. §2-C:风险规则表的维护策略与误报反馈渠道。
 3. §2-E:是否只读识别 gh 写入的 `metadata.github-*`(决定能否更新 gh 安装的技能)。
+
+   （2026-10-15 结案:问题改写为「共同写入者兼容边界」——gh 除 frontmatter 外还写共享锁 `~/.agents/.skill-lock.json` 且为有损写入者,真正缺口不是「能否更新 gh 装的技能」,而是「外部写入不得静默丢失本方更新来源/显式 ref/内容基线」。由 `protect-local-metadata-from-external-skill-writers` change 承接。）
 4. §2-F:`origin=plugin` 对本地可见域与冲突一致性检查规则的影响(AGENTS.md 同步修订点)。

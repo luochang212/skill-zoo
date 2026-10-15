@@ -12,6 +12,7 @@
 - 90 分门槛三条件（详见 design.md 门槛节，对档案作者同样生效）：原实现是 great（有代码级证据，不是「有这个功能」）；与我方核心架构兼容（文件系统为真相、SSOT+symlink、Tauri IPC 边界、桌面拥有本地协议）；用户可感知收益 > 移植成本。三者缺一 → 进「明确不借鉴」清单并写明理由。
 - 汇总产出 co-design（[design.md](design.md)）：吸收项 → 我方模块映射、设计决策、open questions；以及「已评估并拒绝」表（每项一句话理由）。
 - 范围界定：vercel-labs/skills 不重复研究（已有 research-upstream-skills-cli-adoption 覆盖）；`gh skill` 为闭源预览命令，按官方文档与手册研究，不克隆 cli/cli。
+- （2026-10-15 勘误：「闭源」表述错误——`gh skill` 是 cli/cli 内的开源原生命令（MIT），注册于 `pkg/cmd/root/root.go`。该错误前提导致其文件系统与锁行为未核实：gh 的锁写入对 `~/.agents/.skill-lock.json` 做整表有损往返，剥掉本方 `ref`/`commitSha`（已实测复现）。风险由 `protect-local-metadata-from-external-skill-writers` change 承接，复现证据见该 change `evidence/`。）
 
 ## Capabilities
 

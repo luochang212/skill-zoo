@@ -16,6 +16,7 @@
 - [完整] search：Code Search API 全网搜 SKILL.md，`--json`/`--jq`/`--template` 结构化输出，交互模式可就地 install。https://cli.github.com/manual/gh_skill_search
 - [完整] preview：渲染 SKILL.md（pager）+ 文件树浏览，零安装；支持 `@version` 与精确路径（`.../SKILL.md` 绕过全树遍历）。公告明确建议先 preview——「skills aren't verified by GitHub and could contain prompt injections」。https://cli.github.com/manual/gh_skill_preview
 - [完整] update：扫所有已知 agent 目录，比对 frontmatter 中的 git **tree SHA**（内容寻址，区分真变更与版本号空转）；无元数据的手装技能交互时问 source repo，`--all` 跳过；`--force` 重下恢复原内容（不删本地多余文件）；`--dry-run` 只读。https://cli.github.com/manual/gh_skill_update
+  - （2026-10-15 勘误：「不删本地多余文件」与 cli/cli v2.102.0 源码相反——update 以同目录 swap 方式替换内容并清除旧版多余文件（`update.go` `swapDirectoryContents`，注释明言 stale files removed）；实测中保留 stale 文件的是 `install --force` 的覆盖写入，两条路径勿混。）
 - [完整] publish：先本地校验后发布为 GitHub release。校验清单：agentskills.io 严格命名规则；skill name 与目录名一致；frontmatter 必填 `name`/`description`；`allowed-tools` 必须是 string 不得为数组；剥离既有 `metadata.github-*` 安装元数据。流程：加 `agent-skills` topic → 选 tag（建议 semver）→ 建 release（自动生成 notes）；`--fix` 自动修（如剥元数据）、`--dry-run` 只校验、`--tag` 非交互。公告另述发布时可启用 **immutable releases**（tag 后内容管理员也不可改）并检查远端设置（tag protection、secret scanning、code scanning）。https://cli.github.com/manual/gh_skill_publish
 - [完整] Copilot 侧运行时：project scope 认 `.github/skills`、`.claude/skills`、`.agents/skills`；user scope 认 `~/.copilot/skills`、`~/.agents/skills`；frontmatter 可选 `license`、`allowed-tools`（警告：预批准 shell 等于放开任意命令执行）。docs.github.com add-skills 页。
 
@@ -25,6 +26,7 @@
 - **project scope 下 9 个宿主共享 `.agents/skills/`**：GitHub Copilot、Cursor、Codex、Gemini CLI、Antigravity、Amp、Cline、OpenCode、Warp；「若多个选中宿主解析到同一目的地，每个技能只装一次」。
 - 其余宿主装进各自 host-specific 目录（如 claude-code → `~/.claude/skills/`，user scope；project scope 则项目内对应目录）。
 - 这是我方 SSOT 决策的官方背书：`.agents/skills/` 已被 GitHub CLI 认定为 project 层共享目录；user 层则各宿主仍有私有目录——与我方「SSOT + 各 agent 目录 symlink」模型完全同构。
+- （2026-10-15 勘误：路径交集≠模型同构。gh 是逐文件 copy 模型，不为各目的地建中央库与链接；user-scope Codex 直装 `~/.agents/skills`。「官方背书」仅指目录约定重合，不构成对 SSOT+symlink 模型的背书。）
 
 ## 4. 借鉴候选（90 分门槛）
 
