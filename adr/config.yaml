@@ -1,0 +1,18 @@
+# ADR Kit configuration
+# Fill in `context` and it is injected as a comment into every new
+# proposal/decision template (adrkit propose / adrkit record).
+# context: |
+#   Tech stack: TypeScript
+#   Conventions that decision records should respect.
+
+# AI tool integrations written by adrkit init --tools.
+tools: []
+installed-with: 0.18.1
+
+# Optional per-status conventions. These are hints for writers and agents;
+# validate does not enforce them (it cannot check prose).
+# rules:
+#   proposal:
+#     - Keep proposals under 500 words.
+#   decision:
+#     - Always name the owning team.

@@ -105,6 +105,10 @@ The repo manages behavior-level changes through OpenSpec: open a change (proposa
 - Gate: `openspec validate --all --strict`.
 - Typo-level or pure-tooling fixes don't need a change — match ceremony to stakes (see How We Work).
 
+## Architecture Decisions
+
+Architecture decisions live in `adr/` (ADR Kit): `implemented/` is current authority, `proposed/` is intent, `rejected/` records anti-patterns to avoid, `archived/` is frozen history. Before working on shared state or protocol code, run `adrkit list` and read the relevant `implemented/` records in full — don't filter by title alone; `adrkit relevant <path>` retrieves records scoped to files. Behavior-level changes stay in OpenSpec; record an ADR when a decision outlives one change (see ADR 1, the shared-surface compatibility policy). Gate: `adrkit validate --all`.
+
 ## Testing
 
 **Run tests:**
