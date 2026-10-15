@@ -177,6 +177,10 @@ export interface SkillUpdateStatus {
   repo: string;
   checkErrorCode?: string | null;
   checkError?: string | null;
+  /** Recorded-baseline health: "ok", "conflict", or "missing". */
+  baselineState: "ok" | "conflict" | "missing";
+  /** Entry carries an external pin marker and was skipped. */
+  pinned: boolean;
 }
 
 export interface RemoveSkillsResult {

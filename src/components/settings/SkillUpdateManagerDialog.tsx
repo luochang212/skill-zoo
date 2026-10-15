@@ -75,6 +75,12 @@ function historyStatusVariant(status: SkillUpdateHistoryRecord["status"]) {
   return "secondary";
 }
 
+const issueCodeLabelKeys: Record<string, string> = {
+  externallyPinned: "settings.maintenance.updateIssuePinned",
+  baselineMissing: "settings.maintenance.updateIssueBaselineMissing",
+  baselineConflict: "settings.maintenance.updateIssueBaselineConflict",
+};
+
 function statusIcon(status: SkillUpdateHistoryRecord["status"]) {
   if (status === "failed") return <XCircle className="h-4 w-4 text-destructive" />;
   if (status === "noop") return <Clock3 className="h-4 w-4 text-muted-foreground" />;
@@ -300,9 +306,11 @@ export function SkillUpdateManagerDialog({
                                 variant="secondary"
                                 className="h-5 shrink-0 px-1.5 text-[10px]"
                               >
-                                {t("settings.maintenance.updateIssueBadge", {
-                                  code: issue.code,
-                                })}
+                                {t(
+                                  issueCodeLabelKeys[issue.code] ??
+                                    "settings.maintenance.updateIssueBadge",
+                                  { code: issue.code },
+                                )}
                               </Badge>
                             </div>
                             <p className="text-xs text-muted-foreground">{issue.message}</p>
