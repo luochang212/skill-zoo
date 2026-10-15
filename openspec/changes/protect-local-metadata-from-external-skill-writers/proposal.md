@@ -2,14 +2,21 @@
 
 ## Why
 
-`~/.agents/.skill-lock.json` v3 是本方、`npx skills` 与 `gh skill`（cli/cli，v2.90.0+，开源、public preview）共写的生态互操作面。两轮独立评审（2026-10-15：源码级分析 + 对上游真实锁函数与 vercel 1.5.3/1.7.2 发布包的运行时探针，见 [evidence/](evidence/)）证实：
+`~/.agents/.skill-lock.json` v3 是本方与外部 skills 工具共写的生态互操作面。主流写入者是 `npx skills`（vercel-labs/skills）——`CliService` 本就是它的重实现，AGENTS.md 要求保持兼容；`gh skill`（cli/cli，v2.90.0+，开源、public preview）是第二个、行为更激进但小众的写入者。两轮独立评审（2026-10-15：源码级分析 + 对上游真实锁函数与 vercel 1.5.3/1.7.2 发布包的运行时探针，见 [evidence/](evidence/)）证实，当前实现会在这个共享面上静默损坏更新元数据：
 
-- gh 的锁写入是整文件读改写，其 Go 结构体不含本方 `ref`/`commitSha`：**无关条目**的这两个字段在 gh 任何一次写锁（install/update 触发 `RecordInstall`）时被剥掉（实测复现）；**同名条目**被整体重建，来源、hash、pin 全部替换。v2.102.0 源码无 dismiss 写锁路径。
-- 更新检查在基线 `commitSha` 缺失时静默按「无更新」处理（`settings.rs` 的 `_ => false` 分支），并把远端 latest 自动补写为基线（`settings.rs` "save the latest SHA now" 分支）——待更新被掩盖，持续到远端再次变化或记录重建，而非永久不可见。
-- 本方 Rust 重写会丢弃外部扩展字段（如 `pinnedRef`；已用生产类型探针实测）。
-- `commitSha` 的实际语义是技能子树 git tree SHA（字段名有误导）；共享 schema 中已有同语义字段 `skillFolderHash`，gh 对无关条目无损保留它，vercel 更新路径消费它（40 位 hex 按 git tree hash 比较）。
+**主因（npx skills）：本方把基线放在了共享 schema 之外。**
 
-这是静默元数据损坏：高频触发（任何 gh 写锁、无需同名或并发）、自我伪装（显示为「无更新」）。合法 v3 文件中字段被剥没有版本信号，既有「拒绝更高版本」的版本门对此不设防。
+- vercel 的锁 schema 把 `skillFolderHash` 声明为必填（GitHub 子树 tree SHA，用于 folder-based 更新检测），且条目类型不含 `commitSha`/`ref`/`pinnedRef`。本方却把 `skillFolderHash` 写成**空串占位**，改用私有 `commitSha` 承载基线（`services/cli.rs` 安装落锁路径）。
+- vercel 按自身 schema 重建同名条目（`{ ...entry, installedAt, updatedAt }`，发布包函数探针实测）：**同名**一次装/更新即剥掉 `commitSha`/`ref`；无关条目整表往返则无损（探针实测）。
+- 反向同样成立：本方未声明 vercel 的 `pluginName`（条目级）与 `lastSelectedAgents`（顶层）等字段，重写会丢弃它们（生产类型探针实测；本方 Rust 重写亦丢弃外部扩展字段如 `pinnedRef`）。
+
+**同一类别的更高频变体（gh skill）：**
+
+- gh 写锁是整文件读改写，其 Go 结构体不含本方 `ref`/`commitSha`：**无关条目**的这两个字段在 gh 任何一次写锁（install/update 触发 `RecordInstall`）时被剥掉（实测复现）；**同名条目**被整体重建，来源、hash、pin 全部替换。v2.102.0 源码无 dismiss 写锁路径。gh 还写 npx 不写的 `pinnedRef`。
+
+**共同后果：静默且自我伪装。** 更新检查在基线缺失时按「无更新」处理（`settings.rs` 的 `_ => false` 分支），并把远端 latest 自动补写为基线（`settings.rs` "save the latest SHA now" 分支）——待更新被掩盖成「已是最新」，而非报错或不可见。`commitSha` 的实际语义是技能子树 git tree SHA（字段名有误导），共享 schema 中的 `skillFolderHash` 语义相同，正是外部写入者保留并消费的字段。合法 v3 文件中字段被剥没有版本信号，既有「拒绝更高版本」的版本门对此不设防。
+
+触发频率随写入者而异：npx 仅在**同名**重建时触发（低频，但工具主流），gh 在**任何**写锁时触发（高频，但工具小众）。修复落在共享 schema 上，与 gh 是否流行无关。
 
 ## What Changes
 
