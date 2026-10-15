@@ -2,6 +2,8 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { archiveSkillRefs, restoreArchiveIds } from "../src/protocol/archive.js";
+import { rebuildCache } from "../src/protocol/scan.js";
 import { getPaths } from "../src/protocol/paths.js";
 import {
   assertWritableSchema,
@@ -14,6 +16,32 @@ import { makeTempHome } from "./helpers.js";
 import type { SkillLock } from "../src/protocol/types.js";
 
 describe("desktop local protocol fixtures", () => {
+  it("preserves actual gh-injected bytes through scan, archive and restore", async () => {
+    const home = await makeTempHome();
+    const paths = getPaths(home);
+    const skillDir = path.join(paths.agentsSkillsDir, "demo");
+    await fs.mkdir(skillDir, { recursive: true });
+    const original = await fs.readFile(fixturePath("gh-injected.md"));
+    await fs.writeFile(path.join(skillDir, "SKILL.md"), original);
+    await copyFixture("lock-v3-full.json", paths.agentLockFile);
+    const lockBefore = await fs.readFile(paths.agentLockFile);
+    const entryBefore = (await readLock(home)).skills.demo;
+    const scanned = await rebuildCache(home);
+    expect(scanned.some((skill) => skill.directory === "demo")).toBe(true);
+    expect(await fs.readFile(path.join(skillDir, "SKILL.md"))).toEqual(original);
+    expect(await fs.readFile(paths.agentLockFile)).toEqual(lockBefore);
+
+    const archived = await archiveSkillRefs(home, ["demo"]);
+    expect(archived.failed).toEqual([]);
+    const manifest = await readArchiveManifest(home);
+    const archiveId = Object.keys(manifest.skills)[0]!;
+    expect(await fs.readFile(path.join(paths.archiveSkillsDir, archiveId, "SKILL.md"))).toEqual(original);
+    const restored = await restoreArchiveIds(home, [archiveId]);
+    expect(restored.failed).toEqual([]);
+    expect(await fs.readFile(path.join(skillDir, "SKILL.md"))).toEqual(original);
+    expect((await readLock(home)).skills.demo).toEqual(entryBefore);
+  });
+
   it("reads current lock and archive fixtures", async () => {
     const home = await makeTempHome();
     const paths = getPaths(home);

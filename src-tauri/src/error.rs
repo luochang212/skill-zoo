@@ -2,6 +2,9 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum AppError {
+    #[error("[{code}] {message}")]
+    UpdateGuard { code: &'static str, message: String },
+
     #[error("Another update or write operation is in progress. Try again when it finishes.")]
     OperationInProgress,
 
@@ -119,6 +122,7 @@ impl CommandError {
 impl AppError {
     fn code(&self) -> &'static str {
         match self {
+            AppError::UpdateGuard { code, .. } => code,
             AppError::OperationInProgress => "operationInProgress",
             AppError::DownloadNetwork { .. } | AppError::Network(_) => "downloadNetwork",
             AppError::DownloadTimeout { .. } => "downloadTimeout",

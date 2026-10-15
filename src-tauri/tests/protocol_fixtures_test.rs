@@ -138,3 +138,40 @@ fn fixture_path(name: &str) -> PathBuf {
         .join("local-protocol")
         .join(name)
 }
+
+#[test]
+fn desktop_provenance_fixture_refusal_preserves_physical_files_and_lock() {
+    use skill_zoo_lib::services::skill_provenance::{
+        ensure_update_allowed, inspect_gh_tracking, Provenance,
+    };
+    let home = tempfile::tempdir().unwrap();
+    skill_zoo_lib::config::with_test_home(home.path(), || {
+        let target = home.path().join(".agents/skills/demo");
+        fs::create_dir_all(&target).unwrap();
+        let original = fs::read(fixture_path("gh-injected.md")).unwrap();
+        fs::write(target.join("SKILL.md"), &original).unwrap();
+        let lock_path = home.path().join(".agents/.skill-lock.json");
+        fs::copy(fixture_path("lock-v3-full.json"), &lock_path).unwrap();
+        let before = fs::read(&lock_path).unwrap();
+        assert_eq!(
+            ensure_update_allowed(&target).unwrap_err().code,
+            "ghProvenanceProtected"
+        );
+        assert_eq!(fs::read(target.join("SKILL.md")).unwrap(), original);
+        assert_eq!(fs::read(lock_path).unwrap(), before);
+        let cases: serde_json::Value = read_fixture_json("gh-update-guard-cases.json");
+        for case in cases.as_array().unwrap() {
+            let state = match inspect_gh_tracking(case["text"].as_str().unwrap()) {
+                Provenance::Absent => "Absent",
+                Provenance::Tracking => "Tracking",
+                Provenance::Unreadable(_) => "Unreadable",
+            };
+            assert_eq!(
+                state,
+                case["expected"].as_str().unwrap(),
+                "{}",
+                case["name"]
+            );
+        }
+    });
+}

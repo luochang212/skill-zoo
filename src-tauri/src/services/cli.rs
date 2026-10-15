@@ -7,7 +7,9 @@ use crate::error::{classify_download_error, AppError};
 use crate::services::github;
 use crate::services::lock::{SkillLock, SkillLockEntry};
 use crate::services::skill::{is_symlink_or_junction, normalize_repo_skill_path, SkillService};
+use crate::services::skill_provenance::{self, UpdateSnapshot};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tauri::Emitter;
 
@@ -55,6 +57,27 @@ struct KnownUpdateRepoGroup {
 
 type RepoUpdateKey = (String, String, Option<String>);
 type RepoLockEntries = Vec<(String, SkillLockEntry)>;
+
+// Test-only URL substitution exercises real HTTP/ZIP/update paths without GitHub.
+#[cfg(test)]
+thread_local! {
+    static TEST_UPDATE_SERVER: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+    static TEST_BEFORE_UPDATE_REPLACE: std::cell::RefCell<Option<Box<dyn FnOnce()>>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+fn update_test_url(url: String) -> String {
+    TEST_UPDATE_SERVER.with(|base| match base.borrow().as_ref() {
+        Some(base) => format!(
+            "{}{}",
+            base,
+            url.strip_prefix("https://api.github.com")
+                .or_else(|| url.strip_prefix("https://github.com"))
+                .unwrap()
+        ),
+        None => url,
+    })
+}
 
 pub struct CliService;
 
@@ -342,7 +365,21 @@ impl CliService {
         }
 
         let mut errors: Vec<String> = Vec::new();
+        let mut snapshots = HashMap::new();
         let report_missing_baseline = to_update.len() == 1;
+        let to_update = to_update
+            .into_iter()
+            .filter(|(name, _)| match skill_provenance::prepare_update(name) {
+                Ok(snapshot) => {
+                    snapshots.insert(name.clone(), snapshot);
+                    true
+                }
+                Err(issue) => {
+                    errors.push(format!("{name}: {issue}"));
+                    false
+                }
+            })
+            .collect();
         let to_update =
             Self::filter_updatable_candidates(to_update, report_missing_baseline, &mut errors);
 
@@ -402,7 +439,8 @@ impl CliService {
             }
         }
 
-        let mut result = Self::update_known_skill_entries(known_updates).await?;
+        let mut result =
+            Self::update_known_skill_entries_with_snapshots(known_updates, snapshots).await?;
         result.errors.extend(errors);
         result.fail_count = result.errors.len();
         Ok(result)
@@ -440,6 +478,13 @@ impl CliService {
     pub async fn update_known_skill_entries(
         to_update: Vec<KnownSkillUpdate>,
     ) -> Result<UpdateResult, AppError> {
+        Self::update_known_skill_entries_with_snapshots(to_update, HashMap::new()).await
+    }
+
+    pub(crate) async fn update_known_skill_entries_with_snapshots(
+        to_update: Vec<KnownSkillUpdate>,
+        mut snapshots: HashMap<String, UpdateSnapshot>,
+    ) -> Result<UpdateResult, AppError> {
         if to_update.is_empty() {
             return Ok(UpdateResult {
                 success_count: 0,
@@ -449,7 +494,31 @@ impl CliService {
             });
         }
 
+        let mut guard_errors = Vec::new();
+        let to_update = to_update
+            .into_iter()
+            .filter(|update| {
+                let result = if let Some(snapshot) = snapshots.get(&update.name) {
+                    skill_provenance::revalidate_update_target(
+                        &config::get_agents_skills_dir().join(&update.name),
+                        snapshot,
+                    )
+                } else {
+                    skill_provenance::prepare_update(&update.name).map(|snapshot| {
+                        snapshots.insert(update.name.clone(), snapshot);
+                    })
+                };
+                match result {
+                    Ok(()) => true,
+                    Err(issue) => {
+                        guard_errors.push(format!("{}: {issue}", update.name));
+                        false
+                    }
+                }
+            })
+            .collect();
         let (groups, mut errors) = Self::group_known_updates_by_repo(to_update);
+        errors.extend(guard_errors);
         let mut updated: Vec<String> = Vec::new();
         let mut updated_shas: Vec<(String, String)> = Vec::new();
 
@@ -485,6 +554,7 @@ impl CliService {
                     &clone_path,
                     skill.entry.skill_path.as_deref(),
                     &discovered,
+                    &snapshots[&skill.name],
                 ) {
                     Ok(()) => {
                         updated.push(skill.name.clone());
@@ -563,8 +633,18 @@ impl CliService {
             "https://api.github.com/repos/{owner}/{repo}/git/trees/{}?recursive=1",
             urlencoding::encode(branch.unwrap_or("HEAD"))
         );
+        #[cfg(test)]
+        let url = update_test_url(url);
         let client = config::http_client();
 
+        #[cfg(test)]
+        let test_client = TEST_UPDATE_SERVER.with(|v| {
+            v.borrow()
+                .as_ref()
+                .map(|_| reqwest::Client::builder().no_proxy().build().unwrap())
+        });
+        #[cfg(test)]
+        let client = test_client.as_ref().unwrap_or(client);
         let resp = crate::services::github::github_get(client, &url)
             .header("Accept", "application/vnd.github.v3+json")
             .timeout(std::time::Duration::from_secs(30))
@@ -769,8 +849,18 @@ impl CliService {
         std::fs::create_dir_all(&cache_dir).map_err(AppError::Io)?;
 
         let url = Self::archive_zip_url(owner, repo, branch);
+        #[cfg(test)]
+        let url = update_test_url(url);
         let repo_id = format!("{owner}/{repo}");
         let client = config::http_client();
+        #[cfg(test)]
+        let test_client = TEST_UPDATE_SERVER.with(|v| {
+            v.borrow()
+                .as_ref()
+                .map(|_| reqwest::Client::builder().no_proxy().build().unwrap())
+        });
+        #[cfg(test)]
+        let client = test_client.as_ref().unwrap_or(client);
         let response = client
             .get(&url)
             .send()
@@ -1097,7 +1187,10 @@ impl CliService {
         repo_root: &Path,
         lock_skill_path: Option<&str>,
         discovered: &[(String, String, PathBuf)],
+        snapshot: &UpdateSnapshot,
     ) -> Result<(), AppError> {
+        let dest = config::get_agents_skills_dir().join(name);
+        skill_provenance::revalidate_update_target(&dest, snapshot).map_err(AppError::from)?;
         let skill_path =
             Self::find_discovered_skill_for_update(repo_root, name, lock_skill_path, discovered)
                 .ok_or_else(|| {
@@ -1113,8 +1206,6 @@ impl CliService {
                     }
                 })?;
 
-        let ssot_dir = config::get_agents_skills_dir();
-        let dest = ssot_dir.join(name);
         let parent = dest.parent().ok_or_else(|| {
             AppError::BadRequest(format!("Invalid skill path: {}", dest.display()))
         })?;
@@ -1122,6 +1213,11 @@ impl CliService {
         let tmp_path = tmp.path().to_path_buf();
 
         Self::copy_dir_contents(skill_path, &tmp_path)?;
+        #[cfg(test)]
+        if let Some(before_replace) = TEST_BEFORE_UPDATE_REPLACE.with(|v| v.borrow_mut().take()) {
+            before_replace();
+        }
+        skill_provenance::revalidate_update_target(&dest, snapshot).map_err(AppError::from)?;
         Self::replace_skill_dir_with_rollback(&dest, &tmp_path)
     }
 
@@ -1412,20 +1508,31 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn single_update_without_commit_sha_returns_baseline_error() {
-        let entry = test_lock_entry("owner/repo", Some("skills/demo"), None);
-
-        let result = CliService::update_skill_entries(vec![("demo".to_string(), entry)])
-            .await
-            .expect("update result");
-
-        assert_eq!(result.success_count, 0);
-        assert_eq!(result.fail_count, 1);
-        assert_eq!(
-            result.errors,
-            vec!["demo: Missing update baseline. Check updates before updating this skill."]
-        );
+    #[test]
+    fn single_update_without_commit_sha_returns_baseline_error() {
+        let home = tempfile::tempdir().unwrap();
+        config::with_test_home(home.path(), || {
+            let dir = config::get_agents_skills_dir().join("demo");
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join("SKILL.md"), "ordinary").unwrap();
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            let entry = test_lock_entry("owner/repo", Some("skills/demo"), None);
+            let result = runtime
+                .block_on(CliService::update_skill_entries(vec![(
+                    "demo".to_string(),
+                    entry,
+                )]))
+                .expect("update result");
+            assert_eq!(result.success_count, 0);
+            assert_eq!(result.fail_count, 1);
+            assert_eq!(
+                result.errors,
+                vec!["demo: Missing update baseline. Check updates before updating this skill."]
+            );
+        });
     }
 
     #[test]
@@ -2187,3 +2294,7 @@ mod tests {
             .any(|e| e.contains("conflicted: Baseline records disagree")));
     }
 }
+
+#[cfg(test)]
+#[path = "skill_provenance_tests.rs"]
+mod provenance_tests;

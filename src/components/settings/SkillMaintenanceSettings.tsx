@@ -69,6 +69,7 @@ export function SkillMaintenanceSettings({
     return checkMutation.data.skills
       .filter(
         (skill) =>
+          !skill.checkErrorCode &&
           skill.hasUpdate &&
           skill.currentSha != null &&
           skill.latestSha != null &&

@@ -16,6 +16,7 @@ use crate::services::skill::{
     is_symlink_or_junction, DiscoverableSkill, InstalledSkill, ManagedSkill, RepoSkillsResult,
     SkillFileNode, SkillService, SymlinkStatus,
 };
+use crate::services::skill_provenance;
 use crate::store::AppState;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -936,6 +937,13 @@ pub async fn update_skill(
     state: State<'_, AppState>,
     skill_id: String,
 ) -> Result<SingleSkillUpdateResult, CommandError> {
+    update_skill_inner(&state, skill_id).await
+}
+
+pub(crate) async fn update_skill_inner(
+    state: &AppState,
+    skill_id: String,
+) -> Result<SingleSkillUpdateResult, CommandError> {
     let _agent_lease =
         crate::persistence::agent_transaction::AgentLease::acquire(&config::get_app_config_dir())
             .map_err(CommandError::from)?;
@@ -948,6 +956,10 @@ pub async fn update_skill(
             "Only Skill Zoo-managed skills in the SSOT store can be updated from Git.",
         ));
     }
+
+    let snapshot = skill_provenance::prepare_update(&skill.directory)
+        .map_err(crate::error::AppError::from)
+        .map_err(CommandError::from)?;
 
     let lock = SkillLock::read().map_err(CommandError::from)?;
     let lock_entry = lock.skills.get(&skill.directory).cloned().ok_or_else(|| {
@@ -1023,21 +1035,37 @@ pub async fn update_skill(
         latest_sha: new_sha,
     };
 
-    let result = CliService::update_known_skill_entries(vec![known_update])
-        .await
-        .unwrap_or_else(|e| {
-            eprintln!("Update skill error: {e}");
-            crate::services::cli::UpdateResult {
-                success_count: 0,
-                fail_count: 1,
-                errors: vec![format!("{}: {e}", skill.directory)],
-                updated: vec![],
-            }
-        });
+    let result = CliService::update_known_skill_entries_with_snapshots(
+        vec![known_update],
+        [(skill.directory.clone(), snapshot)].into_iter().collect(),
+    )
+    .await
+    .unwrap_or_else(|e| {
+        eprintln!("Update skill error: {e}");
+        crate::services::cli::UpdateResult {
+            success_count: 0,
+            fail_count: 1,
+            errors: vec![format!("{}: {e}", skill.directory)],
+            updated: vec![],
+        }
+    });
 
     if result.fail_count > 0 {
         record_update_history_with_started_at(started_at, "single", requested_skills, &result);
-        return Err(CommandError::generic(result.errors.join("; ")));
+        let message = result.errors.join("; ");
+        let code = [
+            "ghProvenanceProtected",
+            "skillProvenanceUnreadable",
+            "updateStateChanged",
+        ]
+        .into_iter()
+        .find(|code| message.contains(&format!("[{code}]")))
+        .unwrap_or("generic");
+        return Err(CommandError {
+            code,
+            message,
+            repo: None,
+        });
     }
 
     let entry = SkillService::scan_single_skill(&skill.directory)
@@ -1069,6 +1097,13 @@ pub async fn update_skill(
 #[tauri::command]
 pub async fn update_all_skills(
     state: State<'_, AppState>,
+    checked_updates: Option<Vec<CheckedSkillUpdate>>,
+) -> Result<UpdateAllResult, String> {
+    update_all_skills_inner(&state, checked_updates).await
+}
+
+pub(crate) async fn update_all_skills_inner(
+    state: &AppState,
     checked_updates: Option<Vec<CheckedSkillUpdate>>,
 ) -> Result<UpdateAllResult, String> {
     let _update_guard = state.update_exit.start_update();
@@ -1276,6 +1311,10 @@ fn checked_update_entries_from_lock(
                 "{}: Only Skill Zoo-managed skills in the SSOT store can be updated from Git.",
                 checked.skill_name
             ));
+            continue;
+        }
+        if let Err(issue) = skill_provenance::prepare_update(&checked.skill_name) {
+            errors.push(format!("{}: {issue}", checked.skill_name));
             continue;
         }
         let Some(entry) = lock.skills.get(&checked.skill_name).cloned() else {
@@ -3618,123 +3657,150 @@ mod tests {
 
     #[test]
     fn checked_update_candidates_reject_stale_sha_and_non_ssot() {
-        let cache = crate::persistence::SkillCache::from_entries(vec![
-            test_cache_entry("repo:owner/repo:ssot-skill", "ssot-skill", "ssot"),
-            test_cache_entry("agent:codex:local-skill", "local-skill", "agent"),
-        ]);
-        let mut lock = SkillLock {
-            version: SUPPORTED_LOCK_VERSION,
-            skills: Default::default(),
-            dismissed: serde_json::json!({}),
-            extra: Default::default(),
-        };
-        lock.skills.insert(
-            "ssot-skill".to_string(),
-            test_lock_entry("owner/repo", "old-ssot"),
-        );
-        lock.skills.insert(
-            "local-skill".to_string(),
-            test_lock_entry("owner/repo", "old-local"),
-        );
+        let home = tempfile::tempdir().unwrap();
+        config::with_test_home(home.path(), || {
+            for name in ["ssot-skill", "pinned", "conflicted"] {
+                let dir = config::get_agents_skills_dir().join(name);
+                std::fs::create_dir_all(&dir).unwrap();
+                std::fs::write(dir.join("SKILL.md"), "ordinary").unwrap();
+            }
 
-        let checked = vec![
-            CheckedSkillUpdate {
-                skill_name: "ssot-skill".to_string(),
-                current_sha: "stale".to_string(),
-                latest_sha: "new-ssot".to_string(),
-            },
-            CheckedSkillUpdate {
-                skill_name: "local-skill".to_string(),
-                current_sha: "old-local".to_string(),
-                latest_sha: "new-local".to_string(),
-            },
-        ];
+            let cache = crate::persistence::SkillCache::from_entries(vec![
+                test_cache_entry("repo:owner/repo:ssot-skill", "ssot-skill", "ssot"),
+                test_cache_entry("agent:codex:local-skill", "local-skill", "agent"),
+            ]);
+            let mut lock = SkillLock {
+                version: SUPPORTED_LOCK_VERSION,
+                skills: Default::default(),
+                dismissed: serde_json::json!({}),
+                extra: Default::default(),
+            };
+            lock.skills.insert(
+                "ssot-skill".to_string(),
+                test_lock_entry("owner/repo", "old-ssot"),
+            );
+            lock.skills.insert(
+                "local-skill".to_string(),
+                test_lock_entry("owner/repo", "old-local"),
+            );
 
-        let (entries, errors) = checked_update_entries_from_lock(&cache, &lock, &checked);
+            let checked = vec![
+                CheckedSkillUpdate {
+                    skill_name: "ssot-skill".to_string(),
+                    current_sha: "stale".to_string(),
+                    latest_sha: "new-ssot".to_string(),
+                },
+                CheckedSkillUpdate {
+                    skill_name: "local-skill".to_string(),
+                    current_sha: "old-local".to_string(),
+                    latest_sha: "new-local".to_string(),
+                },
+            ];
 
-        assert!(entries.is_empty());
-        assert_eq!(errors.len(), 2);
-        assert!(errors[0].contains("Update state changed"));
-        assert!(errors[1].contains("Only Skill Zoo-managed skills"));
+            let (entries, errors) = checked_update_entries_from_lock(&cache, &lock, &checked);
+
+            assert!(entries.is_empty());
+            assert_eq!(errors.len(), 2);
+            assert!(errors[0].contains("Update state changed"));
+            assert!(errors[1].contains("Only Skill Zoo-managed skills"));
+        });
     }
 
     #[test]
     fn checked_update_candidates_keep_latest_sha_for_reuse() {
-        let cache = crate::persistence::SkillCache::from_entries(vec![test_cache_entry(
-            "repo:owner/repo:ssot-skill",
-            "ssot-skill",
-            "ssot",
-        )]);
-        let mut lock = SkillLock {
-            version: SUPPORTED_LOCK_VERSION,
-            skills: Default::default(),
-            dismissed: serde_json::json!({}),
-            extra: Default::default(),
-        };
-        lock.skills.insert(
-            "ssot-skill".to_string(),
-            test_lock_entry("owner/repo", "old-ssot"),
-        );
-        let checked = vec![CheckedSkillUpdate {
-            skill_name: "ssot-skill".to_string(),
-            current_sha: "old-ssot".to_string(),
-            latest_sha: "new-ssot".to_string(),
-        }];
+        let home = tempfile::tempdir().unwrap();
+        config::with_test_home(home.path(), || {
+            for name in ["ssot-skill", "pinned", "conflicted"] {
+                let dir = config::get_agents_skills_dir().join(name);
+                std::fs::create_dir_all(&dir).unwrap();
+                std::fs::write(dir.join("SKILL.md"), "ordinary").unwrap();
+            }
 
-        let (entries, errors) = checked_update_entries_from_lock(&cache, &lock, &checked);
+            let cache = crate::persistence::SkillCache::from_entries(vec![test_cache_entry(
+                "repo:owner/repo:ssot-skill",
+                "ssot-skill",
+                "ssot",
+            )]);
+            let mut lock = SkillLock {
+                version: SUPPORTED_LOCK_VERSION,
+                skills: Default::default(),
+                dismissed: serde_json::json!({}),
+                extra: Default::default(),
+            };
+            lock.skills.insert(
+                "ssot-skill".to_string(),
+                test_lock_entry("owner/repo", "old-ssot"),
+            );
+            let checked = vec![CheckedSkillUpdate {
+                skill_name: "ssot-skill".to_string(),
+                current_sha: "old-ssot".to_string(),
+                latest_sha: "new-ssot".to_string(),
+            }];
 
-        assert!(errors.is_empty());
-        assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].name, "ssot-skill");
-        assert_eq!(entries[0].latest_sha, "new-ssot");
+            let (entries, errors) = checked_update_entries_from_lock(&cache, &lock, &checked);
+
+            assert!(errors.is_empty());
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].name, "ssot-skill");
+            assert_eq!(entries[0].latest_sha, "new-ssot");
+        });
     }
 
     #[test]
     fn checked_update_candidates_refuse_pinned_and_conflicting_entries() {
-        let cache = crate::persistence::SkillCache::from_entries(vec![
-            test_cache_entry("repo:owner/repo:pinned", "pinned", "ssot"),
-            test_cache_entry("repo:owner/repo:conflicted", "conflicted", "ssot"),
-        ]);
-        let mut lock = SkillLock {
-            version: SUPPORTED_LOCK_VERSION,
-            skills: Default::default(),
-            dismissed: serde_json::json!({}),
-            extra: Default::default(),
-        };
-        lock.skills.insert(
-            "pinned".to_string(),
-            SkillLockEntry {
-                pinned_ref: Some("v1".to_string()),
-                ..test_lock_entry("owner/repo", "old-pin")
-            },
-        );
-        lock.skills.insert(
-            "conflicted".to_string(),
-            SkillLockEntry {
-                skill_folder_hash: Some("carrier".to_string()),
-                ..test_lock_entry("owner/repo", "mirror")
-            },
-        );
+        let home = tempfile::tempdir().unwrap();
+        config::with_test_home(home.path(), || {
+            for name in ["ssot-skill", "pinned", "conflicted"] {
+                let dir = config::get_agents_skills_dir().join(name);
+                std::fs::create_dir_all(&dir).unwrap();
+                std::fs::write(dir.join("SKILL.md"), "ordinary").unwrap();
+            }
 
-        let checked = vec![
-            CheckedSkillUpdate {
-                skill_name: "pinned".to_string(),
-                current_sha: "old-pin".to_string(),
-                latest_sha: "new-pin".to_string(),
-            },
-            CheckedSkillUpdate {
-                skill_name: "conflicted".to_string(),
-                current_sha: "carrier".to_string(),
-                latest_sha: "new-conflicted".to_string(),
-            },
-        ];
+            let cache = crate::persistence::SkillCache::from_entries(vec![
+                test_cache_entry("repo:owner/repo:pinned", "pinned", "ssot"),
+                test_cache_entry("repo:owner/repo:conflicted", "conflicted", "ssot"),
+            ]);
+            let mut lock = SkillLock {
+                version: SUPPORTED_LOCK_VERSION,
+                skills: Default::default(),
+                dismissed: serde_json::json!({}),
+                extra: Default::default(),
+            };
+            lock.skills.insert(
+                "pinned".to_string(),
+                SkillLockEntry {
+                    pinned_ref: Some("v1".to_string()),
+                    ..test_lock_entry("owner/repo", "old-pin")
+                },
+            );
+            lock.skills.insert(
+                "conflicted".to_string(),
+                SkillLockEntry {
+                    skill_folder_hash: Some("carrier".to_string()),
+                    ..test_lock_entry("owner/repo", "mirror")
+                },
+            );
 
-        let (entries, errors) = checked_update_entries_from_lock(&cache, &lock, &checked);
+            let checked = vec![
+                CheckedSkillUpdate {
+                    skill_name: "pinned".to_string(),
+                    current_sha: "old-pin".to_string(),
+                    latest_sha: "new-pin".to_string(),
+                },
+                CheckedSkillUpdate {
+                    skill_name: "conflicted".to_string(),
+                    current_sha: "carrier".to_string(),
+                    latest_sha: "new-conflicted".to_string(),
+                },
+            ];
 
-        assert!(entries.is_empty());
-        assert_eq!(errors.len(), 2);
-        assert!(errors[0].contains("Externally pinned"));
-        assert!(errors[1].contains("Baseline records disagree"));
+            let (entries, errors) = checked_update_entries_from_lock(&cache, &lock, &checked);
+
+            assert!(entries.is_empty());
+            assert_eq!(errors.len(), 2);
+            assert!(errors[0].contains("Externally pinned"));
+            assert!(errors[1].contains("Baseline records disagree"));
+        });
     }
 
     #[test]

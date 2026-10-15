@@ -76,6 +76,9 @@ function historyStatusVariant(status: SkillUpdateHistoryRecord["status"]) {
 }
 
 const issueCodeLabelKeys: Record<string, string> = {
+  ghProvenanceProtected: "settings.maintenance.updateIssueGhProvenance",
+  skillProvenanceUnreadable: "settings.maintenance.updateIssueProvenanceUnreadable",
+  updateStateChanged: "settings.maintenance.updateIssueStateChanged",
   externallyPinned: "settings.maintenance.updateIssuePinned",
   baselineMissing: "settings.maintenance.updateIssueBaselineMissing",
   baselineConflict: "settings.maintenance.updateIssueBaselineConflict",
@@ -313,7 +316,11 @@ export function SkillUpdateManagerDialog({
                                 )}
                               </Badge>
                             </div>
-                            <p className="text-xs text-muted-foreground">{issue.message}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {t(`settings.maintenance.${issue.code}Description`, {
+                                defaultValue: issue.message,
+                              })}
+                            </p>
                             {issue.code === "rateLimited" && (
                               <Button
                                 size="sm"

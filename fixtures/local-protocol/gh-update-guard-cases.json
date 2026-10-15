@@ -1,0 +1,272 @@
+[
+  {
+    "name": "github-repo-null",
+    "text": "---\nmetadata:\n  github-repo: \n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-repo-123",
+    "text": "---\nmetadata:\n  github-repo: 123\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-repo-[a, b]",
+    "text": "---\nmetadata:\n  github-repo: [a, b]\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-ref-null",
+    "text": "---\nmetadata:\n  github-ref: \n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-ref-123",
+    "text": "---\nmetadata:\n  github-ref: 123\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-ref-[a, b]",
+    "text": "---\nmetadata:\n  github-ref: [a, b]\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-tree-sha-null",
+    "text": "---\nmetadata:\n  github-tree-sha: \n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-tree-sha-123",
+    "text": "---\nmetadata:\n  github-tree-sha: 123\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-tree-sha-[a, b]",
+    "text": "---\nmetadata:\n  github-tree-sha: [a, b]\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-path-null",
+    "text": "---\nmetadata:\n  github-path: \n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-path-123",
+    "text": "---\nmetadata:\n  github-path: 123\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-path-[a, b]",
+    "text": "---\nmetadata:\n  github-path: [a, b]\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-pinned-null",
+    "text": "---\nmetadata:\n  github-pinned: \n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-pinned-123",
+    "text": "---\nmetadata:\n  github-pinned: 123\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-pinned-[a, b]",
+    "text": "---\nmetadata:\n  github-pinned: [a, b]\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-owner-null",
+    "text": "---\nmetadata:\n  github-owner: \n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-owner-123",
+    "text": "---\nmetadata:\n  github-owner: 123\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-owner-[a, b]",
+    "text": "---\nmetadata:\n  github-owner: [a, b]\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-sha-null",
+    "text": "---\nmetadata:\n  github-sha: \n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-sha-123",
+    "text": "---\nmetadata:\n  github-sha: 123\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-sha-[a, b]",
+    "text": "---\nmetadata:\n  github-sha: [a, b]\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "quoted",
+    "text": "---\n\"metadata\": {\"github-repo\": \"\"}\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "alias",
+    "text": "---\ntracking: &gh {github-ref: main}\nmetadata: *gh\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "merge",
+    "text": "---\ntracking: &gh {github-path: skills/demo}\nmetadata: {<<: *gh, custom: ok}\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "merge-sequence",
+    "text": "---\na: &a {github-ref: main}\nb: &b {custom: yes}\nmetadata: {<<: [*b, *a]}\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "root-merge",
+    "text": "---\na: &a {metadata: {github-path: demo}}\n<<: *a\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "bom-crlf",
+    "text": "﻿\r\n\r\n---\r\nmetadata:\r\n  github-pinned:\r\n---\r\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "duplicate",
+    "text": "---\nmetadata: {github-ref: main, github-ref: other}\n---\nbody",
+    "expected": "Unreadable"
+  },
+  {
+    "name": "duplicate-root",
+    "text": "---\nmetadata: {github-ref: main}\nmetadata: {}\n---\nbody",
+    "expected": "Unreadable"
+  },
+  {
+    "name": "duplicate-unrelated",
+    "text": "---\nname: a\nname: b\n---\nbody",
+    "expected": "Unreadable"
+  },
+  {
+    "name": "invalid",
+    "text": "---\nmetadata: [\n---\nbody",
+    "expected": "Unreadable"
+  },
+  {
+    "name": "tag",
+    "text": "---\nmetadata: !custom {github-ref: main}\n---\nbody",
+    "expected": "Unreadable"
+  },
+  {
+    "name": "bad-merge",
+    "text": "---\nmetadata: {<<: 3}\n---\nbody",
+    "expected": "Unreadable"
+  },
+  {
+    "name": "unclosed",
+    "text": "---\nmetadata: {}",
+    "expected": "Unreadable"
+  },
+  {
+    "name": "plain",
+    "text": "body github-repo: example",
+    "expected": "Absent"
+  },
+  {
+    "name": "ordinary",
+    "text": "---\nname: demo\nmetadata: {author: demo, github-stars: 2}\n---\ngithub-repo: example",
+    "expected": "Absent"
+  },
+  {
+    "name": "root-key",
+    "text": "---\ngithub-repo: example\n---\nbody",
+    "expected": "Absent"
+  },
+  {
+    "name": "description",
+    "text": "---\ndescription: \"github-ref: main\"\n---\nbody",
+    "expected": "Absent"
+  },
+  {
+    "name": "string",
+    "text": "---\nmetadata: github-repo\n---\nbody",
+    "expected": "Absent"
+  },
+  {
+    "name": "null",
+    "text": "---\nmetadata: null\n---\nbody",
+    "expected": "Absent"
+  },
+  {
+    "name": "sequence",
+    "text": "---\nmetadata: [github-repo]\n---\nbody",
+    "expected": "Absent"
+  },
+  {
+    "name": "embedded-delimiter",
+    "text": "A sentence ---\nmetadata: {github-ref: main}",
+    "expected": "Absent"
+  },
+  {
+    "name": "no-metadata",
+    "text": "---\nname: demo\nref: main\n---\nbody",
+    "expected": "Absent"
+  },
+  {
+    "name": "delimiter-trailing-space",
+    "text": "---  \nmetadata: {github-ref: main}\n---\t\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "inline-triple-dash-not-delimiter",
+    "text": "---\ndescription: hello --- world\nmetadata: {github-path: demo}\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "unknown-alias",
+    "text": "---\nmetadata: *missing\n---\nbody",
+    "expected": "Unreadable"
+  },
+  {
+    "name": "tag-unrelated",
+    "text": "---\na: !unknown hello\nmetadata: {}\n---\nbody",
+    "expected": "Unreadable"
+  },
+  {
+    "name": "github-repo-empty-string",
+    "text": "---\nmetadata: {github-repo: \"\"}\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-ref-empty-string",
+    "text": "---\nmetadata: {github-ref: \"\"}\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-tree-sha-empty-string",
+    "text": "---\nmetadata: {github-tree-sha: \"\"}\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-path-empty-string",
+    "text": "---\nmetadata: {github-path: \"\"}\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-pinned-empty-string",
+    "text": "---\nmetadata: {github-pinned: \"\"}\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-owner-empty-string",
+    "text": "---\nmetadata: {github-owner: \"\"}\n---\nbody",
+    "expected": "Tracking"
+  },
+  {
+    "name": "github-sha-empty-string",
+    "text": "---\nmetadata: {github-sha: \"\"}\n---\nbody",
+    "expected": "Tracking"
+  }
+]

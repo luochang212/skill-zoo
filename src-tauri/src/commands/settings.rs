@@ -1101,10 +1101,23 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
 
     let lock = SkillLock::read().map_err(|e| e.to_string())?;
 
+    let mut checked_skills: HashMap<String, CheckedRemoteSkill> = HashMap::new();
+
     // Group skills by (owner, repo, branch) to minimize API calls
     let mut skills_by_repo: HashMap<UpdateRepoKey, UpdateRepoEntries> = HashMap::new();
 
     for (skill_name, entry) in &lock.skills {
+        if let Err(issue) = crate::services::skill_provenance::prepare_update(skill_name) {
+            checked_skills.insert(
+                skill_name.clone(),
+                CheckedRemoteSkill::error(
+                    entry.source.clone().unwrap_or_default(),
+                    issue.code,
+                    issue.message,
+                ),
+            );
+            continue;
+        }
         // Externally pinned and conflicting entries are not fetched: pinned
         // skills are skipped by design and a conflicting baseline must be
         // resolved by the user before any update decision.
@@ -1126,8 +1139,6 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
     let total_repos = skills_by_repo.len();
     let mut checked_repos: usize = 0;
     let mut rate_limited = false;
-
-    let mut checked_skills: HashMap<String, CheckedRemoteSkill> = HashMap::new();
 
     // Randomize repo order for fairness when rate-limited
     let mut repos: Vec<(String, String, Option<String>)> = skills_by_repo.keys().cloned().collect();
@@ -1261,7 +1272,15 @@ fn build_check_outcome(
 
         // Entries excluded from the fetch (pinned, conflicting, unparseable
         // source) get an explicit skip state instead of a silent pass.
-        let checked = if owner.is_none() || name.is_none() {
+        let local_issue = checked_skills.get(skill_name).filter(|checked| {
+            matches!(
+                checked.check_error_code.as_deref(),
+                Some("ghProvenanceProtected" | "skillProvenanceUnreadable" | "updateStateChanged")
+            )
+        });
+        let checked = if let Some(issue) = local_issue {
+            issue.clone()
+        } else if owner.is_none() || name.is_none() {
             CheckedRemoteSkill::error(
                 repo_label.clone(),
                 "invalidSource",
@@ -1307,10 +1326,11 @@ fn build_check_outcome(
             checked
         };
 
-        let has_update = match (&checked.latest_sha, &current_sha) {
-            (Some(latest), Some(current)) => latest != current,
-            _ => false,
-        };
+        let has_update = checked.check_error_code.is_none()
+            && match (&checked.latest_sha, &current_sha) {
+                (Some(latest), Some(current)) => latest != current,
+                _ => false,
+            };
 
         skills.push(SkillUpdateStatus {
             skill_name: skill_name.clone(),

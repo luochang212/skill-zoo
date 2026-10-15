@@ -556,4 +556,57 @@ describe("SkillMaintenanceSettings", () => {
     await screen.findByText("Skill path no longer exists in owner/repo@main: skills/missing-skill");
     expect(await screen.findByRole("button", { name: /^update selected$/i })).toBeDisabled();
   });
+  it.each([
+    ["ghProvenanceProtected", "gh tracking protected", "Use gh to update"],
+    ["skillProvenanceUnreadable", "Tracking information unreadable", "Check the file and retry"],
+    ["updateStateChanged", "Update target changed", "Check updates again"],
+  ])(
+    "excludes %s from candidates even with forged update SHAs",
+    async (code, label, description) => {
+      const user = userEvent.setup();
+      vi.mocked(invoke).mockImplementation((command) => {
+        switch (command) {
+          case "get_installed_skills":
+            return Promise.resolve([{ id: "ssot:demo", directory: "demo", origin: "ssot" }]);
+          case "get_settings":
+            return Promise.resolve({});
+          case "get_cache_size":
+            return Promise.resolve(0);
+          case "get_skill_update_history":
+            return Promise.resolve([]);
+          case "check_skill_updates":
+            return Promise.resolve({
+              skills: [
+                {
+                  skillName: "demo",
+                  hasUpdate: true,
+                  currentSha: "old",
+                  latestSha: "new",
+                  repo: "owner/repo",
+                  checkErrorCode: code,
+                  checkError: "backend detail",
+                },
+              ],
+              totalRepos: 0,
+              checkedRepos: 0,
+              rateLimited: false,
+            });
+          default:
+            return Promise.reject(new Error(`Unexpected command: ${command}`));
+        }
+      });
+      renderSettings();
+      await user.click(await screen.findByRole("button", { name: /check updates/i }));
+      await screen.findByText("1 skill(s) could not be checked. Open Update Manager for details.");
+      await user.click(await screen.findByRole("button", { name: /update manager/i }));
+      await screen.findByText(label);
+      expect(screen.getByText(new RegExp(description))).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^update selected$/i })).toBeDisabled();
+      expect(screen.getByRole("checkbox", { name: /select all/i })).toBeDisabled();
+      expect(screen.queryByRole("checkbox", { name: /^select demo/i })).not.toBeInTheDocument();
+      expect(
+        vi.mocked(invoke).mock.calls.some(([command]) => command === "update_all_skills"),
+      ).toBe(false);
+    },
+  );
 });
