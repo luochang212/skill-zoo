@@ -1,0 +1,47 @@
+{
+  "version": 3,
+  "skills": {
+    "demo": {
+      "source": "owner/repo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/owner/repo",
+      "skillPath": "skills/demo",
+      "skillFolderHash": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0",
+      "installedAt": "2026-01-02T03:04:05Z",
+      "updatedAt": "2026-01-03T03:04:05Z",
+      "externalNote": { "kept": true }
+    },
+    "conflicted": {
+      "source": "owner/repo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/owner/repo",
+      "skillPath": "skills/conflicted",
+      "skillFolderHash": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0",
+      "commitSha": "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0a1",
+      "installedAt": "2026-01-02T03:04:05Z",
+      "updatedAt": "2026-01-03T03:04:05Z"
+    },
+    "unrecorded": {
+      "source": "owner/repo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/owner/repo",
+      "skillPath": "skills/unrecorded",
+      "installedAt": "2026-01-02T03:04:05Z",
+      "updatedAt": "2026-01-03T03:04:05Z"
+    },
+    "foreign-pinned": {
+      "source": "other/repo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/other/repo",
+      "ref": "v2",
+      "skillPath": "skills/foreign-pinned",
+      "skillFolderHash": "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0a1b2",
+      "commitSha": "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0a1b2",
+      "installedAt": "2026-01-02T03:04:05Z",
+      "updatedAt": "2026-01-03T03:04:05Z",
+      "pinnedRef": "abc1234"
+    }
+  },
+  "dismissed": {},
+  "futureTopLevel": { "note": "preserve me" }
+}

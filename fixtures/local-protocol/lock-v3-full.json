@@ -7,10 +7,10 @@
       "sourceUrl": "https://github.com/owner/repo",
       "ref": "main",
       "skillPath": "skills/demo",
-      "skillFolderHash": "sha256-demo",
+      "skillFolderHash": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0",
       "installedAt": "2026-01-02T03:04:05Z",
       "updatedAt": "2026-01-03T03:04:05Z",
-      "commitSha": "abc123"
+      "commitSha": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0"
     }
   },
   "dismissed": {

@@ -2877,6 +2877,7 @@ mod tests {
             version: SUPPORTED_LOCK_VERSION,
             skills: Default::default(),
             dismissed: serde_json::json!({}),
+            extra: Default::default(),
         };
 
         let (status, installed_id) = SkillService::classify_discoverable_skill(
@@ -2905,6 +2906,7 @@ mod tests {
             version: SUPPORTED_LOCK_VERSION,
             skills: Default::default(),
             dismissed: serde_json::json!({}),
+            extra: Default::default(),
         };
         lock.skills.insert(
             "recap".to_string(),
@@ -2951,6 +2953,7 @@ mod tests {
             version: SUPPORTED_LOCK_VERSION,
             skills: Default::default(),
             dismissed: serde_json::json!({}),
+            extra: Default::default(),
         };
         for lock_path in ["", ".", "SKILL.md", "./SKILL.md"] {
             lock.skills.insert(
@@ -2976,6 +2979,7 @@ mod tests {
             version: SUPPORTED_LOCK_VERSION,
             skills: Default::default(),
             dismissed: serde_json::json!({}),
+            extra: Default::default(),
         };
 
         let (status, installed_id) = SkillService::classify_discoverable_skill(
@@ -3136,6 +3140,7 @@ mod tests {
             installed_at: None,
             updated_at: None,
             commit_sha: None,
+            ..Default::default()
         }
     }
 

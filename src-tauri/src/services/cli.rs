@@ -161,8 +161,9 @@ impl CliService {
         // update checks can detect changes even after a fresh install.
         //
         // Fetch the repo tree to get the per-folder SHA. If that fails,
-        // commit_sha stays None and check_skill_updates will
-        // auto-baseline on the next successful check (one-cycle degradation).
+        // commit_sha stays None and check_skill_updates will auto-baseline
+        // on a successful check within the self-heal window
+        // (BASELINE_SELF_HEAL_WINDOW_HOURS; one-cycle degradation).
         let folder_shas: std::collections::HashMap<String, Option<String>> =
             match Self::fetch_repo_tree(&owner, &repo, branch.as_deref()).await {
                 Ok(Some(tree)) => installed_skills
@@ -177,7 +178,7 @@ impl CliService {
                 Ok(None) => {
                     eprintln!(
                         "install: tree not found for {}, \
-                         update detection will auto-baseline on next check",
+                         update detection will auto-baseline within the self-heal window",
                         Self::repo_ref_label(&owner, &repo, branch.as_deref())
                     );
                     std::collections::HashMap::new()
@@ -185,7 +186,7 @@ impl CliService {
                 Err(e) => {
                     eprintln!(
                         "install: tree fetch failed for {}: {e}, \
-                         update detection will auto-baseline on next check",
+                         update detection will auto-baseline within the self-heal window",
                         Self::repo_ref_label(&owner, &repo, branch.as_deref())
                     );
                     std::collections::HashMap::new()
@@ -287,6 +288,47 @@ impl CliService {
         Self::update_skill_entries(to_update).await
     }
 
+    /// Refuse candidates that must never auto-update before any network work:
+    /// externally pinned skills, entries whose baseline carriers disagree
+    /// (needs an explicit user decision), and — when surfaced — entries with
+    /// no recorded baseline. Applies on every path that reaches the shared
+    /// update entry point.
+    fn filter_updatable_candidates(
+        to_update: Vec<(String, SkillLockEntry)>,
+        report_missing_baseline: bool,
+        errors: &mut Vec<String>,
+    ) -> Vec<(String, SkillLockEntry)> {
+        let mut allowed = Vec::new();
+        for (name, entry) in to_update {
+            if entry.is_externally_pinned() {
+                errors.push(format!(
+                    "{name}: Externally pinned. Remove the pin to enable updates."
+                ));
+                continue;
+            }
+            if entry.baseline_conflict().is_some() {
+                errors.push(format!(
+                    "{name}: Baseline records disagree. Reinstall the skill to resolve."
+                ));
+                continue;
+            }
+            // Entries without any recorded baseline cannot be safely compared.
+            // The update loop already skips them after a successful tree fetch;
+            // skipping them here also prevents stale legacy lock entries from
+            // turning unrelated repo errors into "update all" failures.
+            if entry.recorded_baseline().is_none() {
+                if report_missing_baseline {
+                    errors.push(format!(
+                        "{name}: Missing update baseline. Check updates before updating this skill."
+                    ));
+                }
+                continue;
+            }
+            allowed.push((name, entry));
+        }
+        allowed
+    }
+
     async fn update_skill_entries(
         to_update: Vec<(String, SkillLockEntry)>,
     ) -> Result<UpdateResult, AppError> {
@@ -301,23 +343,13 @@ impl CliService {
 
         let mut errors: Vec<String> = Vec::new();
         let report_missing_baseline = to_update.len() == 1;
+        let to_update =
+            Self::filter_updatable_candidates(to_update, report_missing_baseline, &mut errors);
 
         // Group skills by (owner, repo, branch/default) so each repo is fetched only once
         let mut by_repo: std::collections::HashMap<RepoUpdateKey, RepoLockEntries> =
             std::collections::HashMap::new();
         for (name, entry) in &to_update {
-            // Entries without a stored folder SHA cannot be safely compared.
-            // The update loop already skips them after a successful tree fetch;
-            // skipping them here also prevents stale legacy lock entries from
-            // turning unrelated repo errors into "update all" failures.
-            if entry.commit_sha.is_none() {
-                if report_missing_baseline {
-                    errors.push(format!(
-                        "{name}: Missing update baseline. Check updates before updating this skill."
-                    ));
-                }
-                continue;
-            }
             if entry.effective_url().is_none() {
                 continue;
             }
@@ -384,7 +416,7 @@ impl CliService {
         repo: &str,
         branch: Option<&str>,
     ) -> Result<Option<KnownSkillUpdate>, String> {
-        let old_sha = entry.commit_sha.as_deref();
+        let old_sha = entry.recorded_baseline();
         let skill_path = entry.skill_path.as_deref().unwrap_or("");
         let Some(new_sha) = Self::get_folder_sha_from_tree(tree, skill_path) else {
             return Err(format!(
@@ -469,6 +501,7 @@ impl CliService {
                 for (name, sha) in &updated_shas {
                     if let Some(entry) = lock.skills.get_mut(name) {
                         entry.updated_at = Some(now.clone());
+                        entry.skill_folder_hash = Some(sha.clone());
                         entry.commit_sha = Some(sha.clone());
                     }
                 }
@@ -1028,11 +1061,14 @@ impl CliService {
             for (name, skill_path) in skills {
                 let existing_installed_at =
                     lock.skills.get(name).and_then(|e| e.installed_at.clone());
-                // Prefer freshly fetched folder SHA; fall back to existing lock entry
-                let commit_sha = folder_shas
-                    .get(name)
-                    .and_then(|s| s.clone())
-                    .or_else(|| lock.skills.get(name).and_then(|e| e.commit_sha.clone()));
+                // Prefer the freshly fetched folder SHA; fall back to whatever
+                // baseline the existing entry still records. Both carrier fields
+                // are written so the legacy commitSha mirror stays in sync.
+                let baseline = folder_shas.get(name).and_then(|s| s.clone()).or_else(|| {
+                    lock.skills
+                        .get(name)
+                        .and_then(|e| e.recorded_baseline().map(str::to_string))
+                });
 
                 lock.skills.insert(
                     name.clone(),
@@ -1042,10 +1078,11 @@ impl CliService {
                         source_url: Some(source_url.clone()),
                         branch: branch.map(str::to_string),
                         skill_path: Some(skill_path.clone()),
-                        skill_folder_hash: Some(String::new()),
+                        skill_folder_hash: baseline.clone(),
                         installed_at: Some(existing_installed_at.unwrap_or_else(|| now.clone())),
                         updated_at: Some(now.clone()),
-                        commit_sha,
+                        commit_sha: baseline,
+                        ..Default::default()
                     },
                 );
             }
@@ -1337,6 +1374,7 @@ mod tests {
             installed_at: None,
             updated_at: None,
             commit_sha: Some("old".to_string()),
+            ..Default::default()
         };
 
         let (owner, repo, branch) = CliService::update_repo_info(&entry).unwrap();
@@ -1363,6 +1401,7 @@ mod tests {
             installed_at: None,
             updated_at: None,
             commit_sha: Some("old".to_string()),
+            ..Default::default()
         };
 
         let (owner, repo, branch) = CliService::update_repo_info(&entry).unwrap();
@@ -2022,6 +2061,7 @@ mod tests {
             installed_at: None,
             updated_at: None,
             commit_sha: commit_sha.map(str::to_string),
+            ..Default::default()
         }
     }
 
@@ -2088,5 +2128,62 @@ mod tests {
         let (mut archive, zip_len) = in_memory_zip(&[1, 2, 3]);
         let err = CliService::validate_archive_scale(&mut archive, zip_len, 4, 0, 2).unwrap_err();
         assert!(err.to_string().contains("entries"));
+    }
+
+    #[test]
+    fn update_candidates_refuse_pinned_conflicting_and_unbaselined_entries() {
+        let entries = vec![
+            (
+                "ok".to_string(),
+                test_lock_entry("owner/repo", Some("skills/ok"), Some("sha")),
+            ),
+            (
+                "pinned".to_string(),
+                SkillLockEntry {
+                    pinned_ref: Some("v1".to_string()),
+                    ..test_lock_entry("owner/repo", Some("skills/pinned"), Some("sha"))
+                },
+            ),
+            (
+                "conflicted".to_string(),
+                SkillLockEntry {
+                    skill_folder_hash: Some("a".to_string()),
+                    ..test_lock_entry("owner/repo", Some("skills/conflicted"), Some("b"))
+                },
+            ),
+            (
+                "unbaselined".to_string(),
+                test_lock_entry("owner/repo", Some("skills/unbaselined"), None),
+            ),
+        ];
+
+        // Single-skill path surfaces the missing-baseline reason too.
+        let mut errors = Vec::new();
+        let allowed = CliService::filter_updatable_candidates(entries.clone(), true, &mut errors);
+        let allowed_names: Vec<&str> = allowed.iter().map(|(name, _)| name.as_str()).collect();
+        assert_eq!(allowed_names, vec!["ok"]);
+        assert_eq!(errors.len(), 3);
+        assert!(errors
+            .iter()
+            .any(|e| e.contains("pinned: Externally pinned")));
+        assert!(errors
+            .iter()
+            .any(|e| e.contains("conflicted: Baseline records disagree")));
+        assert!(errors
+            .iter()
+            .any(|e| e.contains("unbaselined: Missing update baseline")));
+
+        // Plain update-all path keeps the legacy quiet skip for missing
+        // baselines, but pin and conflict refusals stay explicit.
+        let mut errors = Vec::new();
+        let allowed = CliService::filter_updatable_candidates(entries, false, &mut errors);
+        assert_eq!(allowed.len(), 1);
+        assert_eq!(errors.len(), 2);
+        assert!(errors
+            .iter()
+            .any(|e| e.contains("pinned: Externally pinned")));
+        assert!(errors
+            .iter()
+            .any(|e| e.contains("conflicted: Baseline records disagree")));
     }
 }

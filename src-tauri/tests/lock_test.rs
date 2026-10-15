@@ -40,6 +40,7 @@ fn test_refuses_to_write_future_lock_version() {
         version: 4,
         skills: BTreeMap::new(),
         dismissed: serde_json::json!({}),
+        extra: BTreeMap::new(),
     };
 
     let error = lock

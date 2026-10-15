@@ -100,6 +100,7 @@ fn test_classify_discoverable_skill_distinguishes_installed_and_conflict() {
         version: 3,
         skills: Default::default(),
         dismissed: serde_json::json!({}),
+        extra: Default::default(),
     };
     lock.skills
         .insert("demo".to_string(), make_lock_entry("owner/repo"));
@@ -170,6 +171,7 @@ fn test_classify_discoverable_skill_treats_multiple_same_directory_entries_as_co
         version: 3,
         skills: Default::default(),
         dismissed: serde_json::json!({}),
+        extra: Default::default(),
     };
 
     assert_eq!(
@@ -186,6 +188,7 @@ fn test_classify_discoverable_skill_treats_missing_and_local_entries_conservativ
         version: 3,
         skills: Default::default(),
         dismissed: serde_json::json!({}),
+        extra: Default::default(),
     };
     assert_eq!(
         SkillService::classify_discoverable_skill(

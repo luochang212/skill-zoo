@@ -954,6 +954,19 @@ pub async fn update_skill(
         ))
     })?;
 
+    if lock_entry.is_externally_pinned() {
+        return Err(CommandError::bad_request(format!(
+            "{}: Externally pinned. Remove the pin to enable updates.",
+            skill.directory
+        )));
+    }
+    if let Some((carrier, mirror)) = lock_entry.baseline_conflict() {
+        return Err(CommandError::bad_request(format!(
+            "{}: Baseline records disagree (skillFolderHash {carrier}, commitSha {mirror}). Reinstall the skill to resolve.",
+            skill.directory
+        )));
+    }
+
     let (owner, repo, branch) =
         CliService::update_repo_info(&lock_entry).map_err(CommandError::from)?;
 
@@ -979,7 +992,7 @@ pub async fn update_skill(
     let requested_skills = vec![skill.directory.clone()];
 
     // No update needed
-    if lock_entry.commit_sha.as_deref() == Some(&new_sha) {
+    if lock_entry.recorded_baseline().as_deref() == Some(new_sha.as_str()) {
         let result = crate::services::cli::UpdateResult {
             success_count: 0,
             fail_count: 0,
@@ -1269,7 +1282,21 @@ fn checked_update_entries_from_lock(
             ));
             continue;
         };
-        if entry.commit_sha.as_deref() != Some(checked.current_sha.as_str()) {
+        if entry.is_externally_pinned() {
+            errors.push(format!(
+                "{}: Externally pinned. Remove the pin to enable updates.",
+                checked.skill_name
+            ));
+            continue;
+        }
+        if entry.baseline_conflict().is_some() {
+            errors.push(format!(
+                "{}: Baseline records disagree. Reinstall the skill to resolve.",
+                checked.skill_name
+            ));
+            continue;
+        }
+        if entry.recorded_baseline().as_deref() != Some(checked.current_sha.as_str()) {
             errors.push(format!(
                 "{}: Update state changed. Check updates again.",
                 checked.skill_name
@@ -3560,6 +3587,7 @@ mod tests {
             version: SUPPORTED_LOCK_VERSION,
             skills: Default::default(),
             dismissed: serde_json::json!({}),
+            extra: Default::default(),
         };
         lock.skills.insert(
             "ssot-skill".to_string(),
@@ -3602,6 +3630,7 @@ mod tests {
             version: SUPPORTED_LOCK_VERSION,
             skills: Default::default(),
             dismissed: serde_json::json!({}),
+            extra: Default::default(),
         };
         lock.skills.insert(
             "ssot-skill".to_string(),
@@ -3619,6 +3648,54 @@ mod tests {
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].name, "ssot-skill");
         assert_eq!(entries[0].latest_sha, "new-ssot");
+    }
+
+    #[test]
+    fn checked_update_candidates_refuse_pinned_and_conflicting_entries() {
+        let cache = crate::persistence::SkillCache::from_entries(vec![
+            test_cache_entry("repo:owner/repo:pinned", "pinned", "ssot"),
+            test_cache_entry("repo:owner/repo:conflicted", "conflicted", "ssot"),
+        ]);
+        let mut lock = SkillLock {
+            version: SUPPORTED_LOCK_VERSION,
+            skills: Default::default(),
+            dismissed: serde_json::json!({}),
+            extra: Default::default(),
+        };
+        lock.skills.insert(
+            "pinned".to_string(),
+            SkillLockEntry {
+                pinned_ref: Some("v1".to_string()),
+                ..test_lock_entry("owner/repo", "old-pin")
+            },
+        );
+        lock.skills.insert(
+            "conflicted".to_string(),
+            SkillLockEntry {
+                skill_folder_hash: Some("carrier".to_string()),
+                ..test_lock_entry("owner/repo", "mirror")
+            },
+        );
+
+        let checked = vec![
+            CheckedSkillUpdate {
+                skill_name: "pinned".to_string(),
+                current_sha: "old-pin".to_string(),
+                latest_sha: "new-pin".to_string(),
+            },
+            CheckedSkillUpdate {
+                skill_name: "conflicted".to_string(),
+                current_sha: "carrier".to_string(),
+                latest_sha: "new-conflicted".to_string(),
+            },
+        ];
+
+        let (entries, errors) = checked_update_entries_from_lock(&cache, &lock, &checked);
+
+        assert!(entries.is_empty());
+        assert_eq!(errors.len(), 2);
+        assert!(errors[0].contains("Externally pinned"));
+        assert!(errors[1].contains("Baseline records disagree"));
     }
 
     #[test]
@@ -3824,6 +3901,7 @@ mod tests {
             installed_at: None,
             updated_at: None,
             commit_sha: Some(commit_sha.to_string()),
+            ..Default::default()
         }
     }
 
