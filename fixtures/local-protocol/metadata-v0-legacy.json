@@ -1,0 +1,20 @@
+{
+  "entries": {
+    "repo:owner/repo:demo": {
+      "starred": true,
+      "isMine": true
+    },
+    "repo:owner/repo:.system/nested": {
+      "starred": true,
+      "isMine": false
+    },
+    "repo:old/repo:retained": {
+      "starred": true,
+      "isMine": true
+    },
+    "repo:old/repo:missing": {
+      "starred": false,
+      "isMine": true
+    }
+  }
+}

@@ -4,7 +4,9 @@ use common::{make_cache_entry, MetadataStore, SkillCache, SkillCacheEntry, Skill
 
 #[test]
 fn test_metadata_load_returns_valid_store_when_no_file() {
-    let store = MetadataStore::load().expect("load should succeed");
+    let dir = tempfile::tempdir().unwrap();
+    let store =
+        MetadataStore::load_from(&dir.path().join("metadata.json")).expect("load should succeed");
     let _ = store.get("any-key");
 }
 

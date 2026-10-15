@@ -1,6 +1,6 @@
 use crate::config;
 use crate::error::{self, AppError};
-use crate::persistence::metadata::SkillMetadata;
+use crate::persistence::metadata::{entry_key, SkillMetadata};
 use crate::persistence::{
     ExternalImportEntry, ExternalImports, MetadataStore, Settings, SkillCache, SkillCacheEntry,
 };
@@ -655,7 +655,7 @@ impl SkillService {
         let mut skills = Vec::with_capacity(cache.skills().len());
         for entry in cache.skills() {
             let mut skill: InstalledSkill = entry.clone().into();
-            let meta = metadata.get(&entry.id);
+            let meta = metadata.get(&entry_key(entry)?);
             skill.starred = meta.starred;
             skill.is_mine = meta.is_mine;
             skills.push(skill);
@@ -2151,7 +2151,7 @@ impl SkillService {
         }
 
         // Collect old IDs before any mutation (for metadata migration later)
-        let old_ids: Vec<String> = entries.iter().map(|e| e.id.clone()).collect();
+        let old_ids: Vec<String> = entries.iter().map(entry_key).collect::<Result<_, _>>()?;
 
         // Collect agents that have a real (non-SSOT) entity being deleted.
         // These are the only agents that need a new symlink after merge.
@@ -2218,7 +2218,7 @@ impl SkillService {
             c.save()?;
         }
         let entry = Self::scan_single_skill(skill_name)?;
-        let new_id = entry.id.clone();
+        let new_key = entry_key(&entry)?;
         Self::upsert_cache_entry(cache, entry)?;
 
         // Phase 4: Migrate metadata from old IDs to the new merged ID
@@ -2232,11 +2232,11 @@ impl SkillService {
                 is_mine: old_ids.iter().any(|id| m.get(id).is_mine),
             };
             // Remove old IDs and insert the new one (only if non-default)
-            if merged.starred || merged.is_mine {
-                m.entries.insert(new_id, merged);
-            }
             for old_id in &old_ids {
                 m.remove(old_id);
+            }
+            if merged.starred || merged.is_mine {
+                m.entries.insert(new_key, merged);
             }
             m.save()?;
         }
@@ -3097,6 +3097,8 @@ mod tests {
     async fn installed_skill_refresh_waits_for_an_active_cache_refresh() {
         let cache = RwLock::new(SkillCache::empty());
         let metadata = RwLock::new(MetadataStore {
+            version: 1,
+            extra: std::collections::HashMap::new(),
             entries: HashMap::new(),
         });
         let refresh_lock = tokio::sync::Mutex::new(());

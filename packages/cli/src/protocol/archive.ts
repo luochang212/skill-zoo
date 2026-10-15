@@ -1,3 +1,4 @@
+import { metadataKey, assertWritableMetadata } from "./store.js";
 import path from "node:path";
 import crypto from "node:crypto";
 import { agentLinkName, getAgentSkillsDir, getPaths } from "./paths.js";
@@ -184,6 +185,7 @@ async function planArchive(home: string | undefined, skill: InstalledSkill): Pro
 
 async function archiveOne(home: string | undefined, skill: InstalledSkill): Promise<void> {
   const paths = getPaths(home);
+  const key = metadataKey(skill);
   const homePath = skill.homePath;
   if (skill.origin === "external") {
     throw new CliError("External imports cannot be archived because their source folders are owned by the user.");
@@ -197,6 +199,7 @@ async function archiveOne(home: string | undefined, skill: InstalledSkill): Prom
   const imports = await readExternalImports(home);
   assertWritableSchema(lock, manifest, imports);
 
+  assertWritableMetadata(await readMetadata(home));
   const snapshots = await Promise.all([
     snapshotFile(paths.archiveManifestFile),
     snapshotFile(paths.agentLockFile),
@@ -238,7 +241,7 @@ async function archiveOne(home: string | undefined, skill: InstalledSkill): Prom
     }
 
     const metadata = await readMetadata(home);
-    delete metadata.entries[skill.id];
+    delete metadata.entries[key];
     await writeMetadata(home, metadata);
     await rebuildCache(home);
   } catch (error) {
@@ -310,8 +313,10 @@ async function restoreOne(home: string | undefined, archiveId: string): Promise<
     throw new CliError(`Archived skill not found: ${archiveId}`);
   }
 
+  const key = metadataKey({ ...archived, id: archived.originalSkillId });
   const archiveDir = path.join(paths.archiveSkillsDir, archiveId);
   const restorePath = getRestorePath(home, archived);
+  assertWritableMetadata(await readMetadata(home));
   const snapshots = await Promise.all([
     snapshotFile(paths.archiveManifestFile),
     snapshotFile(paths.agentLockFile),
@@ -332,12 +337,12 @@ async function restoreOne(home: string | undefined, archiveId: string): Promise<
 
     const metadata = await readMetadata(home);
     if (archived.starred || archived.isMine) {
-      metadata.entries[archived.originalSkillId] = {
+      metadata.entries[key] = {
         starred: archived.starred,
         isMine: archived.isMine,
       };
     } else {
-      delete metadata.entries[archived.originalSkillId];
+      delete metadata.entries[key];
     }
     await writeMetadata(home, metadata);
 

@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "entries": {
+    "ssot:demo": {
+      "starred": true,
+      "isMine": true
+    },
+    "ssot:.system/nested": {
+      "starred": true,
+      "isMine": false
+    },
+    "repo:old/repo:retained": {
+      "starred": true,
+      "isMine": true
+    }
+  },
+  "futureOptional": {
+    "preserve": "opaque"
+  }
+}

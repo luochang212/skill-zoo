@@ -572,6 +572,8 @@ mod tests {
         AppState::new(
             crate::persistence::SkillCache::empty(),
             crate::persistence::MetadataStore {
+                version: 1,
+                extra: std::collections::HashMap::new(),
                 entries: Default::default(),
             },
             crate::persistence::Settings {
@@ -605,6 +607,7 @@ mod tests {
             let entry = SkillService::scan_skill_root(&skill, &root, Some(id)).unwrap();
             state.skill_cache.write().unwrap().upsert(entry.clone());
             state.metadata.write().unwrap().set_starred(&entry.id, true);
+            state.metadata.read().unwrap().save().unwrap();
             let mut visible: std::collections::HashMap<String, bool> = config::agents()
                 .iter()
                 .map(|a| (a.id.clone(), false))
@@ -676,6 +679,7 @@ mod tests {
             let entry =
                 SkillService::scan_skill_root(&skill, &root, Some(&added.agent_id)).unwrap();
             state.metadata.write().unwrap().set_starred(&entry.id, true);
+            state.metadata.read().unwrap().save().unwrap();
             state.skill_cache.write().unwrap().upsert(entry.clone());
             let other = config::get_agent_skills_dir("codex").unwrap();
             std::fs::create_dir_all(&other).unwrap();
@@ -799,6 +803,7 @@ mod tests {
             std::fs::write(skill.join("SKILL.md"), "# Original").unwrap();
             let entry = SkillService::scan_skill_root(&skill, &root, Some(id)).unwrap();
             state.metadata.write().unwrap().set_starred(&entry.id, true);
+            state.metadata.read().unwrap().save().unwrap();
             state.skill_cache.write().unwrap().upsert(entry.clone());
             crate::commands::skill::archive_skill_inner(&state, entry.id.clone()).unwrap();
             assert!(!skill.exists());

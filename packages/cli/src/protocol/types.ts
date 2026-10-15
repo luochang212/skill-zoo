@@ -52,6 +52,8 @@ export interface SkillMetadata {
 }
 
 export interface MetadataStore {
+  version: number;
+  [key: string]: unknown;
   entries: Record<string, SkillMetadata>;
 }
 
@@ -117,6 +119,7 @@ export const DEFAULT_EXTERNAL_IMPORTS: ExternalImports = {
 };
 
 export const DEFAULT_METADATA: MetadataStore = {
+  version: 1,
   entries: {},
 };
 

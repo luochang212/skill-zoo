@@ -51,7 +51,7 @@ describe("archive and restore", () => {
     expect(await isSymlinkOrJunction(linkPath)).toBe(true);
     expect((await readArchiveManifest(home)).skills[archiveId]).toBeUndefined();
     expect((await readLock(home)).skills["code-audit"]?.source).toBe("owner/repo");
-    expect((await readMetadata(home)).entries[skillId]).toEqual({ starred: true, isMine: true });
+    expect((await readMetadata(home)).entries["ssot:code-audit"]).toEqual({ starred: true, isMine: true });
     expect((await readCache(home)).skills.some((skill) => skill.id === skillId)).toBe(true);
   });
 

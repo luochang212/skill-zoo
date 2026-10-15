@@ -81,6 +81,8 @@ fn test_read_all_skills_uses_cached_apps() {
     ]);
     let cache = RwLock::new(SkillCache::from_entries(vec![entry]));
     let metadata = RwLock::new(MetadataStore {
+        version: 1,
+        extra: std::collections::HashMap::new(),
         entries: HashMap::new(),
     });
 

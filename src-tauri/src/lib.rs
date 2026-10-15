@@ -69,10 +69,10 @@ pub fn run() {
             let skill_cache = persistence::SkillCache::load()
                 .unwrap_or_else(|_| persistence::SkillCache::empty());
             let should_reconcile_cache = !skill_cache.is_empty();
-            let metadata =
-                persistence::MetadataStore::load().unwrap_or_else(|_| persistence::MetadataStore {
-                    entries: std::collections::HashMap::new(),
-                });
+            let metadata = persistence::MetadataStore::load().unwrap_or_else(|error| {
+                eprintln!("Failed to load user metadata (original file preserved): {error}");
+                persistence::MetadataStore::empty()
+            });
             let settings =
                 persistence::Settings::load().unwrap_or_else(|_| persistence::Settings {
                     values: std::collections::HashMap::new(),

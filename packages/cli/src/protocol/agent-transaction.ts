@@ -6,6 +6,9 @@ import { CliError } from "../lib/errors.js";
 import { getPaths } from "./paths.js";
 import { resetAgentSnapshot } from "./custom-agents.js";
 
+const heldLeases = new Set<string>();
+export function hasAgentLease(home?: string): boolean { return heldLeases.has(getPaths(home).appConfigDir); }
+
 const files = new Set(["agents.json", "imports.json", "settings.json", "metadata.json"]);
 interface Journal {
   version: number;
@@ -58,7 +61,8 @@ export async function acquireAgentLease(home?: string): Promise<() => Promise<vo
     server.once("error", () => reject(new CliError("Another agent operation is running or the local lease is unavailable. Try again when it finishes.")));
     server.listen({ host: "127.0.0.1", port, exclusive: true }, resolve);
   });
-  const release = () => new Promise<void>((resolve) => server.close(() => resolve()));
+  heldLeases.add(dir);
+  const release = () => new Promise<void>((resolve) => server.close(() => { heldLeases.delete(dir); resolve(); }));
   try {
     await recoverAgentLifecycle(dir);
     resetAgentSnapshot(home);

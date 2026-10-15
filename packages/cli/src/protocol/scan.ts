@@ -5,7 +5,7 @@ import YAML from "yaml";
 import { SKIP_DIRS } from "./agents.js";
 import { getAgents } from "./custom-agents.js";
 import { agentLinkName, getAgentSkillsDir, getPaths } from "./paths.js";
-import { readExternalImports, readLock, readMetadata, writeCache } from "./store.js";
+import { metadataKey, readExternalImports, readLock, readMetadata, writeCache } from "./store.js";
 import type {
   InstalledSkill,
   MetadataStore,
@@ -34,7 +34,7 @@ export async function scanInstalledSkills(home?: string): Promise<InstalledSkill
   const skills: InstalledSkill[] = [];
 
   for (const entry of entries) {
-    const meta = getMetadata(metadata, entry.id);
+    const meta = getMetadata(metadata, entry);
     skills.push({
       ...entry,
       apps: entry.apps ?? (await detectAgents(home, entry.directory, entry.homePath ?? undefined)),
@@ -53,7 +53,7 @@ export async function rebuildCache(home?: string): Promise<InstalledSkill[]> {
 
   return Promise.all(
     entries.map(async (entry) => {
-      const meta = getMetadata(metadata, entry.id);
+      const meta = getMetadata(metadata, entry);
       return {
         ...entry,
         apps: entry.apps ?? (await detectAgents(home, entry.directory, entry.homePath ?? undefined)),
@@ -379,22 +379,17 @@ function repoInfoFromLock(lockEntry?: SkillLockEntry): {
   repoName: string | null;
   sourceUrl: string | null;
 } {
-  if (!lockEntry?.source) {
-    return { repoOwner: null, repoName: null, sourceUrl: null };
-  }
-
-  const [repoOwner, repoName] = lockEntry.source.split("/");
+  const source = lockEntry?.source;
+  const parts = source?.split("/") ?? [];
+  const valid = parts.length === 2 && parts.every(Boolean);
+  const repoOwner = valid ? parts[0]! : null;
+  const repoName = valid ? parts[1]! : null;
   const sourceUrl =
-    lockEntry.sourceUrl ??
-    (repoOwner && repoName && (lockEntry.sourceType ?? "github") === "github"
-      ? `https://github.com/${repoOwner}/${repoName}`
+    lockEntry?.sourceUrl ||
+    (source?.includes("/") && (lockEntry?.sourceType ?? "github") === "github"
+      ? `https://github.com/${source}`
       : null);
-
-  return {
-    repoOwner: repoOwner ?? null,
-    repoName: repoName ?? null,
-    sourceUrl,
-  };
+  return { repoOwner, repoName, sourceUrl };
 }
 
 async function resolveTimestamps(
@@ -425,8 +420,8 @@ function parseRfc3339(value?: string | null): number | undefined {
   return Number.isNaN(timestamp) ? undefined : Math.floor(timestamp / 1000);
 }
 
-function getMetadata(metadata: MetadataStore, skillId: string) {
-  return metadata.entries[skillId] ?? { starred: false, isMine: false };
+function getMetadata(metadata: MetadataStore, skill: SkillCacheEntry) {
+  return metadata.entries[metadataKey(skill)] ?? { starred: false, isMine: false };
 }
 
 async function detectAgents(

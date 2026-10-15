@@ -6,6 +6,7 @@ Skill Zoo desktop owns the local protocol. The CLI is an adjunct control surface
 
 | File | Current Version | Role |
 | --- | ---: | --- |
+| `~/.skill-zoo/metadata.json` | 1 | Desktop-owned user flags with conservative legacy v0 migration. |
 | `~/.agents/.skill-lock.json` | 3 | Desktop-owned install metadata for skills managed through Skill Zoo-compatible flows. |
 | `~/.skill-zoo/archive/manifest.json` | 1 | Desktop-owned manifest for archived skills and restore metadata. |
 | `~/.skill-zoo/imports.json` | 1 | Desktop-owned registry for skills imported from user-owned external folders. |
@@ -33,7 +34,7 @@ The cross-process lease reserves an IPv4 loopback TCP port for the app-config di
 
 Use matching desktop/CLI releases for custom agents: older releases ignore this registry and cannot promise custom-target parity. Downgrades preserve the registry and source files. Existing lock/archive/import schema versions remain unchanged.
 
-`~/.skill-zoo/metadata.json` and `~/.skill-zoo/skills-cache.json` support desktop and CLI behavior, but they are not first-class versioned protocol files in this iteration. The cache is derived state and should not drive compatibility policy. `skills-cache.json` entries may include an optional `apps` map containing derived agent availability; readers must tolerate missing `apps` and writers should refresh it from filesystem state when rebuilding the cache.
+`~/.skill-zoo/metadata.json` is a first-class v1 protocol file (see User metadata v1 below). `~/.skill-zoo/skills-cache.json` supports desktop and CLI behavior as unversioned derived state. The cache is derived state and should not drive compatibility policy. `skills-cache.json` entries may include an optional `apps` map containing derived agent availability; readers must tolerate missing `apps` and writers should refresh it from filesystem state when rebuilding the cache.
 
 ## Agent Link Semantics
 
@@ -96,3 +97,18 @@ Fixtures live in `fixtures/local-protocol/` and represent the desktop app's curr
 Update fixtures only when the desktop-owned protocol intentionally changes or when a fixture is proven wrong. If a CLI test fails against these fixtures, fix the CLI first unless the desktop protocol itself changed.
 
 For a new optional field, update the relevant `*-full.json` fixture. Keep `*-minimal.json` minimal unless the field is required. For an incompatible schema change, promote the current future-version fixture into the new current-version fixture and add the next future-version fixture.
+
+## User metadata v1
+
+`~/.skill-zoo/metadata.json` is desktop-owned versioned state: `{ "version": 1, "entries": { "<key>": { "starred": true, "isMine": false } } }`.
+SSOT keys are `ssot:<normalized root-relative directory>`, including full nested paths such as `ssot:.system/demo`. Components must be nonempty and cannot be `.` or `..`; absolute paths, backslashes and colons are rejected. Other origins retain their existing IDs, including historical IDs retained by imports. Cache row IDs still derive from current provenance. Both runtimes accept exactly two nonempty source segments for repo identity; malformed sources have no repo identity.
+
+Flags describe an installation slot: changing source or deleting a lock retains flags; an unrelated skill replacing the same slot also inherits them. Offline directory moves do not carry flags automatically.
+
+Missing version is legacy v0. Under the shared mutation lease, re-read disk and migrate once, atomically saving only metadata as v1. Historical `repo:owner/repo:<directory>` records can move to the stable key only for an existing root-contained SSOT directory with SKILL.md, excluding IDs retained by imports. A unique candidate or candidates with identical booleans can move, consuming old keys. A differing existing target or contradictory candidates prevents the whole group from moving. Missing skills, unsafe paths and unparseable records remain untouched. Never OR flags, overwrite conflicting targets or infer ownership from cache. Once v1, migration is not retried. Unbound records never act as lookup aliases.
+
+Unknown top-level fields are preserved; unknown entry fields and malformed boolean/version values are rejected without replacing the file. Both writers refuse metadata versions above v1 before filesystem mutations. Archive v1 keeps its historical originalSkillId; restores apply its flag snapshot through the destination origin/directory key. Explicit user-requested duplicate merge retains its existing OR semantics.
+
+Migration reports unbound records to stderr. Inspect them with `skill-zoo metadata list`. Explicitly assign exact flags (including replacing destination flags) with `skill-zoo metadata resolve '<legacy-id>' --to 'ssot:demo' --yes`, or discard one with `skill-zoo metadata resolve '<legacy-id>' --discard --yes`. Assignment requires an existing SSOT destination; retained imports cannot be consumed by this interface. These commands operate under the shared lease. Preserve an offline backup before manual resolution if the desired attribution is uncertain.
+
+Upgrade desktop and CLI together. Old binaries do not understand metadata version guards; downgrade is not safe without restoring an offline pre-upgrade backup. Backups are never runtime read sources. See `metadata-v0-legacy`, `metadata-v1-minimal`, `metadata-v1-full`, `metadata-v1-migration-conflicts` (legacy input exercising the v1 migration), and `metadata-v2-future` shared fixtures.

@@ -45,7 +45,7 @@ describe("desktop-owned custom agents", () => {
     await fs.writeFile(path.join(root, "SKILL.md"), "# Demo");
     const [original] = await scanInstalledSkills(home);
     expect(original).toMatchObject({ homeAgent: registry.agents[0].id, origin: "agent" });
-    await writeMetadata(home, { entries: { [original!.id]: { starred: true, isMine: true } } });
+    await writeMetadata(home, { version: 1, entries: { [original!.id]: { starred: true, isMine: true } } });
     await writeExternalImports(home, { version: 1, imports: { [original!.id]: {
       id: original!.id, sourcePath: root, directory: "demo", importedAt: 1, updatedAt: 1,
     } } });
@@ -108,7 +108,7 @@ describe("desktop-owned custom agents", () => {
     await fs.writeFile(path.join(skillRoot, "SKILL.md"), "# Original skill");
     const [installed] = await scanInstalledSkills(home);
     expect(installed).toMatchObject({ origin: "agent", homeAgent: agent.id, apps: { [agent.id]: true } });
-    await writeMetadata(home, { entries: { [installed!.id]: { starred: true, isMine: true } } });
+    await writeMetadata(home, { version: 1, entries: { [installed!.id]: { starred: true, isMine: true } } });
     expect((await archiveSkillRefs(home, [installed!.id])).failed).toEqual([]);
     const [archived] = await listArchivedSkills(home);
     // These writes represent the desktop's protocol-defined file-preserving

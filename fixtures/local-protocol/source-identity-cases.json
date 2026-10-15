@@ -1,0 +1,34 @@
+[
+  {
+    "source": "owner/repo",
+    "repo": "owner/repo"
+  },
+  {
+    "source": "other/project",
+    "repo": "other/project"
+  },
+  {
+    "source": "owner/repo/extra",
+    "repo": null
+  },
+  {
+    "source": "owner/",
+    "repo": null
+  },
+  {
+    "source": "/repo",
+    "repo": null
+  },
+  {
+    "source": "owner",
+    "repo": null
+  },
+  {
+    "source": "",
+    "repo": null
+  },
+  {
+    "source": null,
+    "repo": null
+  }
+]

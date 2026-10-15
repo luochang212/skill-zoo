@@ -3,6 +3,7 @@ use crate::config::{AgentConfig, AgentPathInfo};
 use crate::error::{classify_download_error, AppError, CommandError};
 use crate::persistence::archive::SUPPORTED_ARCHIVE_VERSION;
 use crate::persistence::external_imports::SUPPORTED_EXTERNAL_IMPORTS_VERSION;
+use crate::persistence::metadata::{entry_key, metadata_key};
 use crate::persistence::{
     atomic_write, ArchiveManifest, ArchivedSkill, ExternalImportEntry, ExternalImports, SkillCache,
     SkillCacheEntry, SkillUpdateHistory, SkillUpdateHistoryRecord,
@@ -722,6 +723,8 @@ pub fn remove_external_import(state: State<'_, AppState>, import_id: String) -> 
     let _agent_lease =
         crate::persistence::agent_transaction::AgentLease::acquire(&config::get_app_config_dir())
             .map_err(|e| e.to_string())?;
+    *state.metadata.write().map_err(|e| e.to_string())? =
+        crate::persistence::MetadataStore::load_under_lease().map_err(|e| e.to_string())?;
     let mut imports = ExternalImports::load().map_err(|e| e.to_string())?;
     let import = imports
         .imports
@@ -1484,6 +1487,8 @@ pub async fn remove_skills(
     let _agent_lease =
         crate::persistence::agent_transaction::AgentLease::acquire(&config::get_app_config_dir())
             .map_err(lease_command_error)?;
+    *state.metadata.write().map_err(|e| e.to_string())? =
+        crate::persistence::MetadataStore::load_under_lease().map_err(|e| e.to_string())?;
     let mut removed: Vec<String> = Vec::new();
     let mut failed: Vec<RemoveSkillFailure> = Vec::new();
 
@@ -1506,6 +1511,7 @@ pub async fn remove_skills(
             }
         };
 
+        let key = entry_key(&skill).map_err(|e| e.to_string())?;
         if let Err(e) = remove_cached_skill_from_disk(&skill) {
             failed.push(RemoveSkillFailure {
                 skill_id: skill_id.clone(),
@@ -1533,7 +1539,7 @@ pub async fn remove_skills(
                     continue;
                 }
             };
-            metadata.remove(skill_id);
+            metadata.remove(&key);
         }
 
         removed.push(skill_id.clone());
@@ -1602,6 +1608,8 @@ fn assert_skill_archiveable(skill: &InstalledSkill) -> Result<(), String> {
 }
 
 pub(crate) fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String> {
+    *state.metadata.write().map_err(|e| e.to_string())? =
+        crate::persistence::MetadataStore::load_under_lease().map_err(|e| e.to_string())?;
     let skills = SkillService::read_all_skills(&state.skill_cache, &state.metadata)
         .map_err(|e| e.to_string())?;
     let skill = skills
@@ -1609,6 +1617,8 @@ pub(crate) fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<
         .find(|s| s.id == skill_id)
         .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
     assert_skill_archiveable(&skill)?;
+    let key =
+        metadata_key(&skill.origin, &skill.directory, &skill.id).map_err(|e| e.to_string())?;
 
     let is_external = skill.origin == "external";
 
@@ -1771,7 +1781,7 @@ pub(crate) fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<
             .metadata
             .write()
             .map_err(|e| rollback(format!("Metadata lock: {e}"), &removed_agents))?;
-        metadata.remove(&skill.id);
+        metadata.remove(&key);
         if let Err(e) = metadata.save() {
             // Drop the write guard before rolling back: rollback re-acquires
             // this lock (std RwLock is not reentrant) and would deadlock.
@@ -1866,6 +1876,8 @@ pub(crate) fn restore_archived_skill_inner(
     state: &AppState,
     archive_id: String,
 ) -> Result<String, String> {
+    *state.metadata.write().map_err(|e| e.to_string())? =
+        crate::persistence::MetadataStore::load_under_lease().map_err(|e| e.to_string())?;
     validate_archive_id(&archive_id)?;
     let old_manifest = ArchiveManifest::load().map_err(|e| e.to_string())?;
     let archived_skill = old_manifest
@@ -1874,6 +1886,12 @@ pub(crate) fn restore_archived_skill_inner(
         .cloned()
         .ok_or_else(|| format!("Archived skill not found: {archive_id}"))?;
 
+    let key = metadata_key(
+        &archived_skill.origin,
+        &archived_skill.directory,
+        &archived_skill.original_skill_id,
+    )
+    .map_err(|e| e.to_string())?;
     let is_external = archived_skill.origin == "external";
 
     let archive_dir = ArchiveManifest::archive_skill_dir(&archive_id);
@@ -2010,14 +2028,14 @@ pub(crate) fn restore_archived_skill_inner(
             .map_err(|e| rollback(format!("Metadata lock: {e}"), &restored_agents))?;
         if archived_skill.starred || archived_skill.is_mine {
             metadata.entries.insert(
-                archived_skill.original_skill_id.clone(),
+                key,
                 crate::persistence::metadata::SkillMetadata {
                     starred: archived_skill.starred,
                     is_mine: archived_skill.is_mine,
                 },
             );
         } else {
-            metadata.remove(&archived_skill.original_skill_id);
+            metadata.remove(&key);
         }
         if let Err(e) = metadata.save() {
             // Drop the write guard before rolling back: rollback re-acquires
@@ -2287,6 +2305,8 @@ pub async fn merge_duplicates_to_ssot(
     let _agent_lease =
         crate::persistence::agent_transaction::AgentLease::acquire(&config::get_app_config_dir())
             .map_err(|e| e.to_string())?;
+    *state.metadata.write().map_err(|e| e.to_string())? =
+        crate::persistence::MetadataStore::load_under_lease().map_err(|e| e.to_string())?;
     SkillService::merge_duplicates_to_ssot(&skill_name, &state.skill_cache, &state.metadata)
         .map_err(|e| e.to_string())
 }
@@ -3322,8 +3342,16 @@ pub fn set_skill_starred(
     skill_id: String,
     starred: bool,
 ) -> Result<(), String> {
+    let _lease =
+        crate::persistence::agent_transaction::AgentLease::acquire(&config::get_app_config_dir())
+            .map_err(lease_command_error)?;
+    let skill = SkillService::find_in_cache(&state.skill_cache, &skill_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
+    let key = entry_key(&skill).map_err(|e| e.to_string())?;
     let mut metadata = state.metadata.write().map_err(|e| e.to_string())?;
-    metadata.set_starred(&skill_id, starred);
+    *metadata = crate::persistence::MetadataStore::load_under_lease().map_err(|e| e.to_string())?;
+    metadata.set_starred(&key, starred);
     metadata.save().map_err(|e| e.to_string())
 }
 
@@ -3333,8 +3361,16 @@ pub fn set_skill_is_mine(
     skill_id: String,
     is_mine: bool,
 ) -> Result<(), String> {
+    let _lease =
+        crate::persistence::agent_transaction::AgentLease::acquire(&config::get_app_config_dir())
+            .map_err(lease_command_error)?;
+    let skill = SkillService::find_in_cache(&state.skill_cache, &skill_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
+    let key = entry_key(&skill).map_err(|e| e.to_string())?;
     let mut metadata = state.metadata.write().map_err(|e| e.to_string())?;
-    metadata.set_is_mine(&skill_id, is_mine);
+    *metadata = crate::persistence::MetadataStore::load_under_lease().map_err(|e| e.to_string())?;
+    metadata.set_is_mine(&key, is_mine);
     metadata.save().map_err(|e| e.to_string())
 }
 
@@ -3347,6 +3383,8 @@ pub async fn create_skill(
     let _agent_lease =
         crate::persistence::agent_transaction::AgentLease::acquire(&config::get_app_config_dir())
             .map_err(|e| e.to_string())?;
+    *state.metadata.write().map_err(|e| e.to_string())? =
+        crate::persistence::MetadataStore::load_under_lease().map_err(|e| e.to_string())?;
     validate_skill_name(&name)?;
     validate_skill_directory(&name)?;
 
@@ -3367,12 +3405,13 @@ pub async fn create_skill(
     // Scan and insert into cache incrementally
     let entry = SkillService::scan_single_skill(&name).map_err(|e| e.to_string())?;
     let entry_id = entry.id.clone();
+    let metadata_key = entry_key(&entry).map_err(|e| e.to_string())?;
     SkillService::upsert_cache_entry(&state.skill_cache, entry).map_err(|e| e.to_string())?;
 
     // Mark as mine in metadata
     {
         let mut metadata = state.metadata.write().map_err(|e| e.to_string())?;
-        metadata.set_is_mine(&entry_id, true);
+        metadata.set_is_mine(&metadata_key, true);
         metadata.save().map_err(|e| e.to_string())?;
     }
 
@@ -3951,5 +3990,197 @@ mod tests {
             strip_verbatim_prefix("\\\\?\\UNC\\server\\share\\skills\\demo".into()),
             "\\\\server\\share\\skills\\demo"
         );
+    }
+}
+
+#[cfg(all(test, feature = "test-helpers"))]
+mod metadata_identity_tests {
+    use super::*;
+
+    fn fixture(name: &str) -> String {
+        std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../fixtures/local-protocol")
+                .join(name),
+        )
+        .unwrap()
+    }
+    fn cli(home: &std::path::Path, args: &[&str]) {
+        let output = std::process::Command::new("bun")
+            .arg(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../packages/cli/src/index.ts"),
+            )
+            .arg("--home")
+            .arg(home)
+            .args(args)
+            .output()
+            .expect("run CLI");
+        assert!(
+            output.status.success(),
+            "CLI {:?}: {} {}",
+            args,
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    fn state() -> AppState {
+        AppState::new(
+            crate::persistence::SkillCache::empty(),
+            crate::persistence::MetadataStore::empty(),
+            crate::persistence::Settings {
+                values: Default::default(),
+            },
+        )
+    }
+    fn write_skill(dir: &std::path::Path) {
+        std::fs::create_dir_all(dir).unwrap();
+        std::fs::write(
+            dir.join("SKILL.md"),
+            "---\nname: demo\ndescription: test\n---\nbody",
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn real_desktop_cli_cross_archive_restore_and_historical_archive_preserve_slot_flags() {
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            let state = state();
+            let root = config::get_agents_skills_dir();
+            write_skill(&root.join("demo"));
+            let dir = config::get_app_config_dir();
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(
+                dir.join("metadata.json"),
+                fixture("metadata-v0-legacy.json"),
+            )
+            .unwrap();
+            std::fs::write(
+                tmp.path().join(".agents/.skill-lock.json"),
+                r#"{"version":3,"skills":{"demo":{"source":"owner/repo"}},"dismissed":{}}"#,
+            )
+            .unwrap();
+            let entry = SkillService::scan_single_skill("demo").unwrap();
+            state.skill_cache.write().unwrap().upsert(entry.clone());
+            {
+                let _lease =
+                    crate::persistence::agent_transaction::AgentLease::acquire(&dir).unwrap();
+                archive_skill_inner(&state, entry.id.clone()).unwrap();
+            }
+            let manifest = ArchiveManifest::load().unwrap();
+            let archived = manifest.skills.values().next().unwrap();
+            assert_eq!(archived.original_skill_id, "repo:owner/repo:demo");
+            assert!(archived.starred && archived.is_mine);
+            cli(
+                tmp.path(),
+                &["restore", &archived.archive_id, "--yes", "--json"],
+            );
+            let meta = crate::persistence::MetadataStore::load().unwrap();
+            assert!(meta.get("ssot:demo").starred && meta.get("ssot:demo").is_mine);
+            assert!(!meta.entries.contains_key(&entry.id));
+            cli(tmp.path(), &["archive", "demo", "--yes", "--json"]);
+            let id = ArchiveManifest::load()
+                .unwrap()
+                .skills
+                .keys()
+                .next()
+                .unwrap()
+                .clone();
+            {
+                let _lease =
+                    crate::persistence::agent_transaction::AgentLease::acquire(&dir).unwrap();
+                restore_archived_skill_inner(&state, id).unwrap();
+            }
+            let skills =
+                SkillService::read_all_skills(&state.skill_cache, &state.metadata).unwrap();
+            assert!(skills[0].starred && skills[0].is_mine);
+            // Consume the unmodified shared historical archive shape at the current destination.
+            std::fs::remove_dir_all(root.join("demo")).unwrap();
+            let mut manifest: ArchiveManifest =
+                serde_json::from_str(&fixture("archive-v1-full.json")).unwrap();
+            let old = manifest.skills.get_mut("demo-abc123").unwrap();
+            old.home_path = Some(root.join("demo").to_string_lossy().into_owned());
+            old.apps.clear();
+            write_skill(&ArchiveManifest::archive_skill_dir("demo-abc123"));
+            manifest.save().unwrap();
+            {
+                let _lease =
+                    crate::persistence::agent_transaction::AgentLease::acquire(&dir).unwrap();
+                restore_archived_skill_inner(&state, "demo-abc123".into()).unwrap();
+            }
+            let meta = crate::persistence::MetadataStore::load().unwrap();
+            assert!(meta.get("ssot:demo").starred);
+            assert!(!meta.get("ssot:demo").is_mine);
+        });
+    }
+
+    #[test]
+    fn future_metadata_blocks_desktop_archive_before_moving_skill() {
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            let state = state();
+            let root = config::get_agents_skills_dir();
+            write_skill(&root.join("demo"));
+            let entry = SkillService::scan_single_skill("demo").unwrap();
+            state.skill_cache.write().unwrap().upsert(entry.clone());
+            let dir = config::get_app_config_dir();
+            std::fs::create_dir_all(&dir).unwrap();
+            let before = fixture("metadata-v2-future.json");
+            std::fs::write(dir.join("metadata.json"), &before).unwrap();
+            let _lease = crate::persistence::agent_transaction::AgentLease::acquire(&dir).unwrap();
+            assert!(archive_skill_inner(&state, entry.id)
+                .unwrap_err()
+                .contains("Upgrade"));
+            assert!(root.join("demo/SKILL.md").exists());
+            assert_eq!(
+                std::fs::read_to_string(dir.join("metadata.json")).unwrap(),
+                before
+            );
+        });
+    }
+}
+
+#[cfg(all(test, feature = "test-helpers"))]
+mod metadata_merge_tests {
+    use super::*;
+
+    #[test]
+    fn explicit_merge_ors_flags_and_retains_the_existing_ssot_key() {
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            let root = config::get_agents_skills_dir();
+            let agent = config::get_agent_skills_dir("codex").unwrap();
+            for dir in [root.join("demo"), agent.join("demo")] {
+                std::fs::create_dir_all(&dir).unwrap();
+                std::fs::write(
+                    dir.join("SKILL.md"),
+                    "---\nname: demo\ndescription: test\n---\nbody",
+                )
+                .unwrap();
+            }
+            let first = SkillService::scan_single_skill("demo").unwrap();
+            let second =
+                SkillService::scan_skill_root(&agent.join("demo"), &agent, Some("codex")).unwrap();
+            let mut metadata = crate::persistence::MetadataStore::empty();
+            metadata.set_starred("ssot:demo", true);
+            metadata.set_is_mine(&second.id, true);
+            let cache = std::sync::RwLock::new(crate::persistence::SkillCache::from_entries(vec![
+                first,
+                second.clone(),
+            ]));
+            let metadata = std::sync::RwLock::new(metadata);
+            let _lease = crate::persistence::agent_transaction::AgentLease::acquire(
+                &config::get_app_config_dir(),
+            )
+            .unwrap();
+            SkillService::merge_duplicates_to_ssot("demo", &cache, &metadata).unwrap();
+            let saved = crate::persistence::MetadataStore::load_under_lease().unwrap();
+            assert!(saved.get("ssot:demo").starred && saved.get("ssot:demo").is_mine);
+            assert!(!saved.entries.contains_key(&second.id));
+            let skills = SkillService::get_cached_skills(&cache.read().unwrap(), &saved).unwrap();
+            assert_eq!(skills.len(), 1);
+            assert!(skills[0].starred && skills[0].is_mine);
+        });
     }
 }

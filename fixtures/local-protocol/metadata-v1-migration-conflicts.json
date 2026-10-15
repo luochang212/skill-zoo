@@ -1,0 +1,40 @@
+{
+  "entries": {
+    "repo:one/repo:demo": {
+      "starred": true,
+      "isMine": false
+    },
+    "repo:two/repo:demo": {
+      "starred": false,
+      "isMine": true
+    },
+    "ssot:target": {
+      "starred": false,
+      "isMine": false
+    },
+    "repo:owner/repo:target": {
+      "starred": true,
+      "isMine": true
+    },
+    "repo:unparseable": {
+      "starred": true,
+      "isMine": true
+    },
+    "repo:one/repo:equal": {
+      "starred": true,
+      "isMine": true
+    },
+    "repo:two/repo:equal": {
+      "starred": true,
+      "isMine": true
+    },
+    "unrecognized-history": {
+      "starred": true,
+      "isMine": false
+    },
+    "repo:owner/repo:../demo": {
+      "starred": true,
+      "isMine": true
+    }
+  }
+}

@@ -1,3 +1,12 @@
+import {
+  readMetadata,
+  writeMetadata,
+  readExternalImports,
+  metadataKey,
+  unboundMetadata,
+  assertWritableMetadata,
+  protectedMetadataIds,
+} from "./protocol/store.js";
 import { acquireAgentLease } from "./protocol/agent-transaction.js";
 import { Command, Option } from "commander";
 import { createInterface } from "node:readline/promises";
@@ -85,6 +94,50 @@ export function createProgram(io: IO = defaultIO()): Command {
     releaseLease = undefined;
   });
 
+  const metadataCommand = program
+    .command("metadata")
+    .description("Inspect and explicitly resolve unbound user flags");
+  metadataCommand.command("list").action(() =>
+    withErrors(io, {}, async () => {
+      const home = (program.opts() as GlobalOptions).home;
+      const metadata = await readMetadata(home);
+      const imports = await readExternalImports(home);
+      const keys = unboundMetadata(metadata, protectedMetadataIds(imports));
+      io.stdout.write(
+        `${JSON.stringify(Object.fromEntries(keys.map((key) => [key, metadata.entries[key]])), null, 2)}\n`,
+      );
+    }),
+  );
+  metadataCommand
+    .command("resolve <legacy-id>")
+    .option(
+      "--to <ssot-key>",
+      "assign the exact flags to an existing SSOT key (replaces its flags)",
+    )
+    .option("--discard", "discard this unbound record")
+    .requiredOption("--yes", "confirm this explicit assignment or discard")
+    .action((legacyId: string, options: { to?: string; discard?: boolean }) =>
+      withErrors(io, {}, async () => {
+        const home = (program.opts() as GlobalOptions).home;
+        const metadata = await readMetadata(home);
+        assertWritableMetadata(metadata);
+        const imports = await readExternalImports(home);
+        if (!unboundMetadata(metadata, protectedMetadataIds(imports)).includes(legacyId))
+          throw new CliError("Not an unbound metadata record");
+        if (Boolean(options.to) === Boolean(options.discard))
+          throw new CliError("Choose exactly one of --to or --discard");
+        if (options.to) {
+          const skills = await scanInstalledSkills(home);
+          if (!skills.some((skill) => skill.origin === "ssot" && metadataKey(skill) === options.to))
+            throw new CliError("Destination must be an existing SSOT metadata key");
+          metadata.entries[options.to] = metadata.entries[legacyId]!;
+        }
+        delete metadata.entries[legacyId];
+        await writeMetadata(home, metadata);
+        io.stdout.write("Metadata resolved.\n");
+      }),
+    );
+
   program
     .name("skill-zoo")
     .description("Agent-native CLI for Skill Zoo")
@@ -98,7 +151,7 @@ Command map:
   Discover:  list, status, paths
   Explain:   inspect, show
   Maintain:  doctor, doctor fix, consistency, refresh
-  Change:    archive, restore, imports
+  Change:    archive, restore, imports, metadata
   UI:        wui
 
 Common workflows:
