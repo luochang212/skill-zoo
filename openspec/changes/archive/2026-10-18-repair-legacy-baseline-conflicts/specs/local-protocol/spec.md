@@ -4,7 +4,7 @@
 
 ### Requirement: Update baselines follow the documented carrier read order
 
-Update checks MUST derive a skill's content baseline according to docs/local-protocol.md, which defines the precedence between the recorded tree-SHA carrier and its legacy mirror. An entry with no recorded baseline MUST be presented as an explicit needs-re-confirmation state and MUST NOT be reported as up to date. When the two carriers disagree, docs/local-protocol.md additionally defines a verified-resolution path: the desktop MUST compute the installed directory's content tree SHA and, when it equals exactly one of the two recorded carriers, align both carrier fields to that value and treat the entry as unconflicted; externally pinned entries are never aligned, and when the directory is missing or the content SHA matches neither carrier, the entry MUST stay in the explicit conflict state.
+Update checks MUST derive a skill's content baseline according to docs/local-protocol.md, which defines the precedence between the recorded tree-SHA carrier and its legacy mirror. An entry with no recorded baseline MUST be presented as an explicit needs-re-confirmation state and MUST NOT be reported as up to date. When the two carriers disagree, the verified-resolution path in docs/local-protocol.md applies: align both to the locally verified content, or keep the explicit conflict state.
 
 #### Scenario: Baseline survives an external rewrite
 
@@ -33,7 +33,7 @@ Update checks MUST derive a skill's content baseline according to docs/local-pro
 
 ### Requirement: Update checks never write baselines
 
-The checker MUST NOT write or modify any skill's baseline, except for the verified conflict resolution defined by docs/local-protocol.md: it MAY align both carrier fields of a conflicted entry to a value already recorded in that entry and verified byte-identical to the installed content. The checker MUST NOT write a network-time value, a remote-tip value, or any guessed baseline, and baselines remain established only by install and update flows recording the content they actually installed. An entry with no recorded baseline keeps its explicit needs-re-confirmation state, no matter how many times it is checked or how recently it was installed.
+The checker MUST NOT write or modify any skill's baseline, except for the verified-conflict alignment in docs/local-protocol.md: a value already recorded in the entry and verified against installed content. It MUST NOT write a network-time, remote-tip, or guessed value. Otherwise baselines are written only by install, update, or the documented external-repair procedure. An entry with no recorded baseline keeps its explicit needs-re-confirmation state, however often it is checked.
 
 #### Scenario: A check never invents a baseline
 
@@ -62,7 +62,7 @@ The checker MUST NOT write or modify any skill's baseline, except for the verifi
 
 ### Requirement: Conflicting or incomplete provenance is surfaced
 
-When an entry's baseline carriers disagree, or its source attribution is missing or unparseable, the app MUST present an explicit state requiring user decision. It MUST NOT silently pick one of the conflicting values, silently perform an update, or silently drop the skill from update status. The one permitted resolution is the verified-conflict resolution defined by docs/local-protocol.md: when the installed content's tree SHA equals exactly one recorded carrier and the entry is not externally pinned, the app aligns both carriers to that value and proceeds as unconflicted; this is a measurement of local content, not a silent choice between conflicting values.
+When an entry's baseline carriers disagree, or its source attribution is missing or unparseable, the app MUST present an explicit state requiring user decision. It MUST NOT silently pick one of the conflicting values, silently perform an update, or silently drop the skill from update status. The one exception is the verified-conflict resolution in docs/local-protocol.md: a measurement of installed content, never a silent choice.
 
 #### Scenario: Disagreeing baseline carriers
 
@@ -91,7 +91,7 @@ When an entry's baseline carriers disagree, or its source attribution is missing
 
 ### Requirement: Refused update preservation
 
-Refused updates MUST preserve target directory bytes and symlink destinations. Single-item and wholly refused batches MUST preserve lock bytes, except for a verified-conflict alignment already applied to that item: the alignment is an independent permitted write under the verified-conflict resolution and is not undone by a later refusal. Mixed batches MUST preserve refused entries semantically, including unknown fields, apart from that alignment. Observed target identity or SKILL.md byte changes during checking/download MUST report updateStateChanged before replacement and preserve the external state.
+Refused updates MUST preserve target bytes and symlink destinations. Single-item and wholly refused batches MUST preserve lock bytes, except for an applied verified-conflict alignment (an independent write not undone by a refusal). Mixed batches MUST preserve refused entries semantically, including unknown fields, except that alignment. Observed target identity or SKILL.md byte changes during checking/download MUST report updateStateChanged before replacement and preserve the external state.
 
 #### Scenario: Refusal does not undo an applied alignment
 
