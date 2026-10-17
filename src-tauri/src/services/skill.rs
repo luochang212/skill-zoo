@@ -1401,7 +1401,9 @@ impl SkillService {
             return (DiscoverableSkillInstallStatus::Conflict, None);
         }
         let lock_entry = match &resolution {
-            Some(crate::services::lock::LockResolution::Resolved { entry, .. }) => Some(entry),
+            Some(crate::services::lock::LockResolution::Resolved { entry, .. }) => {
+                Some(entry.as_ref())
+            }
             _ => None,
         };
         let same_repo = lock_entry.is_some_and(|entry| {
@@ -1563,7 +1565,7 @@ impl SkillService {
         let lock_data = SkillLock::read()?;
         let association = Self::resolve_home_lock(skill_md.parent().unwrap(), origin, &lock_data)?;
         let lock_entry = match &association {
-            crate::services::lock::LockResolution::Resolved { entry, .. } => Some(entry),
+            crate::services::lock::LockResolution::Resolved { entry, .. } => Some(entry.as_ref()),
             _ => None,
         };
 
@@ -1786,7 +1788,9 @@ impl SkillService {
         let resolution = lock
             .map(|lock| crate::services::lock::resolve_installation_lock(target, inventory, lock));
         let lock_entry = match &resolution {
-            Some(crate::services::lock::LockResolution::Resolved { entry, .. }) => Some(entry),
+            Some(crate::services::lock::LockResolution::Resolved { entry, .. }) => {
+                Some(entry.as_ref())
+            }
             _ => None,
         };
 

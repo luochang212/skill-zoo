@@ -1,5 +1,6 @@
+use crate::config;
 use crate::services::cli::CliService;
-use crate::services::lock::{SkillLock, SkillLockEntry};
+use crate::services::lock::{BaselineConflictResolution, SkillLock, SkillLockEntry};
 use crate::services::opener::open_directory;
 use crate::services::skill_usage::SkillUsage;
 use crate::services::tray::{
@@ -1103,7 +1104,7 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
 
     let inventory =
         crate::services::skill::SkillService::collect_installations().map_err(|e| e.to_string())?;
-    let targets: Vec<_> = inventory
+    let mut targets: Vec<_> = inventory
         .iter()
         .filter(|i| i.origin == "ssot")
         .map(|i| {
@@ -1112,7 +1113,7 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
                 crate::services::skill_provenance::prepare_update(&i.install_directory).err();
             let diagnostic_entry = match &resolution {
                 crate::services::lock::LockResolution::Resolved { entry, .. } => {
-                    Some(entry.clone())
+                    Some(entry.as_ref().clone())
                 }
                 crate::services::lock::LockResolution::Ambiguous { candidates, .. }
                     if candidates.len() == 1 =>
@@ -1130,6 +1131,12 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
         })
         .collect();
     let mut checked_skills: HashMap<String, CheckedRemoteSkill> = HashMap::new();
+
+    // Verified conflict resolution (docs/local-protocol.md): conflicted entries
+    // whose installed content's tree SHA equals exactly one recorded carrier are
+    // aligned before any network work and checked like unconflicted skills;
+    // unverifiable conflicts keep the explicit conflict state.
+    align_verified_conflicts_in_targets(&mut targets);
 
     // Group skills by (owner, repo, branch) to minimize API calls
     let mut skills_by_repo: HashMap<UpdateRepoKey, UpdateRepoEntries> = HashMap::new();
@@ -1168,7 +1175,7 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
         skills_by_repo
             .entry(key)
             .or_default()
-            .push((skill_name.clone(), entry.clone()));
+            .push((skill_name.clone(), entry.as_ref().clone()));
     }
 
     let total_repos = skills_by_repo.len();
@@ -1264,10 +1271,11 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
     }
 
     // Build per-skill status; the pure decision core lives in
-    // `build_check_outcome`. Checking never writes the lock: a network-time
-    // snapshot cannot prove the installed content still matches the remote
-    // tip, and writing it here would silently rebase an entry another writer
-    // changed during the check.
+    // `build_check_outcome`. The check's only lock write is the verified
+    // conflict alignment above. It never writes a network-time snapshot: that
+    // cannot prove the installed content still matches the remote tip, and
+    // writing it here would silently rebase an entry another writer changed
+    // during the check.
     let skills = build_check_outcome(&targets, &checked_skills, rate_limited);
 
     Ok(CheckUpdatesResult {
@@ -1285,6 +1293,57 @@ struct CheckTarget {
     // A sole candidate can retain truthful pin/baseline diagnostics even when
     // provenance contradicts it. This never authorizes an update or attribution.
     diagnostic_entry: Option<SkillLockEntry>,
+}
+
+/// Verified conflict resolution over check targets (docs/local-protocol.md):
+/// aligns conflicted entries whose installed content matches exactly one
+/// recorded carrier — in the lock in one write, then in memory for this check.
+/// This is the check flow's only lock write and the only permitted baseline
+/// write during a check (a value already recorded in the entry, verified
+/// against local content). An entry is treated as unconflicted only after the
+/// write succeeds; failures leave the conflict state and never fail the check:
+/// the next check re-verifies and retries.
+fn align_verified_conflicts_in_targets(targets: &mut [CheckTarget]) {
+    let mut alignments: Vec<(usize, String, String)> = Vec::new();
+    let skills_dir = config::get_agents_skills_dir();
+    for (index, target) in targets.iter().enumerate() {
+        let crate::services::lock::LockResolution::Resolved { lock_key, entry } =
+            &target.resolution
+        else {
+            continue;
+        };
+        let dir = skills_dir.join(&target.install_directory);
+        if let BaselineConflictResolution::Verified(sha) = entry.baseline_conflict_resolution(&dir)
+        {
+            alignments.push((index, lock_key.clone(), sha));
+        }
+    }
+    if alignments.is_empty() {
+        return;
+    }
+    let lease =
+        crate::persistence::agent_transaction::AgentLease::acquire(&config::get_app_config_dir());
+    let Ok(_lease) = lease else {
+        eprintln!("Baseline conflict alignment skipped: agent lease unavailable");
+        return;
+    };
+    let writes: Vec<(String, String)> = alignments
+        .iter()
+        .map(|(_, lock_key, sha)| (lock_key.clone(), sha.clone()))
+        .collect();
+    if let Err(error) = SkillLock::apply_verified_alignments(&writes) {
+        eprintln!("Baseline conflict alignment write failed: {error}");
+        return;
+    }
+    for (index, _, sha) in alignments {
+        let crate::services::lock::LockResolution::Resolved { entry, .. } =
+            &mut targets[index].resolution
+        else {
+            continue;
+        };
+        entry.skill_folder_hash = Some(sha.clone());
+        entry.commit_sha = Some(sha);
+    }
 }
 
 /// Pure physical-target projection: dangling lock entries never become targets.
@@ -1310,7 +1369,7 @@ fn build_check_outcome(
             } else {
                 match &target.resolution {
                     LockResolution::Resolved { lock_key, entry } => {
-                        (entry.clone(), checked.get(lock_key).cloned())
+                        (entry.as_ref().clone(), checked.get(lock_key).cloned())
                     }
                     LockResolution::Missing { reason } => (
                         SkillLockEntry::default(),
@@ -1463,7 +1522,7 @@ mod skill_update_check_tests {
                 install_directory: key.clone(),
                 resolution: crate::services::lock::LockResolution::Resolved {
                     lock_key: key.clone(),
-                    entry: entry.clone(),
+                    entry: Box::new(entry.clone()),
                 },
                 diagnostic_entry: Some(entry.clone()),
                 guard: None,

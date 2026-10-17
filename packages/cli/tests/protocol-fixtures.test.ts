@@ -148,6 +148,46 @@ describe("desktop local protocol fixtures", () => {
     });
   });
 
+  it("preserves legacy conflicted lock entries through scan, archive and restore", async () => {
+    // The CLI never repairs conflicted carriers — that is desktop-owned
+    // behavior (verified-conflict resolution). Its boundary stays
+    // scan → archive → restore preserving lock bytes.
+    const home = await makeTempHome();
+    const paths = getPaths(home);
+    const skillDir = path.join(paths.agentsSkillsDir, "verified-carrier");
+    await fs.mkdir(skillDir, { recursive: true });
+    await fs.writeFile(
+      path.join(skillDir, "SKILL.md"),
+      "---\nname: verified-carrier\ndescription: fixture\n---\ncarrier content\n",
+    );
+    await copyFixture("lock-v3-legacy-conflicts.json", paths.agentLockFile);
+    const lockBefore = await fs.readFile(paths.agentLockFile);
+
+    const scanned = await rebuildCache(home);
+    expect(
+      scanned.some((skill) => skill.directory === "verified-carrier"),
+    ).toBe(true);
+    expect(await fs.readFile(paths.agentLockFile)).toEqual(lockBefore);
+
+    const archived = await archiveSkillRefs(home, ["verified-carrier"]);
+    expect(archived.failed).toEqual([]);
+    const manifest = await readArchiveManifest(home);
+    const archiveId = Object.keys(manifest.skills)[0]!;
+    const restored = await restoreArchiveIds(home, [archiveId]);
+    expect(restored.failed).toEqual([]);
+
+    // Every entry survives field-for-field, including the conflicted carriers,
+    // unknown fields and the entries the CLI never touches. Key order may
+    // change when the lock is rewritten, so compare the parsed objects.
+    const before = JSON.parse(lockBefore.toString()) as {
+      skills: Record<string, unknown>;
+    };
+    const after = JSON.parse(
+      (await fs.readFile(paths.agentLockFile)).toString(),
+    ) as { skills: Record<string, unknown> };
+    expect(after.skills).toEqual(before.skills);
+  });
+
   it("tolerates legacy skills cache entries without apps", async () => {
     const home = await makeTempHome();
     const paths = getPaths(home);

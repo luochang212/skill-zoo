@@ -5,7 +5,7 @@
 use crate::config;
 use crate::error::{classify_download_error, AppError};
 use crate::services::github;
-use crate::services::lock::{SkillLock, SkillLockEntry};
+use crate::services::lock::{BaselineConflictResolution, SkillLock, SkillLockEntry};
 use crate::services::skill::{is_symlink_or_junction, normalize_repo_skill_path, SkillService};
 use crate::services::skill_provenance::{self, UpdateSnapshot};
 use serde::{Deserialize, Serialize};
@@ -334,6 +334,57 @@ impl CliService {
         Ok(result)
     }
 
+    /// Format a batch update refusal per the protocol error shape
+    /// `directory: [code] message` (docs/local-protocol.md, C2). Single-update
+    /// paths carry the same stable code in `CommandError.code` instead.
+    pub(crate) fn refusal(name: &str, code: &'static str, message: &str) -> String {
+        format!(
+            "{name}: {}",
+            AppError::UpdateGuard {
+                code,
+                message: message.to_string(),
+            }
+        )
+    }
+
+    /// Verified conflict resolution for prepared updates (docs/local-protocol.md):
+    /// conflicted entries whose installed content's tree SHA equals exactly one
+    /// recorded carrier have both carriers aligned to that measured value in one
+    /// lock write; unverifiable conflicts pass through untouched and are refused
+    /// later by the pin/conflict filter. Callers hold the agent lease.
+    fn align_verified_conflicts(
+        to_update: Vec<PreparedSkillUpdate>,
+    ) -> Result<Vec<PreparedSkillUpdate>, AppError> {
+        let skills_dir = config::get_agents_skills_dir();
+        let mut alignments: Vec<(String, String)> = Vec::new();
+        for update in &to_update {
+            if update.entry.baseline_conflict().is_none() {
+                continue;
+            }
+            let dir = skills_dir.join(&update.install_directory);
+            if let BaselineConflictResolution::Verified(sha) =
+                update.entry.baseline_conflict_resolution(&dir)
+            {
+                alignments.push((update.lock_key.clone(), sha));
+            }
+        }
+        if alignments.is_empty() {
+            return Ok(to_update);
+        }
+        SkillLock::apply_verified_alignments(&alignments)?;
+        let verified: HashMap<String, String> = alignments.into_iter().collect();
+        Ok(to_update
+            .into_iter()
+            .map(|mut update| {
+                if let Some(sha) = verified.get(&update.lock_key) {
+                    update.entry.skill_folder_hash = Some(sha.clone());
+                    update.entry.commit_sha = Some(sha.clone());
+                }
+                update
+            })
+            .collect())
+    }
+
     /// Refuse candidates that must never auto-update before any network work:
     /// externally pinned skills, entries whose baseline carriers disagree
     /// (needs an explicit user decision), and — when surfaced — entries with
@@ -349,14 +400,18 @@ impl CliService {
             let name = &update.install_directory;
             let entry = &update.entry;
             if entry.is_externally_pinned() {
-                errors.push(format!(
-                    "{name}: Externally pinned. Remove the pin to enable updates."
+                errors.push(Self::refusal(
+                    name,
+                    "externallyPinned",
+                    "Externally pinned. Remove the pin to enable updates.",
                 ));
                 continue;
             }
             if entry.baseline_conflict().is_some() {
-                errors.push(format!(
-                    "{name}: Baseline records disagree. Reinstall the skill to resolve."
+                errors.push(Self::refusal(
+                    name,
+                    "baselineConflict",
+                    "Baseline records disagree. Reinstall the skill to resolve.",
                 ));
                 continue;
             }
@@ -366,8 +421,10 @@ impl CliService {
             // turning unrelated repo errors into "update all" failures.
             if entry.recorded_baseline().is_none() {
                 if report_missing_baseline {
-                    errors.push(format!(
-                        "{name}: Missing update baseline. Check updates before updating this skill."
+                    errors.push(Self::refusal(
+                        name,
+                        "baselineMissing",
+                        "Missing update baseline. Reinstall the skill or restore its baseline to enable updates.",
                     ));
                 }
                 continue;
@@ -391,6 +448,12 @@ impl CliService {
         }
 
         let mut errors: Vec<String> = Vec::new();
+        // Verified conflict resolution (docs/local-protocol.md): conflicted
+        // entries whose installed content matches exactly one recorded carrier
+        // are aligned before the state comparison so the prepared entries and
+        // the lock agree. Unverifiable conflicts fall through to the refusal
+        // filter below.
+        let to_update = Self::align_verified_conflicts(to_update)?;
         let current_lock = SkillLock::read()?;
         let to_update: Vec<_> = to_update
             .into_iter()
@@ -398,8 +461,12 @@ impl CliService {
                 let name = &update.install_directory;
                 match SkillService::resolve_ssot_lock(name, &current_lock) {
                     Ok((key, current)) if current == update.entry && key == update.lock_key => true,
-                    other => {
-                        errors.push(format!("{name}: updateStateChanged: {other:?}"));
+                    _ => {
+                        errors.push(Self::refusal(
+                            name,
+                            "updateStateChanged",
+                            "Update state changed. Check updates again.",
+                        ));
                         false
                     }
                 }
@@ -618,7 +685,6 @@ impl CliService {
             let discovered = Self::discover_skills_in_tree(&clone_path);
             for skill in &group.skills {
                 match Self::reinstall_skill_from_discovered(
-                    &skill.install_directory,
                     &group.owner,
                     &group.repo,
                     &clone_path,
@@ -1277,7 +1343,6 @@ impl CliService {
     }
 
     fn reinstall_skill_from_discovered(
-        name: &str,
         owner: &str,
         repo: &str,
         repo_root: &Path,
@@ -1286,6 +1351,7 @@ impl CliService {
         snapshot: &UpdateSnapshot,
         update: &KnownSkillUpdate,
     ) -> Result<(), AppError> {
+        let name = &update.install_directory;
         let dest = config::get_agents_skills_dir().join(name);
         skill_provenance::revalidate_update_target(&dest, snapshot).map_err(AppError::from)?;
         let skill_path =
@@ -1643,7 +1709,7 @@ mod tests {
             assert_eq!(result.fail_count, 1);
             assert_eq!(
                 result.errors,
-                vec!["demo: Missing update baseline. Check updates before updating this skill."]
+                vec!["demo: [baselineMissing] Missing update baseline. Reinstall the skill or restore its baseline to enable updates."]
             );
         });
     }
@@ -2397,13 +2463,13 @@ mod tests {
         assert_eq!(errors.len(), 3);
         assert!(errors
             .iter()
-            .any(|e| e.contains("pinned: Externally pinned")));
+            .any(|e| e.contains("pinned: [externallyPinned] Externally pinned")));
         assert!(errors
             .iter()
-            .any(|e| e.contains("conflicted: Baseline records disagree")));
+            .any(|e| e.contains("conflicted: [baselineConflict] Baseline records disagree")));
         assert!(errors
             .iter()
-            .any(|e| e.contains("unbaselined: Missing update baseline")));
+            .any(|e| e.contains("unbaselined: [baselineMissing] Missing update baseline")));
 
         // Plain update-all path keeps the legacy quiet skip for missing
         // baselines, but pin and conflict refusals stay explicit.
@@ -2413,10 +2479,10 @@ mod tests {
         assert_eq!(errors.len(), 2);
         assert!(errors
             .iter()
-            .any(|e| e.contains("pinned: Externally pinned")));
+            .any(|e| e.contains("pinned: [externallyPinned] Externally pinned")));
         assert!(errors
             .iter()
-            .any(|e| e.contains("conflicted: Baseline records disagree")));
+            .any(|e| e.contains("conflicted: [baselineConflict] Baseline records disagree")));
     }
 }
 

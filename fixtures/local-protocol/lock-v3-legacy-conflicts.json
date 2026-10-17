@@ -1,0 +1,50 @@
+{
+  "version": 3,
+  "skills": {
+    "verified-carrier": {
+      "source": "owner/repo",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "skills/verified-carrier",
+      "skillFolderHash": "1466815170709fa4ff169dd2572359fbcb1bb077",
+      "commitSha": "1111111111111111111111111111111111111111",
+      "installedAt": "2025-01-01T00:00:00Z",
+      "updatedAt": "2025-01-02T00:00:00Z",
+      "externalNote": { "keep": true }
+    },
+    "verified-mirror": {
+      "source": "owner/repo",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "skills/verified-mirror",
+      "skillFolderHash": "2222222222222222222222222222222222222222",
+      "commitSha": "6b8b287cdc40b78ead384dac1bd6e17e62704ed9",
+      "installedAt": "2025-01-01T00:00:00Z",
+      "updatedAt": "2025-01-02T00:00:00Z",
+      "externalNote": { "keep": true }
+    },
+    "unverifiable-content": {
+      "source": "owner/repo",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "skills/unverifiable-content",
+      "skillFolderHash": "3333333333333333333333333333333333333333",
+      "commitSha": "4444444444444444444444444444444444444444",
+      "installedAt": "2025-01-01T00:00:00Z",
+      "updatedAt": "2025-01-02T00:00:00Z",
+      "externalNote": { "keep": true }
+    },
+    "missing-directory": {
+      "source": "owner/repo",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "skills/missing-directory",
+      "skillFolderHash": "5555555555555555555555555555555555555555",
+      "commitSha": "6666666666666666666666666666666666666666",
+      "installedAt": "2025-01-01T00:00:00Z",
+      "updatedAt": "2025-01-02T00:00:00Z",
+      "externalNote": { "keep": true }
+    }
+  },
+  "dismissed": {}
+}

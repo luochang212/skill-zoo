@@ -10,7 +10,7 @@ use crate::persistence::{
 };
 use crate::services::cli::{CliService, KnownSkillUpdate};
 use crate::services::github;
-use crate::services::lock::{SkillLock, SUPPORTED_LOCK_VERSION};
+use crate::services::lock::{BaselineConflictResolution, SkillLock, SUPPORTED_LOCK_VERSION};
 use crate::services::opener::open_directory;
 use crate::services::skill::{
     is_symlink_or_junction, DiscoverableSkill, InstalledSkill, ManagedSkill, RepoSkillsResult,
@@ -962,20 +962,57 @@ pub(crate) async fn update_skill_inner(
         .map_err(CommandError::from)?;
 
     let lock = SkillLock::read().map_err(CommandError::from)?;
-    let (lock_key, lock_entry) =
+    let (lock_key, mut lock_entry) =
         SkillService::resolve_ssot_lock(&skill.directory, &lock).map_err(CommandError::from)?;
 
     if lock_entry.is_externally_pinned() {
-        return Err(CommandError::bad_request(format!(
-            "{}: Externally pinned. Remove the pin to enable updates.",
-            skill.directory
-        )));
+        return Err(CommandError {
+            code: "externallyPinned",
+            message: format!(
+                "{}: Externally pinned. Remove the pin to enable updates.",
+                skill.directory
+            ),
+            repo: None,
+        });
+    }
+    if lock_entry.baseline_conflict().is_some() {
+        // Verified conflict resolution (docs/local-protocol.md): a conflicted
+        // entry whose installed content's tree SHA equals exactly one recorded
+        // carrier is aligned to that measured value before the conflict refusal,
+        // so the update proceeds like any unconflicted skill. The lease is
+        // already held by this update. Unverifiable conflicts keep refusing.
+        let dir = config::get_agents_skills_dir().join(&skill.directory);
+        if let BaselineConflictResolution::Verified(sha) =
+            lock_entry.baseline_conflict_resolution(&dir)
+        {
+            SkillLock::apply_verified_alignments(&[(lock_key.clone(), sha.clone())])
+                .map_err(CommandError::from)?;
+            lock_entry.skill_folder_hash = Some(sha.clone());
+            lock_entry.commit_sha = Some(sha);
+        }
     }
     if let Some((carrier, mirror)) = lock_entry.baseline_conflict() {
-        return Err(CommandError::bad_request(format!(
-            "{}: Baseline records disagree (skillFolderHash {carrier}, commitSha {mirror}). Reinstall the skill to resolve.",
-            skill.directory
-        )));
+        return Err(CommandError {
+            code: "baselineConflict",
+            message: format!(
+                "{}: Baseline records disagree (skillFolderHash {carrier}, commitSha {mirror}). Reinstall the skill to resolve.",
+                skill.directory
+            ),
+            repo: None,
+        });
+    }
+    // An entry without a recorded baseline has nothing to compare against,
+    // so a single update must refuse before network work instead of silently
+    // re-baselining over an unverified state, matching the batch filter.
+    if lock_entry.recorded_baseline().is_none() {
+        return Err(CommandError {
+            code: "baselineMissing",
+            message: format!(
+                "{}: Missing update baseline. Reinstall the skill or restore its baseline to enable updates.",
+                skill.directory
+            ),
+            repo: None,
+        });
     }
 
     let (owner, repo, branch) =
@@ -1003,7 +1040,7 @@ pub(crate) async fn update_skill_inner(
     let requested_skills = vec![skill.directory.clone()];
 
     // No update needed
-    if lock_entry.recorded_baseline().as_deref() == Some(new_sha.as_str()) {
+    if lock_entry.recorded_baseline() == Some(new_sha.as_str()) {
         let result = crate::services::cli::UpdateResult {
             success_count: 0,
             fail_count: 0,
@@ -1054,6 +1091,9 @@ pub(crate) async fn update_skill_inner(
             "ghProvenanceProtected",
             "skillProvenanceUnreadable",
             "updateStateChanged",
+            "externallyPinned",
+            "baselineConflict",
+            "baselineMissing",
         ]
         .into_iter()
         .find(|code| message.contains(&format!("[{code}]")))
@@ -1314,7 +1354,8 @@ fn checked_update_entries_from_lock(
             errors.push(format!("{}: {issue}", checked.skill_name));
             continue;
         }
-        let (lock_key, entry) = match SkillService::resolve_ssot_lock(&checked.skill_name, lock) {
+        let (lock_key, mut entry) = match SkillService::resolve_ssot_lock(&checked.skill_name, lock)
+        {
             Ok(association) => association,
             Err(error) => {
                 errors.push(format!("{}: {error}", checked.skill_name));
@@ -1322,23 +1363,48 @@ fn checked_update_entries_from_lock(
             }
         };
         if entry.is_externally_pinned() {
-            errors.push(format!(
-                "{}: Externally pinned. Remove the pin to enable updates.",
-                checked.skill_name
+            errors.push(CliService::refusal(
+                &checked.skill_name,
+                "externallyPinned",
+                "Externally pinned. Remove the pin to enable updates.",
             ));
             continue;
         }
         if entry.baseline_conflict().is_some() {
-            errors.push(format!(
-                "{}: Baseline records disagree. Reinstall the skill to resolve.",
-                checked.skill_name
+            // Verified conflict resolution (docs/local-protocol.md): a
+            // conflicted entry whose installed content matches exactly one
+            // recorded carrier is aligned before the state comparison, so the
+            // checked update proceeds like any unconflicted skill. The lease
+            // is held by the update-all caller. Unverifiable conflicts refuse.
+            let dir = config::get_agents_skills_dir().join(&checked.skill_name);
+            if let BaselineConflictResolution::Verified(sha) =
+                entry.baseline_conflict_resolution(&dir)
+            {
+                match SkillLock::apply_verified_alignments(&[(lock_key.clone(), sha.clone())]) {
+                    Ok(()) => {
+                        entry.skill_folder_hash = Some(sha.clone());
+                        entry.commit_sha = Some(sha);
+                    }
+                    Err(error) => {
+                        errors.push(format!("{}: {error}", checked.skill_name));
+                        continue;
+                    }
+                }
+            }
+        }
+        if entry.baseline_conflict().is_some() {
+            errors.push(CliService::refusal(
+                &checked.skill_name,
+                "baselineConflict",
+                "Baseline records disagree. Reinstall the skill to resolve.",
             ));
             continue;
         }
-        if entry.recorded_baseline().as_deref() != Some(checked.current_sha.as_str()) {
-            errors.push(format!(
-                "{}: Update state changed. Check updates again.",
-                checked.skill_name
+        if entry.recorded_baseline() != Some(checked.current_sha.as_str()) {
+            errors.push(CliService::refusal(
+                &checked.skill_name,
+                "updateStateChanged",
+                "Update state changed. Check updates again.",
             ));
             continue;
         }

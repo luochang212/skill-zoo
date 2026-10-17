@@ -110,7 +110,7 @@ impl std::fmt::Display for LockCandidate {
 pub enum LockResolution {
     Resolved {
         lock_key: String,
-        entry: SkillLockEntry,
+        entry: Box<SkillLockEntry>,
     },
     Missing {
         reason: &'static str,
@@ -124,7 +124,7 @@ pub enum LockResolution {
 impl LockResolution {
     pub fn association(self) -> Result<Option<(String, SkillLockEntry)>, AppError> {
         match self {
-            Self::Resolved { lock_key, entry } => Ok(Some((lock_key, entry))),
+            Self::Resolved { lock_key, entry } => Ok(Some((lock_key, *entry))),
             Self::Missing { .. } => Ok(None),
             Self::Ambiguous { reason, candidates } => Err(AppError::BadRequest(format!(
                 "lockAmbiguous: {reason}: {}",
@@ -285,7 +285,7 @@ pub fn resolve_installation_lock(
     }
     LockResolution::Resolved {
         lock_key: (*key).clone(),
-        entry: (*entry).clone(),
+        entry: Box::new((*entry).clone()),
     }
 }
 
@@ -341,6 +341,26 @@ impl SkillLock {
         crate::persistence::atomic_write(path, &content).map_err(AppError::Io)?;
         Ok(())
     }
+
+    /// Apply verified baseline-conflict alignments in one lock write: both
+    /// carrier fields of each listed entry are set to the verified value and
+    /// no other field is touched (docs/local-protocol.md, verified-conflict
+    /// resolution). Callers must already hold the agent lease when this can
+    /// race a CLI writer.
+    pub fn apply_verified_alignments(alignments: &[(String, String)]) -> Result<(), AppError> {
+        if alignments.is_empty() {
+            return Ok(());
+        }
+        Self::update(|lock| {
+            for (lock_key, sha) in alignments {
+                if let Some(entry) = lock.skills.get_mut(lock_key) {
+                    entry.skill_folder_hash = Some(sha.clone());
+                    entry.commit_sha = Some(sha.clone());
+                }
+            }
+            Ok(())
+        })
+    }
 }
 
 impl SkillLockEntry {
@@ -358,7 +378,34 @@ impl SkillLockEntry {
     pub fn baseline_conflict(&self) -> Option<(&str, &str)> {
         let carrier = non_empty(&self.skill_folder_hash)?;
         let mirror = non_empty(&self.commit_sha)?;
-        (carrier != mirror).then(|| (carrier.as_str(), mirror.as_str()))
+        (carrier != mirror).then_some((carrier.as_str(), mirror.as_str()))
+    }
+
+    /// Verified-conflict resolution (docs/local-protocol.md): a conflicted
+    /// entry whose installed content's tree SHA equals exactly one recorded
+    /// carrier resolves to aligning both carriers to that measured value.
+    /// Missing or unreadable directories, content matching neither carrier,
+    /// and externally pinned entries (whose recorded fields must stay
+    /// unchanged) keep the explicit conflict state.
+    pub fn baseline_conflict_resolution(
+        &self,
+        install_directory: &Path,
+    ) -> BaselineConflictResolution {
+        let Some((carrier, mirror)) = self.baseline_conflict() else {
+            return BaselineConflictResolution::NotConflicted;
+        };
+        if self.is_externally_pinned() {
+            return BaselineConflictResolution::Unverifiable;
+        }
+        let sha = match content_tree_sha(install_directory) {
+            Ok(sha) => sha,
+            Err(_) => return BaselineConflictResolution::Unverifiable,
+        };
+        if sha == carrier || sha == mirror {
+            BaselineConflictResolution::Verified(sha)
+        } else {
+            BaselineConflictResolution::Unverifiable
+        }
     }
 
     /// The entry carries an external pin marker and must not be auto-updated.
@@ -410,6 +457,119 @@ impl SkillLockEntry {
 
 fn non_empty(value: &Option<String>) -> Option<&String> {
     value.as_ref().filter(|s| !s.is_empty())
+}
+
+/// Outcome of the verified-conflict resolution for one lock entry
+/// (docs/local-protocol.md): a conflicted entry whose installed content
+/// matches exactly one recorded carrier is aligned to that measured value;
+/// anything that cannot be verified keeps the explicit conflict state.
+#[derive(Debug, Clone, PartialEq)]
+pub enum BaselineConflictResolution {
+    /// Carriers agree or only one holds a value — no conflict to resolve.
+    NotConflicted,
+    /// Local content tree SHA matches exactly one recorded carrier.
+    Verified(String),
+    /// Directory missing/unreadable, content matches neither carrier, or the
+    /// entry is externally pinned (pinned fields stay unchanged, E1).
+    Unverifiable,
+}
+
+/// Compute the git tree SHA of a directory's content, reproducing the object
+/// convention the recorded baselines use (git object hashing: `blob`/`tree`
+/// SHA-1 over `"{type} {length}\0{content}"`, tree entries sorted with
+/// directories compared as `name/`, modes `100644`/`100755`/`120000`, tree
+/// mode `40000`). Empty subtrees are pruned — git trees cannot represent
+/// contentless directories, so an empty directory hashes as the empty tree.
+pub fn content_tree_sha(directory: &Path) -> Result<String, AppError> {
+    match dir_tree_sha(directory)? {
+        Some(sha) => Ok(hex_sha(&sha)),
+        None => Ok(hex_sha(&object_sha_raw(b"tree", &[]))),
+    }
+}
+
+fn dir_tree_sha(directory: &Path) -> Result<Option<[u8; 20]>, AppError> {
+    let mut entries: Vec<(Vec<u8>, &'static str, String, [u8; 20])> = Vec::new();
+    for result in std::fs::read_dir(directory)? {
+        let entry = result?;
+        // Git never tracks `.git` entries; recorded baselines (GitHub trees)
+        // cannot contain them either.
+        if entry.file_name() == ".git" {
+            continue;
+        }
+        let file_type = entry.file_type()?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let (mode, sha, is_dir) = if file_type.is_symlink() {
+            let target = std::fs::read_link(entry.path())?;
+            (
+                "120000",
+                object_sha_raw(b"blob", target.as_os_str().as_encoded_bytes()),
+                false,
+            )
+        } else if file_type.is_dir() {
+            match dir_tree_sha(&entry.path())? {
+                Some(sha) => ("40000", sha, true),
+                None => continue,
+            }
+        } else {
+            let bytes = std::fs::read(entry.path())?;
+            (
+                file_mode(&entry.metadata()?),
+                object_sha_raw(b"blob", &bytes),
+                false,
+            )
+        };
+        // Git tree sort compares directory names as if suffixed with '/'.
+        let mut sort_key = name.clone().into_bytes();
+        if is_dir {
+            sort_key.push(b'/');
+        }
+        entries.push((sort_key, mode, name, sha));
+    }
+    if entries.is_empty() {
+        return Ok(None);
+    }
+    entries.sort_by(|a, b| a.0.cmp(&b.0));
+    let mut body = Vec::new();
+    for (_, mode, name, sha) in &entries {
+        body.extend_from_slice(format!("{mode} {name}").as_bytes());
+        body.push(0);
+        body.extend_from_slice(sha);
+    }
+    Ok(Some(object_sha_raw(b"tree", &body)))
+}
+
+/// SHA-1 of a git object: `"{type} {byte length}\0{content}"`.
+fn object_sha_raw(kind: &[u8], content: &[u8]) -> [u8; 20] {
+    use sha1::{Digest, Sha1};
+    let mut hasher = Sha1::new();
+    hasher.update(kind);
+    hasher.update(b" ");
+    hasher.update(content.len().to_string().as_bytes());
+    hasher.update(b"\0");
+    hasher.update(content);
+    let hash = hasher.finalize();
+    let mut out = [0u8; 20];
+    out.copy_from_slice(&hash);
+    out
+}
+
+fn hex_sha(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+#[cfg(unix)]
+fn file_mode(metadata: &std::fs::Metadata) -> &'static str {
+    use std::os::unix::fs::PermissionsExt;
+    if metadata.permissions().mode() & 0o111 != 0 {
+        "100755"
+    } else {
+        "100644"
+    }
+}
+
+#[cfg(not(unix))]
+fn file_mode(_metadata: &std::fs::Metadata) -> &'static str {
+    "100644"
 }
 
 #[cfg(test)]
@@ -506,5 +666,157 @@ mod tests {
         }
         let missing = SkillLockEntry::default();
         assert_eq!(missing.parse_source_owner_name(), (None, None));
+    }
+
+    /// Hash a temp directory with real `git` (init → add → write-tree) and
+    /// compare against `content_tree_sha` across the shapes git objects
+    /// actually encode: nesting, exec bits, symlinks, unicode/space names,
+    /// binary content, and directories git would ignore as empty.
+    #[test]
+    fn content_tree_sha_matches_git_object_hashing() {
+        let git_available = || {
+            matches!(
+                std::process::Command::new("git").arg("--version").output(),
+                Ok(output) if output.status.success()
+            )
+        };
+        if !git_available() {
+            eprintln!("git not available; skipping git-parity test");
+            return;
+        }
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        std::fs::create_dir_all(root.join("nested/sub")).unwrap();
+        std::fs::write(root.join("SKILL.md"), b"# skill\n\nbody\n").unwrap();
+        std::fs::write(root.join("nested/deep.txt"), b"deep\n").unwrap();
+        std::fs::write(
+            root.join("nested/sub/leaf.md"),
+            "unicode ✓ 内容\n".as_bytes(),
+        )
+        .unwrap();
+        std::fs::write(root.join("exec.sh"), b"#!/bin/sh\necho hi\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(root.join("exec.sh"), std::fs::Permissions::from_mode(0o755))
+                .unwrap();
+            std::os::unix::fs::symlink("SKILL.md", root.join("link.md")).unwrap();
+        }
+        std::fs::write(root.join("with space.md"), b"spaces in names\n").unwrap();
+        // Binary content exercises the length-prefixed object header.
+        let binary: Vec<u8> = (0..=255u8).cycle().take(1000).collect();
+        std::fs::write(root.join("blob.bin"), &binary).unwrap();
+        // Empty subtrees must be pruned (git cannot represent them).
+        std::fs::create_dir_all(root.join("empty_dir/empty_nested")).unwrap();
+
+        let status = std::process::Command::new("git")
+            .args(["init", "-q"])
+            .current_dir(root)
+            .status()
+            .unwrap();
+        assert!(status.success());
+        let status = std::process::Command::new("git")
+            .args(["add", "-A", "-f"])
+            .current_dir(root)
+            .status()
+            .unwrap();
+        assert!(status.success());
+        let output = std::process::Command::new("git")
+            .args(["write-tree"])
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "git write-tree failed");
+        let git_tree = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+        assert_eq!(content_tree_sha(root).unwrap(), git_tree);
+    }
+
+    /// Field-evidence oracle: the recorded remote tree of
+    /// `skills/openspec-explore` (Fission-AI/OpenSpec, `83b5a650…`) contains
+    /// exactly this SKILL.md content; the helper must reproduce it.
+    #[test]
+    fn content_tree_sha_reproduces_field_recorded_tree() {
+        let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../fixtures/local-protocol/tree-oracle-openspec-explore.md");
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            temp.path().join("SKILL.md"),
+            std::fs::read(&fixture).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            content_tree_sha(temp.path()).unwrap(),
+            "83b5a6507712af9d4225f5503bbf77c53eab57a4"
+        );
+    }
+
+    #[test]
+    fn verified_conflict_resolution_aligns_only_to_a_matching_carrier() {
+        let temp = tempfile::tempdir().unwrap();
+        let dir = temp.path();
+        std::fs::write(dir.join("SKILL.md"), b"content\n").unwrap();
+        let sha = content_tree_sha(dir).unwrap();
+        let other = "ffffffffffffffffffffffffffffffffffffffff";
+        let entry = |fh: &str, cs: &str| -> SkillLockEntry {
+            serde_json::from_str(&format!(
+                r#"{{"skillFolderHash": "{fh}", "commitSha": "{cs}"}}"#
+            ))
+            .unwrap()
+        };
+
+        // No conflict: carriers agree.
+        assert_eq!(
+            entry(&sha, &sha).baseline_conflict_resolution(dir),
+            BaselineConflictResolution::NotConflicted
+        );
+        // Single-carrier entries are not conflicts either.
+        assert_eq!(
+            serde_json::from_str::<SkillLockEntry>(r#"{"skillFolderHash": "aa"}"#)
+                .unwrap()
+                .baseline_conflict_resolution(dir),
+            BaselineConflictResolution::NotConflicted
+        );
+        // Content matches the carrier → align to it.
+        assert_eq!(
+            entry(&sha, other).baseline_conflict_resolution(dir),
+            BaselineConflictResolution::Verified(sha.clone())
+        );
+        // Content matches the mirror → align to it (field-evidenced direction).
+        assert_eq!(
+            entry(other, &sha).baseline_conflict_resolution(dir),
+            BaselineConflictResolution::Verified(sha.clone())
+        );
+        // Content matches neither carrier → keep the explicit conflict.
+        assert_eq!(
+            entry(other, "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+                .baseline_conflict_resolution(dir),
+            BaselineConflictResolution::Unverifiable
+        );
+        // Missing directory → unverifiable.
+        assert_eq!(
+            entry(&sha, other).baseline_conflict_resolution(&dir.join("nonexistent")),
+            BaselineConflictResolution::Unverifiable
+        );
+        // Externally pinned entries keep their recorded fields unchanged (E1).
+        let pinned: SkillLockEntry = serde_json::from_str(&format!(
+            r#"{{"skillFolderHash": "{sha}", "commitSha": "{other}", "pinnedRef": "v1"}}"#
+        ))
+        .unwrap();
+        assert_eq!(
+            pinned.baseline_conflict_resolution(dir),
+            BaselineConflictResolution::Unverifiable
+        );
+    }
+
+    #[test]
+    fn empty_directory_hashes_as_gits_empty_tree() {
+        let temp = tempfile::tempdir().unwrap();
+        // sha1("tree 0\0") — git's well-known empty tree object.
+        assert_eq!(
+            content_tree_sha(temp.path()).unwrap(),
+            "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+        );
     }
 }

@@ -58,6 +58,16 @@ fn entry() -> SkillLockEntry {
     }))
     .unwrap()
 }
+/// An entry whose dual baseline carriers were lost, e.g. written by an
+/// older tool or stripped by an external rewrite of the lock file.
+fn unbaselined_entry() -> SkillLockEntry {
+    serde_json::from_value(serde_json::json!({
+        "source":"owner/repo", "sourceType":"github", "ref":"main", "skillPath":"skills/demo",
+        "installedAt":"2025-01-01T00:00:00Z",
+        "updatedAt":"2025-01-02T00:00:00Z", "externalNote":{"keep":true}
+    }))
+    .unwrap()
+}
 fn install(name: &str, text: &[u8]) {
     let dir = config::get_agents_skills_dir().join(name);
     fs::create_dir_all(dir.join("nested")).unwrap();
@@ -316,6 +326,472 @@ fn ordinary_yaml_variants_really_update_and_mixed_batch_preserves_protected_entr
             assert_eq!(record.updated_skills.len(), names.len() - 1);
             tree.assert_async().await;
             archive.assert_async().await;
+        })
+    });
+}
+
+#[test]
+fn single_update_refuses_entry_without_recorded_baseline() {
+    isolated(|| {
+        runtime().block_on(async {
+            install("demo", b"---\nname: demo\n---\nold body");
+            SkillLock::update(|lock| {
+                lock.skills.insert("demo".into(), unbaselined_entry());
+                Ok(())
+            })
+            .unwrap();
+            let state = state(&["demo"]);
+            let lock_before = fs::read(lock_path()).unwrap();
+            let dir_before = directory_bytes(&config::get_agents_skills_dir().join("demo"));
+            let mut server = mockito::Server::new_async().await;
+            let tree_mock = tree(&mut server, 0).await;
+            let archive_mock = archive(&mut server, 0).await;
+            let _network = network(&server.url());
+            let error = update_skill_inner(&state, "repo:owner/repo:demo".to_string())
+                .await
+                .err()
+                .expect("single update must refuse an entry without a recorded baseline");
+            assert_eq!(error.code, "baselineMissing");
+            assert!(error.message.contains("Missing update baseline"));
+            // A refusal must not touch the lock file or the installation.
+            assert_eq!(fs::read(lock_path()).unwrap(), lock_before);
+            assert_eq!(
+                directory_bytes(&config::get_agents_skills_dir().join("demo")),
+                dir_before
+            );
+            // The refusal fires before any network work.
+            tree_mock.assert_async().await;
+            archive_mock.assert_async().await;
+        })
+    });
+}
+
+/// A conflicted legacy entry: `skillFolderHash` recorded by the external
+/// installer, `commitSha` rewritten by a pre-dual-baseline app update.
+fn conflicted_entry(carrier: &str, mirror: &str) -> SkillLockEntry {
+    serde_json::from_value(serde_json::json!({
+        "source":"owner/repo", "sourceType":"github", "ref":"main", "skillPath":"skills/demo",
+        "skillFolderHash": carrier, "commitSha": mirror,
+        "installedAt":"2025-01-01T00:00:00Z",
+        "updatedAt":"2025-01-02T00:00:00Z", "externalNote":{"keep":true}
+    }))
+    .unwrap()
+}
+
+/// Writes a conflicted legacy entry whose carrier matches the installed
+/// content (field shape: the external installer recorded the true tree, a
+/// pre-dual-baseline app update later rewrote only the mirror). Returns the
+/// verified local tree SHA.
+fn write_conflicted_entry_matching_carrier(name: &str, mirror: &str) -> String {
+    let sha = crate::services::lock::content_tree_sha(&config::get_agents_skills_dir().join(name))
+        .unwrap();
+    SkillLock::update(|lock| {
+        lock.skills
+            .insert(name.to_string(), conflicted_entry(&sha, mirror));
+        Ok(())
+    })
+    .unwrap();
+    sha
+}
+
+/// Writes a conflicted legacy entry whose mirror matches the installed
+/// content (field shape: the app update rewrote the mirror, the carrier is
+/// the stale installer tree). Returns the verified local tree SHA.
+fn write_conflicted_entry_matching_mirror(name: &str, carrier: &str) -> String {
+    let sha = crate::services::lock::content_tree_sha(&config::get_agents_skills_dir().join(name))
+        .unwrap();
+    SkillLock::update(|lock| {
+        lock.skills
+            .insert(name.to_string(), conflicted_entry(carrier, &sha));
+        Ok(())
+    })
+    .unwrap();
+    sha
+}
+
+/// Writes a conflicted legacy entry matching neither carrier.
+fn write_unverifiable_conflicted_entry(name: &str) {
+    SkillLock::update(|lock| {
+        lock.skills.insert(
+            name.to_string(),
+            conflicted_entry(LEGACY_CARRIER, LEGACY_MIRROR),
+        );
+        Ok(())
+    })
+    .unwrap();
+}
+
+const LEGACY_CARRIER: &str = "1111111111111111111111111111111111111111";
+const LEGACY_MIRROR: &str = "2222222222222222222222222222222222222222";
+
+#[test]
+fn check_resolves_legacy_conflicts_with_verified_local_content() {
+    isolated(|| {
+        runtime().block_on(async {
+            install("demo", b"---\nname: demo\n---\nold body");
+            // Field-evidenced shape: the mirror was rewritten by the app and
+            // the local content matches it; the carrier is stale.
+            let local_sha = write_conflicted_entry_matching_mirror("demo", LEGACY_CARRIER);
+            // A directory-less conflicted entry must stay explicit.
+            SkillLock::update(|lock| {
+                lock.skills.insert(
+                    "gone".into(),
+                    conflicted_entry("3333333333333333333333333333333333333333", LEGACY_MIRROR),
+                );
+                Ok(())
+            })
+            .unwrap();
+            let gone_before = SkillLock::read().unwrap().skills["gone"].clone();
+            let mut server = mockito::Server::new_async().await;
+            let tree_mock = tree(&mut server, 1).await;
+            let _network = network(&server.url());
+
+            let check = check_skill_updates().await.unwrap();
+            let status = check
+                .skills
+                .iter()
+                .find(|s| s.skill_name == "demo")
+                .unwrap();
+            // Aligned: compared against the verified baseline like any skill,
+            // and the remote differs so the pending update stays visible.
+            assert_eq!(status.baseline_state, "ok");
+            assert!(status.has_update);
+            assert_eq!(status.current_sha.as_deref(), Some(local_sha.as_str()));
+            assert!(!check.skills.iter().any(|s| s.skill_name == "gone"));
+
+            let lock = SkillLock::read().unwrap();
+            assert_eq!(
+                lock.skills["demo"].skill_folder_hash.as_deref(),
+                Some(local_sha.as_str())
+            );
+            assert_eq!(
+                lock.skills["demo"].commit_sha.as_deref(),
+                Some(local_sha.as_str())
+            );
+            // Only the two carrier fields were rewritten; everything else,
+            // including undeclared fields, survived.
+            assert_eq!(
+                lock.skills["demo"].extra.get("externalNote"),
+                Some(&serde_json::json!({"keep": true}))
+            );
+            assert_eq!(
+                lock.skills["demo"].installed_at.as_deref(),
+                Some("2025-01-01T00:00:00Z")
+            );
+            // No other entry was written, including the unverifiable one.
+            assert_eq!(lock.skills["gone"], gone_before);
+            tree_mock.assert_async().await;
+        })
+    });
+}
+
+#[test]
+fn check_keeps_conflict_when_alignment_cannot_be_persisted() {
+    isolated(|| {
+        runtime().block_on(async {
+            install("demo", b"---\nname: demo\n---\nold body");
+            write_conflicted_entry_matching_mirror("demo", LEGACY_CARRIER);
+            let lock_before = fs::read(lock_path()).unwrap();
+            let mut server = mockito::Server::new_async().await;
+            let tree_mock = tree(&mut server, 0).await;
+            let _network = network(&server.url());
+            // Another writer holds the lease, so the check cannot persist the
+            // alignment. It must not report the entry as unconflicted while
+            // the lock still disagrees.
+            let _lease = crate::persistence::agent_transaction::AgentLease::acquire(
+                &config::get_app_config_dir(),
+            )
+            .unwrap();
+
+            let check = check_skill_updates().await.unwrap();
+            assert_eq!(check.skills[0].baseline_state, "conflict");
+            assert_eq!(
+                check.skills[0].check_error_code.as_deref(),
+                Some("baselineConflict")
+            );
+            assert_eq!(fs::read(lock_path()).unwrap(), lock_before);
+            tree_mock.assert_async().await;
+        })
+    });
+}
+
+#[test]
+fn update_paths_resolve_verified_conflicts_and_keep_unverifiable_ones() {
+    isolated(|| {
+        runtime().block_on(async {
+            install("demo", b"---\nname: demo\n---\nold body");
+            install("stuck", b"---\nname: stuck\n---\nold body");
+            write_conflicted_entry_matching_mirror("demo", LEGACY_CARRIER);
+            write_unverifiable_conflicted_entry("stuck");
+            let state = state(&["demo", "stuck"]);
+            let stuck_entry_before = SkillLock::read().unwrap().skills["stuck"].clone();
+            let stuck_before = directory_bytes(&config::get_agents_skills_dir().join("stuck"));
+            let mut server = mockito::Server::new_async().await;
+            let tree_mock = tree(&mut server, 1).await;
+            let archive_mock = archive(&mut server, 1).await;
+            let _network = network(&server.url());
+
+            let result = update_all_skills_inner(&state, None).await.unwrap();
+            // The verified conflict updated like any skill…
+            assert_eq!(result.success_count, 1);
+            assert_eq!(result.updated, vec!["demo".to_string()]);
+            let lock = SkillLock::read().unwrap();
+            assert_eq!(
+                lock.skills["demo"].skill_folder_hash.as_deref(),
+                Some("new")
+            );
+            assert_eq!(lock.skills["demo"].commit_sha.as_deref(), Some("new"));
+            // …while the unverifiable conflict refused with its state intact.
+            assert!(result.errors[0].contains("stuck: [baselineConflict]"));
+            assert_eq!(lock.skills["stuck"], stuck_entry_before);
+            assert_eq!(
+                directory_bytes(&config::get_agents_skills_dir().join("stuck")),
+                stuck_before
+            );
+            tree_mock.assert_async().await;
+            archive_mock.assert_async().await;
+        })
+    });
+}
+
+#[test]
+fn checked_request_with_stale_baseline_still_updates_verified_conflict() {
+    isolated(|| {
+        runtime().block_on(async {
+            install("demo", b"---\nname: demo\n---\nold body");
+            // Field-evidenced opposite direction: the carrier matches the
+            // local content and the mirror is the pre-dual-baseline value.
+            let local_sha = write_conflicted_entry_matching_carrier("demo", LEGACY_MIRROR);
+            let state = state(&["demo"]);
+            let mut server = mockito::Server::new_async().await;
+            // The checked path trusts the check-time latest_sha and downloads
+            // the archive directly — no tree fetch.
+            let archive_mock = archive(&mut server, 1).await;
+            let _network = network(&server.url());
+
+            // A checked request captured before the alignment (current_sha is
+            // the carrier) must still proceed: alignment rewrites the mirror,
+            // the baseline comparison sees the same verified value.
+            let result = update_all_skills_inner(
+                &state,
+                Some(vec![CheckedSkillUpdate {
+                    skill_name: "demo".into(),
+                    current_sha: local_sha.clone(),
+                    latest_sha: "new".into(),
+                }]),
+            )
+            .await
+            .unwrap();
+            assert_eq!(result.success_count, 1);
+            let lock = SkillLock::read().unwrap();
+            assert_eq!(
+                lock.skills["demo"].skill_folder_hash.as_deref(),
+                Some("new")
+            );
+            assert_eq!(lock.skills["demo"].commit_sha.as_deref(), Some("new"));
+            archive_mock.assert_async().await;
+        })
+    });
+}
+
+#[test]
+fn checked_request_for_unverifiable_conflict_refuses_without_touching_state() {
+    isolated(|| {
+        runtime().block_on(async {
+            install("demo", b"---\nname: demo\n---\nold body");
+            write_unverifiable_conflicted_entry("demo");
+            let state = state(&["demo"]);
+            let lock_before = fs::read(lock_path()).unwrap();
+            let dir_before = directory_bytes(&config::get_agents_skills_dir().join("demo"));
+            let mut server = mockito::Server::new_async().await;
+            let tree_mock = tree(&mut server, 0).await;
+            let archive_mock = archive(&mut server, 0).await;
+            let _network = network(&server.url());
+
+            let result = update_all_skills_inner(
+                &state,
+                Some(vec![CheckedSkillUpdate {
+                    skill_name: "demo".into(),
+                    current_sha: LEGACY_CARRIER.into(),
+                    latest_sha: "new".into(),
+                }]),
+            )
+            .await
+            .unwrap();
+            assert!(result.errors[0].contains("demo: [baselineConflict]"));
+            assert_eq!(fs::read(lock_path()).unwrap(), lock_before);
+            assert_eq!(
+                directory_bytes(&config::get_agents_skills_dir().join("demo")),
+                dir_before
+            );
+            tree_mock.assert_async().await;
+            archive_mock.assert_async().await;
+        })
+    });
+}
+
+#[test]
+fn checked_request_with_pre_alignment_current_sha_refuses_after_alignment() {
+    isolated(|| {
+        runtime().block_on(async {
+            install("demo", b"---\nname: demo\n---\nold body");
+            // Local content matches the mirror; a request captured before the
+            // alignment carries the stale carrier as current_sha.
+            let local_sha = write_conflicted_entry_matching_mirror("demo", LEGACY_CARRIER);
+            let state = state(&["demo"]);
+            let mut server = mockito::Server::new_async().await;
+            let tree_mock = tree(&mut server, 0).await;
+            let archive_mock = archive(&mut server, 0).await;
+            let _network = network(&server.url());
+
+            let result = update_all_skills_inner(
+                &state,
+                Some(vec![CheckedSkillUpdate {
+                    skill_name: "demo".into(),
+                    current_sha: LEGACY_CARRIER.into(),
+                    latest_sha: "new".into(),
+                }]),
+            )
+            .await
+            .unwrap();
+            // The request is refused as stale, but the independent verified
+            // alignment is still recorded: a later refusal does not undo it.
+            assert!(result.errors[0].contains("demo: [updateStateChanged]"));
+            assert!(!result.updated.contains(&"demo".to_string()));
+            let lock = SkillLock::read().unwrap();
+            assert_eq!(
+                lock.skills["demo"].skill_folder_hash.as_deref(),
+                Some(local_sha.as_str())
+            );
+            assert_eq!(
+                lock.skills["demo"].commit_sha.as_deref(),
+                Some(local_sha.as_str())
+            );
+            tree_mock.assert_async().await;
+            archive_mock.assert_async().await;
+        })
+    });
+}
+
+#[test]
+fn single_update_resolves_field_evidenced_conflict_and_updates() {
+    isolated(|| {
+        runtime().block_on(async {
+            install("demo", b"---\nname: demo\n---\nold body");
+            // Replicates the reported failure: gh recorded the carrier, the
+            // pre-dual-baseline app update rewrote the mirror, local content
+            // matches the mirror. The same request used to fail with
+            // "Baseline records disagree".
+            write_conflicted_entry_matching_mirror("demo", LEGACY_CARRIER);
+            let state = state(&["demo"]);
+            let mut server = mockito::Server::new_async().await;
+            let tree_mock = tree(&mut server, 1).await;
+            let archive_mock = archive(&mut server, 1).await;
+            let _network = network(&server.url());
+
+            let result = update_skill_inner(&state, "repo:owner/repo:demo".to_string())
+                .await
+                .unwrap();
+            assert!(result.updated);
+            let lock = SkillLock::read().unwrap();
+            assert_eq!(
+                lock.skills["demo"].skill_folder_hash.as_deref(),
+                Some("new")
+            );
+            assert_eq!(lock.skills["demo"].commit_sha.as_deref(), Some("new"));
+            assert!(fs::read_to_string(
+                config::get_agents_skills_dir()
+                    .join("demo")
+                    .join("SKILL.md")
+            )
+            .unwrap()
+            .ends_with("new body"));
+            tree_mock.assert_async().await;
+            archive_mock.assert_async().await;
+        })
+    });
+}
+
+#[test]
+fn externally_pinned_conflict_never_gets_aligned() {
+    isolated(|| {
+        runtime().block_on(async {
+            install("demo", b"---\nname: demo\n---\nold body");
+            write_conflicted_entry_matching_mirror("demo", LEGACY_CARRIER);
+            SkillLock::update(|lock| {
+                lock.skills.get_mut("demo").unwrap().pinned_ref = Some("v1".into());
+                Ok(())
+            })
+            .unwrap();
+            let state = state(&["demo"]);
+            let lock_before = fs::read(lock_path()).unwrap();
+            let mut server = mockito::Server::new_async().await;
+            let tree_mock = tree(&mut server, 0).await;
+            let archive_mock = archive(&mut server, 0).await;
+            let _network = network(&server.url());
+
+            // Check: pinned entries are skipped without alignment or fetch.
+            let check = check_skill_updates().await.unwrap();
+            assert_eq!(
+                check.skills[0].check_error_code.as_deref(),
+                Some("externallyPinned")
+            );
+            // Batch update: the pin refusal fires first.
+            let result = update_all_skills_inner(&state, None).await.unwrap();
+            assert!(result.errors[0].contains("demo: [externallyPinned]"));
+            // The recorded fields are unchanged by update operations (E1):
+            // the carrier still holds the installer tree, the mirror the
+            // verified local tree — no alignment, no rewrite.
+            let lock = SkillLock::read().unwrap();
+            let verified = crate::services::lock::content_tree_sha(
+                &config::get_agents_skills_dir().join("demo"),
+            )
+            .unwrap();
+            assert_eq!(
+                lock.skills["demo"].skill_folder_hash.as_deref(),
+                Some(LEGACY_CARRIER)
+            );
+            assert_eq!(
+                lock.skills["demo"].commit_sha.as_deref(),
+                Some(verified.as_str())
+            );
+            assert_eq!(lock.skills["demo"].pinned_ref.as_deref(), Some("v1"));
+            assert_eq!(fs::read(lock_path()).unwrap(), lock_before);
+            tree_mock.assert_async().await;
+            archive_mock.assert_async().await;
+        })
+    });
+}
+
+#[test]
+fn alignment_is_idempotent_across_repeated_checks() {
+    isolated(|| {
+        runtime().block_on(async {
+            install("demo", b"---\nname: demo\n---\nold body");
+            write_conflicted_entry_matching_mirror("demo", LEGACY_CARRIER);
+            let mut server = mockito::Server::new_async().await;
+            // Both checks fetch the repo: the aligned entry participates like
+            // any unconflicted skill.
+            let tree_mock = tree(&mut server, 2).await;
+            let _network = network(&server.url());
+
+            let check = check_skill_updates().await.unwrap();
+            assert_eq!(check.skills[0].baseline_state, "ok");
+            let lock = SkillLock::read().unwrap();
+            let aligned = lock.skills["demo"].skill_folder_hash.clone().unwrap();
+            assert_eq!(
+                lock.skills["demo"].commit_sha.as_deref(),
+                Some(aligned.as_str())
+            );
+            let lock_after_first = fs::read(lock_path()).unwrap();
+
+            // A repeated check finds the carriers agreeing and makes no
+            // further lock write: the alignment is a one-time measured fact,
+            // not a recurring rewrite.
+            let check = check_skill_updates().await.unwrap();
+            assert_eq!(check.skills[0].baseline_state, "ok");
+            assert_eq!(fs::read(lock_path()).unwrap(), lock_after_first);
+            tree_mock.assert_async().await;
         })
     });
 }

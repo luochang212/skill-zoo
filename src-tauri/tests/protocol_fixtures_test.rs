@@ -125,6 +125,108 @@ fn test_desktop_classifies_gh_shaped_lock_entries() {
     );
 }
 
+#[test]
+fn desktop_verified_conflict_resolution_fixture_semantics() {
+    use skill_zoo_lib::config;
+    use skill_zoo_lib::services::lock::{content_tree_sha, BaselineConflictResolution};
+    let lock: SkillLock = read_fixture_json("lock-v3-legacy-conflicts.json");
+    assert_eq!(lock.version, 3);
+
+    // The fixture's real tree SHAs must match the content the test writes.
+    let content_a = b"---\nname: verified-carrier\ndescription: fixture\n---\ncarrier content\n";
+    let content_b = b"---\nname: verified-mirror\ndescription: fixture\n---\nmirror content\n";
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(tmp.path().join("SKILL.md"), content_a).unwrap();
+    let sha_a = content_tree_sha(tmp.path()).unwrap();
+    fs::write(tmp.path().join("SKILL.md"), content_b).unwrap();
+    let sha_b = content_tree_sha(tmp.path()).unwrap();
+    assert_eq!(
+        sha_a,
+        lock.skills["verified-carrier"]
+            .skill_folder_hash
+            .as_deref()
+            .unwrap()
+    );
+    assert_eq!(
+        sha_b,
+        lock.skills["verified-mirror"]
+            .commit_sha
+            .as_deref()
+            .unwrap()
+    );
+
+    let home = tempfile::tempdir().unwrap();
+    config::with_test_home(home.path(), || {
+        let skills_dir = config::get_agents_skills_dir();
+        for (name, text) in [
+            ("verified-carrier", &content_a[..]),
+            ("verified-mirror", &content_b[..]),
+            ("unverifiable-content", b"---\nname: x\n---\nunrelated\n"),
+        ] {
+            fs::create_dir_all(skills_dir.join(name)).unwrap();
+            fs::write(skills_dir.join(name).join("SKILL.md"), text).unwrap();
+        }
+        lock.write().unwrap();
+        let lock_path = config::get_agent_lock_file();
+
+        // The resolution matrix over fixture shapes.
+        let entry = |name: &str| lock.skills[name].clone();
+        let dir = |name: &str| skills_dir.join(name);
+        assert!(matches!(
+            entry("verified-carrier").baseline_conflict_resolution(&dir("verified-carrier")),
+            BaselineConflictResolution::Verified(_)
+        ));
+        assert!(matches!(
+            entry("verified-mirror").baseline_conflict_resolution(&dir("verified-mirror")),
+            BaselineConflictResolution::Verified(_)
+        ));
+        assert!(matches!(
+            entry("unverifiable-content")
+                .baseline_conflict_resolution(&dir("unverifiable-content")),
+            BaselineConflictResolution::Unverifiable
+        ));
+        assert!(matches!(
+            entry("missing-directory").baseline_conflict_resolution(&dir("missing-directory")),
+            BaselineConflictResolution::Unverifiable
+        ));
+
+        // Applying the verified alignments rewrites exactly the two carrier
+        // fields and preserves everything else, including undeclared fields.
+        let alignments: Vec<(String, String)> = ["verified-carrier", "verified-mirror"]
+            .iter()
+            .map(|name| {
+                (
+                    name.to_string(),
+                    match entry(name).baseline_conflict_resolution(&dir(name)) {
+                        BaselineConflictResolution::Verified(sha) => sha,
+                        _ => unreachable!(),
+                    },
+                )
+            })
+            .collect();
+        SkillLock::apply_verified_alignments(&alignments).unwrap();
+
+        let after: SkillLock = serde_json::from_slice(&fs::read(&lock_path).unwrap()).unwrap();
+        for name in ["verified-carrier", "verified-mirror"] {
+            let e = &after.skills[name];
+            assert_eq!(e.skill_folder_hash, e.commit_sha, "{name} aligned");
+            assert_eq!(
+                e.extra.get("externalNote"),
+                Some(&serde_json::json!({ "keep": true })),
+                "{name} undeclared fields preserved"
+            );
+            assert_eq!(e.installed_at.as_deref(), Some("2025-01-01T00:00:00Z"));
+        }
+        // Unresolvable entries keep their carriers and their conflict.
+        for name in ["unverifiable-content", "missing-directory"] {
+            let e = &after.skills[name];
+            assert!(e.baseline_conflict().is_some(), "{name} still conflicted");
+        }
+        // Top-level shape unchanged; version intact.
+        assert_eq!(after.version, 3);
+    });
+}
+
 fn read_fixture_json<T: serde::de::DeserializeOwned>(name: &str) -> T {
     let content = fs::read_to_string(fixture_path(name)).expect("read fixture");
     serde_json::from_str(&content).expect("parse fixture")

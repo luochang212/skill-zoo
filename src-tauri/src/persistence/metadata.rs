@@ -178,9 +178,9 @@ impl MetadataStore {
                 !protected.contains(*id)
                     && !id.starts_with("agent:")
                     && !id.starts_with("external:")
-                    && !id
+                    && id
                         .strip_prefix("ssot:")
-                        .is_some_and(|directory| metadata_key("ssot", directory, id).is_ok())
+                        .is_none_or(|directory| metadata_key("ssot", directory, id).is_err())
             })
             .cloned()
             .collect();
