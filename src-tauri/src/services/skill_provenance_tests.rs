@@ -764,6 +764,41 @@ fn externally_pinned_conflict_never_gets_aligned() {
 }
 
 #[test]
+fn alignment_skips_entry_changed_since_measurement() {
+    isolated(|| {
+        install("demo", b"---\nname: demo\n---\nold body");
+        // Field shape: carrier stale, mirror the verified local content.
+        let local_sha = write_conflicted_entry_matching_mirror("demo", LEGACY_CARRIER);
+        // Another writer changes the recorded carrier after the resolver read
+        // it; the alignment must not overwrite that write with its old pair.
+        SkillLock::update(|lock| {
+            lock.skills.get_mut("demo").unwrap().skill_folder_hash = Some(LEGACY_MIRROR.into());
+            Ok(())
+        })
+        .unwrap();
+
+        let applied = SkillLock::apply_verified_alignments(&[VerifiedAlignment {
+            lock_key: "demo".into(),
+            carrier: LEGACY_CARRIER.into(),
+            mirror: local_sha.clone(),
+            verified: local_sha.clone(),
+        }])
+        .unwrap();
+        assert!(applied.is_empty());
+
+        let lock = SkillLock::read().unwrap();
+        assert_eq!(
+            lock.skills["demo"].skill_folder_hash.as_deref(),
+            Some(LEGACY_MIRROR)
+        );
+        assert_eq!(
+            lock.skills["demo"].commit_sha.as_deref(),
+            Some(local_sha.as_str())
+        );
+    });
+}
+
+#[test]
 fn alignment_is_idempotent_across_repeated_checks() {
     isolated(|| {
         runtime().block_on(async {

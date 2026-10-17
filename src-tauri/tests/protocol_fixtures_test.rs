@@ -128,7 +128,9 @@ fn test_desktop_classifies_gh_shaped_lock_entries() {
 #[test]
 fn desktop_verified_conflict_resolution_fixture_semantics() {
     use skill_zoo_lib::config;
-    use skill_zoo_lib::services::lock::{content_tree_sha, BaselineConflictResolution};
+    use skill_zoo_lib::services::lock::{
+        content_tree_sha, BaselineConflictResolution, VerifiedAlignment,
+    };
     let lock: SkillLock = read_fixture_json("lock-v3-legacy-conflicts.json");
     assert_eq!(lock.version, 3);
 
@@ -192,19 +194,26 @@ fn desktop_verified_conflict_resolution_fixture_semantics() {
 
         // Applying the verified alignments rewrites exactly the two carrier
         // fields and preserves everything else, including undeclared fields.
-        let alignments: Vec<(String, String)> = ["verified-carrier", "verified-mirror"]
+        let alignments: Vec<VerifiedAlignment> = ["verified-carrier", "verified-mirror"]
             .iter()
             .map(|name| {
-                (
-                    name.to_string(),
-                    match entry(name).baseline_conflict_resolution(&dir(name)) {
+                let conflicted = entry(name);
+                let (carrier, mirror) = conflicted
+                    .baseline_conflict()
+                    .expect("conflicted fixture entry");
+                VerifiedAlignment {
+                    lock_key: name.to_string(),
+                    carrier: carrier.to_string(),
+                    mirror: mirror.to_string(),
+                    verified: match conflicted.baseline_conflict_resolution(&dir(name)) {
                         BaselineConflictResolution::Verified(sha) => sha,
                         _ => unreachable!(),
                     },
-                )
+                }
             })
             .collect();
-        SkillLock::apply_verified_alignments(&alignments).unwrap();
+        let applied = SkillLock::apply_verified_alignments(&alignments).unwrap();
+        assert_eq!(applied.len(), 2);
 
         let after: SkillLock = serde_json::from_slice(&fs::read(&lock_path).unwrap()).unwrap();
         for name in ["verified-carrier", "verified-mirror"] {

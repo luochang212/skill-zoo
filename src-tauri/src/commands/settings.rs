@@ -1,6 +1,8 @@
 use crate::config;
 use crate::services::cli::CliService;
-use crate::services::lock::{BaselineConflictResolution, SkillLock, SkillLockEntry};
+use crate::services::lock::{
+    BaselineConflictResolution, SkillLock, SkillLockEntry, VerifiedAlignment,
+};
 use crate::services::opener::open_directory;
 use crate::services::skill_usage::SkillUsage;
 use crate::services::tray::{
@@ -1304,7 +1306,7 @@ struct CheckTarget {
 /// write succeeds; failures leave the conflict state and never fail the check:
 /// the next check re-verifies and retries.
 fn align_verified_conflicts_in_targets(targets: &mut [CheckTarget]) {
-    let mut alignments: Vec<(usize, String, String)> = Vec::new();
+    let mut alignments: Vec<(usize, VerifiedAlignment)> = Vec::new();
     let skills_dir = config::get_agents_skills_dir();
     for (index, target) in targets.iter().enumerate() {
         let crate::services::lock::LockResolution::Resolved { lock_key, entry } =
@@ -1312,10 +1314,21 @@ fn align_verified_conflicts_in_targets(targets: &mut [CheckTarget]) {
         else {
             continue;
         };
+        let Some((carrier, mirror)) = entry.baseline_conflict() else {
+            continue;
+        };
         let dir = skills_dir.join(&target.install_directory);
         if let BaselineConflictResolution::Verified(sha) = entry.baseline_conflict_resolution(&dir)
         {
-            alignments.push((index, lock_key.clone(), sha));
+            alignments.push((
+                index,
+                VerifiedAlignment {
+                    lock_key: lock_key.clone(),
+                    carrier: carrier.to_string(),
+                    mirror: mirror.to_string(),
+                    verified: sha,
+                },
+            ));
         }
     }
     if alignments.is_empty() {
@@ -1327,22 +1340,25 @@ fn align_verified_conflicts_in_targets(targets: &mut [CheckTarget]) {
         eprintln!("Baseline conflict alignment skipped: agent lease unavailable");
         return;
     };
-    let writes: Vec<(String, String)> = alignments
-        .iter()
-        .map(|(_, lock_key, sha)| (lock_key.clone(), sha.clone()))
-        .collect();
-    if let Err(error) = SkillLock::apply_verified_alignments(&writes) {
-        eprintln!("Baseline conflict alignment write failed: {error}");
-        return;
-    }
-    for (index, _, sha) in alignments {
+    let writes: Vec<VerifiedAlignment> = alignments.iter().map(|(_, a)| a.clone()).collect();
+    let applied = match SkillLock::apply_verified_alignments(&writes) {
+        Ok(applied) => applied,
+        Err(error) => {
+            eprintln!("Baseline conflict alignment write failed: {error}");
+            return;
+        }
+    };
+    for (index, alignment) in alignments {
+        if !applied.contains(&alignment.lock_key) {
+            continue;
+        }
         let crate::services::lock::LockResolution::Resolved { entry, .. } =
             &mut targets[index].resolution
         else {
             continue;
         };
-        entry.skill_folder_hash = Some(sha.clone());
-        entry.commit_sha = Some(sha);
+        entry.skill_folder_hash = Some(alignment.verified.clone());
+        entry.commit_sha = Some(alignment.verified);
     }
 }
 

@@ -5,11 +5,13 @@
 use crate::config;
 use crate::error::{classify_download_error, AppError};
 use crate::services::github;
-use crate::services::lock::{BaselineConflictResolution, SkillLock, SkillLockEntry};
+use crate::services::lock::{
+    BaselineConflictResolution, SkillLock, SkillLockEntry, VerifiedAlignment,
+};
 use crate::services::skill::{is_symlink_or_junction, normalize_repo_skill_path, SkillService};
 use crate::services::skill_provenance::{self, UpdateSnapshot};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use tauri::Emitter;
 
@@ -356,29 +358,40 @@ impl CliService {
         to_update: Vec<PreparedSkillUpdate>,
     ) -> Result<Vec<PreparedSkillUpdate>, AppError> {
         let skills_dir = config::get_agents_skills_dir();
-        let mut alignments: Vec<(String, String)> = Vec::new();
+        let mut alignments: Vec<VerifiedAlignment> = Vec::new();
         for update in &to_update {
-            if update.entry.baseline_conflict().is_none() {
+            let Some((carrier, mirror)) = update.entry.baseline_conflict() else {
                 continue;
-            }
+            };
             let dir = skills_dir.join(&update.install_directory);
             if let BaselineConflictResolution::Verified(sha) =
                 update.entry.baseline_conflict_resolution(&dir)
             {
-                alignments.push((update.lock_key.clone(), sha));
+                alignments.push(VerifiedAlignment {
+                    lock_key: update.lock_key.clone(),
+                    carrier: carrier.to_string(),
+                    mirror: mirror.to_string(),
+                    verified: sha,
+                });
             }
         }
         if alignments.is_empty() {
             return Ok(to_update);
         }
-        SkillLock::apply_verified_alignments(&alignments)?;
-        let verified: HashMap<String, String> = alignments.into_iter().collect();
+        let applied: HashSet<String> = SkillLock::apply_verified_alignments(&alignments)?
+            .into_iter()
+            .collect();
+        let verified: HashMap<&str, &str> = alignments
+            .iter()
+            .filter(|alignment| applied.contains(&alignment.lock_key))
+            .map(|alignment| (alignment.lock_key.as_str(), alignment.verified.as_str()))
+            .collect();
         Ok(to_update
             .into_iter()
             .map(|mut update| {
-                if let Some(sha) = verified.get(&update.lock_key) {
-                    update.entry.skill_folder_hash = Some(sha.clone());
-                    update.entry.commit_sha = Some(sha.clone());
+                if let Some(sha) = verified.get(update.lock_key.as_str()) {
+                    update.entry.skill_folder_hash = Some((*sha).to_string());
+                    update.entry.commit_sha = Some((*sha).to_string());
                 }
                 update
             })

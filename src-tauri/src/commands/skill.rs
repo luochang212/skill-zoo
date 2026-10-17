@@ -10,7 +10,9 @@ use crate::persistence::{
 };
 use crate::services::cli::{CliService, KnownSkillUpdate};
 use crate::services::github;
-use crate::services::lock::{BaselineConflictResolution, SkillLock, SUPPORTED_LOCK_VERSION};
+use crate::services::lock::{
+    BaselineConflictResolution, SkillLock, VerifiedAlignment, SUPPORTED_LOCK_VERSION,
+};
 use crate::services::opener::open_directory;
 use crate::services::skill::{
     is_symlink_or_junction, DiscoverableSkill, InstalledSkill, ManagedSkill, RepoSkillsResult,
@@ -975,7 +977,10 @@ pub(crate) async fn update_skill_inner(
             repo: None,
         });
     }
-    if lock_entry.baseline_conflict().is_some() {
+    let conflict = lock_entry
+        .baseline_conflict()
+        .map(|(carrier, mirror)| (carrier.to_string(), mirror.to_string()));
+    if let Some((carrier, mirror)) = conflict {
         // Verified conflict resolution (docs/local-protocol.md): a conflicted
         // entry whose installed content's tree SHA equals exactly one recorded
         // carrier is aligned to that measured value before the conflict refusal,
@@ -985,10 +990,17 @@ pub(crate) async fn update_skill_inner(
         if let BaselineConflictResolution::Verified(sha) =
             lock_entry.baseline_conflict_resolution(&dir)
         {
-            SkillLock::apply_verified_alignments(&[(lock_key.clone(), sha.clone())])
-                .map_err(CommandError::from)?;
-            lock_entry.skill_folder_hash = Some(sha.clone());
-            lock_entry.commit_sha = Some(sha);
+            let applied = SkillLock::apply_verified_alignments(&[VerifiedAlignment {
+                lock_key: lock_key.clone(),
+                carrier,
+                mirror,
+                verified: sha.clone(),
+            }])
+            .map_err(CommandError::from)?;
+            if applied.contains(&lock_key) {
+                lock_entry.skill_folder_hash = Some(sha.clone());
+                lock_entry.commit_sha = Some(sha);
+            }
         }
     }
     if let Some((carrier, mirror)) = lock_entry.baseline_conflict() {
@@ -1370,7 +1382,10 @@ fn checked_update_entries_from_lock(
             ));
             continue;
         }
-        if entry.baseline_conflict().is_some() {
+        let conflict = entry
+            .baseline_conflict()
+            .map(|(carrier, mirror)| (carrier.to_string(), mirror.to_string()));
+        if let Some((carrier, mirror)) = conflict {
             // Verified conflict resolution (docs/local-protocol.md): a
             // conflicted entry whose installed content matches exactly one
             // recorded carrier is aligned before the state comparison, so the
@@ -1380,11 +1395,17 @@ fn checked_update_entries_from_lock(
             if let BaselineConflictResolution::Verified(sha) =
                 entry.baseline_conflict_resolution(&dir)
             {
-                match SkillLock::apply_verified_alignments(&[(lock_key.clone(), sha.clone())]) {
-                    Ok(()) => {
+                match SkillLock::apply_verified_alignments(&[VerifiedAlignment {
+                    lock_key: lock_key.clone(),
+                    carrier,
+                    mirror,
+                    verified: sha.clone(),
+                }]) {
+                    Ok(applied) if applied.contains(&lock_key) => {
                         entry.skill_folder_hash = Some(sha.clone());
                         entry.commit_sha = Some(sha);
                     }
+                    Ok(_) => {}
                     Err(error) => {
                         errors.push(format!("{}: {error}", checked.skill_name));
                         continue;

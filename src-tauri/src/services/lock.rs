@@ -2,6 +2,7 @@ use crate::config;
 use crate::error::AppError;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::io::Read;
 use std::path::Path;
 use std::sync::Mutex;
 
@@ -345,20 +346,39 @@ impl SkillLock {
     /// Apply verified baseline-conflict alignments in one lock write: both
     /// carrier fields of each listed entry are set to the verified value and
     /// no other field is touched (docs/local-protocol.md, verified-conflict
-    /// resolution). Callers must already hold the agent lease when this can
-    /// race a CLI writer.
-    pub fn apply_verified_alignments(alignments: &[(String, String)]) -> Result<(), AppError> {
+    /// resolution). An entry is written only while it still carries the two
+    /// values the resolver measured, so an external writer's update in between
+    /// is not clobbered. Returns the keys whose entry now carries the verified
+    /// value (written or already converged). Callers must already hold the
+    /// agent lease when this can race a CLI writer.
+    pub fn apply_verified_alignments(
+        alignments: &[VerifiedAlignment],
+    ) -> Result<Vec<String>, AppError> {
         if alignments.is_empty() {
-            return Ok(());
+            return Ok(Vec::new());
         }
         Self::update(|lock| {
-            for (lock_key, sha) in alignments {
-                if let Some(entry) = lock.skills.get_mut(lock_key) {
-                    entry.skill_folder_hash = Some(sha.clone());
-                    entry.commit_sha = Some(sha.clone());
+            let mut applied = Vec::new();
+            for alignment in alignments {
+                let Some(entry) = lock.skills.get_mut(&alignment.lock_key) else {
+                    continue;
+                };
+                if entry.skill_folder_hash.as_deref() == Some(alignment.verified.as_str())
+                    && entry.commit_sha.as_deref() == Some(alignment.verified.as_str())
+                {
+                    applied.push(alignment.lock_key.clone());
+                    continue;
                 }
+                if entry.baseline_conflict()
+                    != Some((alignment.carrier.as_str(), alignment.mirror.as_str()))
+                {
+                    continue;
+                }
+                entry.skill_folder_hash = Some(alignment.verified.clone());
+                entry.commit_sha = Some(alignment.verified.clone());
+                applied.push(alignment.lock_key.clone());
             }
-            Ok(())
+            Ok(applied)
         })
     }
 }
@@ -474,6 +494,18 @@ pub enum BaselineConflictResolution {
     Unverifiable,
 }
 
+/// One pending verified-conflict alignment. `carrier` and `mirror` are the
+/// recorded values the resolver measured; the write is skipped if the entry no
+/// longer carries both, so a concurrent external writer's update is not
+/// clobbered (docs/local-protocol.md, verified-conflict resolution).
+#[derive(Debug, Clone, PartialEq)]
+pub struct VerifiedAlignment {
+    pub lock_key: String,
+    pub carrier: String,
+    pub mirror: String,
+    pub verified: String,
+}
+
 /// Compute the git tree SHA of a directory's content, reproducing the object
 /// convention the recorded baselines use (git object hashing: `blob`/`tree`
 /// SHA-1 over `"{type} {length}\0{content}"`, tree entries sorted with
@@ -510,13 +542,19 @@ fn dir_tree_sha(directory: &Path) -> Result<Option<[u8; 20]>, AppError> {
                 Some(sha) => ("40000", sha, true),
                 None => continue,
             }
-        } else {
-            let bytes = std::fs::read(entry.path())?;
+        } else if file_type.is_file() {
             (
                 file_mode(&entry.metadata()?),
-                object_sha_raw(b"blob", &bytes),
+                file_blob_sha(&entry.path())?,
                 false,
             )
+        } else {
+            // Git can only represent regular files, symlinks and trees.
+            // Anything else means this is not a faithful tree copy.
+            return Err(AppError::BadRequest(format!(
+                "Unsupported filesystem entry in {}: {name}",
+                directory.display()
+            )));
         };
         // Git tree sort compares directory names as if suffixed with '/'.
         let mut sort_key = name.clone().into_bytes();
@@ -551,6 +589,45 @@ fn object_sha_raw(kind: &[u8], content: &[u8]) -> [u8; 20] {
     let mut out = [0u8; 20];
     out.copy_from_slice(&hash);
     out
+}
+
+/// SHA-1 of a regular file as a git blob, streamed so a large skill asset is
+/// never buffered whole. Reads exactly the opened file's length; a file that
+/// shrinks mid-read is unverifiable rather than silently truncated.
+fn file_blob_sha(path: &Path) -> Result<[u8; 20], AppError> {
+    use sha1::{Digest, Sha1};
+
+    let mut file = std::fs::File::open(path)?;
+    let metadata = file.metadata()?;
+    if !metadata.is_file() {
+        return Err(AppError::BadRequest(format!(
+            "Not a regular file: {}",
+            path.display()
+        )));
+    }
+    let len = metadata.len();
+    let mut hasher = Sha1::new();
+    hasher.update(b"blob ");
+    hasher.update(len.to_string().as_bytes());
+    hasher.update(b"\0");
+    let mut buffer = [0u8; 64 * 1024];
+    let mut remaining = len;
+    while remaining > 0 {
+        let chunk = remaining.min(buffer.len() as u64) as usize;
+        let read = file.read(&mut buffer[..chunk])?;
+        if read == 0 {
+            return Err(AppError::Io(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                format!("File shrank while hashing: {}", path.display()),
+            )));
+        }
+        hasher.update(&buffer[..read]);
+        remaining -= read as u64;
+    }
+    let hash = hasher.finalize();
+    let mut out = [0u8; 20];
+    out.copy_from_slice(&hash);
+    Ok(out)
 }
 
 fn hex_sha(bytes: &[u8]) -> String {
@@ -701,8 +778,12 @@ mod tests {
             std::fs::set_permissions(root.join("exec.sh"), std::fs::Permissions::from_mode(0o755))
                 .unwrap();
             std::os::unix::fs::symlink("SKILL.md", root.join("link.md")).unwrap();
+            // A symlink to a directory is still a symlink object, not a tree.
+            std::os::unix::fs::symlink("nested", root.join("link-dir")).unwrap();
         }
         std::fs::write(root.join("with space.md"), b"spaces in names\n").unwrap();
+        // Empty files exercise the zero-length blob header.
+        std::fs::write(root.join("empty.txt"), b"").unwrap();
         // Binary content exercises the length-prefixed object header.
         let binary: Vec<u8> = (0..=255u8).cycle().take(1000).collect();
         std::fs::write(root.join("blob.bin"), &binary).unwrap();
@@ -818,5 +899,24 @@ mod tests {
             content_tree_sha(temp.path()).unwrap(),
             "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
         );
+    }
+
+    /// Git can only represent regular files, symlinks and trees. Anything else
+    /// means the directory is not a faithful tree copy and must be unverifiable
+    /// rather than read (a FIFO would otherwise block forever).
+    #[cfg(unix)]
+    #[test]
+    fn non_regular_files_are_unverifiable() {
+        let temp = tempfile::tempdir().unwrap();
+        let fifo = temp.path().join("pipe");
+        let Ok(created) = std::process::Command::new("mkfifo").arg(&fifo).status() else {
+            eprintln!("mkfifo not available; skipping non-regular-file test");
+            return;
+        };
+        if !created.success() {
+            eprintln!("mkfifo failed; skipping non-regular-file test");
+            return;
+        }
+        assert!(content_tree_sha(temp.path()).is_err());
     }
 }
