@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.56-beta.1] — 2026-10-18
+
+### Added
+- Update status now names externally pinned skills and skills whose GitHub tracking information cannot be verified, with explicit labels and guidance instead of a generic issue.
+
+### Changed
+- Update checks no longer refresh baselines from network data; the only baseline write during a check is a verified repair of a legacy conflict.
+- Baseline records written by external tools survive later Skill Zoo updates, and legacy entries whose two baseline fields disagree are repaired when the installed files match exactly one recorded tree.
+- Updates, deletion, archive and Check resolve an installation by its physical directory and original lock key, keeping namespace keys and nested layouts consistent.
+- Starred and "my skills" marks stay attached to the installation directory when a skill's source changes or its lock entry is removed.
+
+### Fixed
+- Updates that would strip gh-injected tracking metadata are refused before any network work, leaving the installed files and lock entry unchanged.
+- Legacy baseline conflicts no longer block every update: verified local content aligns the two records, while pinned, missing-directory and content-mismatch cases keep the explicit conflict state.
+- Checks stream large skill files and re-check the entry before writing a repair, so a concurrent external tool's update is not overwritten.
+
 ## [0.3.55] — 2026-10-18
 
 ### Changed
