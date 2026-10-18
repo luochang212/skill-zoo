@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.56-beta.2] — 2026-10-18
+
+### Fixed
+- Build fix: installation matching now uses platform-safe path components instead of splitting on a forward slash (no behavior change for protocol-normalized paths).
+
 ## [0.3.56-beta.1] — 2026-10-18
 
 ### Added
