@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.56-beta.3] — 2026-10-18
+
+### Fixed
+- Build fix: the backend CI job now installs Bun before running the Rust tests that exercise the cross-surface CLI.
+
 ## [0.3.56-beta.2] — 2026-10-18
 
 ### Fixed
