@@ -54,6 +54,18 @@ digraph when_release {
 | Check uncommitted changes | `git status --short` |
 | Tag and push | `git push origin main && git tag v<VERSION> && git push origin v<VERSION>` |
 
+## Prerelease (beta / rc)
+
+Prerelease tags use `vX.Y.Z-beta.N` or `vX.Y.Z-rc.N` and may be cut from a branch instead of `main`:
+
+```bash
+git push origin <branch>
+git tag vX.Y.Z-beta.1
+git push origin vX.Y.Z-beta.1
+```
+
+The tag must still match `package.json`, `src-tauri/Cargo.toml` and a `## [X.Y.Z-beta.1]` CHANGELOG section. CI marks the GitHub release as a prerelease and skips the stable side effects: `docs/version.json` and the Homebrew cask are not updated. GitHub excludes prereleases from `/releases/latest`, so stable clients are not offered the build. Testers install the assets manually. Promote by merging the branch, bumping to the stable version, adding the stable CHANGELOG section, and tagging `vX.Y.Z`.
+
 ## Core Pattern
 
 All file changes (CHANGELOG, Cargo.toml, Cargo.lock, package.json) are made and committed together in a single commit. Do not commit after each step. (`docs/version.json` is updated by CI post-release.)
@@ -135,6 +147,8 @@ git tag v0.1.2
 git push origin v0.1.2
 ```
 
+For a prerelease, push its branch instead of `main` and use the prerelease tag form above.
+
 Once the tag push succeeds, the release has been triggered. Report the pushed tag and commit, and stop without polling GitHub Actions unless the user asked to wait or monitor the release.
 
 ### 7. CI Jobs (triggered by `v*` tag)
@@ -143,8 +157,10 @@ Once the tag push succeeds, the release has been triggered. Report the pushed ta
 |---|---|
 | **validate-release** | Verifies the tag matches package versions and the changelog before expensive builds start |
 | **build** | Builds every platform and refuses to upload an incomplete installer/updater artifact set |
-| **create-release** | Creates or refreshes the GitHub Release, uploads all artifacts, then updates `docs/version.json` |
-| **update-homebrew** | Runs after the GitHub Release exists, computes the DMG SHA256, and updates the cask |
+| **create-release** | Creates or refreshes the GitHub Release, uploads all artifacts, then updates `docs/version.json` (stable tags only) |
+| **update-homebrew** | Runs after the GitHub Release exists, computes the DMG SHA256, and updates the cask (stable tags only) |
+
+Prerelease tags (`-beta.N` / `-rc.N`) are marked as GitHub prereleases and skip `docs/version.json` and Homebrew; `/releases/latest` does not serve them.
 
 `docs/version.json` is updated by CI after `create-release` succeeds — never manually. This ensures the download website only points to published artifacts.
 
