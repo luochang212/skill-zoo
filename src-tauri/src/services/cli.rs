@@ -1425,7 +1425,10 @@ impl CliService {
                 .map(|(_, _, path)| path);
         }
 
-        let leaf = name.rsplit('/').next().unwrap_or(name);
+        let leaf = Path::new(name)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or(name);
         let mut matches = discovered
             .iter()
             .filter(|(discovered_name, _, _)| discovered_name == leaf);

@@ -210,7 +210,10 @@ fn candidate(target: &Installation, key: &str, entry: &SkillLockEntry) -> bool {
     if target.origin == "external" {
         return false;
     }
-    let leaf = target.install_directory.rsplit('/').next().unwrap_or("");
+    let leaf = Path::new(&target.install_directory)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("");
     let traditional = target.origin == "ssot" && (key == target.install_directory || key == leaf);
     traditional
         || (key.contains('/')
@@ -218,7 +221,7 @@ fn candidate(target: &Installation, key: &str, entry: &SkillLockEntry) -> bool {
                 .split('/')
                 .all(|p| !p.is_empty() && p != "." && p != "..")
             && !key.contains('\\')
-            && key.rsplit('/').next() == Some(leaf)
+            && Path::new(key).file_name().and_then(|name| name.to_str()) == Some(leaf)
             && corroborates(target, entry) == Some(true))
         || (target.origin == "agent"
             && (key == target.install_directory || key == leaf)
