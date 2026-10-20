@@ -1186,6 +1186,8 @@ impl CliService {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn install_lock_update_preserves_fixture_optional_fields() {
         let tmp = tempfile::tempdir().unwrap();
@@ -1218,8 +1220,6 @@ mod tests {
             );
         });
     }
-
-    use super::*;
 
     #[tokio::test]
     async fn tree_forbidden_responses_only_stop_batches_when_quota_is_zero() {
