@@ -103,3 +103,41 @@ describe("useEditorState save revision", () => {
     expect(result.current.open).toBe(true);
   });
 });
+
+it.each(["ssot:A", "ssot:B"])(
+  "ignores a closed session save after reopening %s",
+  async (reopenedId) => {
+    let finish!: () => void;
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+      if (cmd === "get_installed_skills") return [];
+      if (cmd === "read_skill_text")
+        return (args as { skillId: string }).skillId === "ssot:A" ? "original A" : "original B";
+      if (cmd === "write_skill_text")
+        return new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+      return null;
+    });
+    const { wrapper } = createQueryWrapper();
+    const { result } = renderHook(useEditorState, { wrapper });
+    act(() => result.current.openEditor("ssot:A", "A", "A"));
+    await waitFor(() => expect(result.current.localContent).toBe("original A"));
+    act(() => result.current.updateContent("shared draft text"));
+    act(() => result.current.save());
+    await waitFor(() => expect(result.current.savePending).toBe(true));
+    // App's discard-confirm permits closing while a save remains in flight.
+    act(() => result.current.closeEditor());
+    act(() => result.current.openEditor(reopenedId, "B", "B"));
+    await waitFor(() =>
+      expect(result.current.localContent).toBe(
+        reopenedId === "ssot:A" ? "original A" : "original B",
+      ),
+    );
+    act(() => result.current.updateContent("shared draft text"));
+    await act(async () => finish());
+    await waitFor(() => expect(result.current.savePending).toBe(false));
+    expect(result.current.skillId).toBe(reopenedId);
+    expect(result.current.dirty).toBe(true);
+    expect(result.current.localContent).toBe("shared draft text");
+  },
+);

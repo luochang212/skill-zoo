@@ -332,7 +332,8 @@ export function useSaveSkillFileContent() {
   return useMutation({
     mutationFn: ({ skillId, path, content }: { skillId: string; path: string; content: string }) =>
       skillsApi.writeSkillText(skillId, path, content),
-    onSuccess: (_, { skillId, path }) => {
+    onSuccess: (_, { skillId, path, content }) => {
+      qc.setQueryData(["skills", "file", skillId, path], content);
       qc.invalidateQueries({ queryKey: ["skills", "file", skillId, path] });
       invalidateFor(qc, "saveSkillFileContent");
     },
