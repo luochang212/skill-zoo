@@ -679,11 +679,10 @@ impl SkillService {
     /// Replace the in-memory metadata with the disk state so refreshes observe
     /// user marks committed by the CLI after this desktop session started.
     fn reload_metadata(metadata: &RwLock<MetadataStore>) -> Result<(), AppError> {
-        let fresh = MetadataStore::load()?;
         let mut m = metadata
             .write()
             .map_err(|e| AppError::Parse(format!("Metadata lock: {e}")))?;
-        *m = fresh;
+        *m = MetadataStore::load()?;
         Ok(())
     }
 
@@ -2180,6 +2179,7 @@ impl SkillService {
                 .home_path
                 .as_deref()
                 .ok_or_else(|| AppError::BadRequest("Cannot verify merge source".into()))?;
+            Self::ensure_merge_source_has_no_links(std::path::Path::new(home))?;
             if !std::path::Path::new(home).join("SKILL.md").is_file()
                 || Self::compute_content_hash(home).as_ref() != Some(&expected_hash)
             {
@@ -2204,19 +2204,22 @@ impl SkillService {
         let created_dest = !dest_dir.exists();
         if created_dest {
             std::fs::create_dir_all(&ssot_dir).map_err(|e| crate::error::io(&ssot_dir, e))?;
-            Self::copy_dir_recursive(std::path::Path::new(source_path), &dest_dir)?;
+            if let Err(error) =
+                Self::copy_dir_recursive(std::path::Path::new(source_path), &dest_dir)
+            {
+                let _ = std::fs::remove_dir_all(&dest_dir);
+                return Err(error);
+            }
         }
         if Self::compute_content_hash(&dest_dir.to_string_lossy()).as_ref() != Some(&expected_hash)
         {
-            // The copy skips symlinked files while the hash counts them, so a
-            // skill containing symlinked files can never verify. Roll back the
-            // partial destination: leaving it behind would make the next merge
-            // fail as "already occupied" with no way to recover from the UI.
+            // A source may have changed after validation. Keep the originals
+            // and remove only the destination this operation created.
             if created_dest {
                 let _ = std::fs::remove_dir_all(&dest_dir);
             }
             return Err(AppError::BadRequest(
-                "Cannot verify merge destination: skills containing symlinked files cannot be merged".into(),
+                "Cannot verify merge destination; originals were preserved".into(),
             ));
         }
 
@@ -2286,6 +2289,22 @@ impl SkillService {
         Ok(())
     }
 
+    fn ensure_merge_source_has_no_links(path: &std::path::Path) -> Result<(), AppError> {
+        if is_symlink_or_junction(path) {
+            return Err(AppError::BadRequest(
+                "Cannot merge skills containing symbolic links; originals were preserved".into(),
+            ));
+        }
+        for entry in std::fs::read_dir(path).map_err(|e| crate::error::io(path, e))? {
+            let entry = entry.map_err(|e| crate::error::io(path, e))?;
+            let child = entry.path();
+            if is_symlink_or_junction(&child) || child.is_dir() {
+                Self::ensure_merge_source_has_no_links(&child)?;
+            }
+        }
+        Ok(())
+    }
+
     fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<(), AppError> {
         if !dst.exists() {
             std::fs::create_dir_all(dst).map_err(|e| crate::error::io(dst, e))?;
@@ -2295,7 +2314,10 @@ impl SkillService {
             let src_path = entry.path();
             let dst_path = dst.join(entry.file_name());
             if is_symlink_or_junction(&src_path) {
-                continue;
+                return Err(AppError::BadRequest(
+                    "Merge source changed to contain symbolic links; originals were preserved"
+                        .into(),
+                ));
             }
             if src_path.is_dir() {
                 Self::copy_dir_recursive(&src_path, &dst_path)?;

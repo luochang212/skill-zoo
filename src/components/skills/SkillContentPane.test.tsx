@@ -1,6 +1,6 @@
 import "@/i18n";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@tauri-apps/api/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -166,7 +166,7 @@ describe("SkillContentPane auxiliary drafts", () => {
     await user.type(editor, "saved text");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
-    await waitFor(() => expect(onUnsavedDraftsChange).toHaveBeenCalledWith(false));
+    await waitFor(() => expect(onUnsavedDraftsChange).toHaveBeenLastCalledWith(false));
   });
 });
 
@@ -193,5 +193,123 @@ describe("SkillContentPane collapsed sidebar focus", () => {
     // browser contract (Safari 16.4 floor supports it) that removes the
     // collapsed tree from the tab order — the review found it missing.
     expect(paneContainer).toHaveAttribute("inert");
+  });
+});
+
+function setupIdentityPane() {
+  const client = createTestQueryClient();
+  const report = vi.fn();
+  const pane = (id: string) => (
+    <QueryClientProvider client={client}>
+      <SkillContentPane
+        content=""
+        onChange={() => {}}
+        activeTab="edit"
+        onTabChange={() => {}}
+        directory="demo"
+        skillId={id}
+        onUnsavedDraftsChange={report}
+      />
+    </QueryClientProvider>
+  );
+  const view = render(pane("agent:claude:demo"));
+  return { ...view, report, switchSkill: () => view.rerender(pane("agent:codex:demo")) };
+}
+
+describe("SkillContentPane draft identity and saved baseline", () => {
+  beforeEach(() => {
+    vi.mocked(invoke).mockReset();
+    vi.mocked(invoke).mockImplementation((cmd) => {
+      if (cmd === "list_skill_files") return Promise.resolve(mockFileNodes);
+      if (cmd === "read_skill_text") return Promise.resolve("original readme");
+      return Promise.resolve(null);
+    });
+  });
+
+  it("clears the unsaved report when edits return to the saved text", async () => {
+    const user = userEvent.setup();
+    const { report } = setupIdentityPane();
+    await user.click(await screen.findByRole("button", { name: "README.md" }));
+    const editor = screen.getByLabelText("Edit");
+    await waitFor(() => expect(editor).toHaveValue("original readme"));
+    await user.type(editor, "x");
+    expect(report).toHaveBeenLastCalledWith(true);
+    await user.keyboard("{Backspace}");
+    expect(editor).toHaveValue("original readme");
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    expect(report).toHaveBeenLastCalledWith(false);
+  });
+
+  it("discards old drafts when switching between skills sharing directory names", async () => {
+    const user = userEvent.setup();
+    const { switchSkill, report } = setupIdentityPane();
+    await user.click(await screen.findByRole("button", { name: "README.md" }));
+    const editor = screen.getByLabelText("Edit");
+    await waitFor(() => expect(editor).toHaveValue("original readme"));
+    await user.clear(editor);
+    await user.type(editor, "old skill draft");
+    switchSkill();
+    await user.click(await screen.findByRole("button", { name: "README.md" }));
+    await waitFor(() => expect(screen.getByLabelText("Edit")).toHaveValue("original readme"));
+    expect(report).toHaveBeenLastCalledWith(false);
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+  });
+
+  it("does not let an old skill's save clear a new skill's identical draft", async () => {
+    let finish!: () => void;
+    vi.mocked(invoke).mockImplementation((cmd) => {
+      if (cmd === "list_skill_files") return Promise.resolve(mockFileNodes);
+      if (cmd === "read_skill_text") return Promise.resolve("original readme");
+      if (cmd === "write_skill_text")
+        return new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+      return Promise.resolve(null);
+    });
+    const user = userEvent.setup();
+    const { switchSkill, report } = setupIdentityPane();
+    await user.click(await screen.findByRole("button", { name: "README.md" }));
+    await waitFor(() => expect(screen.getByLabelText("Edit")).toHaveValue("original readme"));
+    await user.clear(screen.getByLabelText("Edit"));
+    await user.type(screen.getByLabelText("Edit"), "shared draft");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    switchSkill();
+    await user.click(await screen.findByRole("button", { name: "README.md" }));
+    await user.clear(screen.getByLabelText("Edit"));
+    await user.type(screen.getByLabelText("Edit"), "shared draft");
+    await act(async () => finish());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeEnabled());
+    expect(screen.getByLabelText("Edit")).toHaveValue("shared draft");
+    expect(report).toHaveBeenLastCalledWith(true);
+  });
+  it("keeps a revert to the old disk text when an in-flight save changes the baseline", async () => {
+    let disk = "original readme";
+    let finish!: () => void;
+    vi.mocked(invoke).mockImplementation((cmd, args) => {
+      if (cmd === "list_skill_files") return Promise.resolve(mockFileNodes);
+      if (cmd === "read_skill_text") return Promise.resolve(disk);
+      if (cmd === "write_skill_text")
+        return new Promise<void>((resolve) => {
+          finish = () => {
+            disk = (args as { content: string }).content;
+            resolve();
+          };
+        });
+      return Promise.resolve(null);
+    });
+    const user = userEvent.setup();
+    const { report } = setupIdentityPane();
+    await user.click(await screen.findByRole("button", { name: "README.md" }));
+    await waitFor(() => expect(screen.getByLabelText("Edit")).toHaveValue(disk));
+    await user.clear(screen.getByLabelText("Edit"));
+    await user.type(screen.getByLabelText("Edit"), "submitted readme");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.clear(screen.getByLabelText("Edit"));
+    await user.type(screen.getByLabelText("Edit"), "original readme");
+    await act(async () => finish());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeEnabled());
+    expect(disk).toBe("submitted readme");
+    expect(screen.getByLabelText("Edit")).toHaveValue("original readme");
+    expect(report).toHaveBeenLastCalledWith(true);
   });
 });

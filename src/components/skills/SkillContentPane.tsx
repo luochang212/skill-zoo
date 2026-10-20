@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, memo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, memo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { MarkdownContent } from "@/components/skills/MarkdownContent";
@@ -186,6 +186,7 @@ export const SkillContentPane = memo(function SkillContentPane({
   // One draft per auxiliary file: switching files must never discard edits
   // made in another file.
   const [fileDrafts, setFileDrafts] = useState<Record<string, string>>({});
+  const sessionRef = useRef(0);
   const fileDraft = selectedFilePath !== null ? (fileDrafts[selectedFilePath] ?? null) : null;
   const [nodes, setNodes] = useState<SkillFileNode[]>([]);
   const [loadingDirPaths, setLoadingDirPaths] = useState<Set<string>>(() => new Set());
@@ -210,7 +211,8 @@ export const SkillContentPane = memo(function SkillContentPane({
   const isImageActive = isImageFile(selectedNode);
 
   // ── Reset lazy tree when switching skills ──
-  useEffect(() => {
+  useLayoutEffect(() => {
+    sessionRef.current += 1;
     setNodes([]);
     setSelectedFilePath(null);
     setFileDrafts({});
@@ -218,7 +220,7 @@ export const SkillContentPane = memo(function SkillContentPane({
     setLoadingDirPaths(new Set());
     setErrorDirPaths(new Set());
     setSidebarOpen(!fileTreeDisabled);
-  }, [directory, fileTreeDisabled]);
+  }, [skillId, directory, fileTreeDisabled]);
 
   // ── Seed root nodes and auto-select SKILL.md ──
   useEffect(() => {
@@ -288,7 +290,17 @@ export const SkillContentPane = memo(function SkillContentPane({
       ? onChange
       : (v: string) => {
           if (selectedFilePath !== null) {
-            setFileDrafts((prev) => ({ ...prev, [selectedFilePath]: v }));
+            setFileDrafts((prev) => {
+              const savingThisFile =
+                saveFileMutation.isPending &&
+                saveFileMutation.variables.skillId === skillId &&
+                saveFileMutation.variables.path === selectedFilePath;
+              if (v === fileData && !savingThisFile) {
+                const { [selectedFilePath]: _reverted, ...rest } = prev;
+                return rest;
+              }
+              return { ...prev, [selectedFilePath]: v };
+            });
           }
         };
   const isDirty = !isSkillMdActive && fileDraft !== null && fileDraft !== fileData;
@@ -297,10 +309,12 @@ export const SkillContentPane = memo(function SkillContentPane({
     if (!skillId || !selectedFilePath || !isDirty || saveFileMutation.isPending) return;
     const submittedPath = selectedFilePath;
     const submittedContent = fileDraft!;
+    const submittedSession = sessionRef.current;
     saveFileMutation.mutate(
       { skillId, path: submittedPath, content: submittedContent },
       {
         onSuccess: () => {
+          if (sessionRef.current !== submittedSession) return;
           // Only confirm the submitted revision; keep newer edits typed
           // while the save was in flight.
           setFileDrafts((prev) => {
@@ -317,6 +331,7 @@ export const SkillContentPane = memo(function SkillContentPane({
     async (node: SkillFileNode) => {
       if (!directory || fileTreeDisabled || !node.isDir || node.children) return;
       if (loadingDirPathsRef.current.has(node.path)) return;
+      const session = sessionRef.current;
 
       loadingDirPathsRef.current = new Set(loadingDirPathsRef.current).add(node.path);
       setLoadingDirPaths(loadingDirPathsRef.current);
@@ -333,6 +348,7 @@ export const SkillContentPane = memo(function SkillContentPane({
           queryFn: () => skillsApi.listSkillFiles(skillId!, node.path),
           staleTime: 30 * 1000,
         });
+        if (sessionRef.current !== session) return;
         setNodes((current) => setNodeChildren(current, node.path, children));
         setErrorDirPaths((current) => {
           const next = new Set(current);
@@ -340,12 +356,15 @@ export const SkillContentPane = memo(function SkillContentPane({
           return next;
         });
       } catch {
+        if (sessionRef.current !== session) return;
         setErrorDirPaths((current) => new Set(current).add(node.path));
       } finally {
-        const next = new Set(loadingDirPathsRef.current);
-        next.delete(node.path);
-        loadingDirPathsRef.current = next;
-        setLoadingDirPaths(next);
+        if (sessionRef.current === session) {
+          const next = new Set(loadingDirPathsRef.current);
+          next.delete(node.path);
+          loadingDirPathsRef.current = next;
+          setLoadingDirPaths(next);
+        }
       }
     },
     [directory, skillId, queryClient, fileTreeDisabled],

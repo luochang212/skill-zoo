@@ -1028,6 +1028,11 @@ impl CliService {
             for (name, skill_path) in skills {
                 let existing_installed_at =
                     lock.skills.get(name).and_then(|e| e.installed_at.clone());
+                let extra = lock
+                    .skills
+                    .get(name)
+                    .map(|e| e.extra.clone())
+                    .unwrap_or_default();
                 // Prefer freshly fetched folder SHA; fall back to existing lock entry
                 let commit_sha = folder_shas
                     .get(name)
@@ -1037,7 +1042,7 @@ impl CliService {
                 lock.skills.insert(
                     name.clone(),
                     SkillLockEntry {
-                        extra: Default::default(),
+                        extra,
                         source: Some(source.clone()),
                         source_type: Some("github".into()),
                         source_url: Some(source_url.clone()),
@@ -1181,6 +1186,39 @@ impl CliService {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn install_lock_update_preserves_fixture_optional_fields() {
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            let path = config::get_agent_lock_file();
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            let fixture = include_str!("../../../fixtures/local-protocol/lock-v3-full.json");
+            std::fs::write(&path, fixture).unwrap();
+            CliService::update_lock_after_install(
+                &[("demo".into(), "skills/new-demo".into())],
+                "new-owner",
+                "new-repo",
+                Some("release"),
+                &Default::default(),
+            )
+            .unwrap();
+            let updated = SkillLock::read().unwrap();
+            assert_eq!(updated.extra.get("futureTop").unwrap(), "keep-me");
+            assert_eq!(
+                updated.skills["demo"].extra.get("futureOptional").unwrap(),
+                "keep-me"
+            );
+            assert_eq!(
+                updated.skills["demo"].skill_path.as_deref(),
+                Some("skills/new-demo")
+            );
+            assert_eq!(
+                updated.skills["demo"].source.as_deref(),
+                Some("new-owner/new-repo")
+            );
+        });
+    }
+
     use super::*;
 
     #[tokio::test]

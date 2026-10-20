@@ -147,6 +147,10 @@ Archived records and other persisted references to absent custom agents MUST rem
 - **WHEN** CLI 更新磁盘元数据后桌面触发缓存刷新
 - **THEN** 刷新从磁盘重载元数据，界面呈现 CLI 提交的用户标记
 
+#### Scenario: 刷新与写入交错
+- **WHEN** 元数据写者在锁内修改并保存，刷新同时等待该锁
+- **THEN** 刷新读取锁内写入完成后的磁盘状态，不把旧快照替换回内存；批量元数据变更与持久化期间不被刷新插入
+
 ### Requirement: 重复合并不丢失用户标记与原件
 
 重复合并到 SSOT 时，写入方 MUST 先验证合并目标可用（目标为可验证的同一内容技能或不存在），并验证各源内容后才能删除原件；目标不可用时 MUST 拒绝合并且不删除任何原件。写入方自己创建的合并目标在校验失败时 MUST 清理，不得留下占用同名路径的半成品，使后续合并仍可重试。合并写入用户元数据时 MUST 先移除旧身份键再写入合并后键，使键重合时标记不丢失。
@@ -160,8 +164,12 @@ Archived records and other persisted references to absent custom agents MUST rem
 - **THEN** 合并失败报错，各 agent 目录下的原技能文件保持原样
 
 #### Scenario: 目标校验失败不留半成品
-- **WHEN** 源目录含符号链接文件，复制后的目标内容与源内容不一致
+- **WHEN** 源目录含符号链接文件，无法无损合并
 - **THEN** 合并返回可读错误，本次创建的 SSOT 目录被清理，原技能文件保持原样，下一次合并不会因「目标已占用」而无法重试
+
+#### Scenario: 目录符号链接不被静默丢弃
+- **WHEN** 合并源包含目录符号链接或平台等价链接
+- **THEN** 合并被拒绝，原技能及链接目标保持不变，本次创建的合并目标被清理
 
 ### Requirement: 读写保留未知可选字段
 
@@ -170,3 +178,7 @@ Archived records and other persisted references to absent custom agents MUST rem
 #### Scenario: 未知字段经往返保留
 - **WHEN** 读取含根级与条目级未知字段的 lock 文件并执行一次写回
 - **THEN** 重新读取后这些未知字段仍存在且值不变
+
+#### Scenario: 重装保留同身份条目的附加字段
+- **WHEN** 安装更新已有同身份 lock 条目的已知来源与路径字段
+- **THEN** 根级和该条目未识别的可选字段仍保留，其他技能条目不受影响

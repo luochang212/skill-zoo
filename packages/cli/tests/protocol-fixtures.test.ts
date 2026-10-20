@@ -53,22 +53,24 @@ describe("desktop local protocol fixtures", () => {
     });
   });
 
-  it("preserves unknown lock fields across a read-write roundtrip", async () => {
+  it("preserves unknown lock fields when updating a known entry", async () => {
     const home = await makeTempHome();
     const paths = getPaths(home);
     await copyFixture("lock-v3-full.json", paths.agentLockFile);
     const fixtureBefore = await fs.readFile(paths.agentLockFile, "utf8");
 
     const lock = await readLock(home);
+    lock.skills.demo!.skillPath = "skills/new-demo";
     await writeLock(home, lock);
 
     const reread = await readLock(home);
     const root = reread as unknown as Record<string, unknown>;
     const entry = reread.skills.demo as Record<string, unknown> | undefined;
+    expect(reread.skills.demo?.skillPath).toBe("skills/new-demo");
     expect(root["futureTop"]).toBe("keep-me");
     expect(entry?.["futureOptional"]).toBe("keep-me");
     // Fixtures represent desktop protocol state and must never be rewritten.
-    expect(await fs.readFile(paths.agentLockFile, "utf8")).toBe(fixtureBefore);
+    expect(await fs.readFile(fixturePath("lock-v3-full.json"), "utf8")).toBe(fixtureBefore);
   });
 
   it("applies defaults for minimal current fixtures", async () => {

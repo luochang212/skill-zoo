@@ -16,6 +16,7 @@ export function useEditorState(externalUnsaved?: { current: boolean }) {
   // Latest editor text, mirrored synchronously so a save completion can tell
   // whether the user typed past the submitted revision while it was in flight.
   const contentRef = useRef("");
+  const sessionRef = useRef(0);
   const [pendingOpen, setPendingOpen] = useState<{
     id: string;
     dir: string;
@@ -55,6 +56,7 @@ export function useEditorState(externalUnsaved?: { current: boolean }) {
         return;
       }
       setSkillId(id);
+      sessionRef.current += 1;
       setDirectory(dir);
       setSkillName(name);
       setLocalContent("");
@@ -69,6 +71,7 @@ export function useEditorState(externalUnsaved?: { current: boolean }) {
     if (!pendingOpen) return;
     const { id, dir, name } = pendingOpen;
     setPendingOpen(null);
+    sessionRef.current += 1;
     setSkillId(id);
     setDirectory(dir);
     setSkillName(name);
@@ -83,6 +86,7 @@ export function useEditorState(externalUnsaved?: { current: boolean }) {
   }, []);
 
   const closeEditor = useCallback(() => {
+    sessionRef.current += 1;
     setOpen(false);
     markDirty(false);
     setLocalContent("");
@@ -92,13 +96,16 @@ export function useEditorState(externalUnsaved?: { current: boolean }) {
   const save = useCallback(() => {
     if (!dirty || saveMutation.isPending) return;
     const submitted = localContent;
+    const submittedSession = sessionRef.current;
     saveMutation.mutate(
       { directory, skillId, content: submitted },
       {
         onSuccess: () => {
           // Only confirm the revision we submitted; keep drafts typed
           // while the save was in flight.
-          if (contentRef.current === submitted) markDirty(false);
+          if (sessionRef.current === submittedSession && contentRef.current === submitted) {
+            markDirty(false);
+          }
         },
       },
     );

@@ -1481,25 +1481,14 @@ pub async fn remove_skills(
             continue;
         }
 
-        {
-            let mut metadata = match state.metadata.write() {
-                Ok(m) => m,
-                Err(e) => {
-                    failed.push(RemoveSkillFailure {
-                        skill_id: skill_id.clone(),
-                        error: e.to_string(),
-                    });
-                    continue;
-                }
-            };
-            metadata.remove(skill_id);
-        }
-
         removed.push(skill_id.clone());
     }
 
     {
-        let metadata = state.metadata.write().map_err(|e| e.to_string())?;
+        let mut metadata = state.metadata.write().map_err(|e| e.to_string())?;
+        for skill_id in &removed {
+            metadata.remove(skill_id);
+        }
         metadata.save().map_err(|e| e.to_string())?;
     }
 
