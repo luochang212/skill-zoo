@@ -29,14 +29,6 @@ fn merge_rejects_directory_links_without_removing_originals() {
         });
         let result = SkillService::merge_duplicates_to_ssot("demo", &cache, &metadata);
         let dest = config::get_agents_skills_dir().join("demo");
-        println!(
-            "result={result:?}, SSOT asset exists={}, original assets exist={}",
-            dest.join("assets/asset.txt").exists(),
-            config::get_agent_skills_dir("codex")
-                .unwrap()
-                .join("demo/assets/asset.txt")
-                .exists()
-        );
         assert!(result.is_err());
         for agent in ["codex", "gemini"] {
             let native = config::get_agent_skills_dir(agent).unwrap().join("demo");
@@ -100,11 +92,6 @@ fn refresh_observes_write_that_completed_while_it_waited_for_metadata_lock() {
         drop(writing);
         t.join().unwrap();
         drop(state_lease);
-        println!(
-            "saved star on disk={}, in-memory star after refresh={}",
-            MetadataStore::load().unwrap().get("ssot:demo").starred,
-            metadata.read().unwrap().get("ssot:demo").starred
-        );
         assert!(MetadataStore::load().unwrap().get("ssot:demo").starred);
         assert!(metadata.read().unwrap().get("ssot:demo").starred);
     });

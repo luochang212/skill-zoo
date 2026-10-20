@@ -295,6 +295,9 @@ export const SkillContentPane = memo(function SkillContentPane({
                 saveFileMutation.isPending &&
                 saveFileMutation.variables.skillId === skillId &&
                 saveFileMutation.variables.path === selectedFilePath;
+              // Landing the in-flight save swaps fileData to its submitted
+              // content; clearing this draft now would resurrect the text
+              // the user reverted.
               if (v === fileData && !savingThisFile) {
                 const { [selectedFilePath]: _reverted, ...rest } = prev;
                 return rest;
