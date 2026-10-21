@@ -115,6 +115,12 @@ describe("formatApiError", () => {
       "Could not complete the operation. Please try again.",
     );
   });
+
+  it("preserves backend detail for unmapped structured codes", () => {
+    const error = { code: "generic", message: "Zip error: corrupt archive", repo: null };
+    expect(formatApiError(error)).toBe("Zip error: corrupt archive");
+    expect(formatApiError(JSON.stringify(error))).toBe("Zip error: corrupt archive");
+  });
   it("distinguishes quota recovery and preserves timestamps through issue strings", async () => {
     const retryAt = 2000000000;
     const anonymous = { code: "rateLimited", authenticated: false, retryAt };

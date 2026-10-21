@@ -51,6 +51,10 @@ export function formatApiError(error: unknown): string {
     return translateError(key, apiError.repo ?? extractRepo(apiError.message));
   }
 
+  if (apiError?.message) {
+    return apiError.message;
+  }
+
   const raw = errorMessage(error);
   const repo = extractRepo(raw);
   const lower = raw.toLowerCase();
