@@ -2925,15 +2925,13 @@ pub async fn get_repo_readme(
 
             match read_cached_repo_readme_from_zip(&owner, &name, branch.as_deref()) {
                 Ok(content) => {
-                    let now = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs();
                     cache.insert(
                         key,
                         RepoReadmeCacheEntry {
                             content: content.clone(),
-                            fetched_at: now,
+                            // Keep offline content without claiming API freshness,
+                            // so credential-save invalidation can retry GitHub.
+                            fetched_at: 0,
                         },
                     );
                     save_readme_cache(&cache);
