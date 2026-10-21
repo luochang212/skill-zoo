@@ -18,10 +18,10 @@
     "description": "Production-grade engineering skills for AI coding agents"
   },
   {
-    "owner": "Leonxlnx",
-    "name": "taste-skill",
+    "owner": "wheresryan22",
+    "name": "anatomy",
     "branch": "main",
-    "description": "Taste-Skill - gives your AI good taste. stops the AI from generating boring, generic slop"
+    "description": "Create detailed, interactive isometric illustrations of machines and complex systems with SVG, optional WebGL shaders, and 3D effects"
   },
   {
     "owner": "vercel-labs",
