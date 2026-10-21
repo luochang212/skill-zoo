@@ -1173,8 +1173,7 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
             Err(error @ crate::error::AppError::RateLimited { .. }) => {
                 // Actually rate limited — stop further requests
                 rate_limited = true;
-                let error = crate::error::CommandError::from(error);
-                let message = serde_json::to_string(&error).unwrap_or(error.message);
+                let message = crate::error::CommandError::from(error).to_json();
                 rate_limit_message = Some(message.clone());
                 for (skill_name, _) in skills_in_repo {
                     checked_skills.insert(
@@ -1187,7 +1186,7 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
                 // Non-quota failures affect only this repository.
                 let error = crate::error::CommandError::from(error);
                 let code = error.code;
-                let message = serde_json::to_string(&error).unwrap_or(error.message);
+                let message = error.to_json();
                 for (skill_name, _) in skills_in_repo {
                     checked_skills.insert(
                         skill_name.clone(),

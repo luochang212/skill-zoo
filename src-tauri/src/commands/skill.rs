@@ -797,7 +797,7 @@ fn rollback_installed_skills(
 }
 
 fn lease_command_error(error: AppError) -> String {
-    serde_json::to_string(&CommandError::from(error)).expect("CommandError is serializable")
+    CommandError::from(error).to_json()
 }
 
 fn command_error_with_recovery(error: AppError, recovery_errors: Vec<String>) -> CommandError {

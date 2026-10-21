@@ -349,8 +349,7 @@ impl CliService {
                     continue;
                 }
                 Err(e) => {
-                    let error = crate::error::CommandError::from(e);
-                    let message = serde_json::to_string(&error).unwrap_or(error.message);
+                    let message = crate::error::CommandError::from(e).to_json();
                     errors.extend(skills.iter().map(|(name, _)| format!("{name}: {message}")));
                     continue;
                 }
