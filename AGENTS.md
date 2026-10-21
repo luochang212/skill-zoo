@@ -114,6 +114,8 @@ The repo manages behavior-level changes through OpenSpec: open a change (proposa
 
 Architecture decisions live in `adr/` (ADR Kit). At the start of any coding, design, or review task, run `adrkit list`; read the relevant `implemented/` records in full, check `proposed/` for intent and `rejected/` for anti-patterns; use `adrkit relevant <path>` for the files you touch. Implemented records are current authority. A changed choice needs a new record or `adrkit supersede --by`, never a silent rewrite. Gate: `adrkit validate --all`.
 
+<!-- adrkit: standing-orders 5a4faf4e -->
+
 ## Testing
 
 **Run tests:**
