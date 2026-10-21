@@ -69,3 +69,19 @@ For tree API responses the desktop SHALL classify HTTP 403 as rate limiting only
 #### Scenario: Explicit forbidden response
 - **WHEN** a tree response is HTTP 403 with permission or SSO headers and no exhausted quota
 - **THEN** the repository receives a permission failure and the batch continues
+
+### Requirement: Public-only setup and recovery guidance
+
+The English and Chinese settings UI SHALL provide a masked, labeled token input, save action and GitHub fine-grained token creation link through the desktop opener. Instructions SHALL specify Public Repositories access and no repository permissions, explaining that this token cannot access private repositories. Update items SHALL offer token settings only for invalid credentials or anonymous quota exhaustion; authenticated quota exhaustion SHALL show the recovery time instead.
+
+#### Scenario: Create a public-only token
+- **WHEN** the user follows the GitHub connection instructions
+- **THEN** they can open GitHub's creation page, select Public Repositories with no permissions, and paste the generated token
+
+#### Scenario: Recover from anonymous update rate limiting
+- **WHEN** the user selects Configure GitHub Token beside an anonymously rate-limited update item
+- **THEN** the update manager closes and the token settings input becomes reachable and focused
+
+#### Scenario: Authenticated quota does not offer token setup
+- **WHEN** an update item reports authenticated quota exhaustion
+- **THEN** it shows the recovery time without a Configure GitHub Token entry

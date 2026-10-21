@@ -14,6 +14,9 @@ Recover reads when credentials change and explain API failures. ZIP authenticati
 - Share response classification for tree, metadata and README. Preserve generic/proxy 403 as unavailable; only explicit GitHub permission headers classify permission failures. Distinguish 401, primary quota exhaustion and 429; carry effective authentication and optional retry timestamp in structured errors. Read response quota headers before falling back to runtime auth state.
 - Preserve structured errors through update-check issue strings without changing persisted local protocol. Known rate limits still stop the check batch; other failures affect only their repository. Retain existing stale and ZIP README fallbacks.
 - Surface read errors with existing error components and translated text. Do not automatically retry rate-limited queries.
+- Offer token setup only when a credential change can help: invalid credentials and anonymous quota exhaustion. Authenticated quota items show the recovery time without token setup.
+- Keep the existing `repoNotFound` code for README 404s: metadata reads already report a missing repository, and the repository panel suppresses that code for README so a missing README stays absent. A separate README-missing code is not worth adding for the sole consumer.
+- Apply the no-retry rule to tree, metadata, README and search API reads. Preview reads use the cached ZIP download path, not a repository API read.
 
 ## Risks / Trade-offs
 
