@@ -51,12 +51,13 @@ digraph when_release {
 | Check TypeScript types | `bun run typecheck` |
 | Check frontend lint | `bun run lint` |
 | Check frontend formatting | `bun run format:check` |
+| Check independent website | `npm --prefix site run check && npm --prefix site run build` (browser checks below) |
 | Check uncommitted changes | `git status --short` |
 | Tag and push | `git push origin main && git tag v<VERSION> && git push origin v<VERSION>` |
 
 ## Core Pattern
 
-All file changes (CHANGELOG, Cargo.toml, Cargo.lock, package.json) are made and committed together in a single commit. Do not commit after each step. (`docs/version.json` is updated by CI post-release.)
+All file changes (CHANGELOG, Cargo.toml, Cargo.lock, package.json) are made and committed together in a single commit. Do not commit after each step. (`site/public/version.json` is updated by CI post-release.)
 
 ### 1. Confirm Version
 
@@ -98,7 +99,7 @@ Update `src-tauri/Cargo.toml` and `package.json` with `apply_patch` so the instr
 cargo check --manifest-path src-tauri/Cargo.toml
 ```
 
-Do NOT update `docs/version.json` here — CI updates it automatically after the release is published.
+Do NOT update `site/public/version.json` here — CI updates it automatically after the release is published.
 
 Do NOT commit yet — all changes go into one commit in Step 5.
 
@@ -113,7 +114,31 @@ Run all checks in order. If any fails, fix and re-run the full sequence until cl
 5. `bun run lint` — fix any lint errors. Note: pre-existing issues unrelated to this release should be noted separately, not silently fixed in the release commit
 6. `bun run format:check` — run `bun run format` if diffs appear. CI also enforces this, but catching it locally avoids a broken tag
 7. `RELEASE_BODY.md` uses `__VERSION__` and `__COMMITS__` placeholders — never hardcoded version numbers
-8. `git status --short` — only expected files (CHANGELOG.md, Cargo.toml, Cargo.lock, package.json, plus any fmt/clippy fixes) should appear. `docs/version.json` should NOT appear (CI updates it post-release). Anything else is a stray change that could slip into the release commit.
+8. `git status --short` — only expected files (CHANGELOG.md, Cargo.toml, Cargo.lock, package.json, plus any fmt/clippy fixes) should appear. `site/public/version.json` should NOT appear (CI updates it post-release). Anything else is a stray change that could slip into the release commit.
+
+The website is an independent Astro package. Its build does not use the desktop's
+`dist/` output or the development `package.json` version. For any app release,
+confirm the current site is buildable because the post-release manifest update
+will trigger its workflow:
+
+```bash
+npm --prefix site ci
+npm --prefix site run check
+npm --prefix site run build
+npm --prefix site exec -- playwright install chromium
+npm --prefix site test
+```
+
+For the first release containing the Astro migration, verify the repository's
+Pages source is **GitHub Actions**, rather than legacy `main:/docs`, before
+publishing. Follow [the website deployment procedure](../../site/README.md#release-and-deployment).
+Preparing a release does not itself authorize changing repository settings.
+The `create-release` checkout uses `PAGES_TOKEN`: preserve a credential that can
+trigger the downstream main-push workflow; commits using only `GITHUB_TOKEN`
+do not trigger it. The Site workflow watches `site/**`, including the released
+manifest. App release completion and website deployment are separate statuses;
+a successful tag push is not proof that the website has deployed. Retain the
+existing asynchronous reporting rule unless the user asks for monitoring.
 
 When all checks pass, commit everything in a single commit:
 
@@ -143,10 +168,11 @@ Once the tag push succeeds, the release has been triggered. Report the pushed ta
 |---|---|
 | **validate-release** | Verifies the tag matches package versions and the changelog before expensive builds start |
 | **build** | Builds every platform and refuses to upload an incomplete installer/updater artifact set |
-| **create-release** | Creates or refreshes the GitHub Release, uploads all artifacts, then updates `docs/version.json` |
+| **create-release** | Creates or refreshes the GitHub Release, uploads all artifacts, then updates `site/public/version.json` |
 | **update-homebrew** | Runs after the GitHub Release exists, computes the DMG SHA256, and updates the cask |
+| **Site workflow** (separate `site.yml`) | The post-release manifest push to main checks/builds/tests the Astro site and deploys `site/dist`; website PRs validate without deploying |
 
-`docs/version.json` is updated by CI after `create-release` succeeds — never manually. This ensures the download website only points to published artifacts.
+`site/public/version.json` is updated by CI after `create-release` succeeds — never manually. This ensures the download website only points to published artifacts.
 
 ## Common Mistakes
 
@@ -155,6 +181,6 @@ Once the tag push succeeds, the release has been triggered. Report the pushed ta
 | Pushing tag before pushing main | Always `git push origin main` first. A tag on an unpushed commit won't trigger CI on the right SHA. |
 | Hardcoding version in RELEASE_BODY.md | Use `__VERSION__` placeholder. The CI substitutes it automatically. |
 | Releasing with uncommitted changes | `git status --short` must be empty. Uncommitted changes won't be included in the release. |
-| Letting CI update `docs/version.json` | `version.json` is updated by CI's `create-release` job **after** artifacts are published. Do NOT update it manually in the release commit. |
+| Manually advancing `site/public/version.json` | `version.json` is updated by CI's `create-release` job **after** artifacts are published. Do NOT update it manually in the release commit. |
 | Forgetting to regenerate `Cargo.lock` | After editing `Cargo.toml` version, run `cargo check --manifest-path src-tauri/Cargo.toml` to sync Cargo.lock. Editing the manifest alone does not update the lockfile. |
-| Making multiple commits | All version updates (CHANGELOG, Cargo.toml, Cargo.lock, package.json) go into a single `chore: release vX.Y.Z` commit. Do not commit after each file. `docs/version.json` is not part of this commit — CI handles it. |
+| Making multiple commits | All version updates (CHANGELOG, Cargo.toml, Cargo.lock, package.json) go into a single `chore: release vX.Y.Z` commit. Do not commit after each file. `site/public/version.json` is not part of this commit — CI handles it. |
