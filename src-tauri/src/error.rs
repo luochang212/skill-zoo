@@ -20,8 +20,18 @@ pub enum AppError {
     #[error("Parse error: {0}")]
     Parse(String),
 
-    #[error("Rate limited: {0}")]
-    RateLimited(String),
+    #[error("Rate limited: {repo}")]
+    RateLimited {
+        repo: String,
+        authenticated: bool,
+        retry_at: Option<i64>,
+    },
+
+    #[error("GitHub token is invalid or revoked: {0}")]
+    GitHubUnauthorized(String),
+
+    #[error("GitHub access is restricted: {0}")]
+    GitHubPermissionDenied(String),
 
     #[error("Network error: {0}")]
     Network(#[from] reqwest::Error),
@@ -75,17 +85,31 @@ pub struct CommandError {
     pub code: &'static str,
     pub message: String,
     pub repo: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authenticated: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retry_at: Option<i64>,
 }
 
 impl From<AppError> for CommandError {
     fn from(error: AppError) -> Self {
         let code = error.code();
         let repo = error.repo();
+        let (authenticated, retry_at) = match &error {
+            AppError::RateLimited {
+                authenticated,
+                retry_at,
+                ..
+            } => (Some(*authenticated), *retry_at),
+            _ => (None, None),
+        };
         let message = error.to_string();
         Self {
             code,
             message,
             repo,
+            authenticated,
+            retry_at,
         }
     }
 }
@@ -96,6 +120,8 @@ impl CommandError {
             code: "badRequest",
             message: message.into(),
             repo: None,
+            authenticated: None,
+            retry_at: None,
         }
     }
 
@@ -104,6 +130,8 @@ impl CommandError {
             code: "notFound",
             message: message.into(),
             repo: None,
+            authenticated: None,
+            retry_at: None,
         }
     }
 
@@ -112,6 +140,8 @@ impl CommandError {
             code: "generic",
             message: message.into(),
             repo: None,
+            authenticated: None,
+            retry_at: None,
         }
     }
 }
@@ -127,7 +157,9 @@ impl AppError {
             AppError::DownloadTls { .. } => "downloadTls",
             AppError::DownloadUnavailable(_) => "downloadUnavailable",
             AppError::RepoNotFound(_) => "repoNotFound",
-            AppError::RateLimited(_) => "rateLimited",
+            AppError::RateLimited { .. } => "rateLimited",
+            AppError::GitHubUnauthorized(_) => "githubUnauthorized",
+            AppError::GitHubPermissionDenied(_) => "githubPermissionDenied",
             AppError::RepoTooLarge { .. } => "repoTooLarge",
             AppError::Io(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
                 "permissionDenied"
@@ -148,7 +180,9 @@ impl AppError {
             | AppError::DownloadTls { repo, .. }
             | AppError::DownloadUnavailable(repo)
             | AppError::RepoNotFound(repo)
-            | AppError::RateLimited(repo) => Some(repo.clone()),
+            | AppError::GitHubUnauthorized(repo)
+            | AppError::GitHubPermissionDenied(repo)
+            | AppError::RateLimited { repo, .. } => Some(repo.clone()),
             AppError::RepoTooLarge { repo, .. } => Some(repo.clone()),
             _ => None,
         }
