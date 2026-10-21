@@ -7,7 +7,9 @@ app and CLI do not import or build it. Public URL: https://www.luochang.ink/skil
 
 Node.js **22.22+** and npm are required (CI uses Node 24). Astro's checker currently
 supports TypeScript 6, so this isolated package uses the latest supported stable
-6.x rather than the desktop's TypeScript 7.
+6.x rather than the desktop's TypeScript 7. The planned TypeScript 7 path is the
+experimental `@astrojs/ts-content-mapper` (requires TypeScript 7.1+); revisit
+this pin when it stabilizes.
 
 ```sh
 npm --prefix site ci

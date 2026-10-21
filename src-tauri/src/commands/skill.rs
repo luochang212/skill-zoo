@@ -2789,7 +2789,12 @@ fn read_repo_readme_from_zip_path(zip_path: &Path) -> Result<String, ()> {
 
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i).map_err(|_| ())?;
-        if !is_root_readme_path(entry.name()) {
+        // An entry name that fails to decode can never be a root README path,
+        // so skip it rather than fail the lookup.
+        let Ok(name) = entry.name() else {
+            continue;
+        };
+        if !is_root_readme_path(&name) {
             continue;
         }
 
@@ -3025,7 +3030,10 @@ pub async fn preview_skill_md(
         let mut entry = archive
             .by_index(i)
             .map_err(|e| CommandError::from(AppError::from(e)))?;
-        let entry_name = entry.name().trim_matches('/').to_string();
+        let entry_name = match entry.name() {
+            Ok(name) => name.trim_matches('/').to_string(),
+            Err(_) => continue,
+        };
         let mut parts = entry_name.split('/');
         let Some(_) = parts.next() else {
             continue;
@@ -3054,7 +3062,10 @@ pub async fn preview_skill_md(
         let mut entry = archive
             .by_index(i)
             .map_err(|e| CommandError::from(AppError::from(e)))?;
-        if entry.name().ends_with(&needle) {
+        let Ok(name) = entry.name() else {
+            continue;
+        };
+        if name.ends_with(&needle) {
             let mut content = String::new();
             std::io::Read::read_to_string(&mut entry, &mut content)
                 .map_err(|e| CommandError::from(AppError::Io(e)))?;

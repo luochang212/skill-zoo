@@ -42,7 +42,7 @@ skill-zoo/
 
 ## 🔧 Development
 
-Prerequisites: [Bun](https://bun.sh/), [Node](https://nodejs.org/) 22.12+ (24 LTS is what CI and the current toolchain use), [Rust](https://www.rust-lang.org/tools/install) 1.88+ (the floor the dependency graph actually requires — `zip` and friends declare 1.88), and a [Tauri setup](https://v2.tauri.app/start/prerequisites/).
+Prerequisites: [Bun](https://bun.sh/), [Node](https://nodejs.org/) 22.12+ (24 LTS is what CI and the current toolchain use), [Rust](https://www.rust-lang.org/tools/install) 1.90+ (the floor the dependency graph actually requires — tauri 2.12 and friends declare 1.90), and a [Tauri setup](https://v2.tauri.app/start/prerequisites/).
 
 Bun is the package manager, but Node is a hard requirement for the documented workflows: vitest runs its files in `node` fork workers, so `bun run test` fails with "Failed to start forks worker" when no `node` binary is on `PATH`. The CLI additionally declares `engines.node >= 22.12.0` because it depends on the ESM-only commander 15.
 
@@ -109,9 +109,9 @@ registry = 'sparse+https://rsproxy.cn/index/'
 
 ## 📌 依赖更新须知
 
-依赖版本策略见 `AGENTS.md`（保持最新稳定版）。两条例外与理由记录在此，避免重复排查：
+依赖版本策略见 `AGENTS.md`（保持最新稳定版）。例外与历史教训记录在此，避免重复排查：
 
-**`dirs` 停在 6.x 是上游钉住的，不要强推。** `tauri` 自己也依赖 `dirs ^6`（已核对 2.11.5，以及 3.0.0-alpha.1 仍是 `^6`），而 semver 下 `0.6` 与 `7.0` 不兼容、无法统一。把 `Cargo.toml` 改成 `dirs = "7"` 的后果**不是编译报错，而是 cargo 去满足 tauri**：它会回溯 tauri 到还不需要 dirs 6 的旧版本（实测退到 2.2.0，连带 `tauri-build` 2.6.3 → 2.0.4）然后编译失败。我们只用到 `home_dir()` 与 `desktop_dir()`，两者在 6 和 7 中都存在，所以升级本身无收益；不要用 `[patch]` 覆盖上游声明。等 tauri 自己迁移。
+**`dirs` 已随上游从 6.x 升到 7（2026-10 依赖扫描），但不要抢在上游要求之前升级。** 此前 `tauri` 依赖 `dirs ^6`（核对过 2.11.5 与 3.0.0-alpha.1），semver 下无法与 7 统一；当时把 `Cargo.toml` 改成 `dirs = "7"` 的后果**不是编译报错，而是 cargo 去满足 tauri**：它会回溯 tauri 到旧版本（实测退到 2.2.0，连带 `tauri-build` 2.6.3 → 2.0.4）然后编译失败，所以当时刻意停在 6.x。tauri 自 2.12.5、wry 自 0.57.0 起要求 `dirs ^7`（`cargo tree -i dirs@7.0.0` 核实），迁移条件已满足，本仓库随之升到 7.0；我们只用到 `home_dir()` 与 `desktop_dir()`，签名在 6、7 中一致。规则不变：跟随上游要求升级，不要用 `[patch]` 覆盖上游声明。
 
 **`serde_yaml` 已停止维护（`0.9.34+deprecated`），但刻意保留。** 它只用于解析 frontmatter 的 `name` 与 `description` 两个标量。已知的两个通告（RUSTSEC-2018-0005、GHSA-39vw-qp34-rmwf）均已在 0.8.4 修复，不在我们使用的 0.9.34 影响范围内；实测该版本对 alias 炸弹、自引用 alias、500 层深嵌套均返回 `Err(...)`（带限制），不会 abort。社区分叉中 `serde_yml` 有**未修复**的 "unsound and unmaintained" 通告（RUSTSEC-2025-0068，影响全部版本），不要采用（本仓库历史上曾从它换回 serde_yaml）。`serde_norway` 与 `serde_yaml_ng` 干净但同样不活跃，属同代码改名，收益很薄。若将来决定移除该依赖，正确方向是把解析收窄到只认这两个键，而不是换分叉。
 

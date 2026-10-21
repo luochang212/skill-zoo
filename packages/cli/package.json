@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "commander": "^15.0.0",
-    "rehype-highlight": "^7.0.0",
+    "rehype-highlight": "^7.0.2",
     "rehype-raw": "^7.0.0",
     "rehype-sanitize": "^6.0.0",
     "rehype-stringify": "^10.0.1",
@@ -35,10 +35,10 @@
     "yaml": "^2.9.1"
   },
   "devDependencies": {
-    "@types/node": "^24.10.1",
-    "tsup": "^8.5.1",
-    "tsx": "^4.23.13",
+    "@types/node": "^26.6.5",
+    "tsup": "^9.0.0",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.5"
   }
 }
