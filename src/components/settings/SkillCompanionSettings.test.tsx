@@ -161,10 +161,9 @@ describe("SkillCompanionSettings", () => {
 
     await user.click(await screen.findByRole("button", { name: "Manage" }));
     await user.click(screen.getByRole("button", { name: "Add common command" }));
-    await user.type(
-      screen.getByLabelText("Skill command 1 content"),
-      "Think through the plan first",
-    );
+    const textarea = screen.getByLabelText("Skill command 1 content");
+    await waitFor(() => expect(textarea).toHaveFocus());
+    await user.type(textarea, "Think through the plan first");
     await user.click(screen.getByRole("button", { name: "Save skill command 1" }));
 
     await waitFor(() => {
@@ -181,6 +180,32 @@ describe("SkillCompanionSettings", () => {
       expect(screen.queryByDisplayValue("Think through the plan first")).not.toBeInTheDocument(),
     );
     expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("reveals a new command appended after a long list", async () => {
+    const user = userEvent.setup();
+    const existing = Array.from({ length: 12 }, (_, index) => ({
+      id: `item-${index}`,
+      content: `Command ${index + 1}`,
+    }));
+    mockItems(existing);
+
+    renderSettings();
+
+    await user.click(await screen.findByRole("button", { name: "Manage" }));
+    await user.click(screen.getByRole("button", { name: "Add common command" }));
+
+    const textarea = screen.getByLabelText("Skill command 13 content");
+    await waitFor(() => expect(textarea).toHaveFocus());
+
+    await user.type(textarea, "Newest command");
+    await user.click(screen.getByRole("button", { name: "Save skill command 13" }));
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("save_skill_companion_items", {
+        items: [...existing, { id: expect.any(String), content: "Newest command" }],
+      });
+    });
   });
 
   it("requires content before saving", async () => {

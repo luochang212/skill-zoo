@@ -585,6 +585,7 @@ function SkillCompanionRow({
         {isEditing ? (
           <div className="space-y-1.5">
             <textarea
+              data-companion-id={item.id}
               value={item.content}
               onChange={(event) => onUpdate(event.target.value)}
               placeholder={t("settings.skillCompanion.contentPlaceholder")}
@@ -667,6 +668,7 @@ function SkillCompanionManagerDialog({
   const [items, setItems] = useState<SkillCompanionItem[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const itemsRef = useRef<SkillCompanionItem[]>([]);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -678,6 +680,18 @@ function SkillCompanionManagerDialog({
   useEffect(() => {
     itemsRef.current = items;
   }, [items]);
+
+  useEffect(() => {
+    if (!editingId) return;
+    const frame = requestAnimationFrame(() => {
+      const textarea = listRef.current?.querySelector<HTMLTextAreaElement>(
+        `textarea[data-companion-id="${editingId}"]`,
+      );
+      textarea?.scrollIntoView?.({ block: "nearest" });
+      textarea?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [editingId]);
 
   const itemOrder = useMemo(() => items.map((item) => item.id), [items]);
   const busy = saveItems.isPending;
@@ -759,7 +773,7 @@ function SkillCompanionManagerDialog({
           <DialogDescription>{t("settings.skillCompanion.manageDescription")}</DialogDescription>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {items.length === 0 ? (
             <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
               {t("settings.skillCompanion.empty")}
