@@ -4,6 +4,8 @@ interface ApiError {
   code?: string;
   message?: string;
   repo?: string | null;
+  authenticated?: boolean;
+  retryAt?: number;
 }
 
 const ERROR_KEYS: Record<string, string> = {
@@ -16,6 +18,8 @@ const ERROR_KEYS: Record<string, string> = {
   downloadUnavailable: "error.downloadUnavailable",
   repoNotFound: "error.repoNotFound",
   rateLimited: "error.rateLimit",
+  githubUnauthorized: "error.githubUnauthorized",
+  githubPermissionDenied: "error.githubPermissionDenied",
   repoTooLarge: "error.repoTooLarge",
   permissionDenied: "error.permDenied",
   diskFull: "error.diskFull",
@@ -28,6 +32,18 @@ export function formatApiError(error: unknown): string {
   const code = apiError?.code;
   const key = code ? ERROR_KEYS[code] : undefined;
   if (code && key) {
+    if (code === "rateLimited" && typeof apiError.authenticated === "boolean") {
+      const quotaKey = apiError.authenticated
+        ? "error.githubAuthenticatedRateLimit"
+        : "error.githubAnonymousRateLimit";
+      const retryAt = apiError.retryAt;
+      const date = typeof retryAt === "number" ? new Date(retryAt * 1000) : null;
+      const time =
+        date && Number.isFinite(date.getTime())
+          ? i18n.t("error.githubRetryAt", { time: date.toLocaleString(i18n.language) })
+          : "";
+      return i18n.t(quotaKey) + time;
+    }
     if (code === "badRequest") {
       return translateBadRequest(apiError.message);
     }
@@ -93,6 +109,14 @@ export function apiErrorCode(error: unknown): string | null {
   return asApiError(error)?.code ?? null;
 }
 
+export function canConfigureGitHubToken(error: unknown): boolean {
+  const detail = asApiError(error);
+  return (
+    detail?.code === "githubUnauthorized" ||
+    (detail?.code === "rateLimited" && detail.authenticated !== true)
+  );
+}
+
 function translateError(key: string, repo?: string): string {
   return i18n.t(key, { repo: repo ?? i18n.t("error.repository") });
 }
@@ -111,6 +135,11 @@ function asApiError(error: unknown): ApiError | null {
   if (error instanceof Error) return asApiError(error.message);
   if (typeof error === "string") {
     const trimmed = error.trim();
+    // Update history keeps the skill-name prefix used to identify failed skills.
+    const detailStart = trimmed.indexOf(": {");
+    if (!trimmed.startsWith("{") && detailStart >= 0) {
+      return asApiError(trimmed.slice(detailStart + 2));
+    }
     if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return null;
     try {
       return asApiError(JSON.parse(trimmed));

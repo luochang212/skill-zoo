@@ -6,6 +6,7 @@ import { RepoInfoPanel } from "@/components/skills/RepoInfoPanel";
 
 const mocks = vi.hoisted(() => ({
   refreshMutate: vi.fn(),
+  readmeError: null as unknown,
 }));
 
 vi.mock("framer-motion", () => ({
@@ -52,7 +53,8 @@ vi.mock("@/hooks/useSkills", () => ({
     error: { code: "downloadUnavailable", repo: "owner/repo" },
   }),
   useRepoReadme: () => ({
-    data: "# Cached README",
+    data: mocks.readmeError ? undefined : "# Cached README",
+    error: mocks.readmeError,
     isLoading: false,
   }),
   useRefreshRepoPanel: () => ({
@@ -69,5 +71,18 @@ describe("RepoInfoPanel", () => {
       screen.getByText("owner/repo is temporarily unavailable. Please try again later."),
     ).toBeInTheDocument();
     expect(screen.getByText("# Cached README")).toBeInTheDocument();
+  });
+  it("shows actionable README authentication errors without requiring metadata", () => {
+    mocks.readmeError = { code: "githubUnauthorized" };
+    render(<RepoInfoPanel owner="owner" name="repo" />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Replace it in Settings");
+    mocks.readmeError = null;
+  });
+
+  it("keeps missing README responses quiet", () => {
+    mocks.readmeError = { code: "repoNotFound" };
+    render(<RepoInfoPanel owner="owner" name="repo" />);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    mocks.readmeError = null;
   });
 });

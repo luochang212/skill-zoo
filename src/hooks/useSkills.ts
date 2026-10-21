@@ -362,6 +362,7 @@ export function useSearchRepo(query: string | null) {
   return useQuery({
     queryKey: ["repos", "search", query],
     queryFn: () => skillsApi.searchRepo(query!),
+    retry: false,
     enabled: !!query,
     staleTime: 5 * 60 * 1000,
   });
