@@ -1,7 +1,7 @@
 import "@/i18n";
 import { render, screen } from "@testing-library/react";
 import React from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { RepoInfoPanel } from "@/components/skills/RepoInfoPanel";
 
 const mocks = vi.hoisted(() => ({
@@ -64,6 +64,10 @@ vi.mock("@/hooks/useSkills", () => ({
 }));
 
 describe("RepoInfoPanel", () => {
+  afterEach(() => {
+    mocks.readmeError = null;
+  });
+
   it("keeps rendering the README when repository metadata fails", () => {
     render(<RepoInfoPanel owner="owner" name="repo" />);
 
@@ -76,13 +80,11 @@ describe("RepoInfoPanel", () => {
     mocks.readmeError = { code: "githubUnauthorized" };
     render(<RepoInfoPanel owner="owner" name="repo" />);
     expect(screen.getByRole("alert")).toHaveTextContent("Replace it in Settings");
-    mocks.readmeError = null;
   });
 
   it("keeps missing README responses quiet", () => {
     mocks.readmeError = { code: "repoNotFound" };
     render(<RepoInfoPanel owner="owner" name="repo" />);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    mocks.readmeError = null;
   });
 });
