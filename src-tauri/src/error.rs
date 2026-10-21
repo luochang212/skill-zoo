@@ -144,6 +144,10 @@ impl CommandError {
             retry_at: None,
         }
     }
+
+    pub fn to_json(self) -> String {
+        serde_json::to_string(&self).unwrap_or(self.message)
+    }
 }
 
 impl AppError {

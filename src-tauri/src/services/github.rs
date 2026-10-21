@@ -2,6 +2,9 @@ use crate::error::AppError;
 use regex::Regex;
 use std::sync::LazyLock;
 
+/// GitHub's unauthenticated hourly quota; authenticated limits are higher.
+const GITHUB_ANONYMOUS_RATE_LIMIT: u32 = 60;
+
 /// Only GitHub API consumers use this builder; archive and external requests
 /// must never inherit the desktop token as a client-wide default header.
 pub fn github_get(client: &reqwest::Client, url: &str) -> reqwest::RequestBuilder {
@@ -31,17 +34,8 @@ pub fn response_error(response: &reqwest::Response, repo: &str) -> Option<AppErr
             *timestamp > now && chrono::DateTime::from_timestamp(*timestamp, 0).is_some()
         };
         let retry_at = header("retry-after")
-            .and_then(|value| {
-                value
-                    .parse::<u32>()
-                    .ok()
-                    .map(|seconds| now + i64::from(seconds))
-                    .or_else(|| {
-                        chrono::DateTime::parse_from_rfc2822(value)
-                            .ok()
-                            .map(|date| date.timestamp())
-                    })
-            })
+            .and_then(|value| value.parse::<u32>().ok())
+            .map(|seconds| now + i64::from(seconds))
             .filter(usable_time)
             .or_else(|| {
                 header("x-ratelimit-reset")
@@ -52,7 +46,7 @@ pub fn response_error(response: &reqwest::Response, repo: &str) -> Option<AppErr
             .and_then(|value| value.parse::<u32>().ok())
             .map_or_else(
                 || crate::config::github_token().is_some(),
-                |limit| limit > 60,
+                |limit| limit > GITHUB_ANONYMOUS_RATE_LIMIT,
             );
         return Some(AppError::RateLimited {
             repo: repo.into(),
