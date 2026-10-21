@@ -125,14 +125,29 @@ programmatic API, re-add declarations *and* the `types`/`exports` wiring togethe
 
 If extra source, test, repo, log, or private files appear, fix the `files` whitelist or ignore rules before publishing.
 
-**Fifth gate: green CI on the pushed release commit.** The local checks run on one machine; CI runs on every platform the release must work on. Commit the release, push, and wait for the run before publishing:
+**Mirror CI's steps, not just the package's.** The bump touches `packages/cli/package.json` and `bun.lock`, and `build.yml` checks those from the workspace root with steps the package-level list above never runs. Run them locally after the bump too:
+
+```bash
+cd ../..
+bun run lint && bun run format:check && bun run typecheck && bun run test
+bun run cli:typecheck
+```
+
+When the workflow changes, re-derive the list from it rather than trusting this skill: `grep -nE '^\s+-?\s*run:' .github/workflows/build.yml`. A step CI runs that the local list omits is a blind spot — on 2026-10-22 adr-kit's 0.24.0 passed every local check and went red on the one CI step that was not in its skill.
+
+**Fifth gate: green CI on the pushed release commit.** The local checks run on one machine; CI runs on every platform the release must work on. Commit the release, push, and wait for the runs before publishing. Watch by workflow name and the pushed commit's SHA — `gh run list --limit 1` returns whichever run started last, which can be `site` (it also runs on a push that touches `site/`) or a run for another commit, and then reports green while `build` fails:
 
 ```bash
 git push origin main
-gh run watch "$(gh run list --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status
+sha="$(git rev-parse HEAD)"
+for wf in build site; do
+  id="$(gh run list --workflow "$wf" --limit 5 --json databaseId,headSha \
+    --jq ".[] | select(.headSha==\"$sha\") | .databaseId" | head -1)"
+  [ -n "$id" ] && gh run watch "$id" --exit-status
+done
 ```
 
-Code CI has not seen does not publish. On 2026-10-13 the release-adjacent `chore: update version.json for v0.3.52` commit landed on main with a failing Build.
+Code CI has not seen does not publish. On 2026-10-13 the release-adjacent `chore: update version.json for v0.3.52` commit landed on main with a failing Build. If the release commit's run fails, fix forward in a new commit, push, and wait again; never amend or force-push a pushed release commit.
 
 ## CLI Package Checks
 
@@ -216,9 +231,13 @@ Success looks like:
 
 ## Post-Publish Verification
 
-Registry reads can briefly lag after publish. Verify both the specific version and the dist tag:
+Registry reads can lag after publish — about a minute is typical, and adr-kit saw 130 seconds on 2026-10-22 after a `PUT 202` with the notice "Your package is being processed and may take a few minutes to become available". Poll the exact version every 10 seconds for up to three minutes before concluding the publish failed, then verify both the specific version and the dist tag:
 
 ```bash
+for i in $(seq 1 18); do
+  npm view skill-zoo@X.Y.Z version 2>/dev/null | grep -q 'X.Y.Z' && break
+  sleep 10
+done
 npm view skill-zoo@X.Y.Z version dist.tarball time --json
 npm dist-tag ls skill-zoo
 npm view skill-zoo versions --json
@@ -245,6 +264,8 @@ Do not include private account identifiers, browser auth URLs, npm auth IDs, aut
 | Browser auth URL is `***` | npm redacted the publish OTP URL in non-TTY output | Wrap the publish in `script -q /dev/null` with a leading newline (see "Non-TTY browser authentication"), extract the real URL, then `open` it |
 | Auth URL never surfaces while "Authenticate your account at:" did | Publish output was piped through `grep` or another filter; npm's quiet auth polling left the URL in the filter's block buffer | Kill the attempt — nothing publishes without the browser flow — rerun with raw output, and grep the output file |
 | A platform test failure appears in CI after pushing the release commit | Code reached the release without ever passing CI | Fix, commit, push, wait for green; publish only commits whose CI run is green |
+| Every local check passed but CI failed on a step such as `lint`, `format:check`, or root `typecheck` | The skill's package-level checks do not cover `build.yml`'s workspace-root steps, which also see the bumped `package.json` and `bun.lock` | Run the root `bun run lint && bun run format:check && bun run typecheck && bun run test` after the bump; re-derive the step list from the workflow when it changes |
+| `gh run watch` reported green but `build` failed | `gh run list --limit 1` picked the `site` workflow or a run for another commit | Watch runs by workflow name and the pushed commit's SHA, as in Required Verification |
 | npm errors with `EPERM` on the `~/.npm` cache | Cache dir has root-owned files from an old npm bug | Run `sudo chown -R $(id -u):$(id -g) ~/.npm`, or use a temp cache via `--cache /tmp/xxx` |
 | `npm login` fails writing `~/.npmrc` (EPERM) | Home dir not writable from the agent sandbox | Log in with `--userconfig /tmp/xxx.npmrc` and pass the same `--userconfig` to `npm publish`; delete the file afterward |
 | Tests fail after version bump | Hardcoded expected version | Prefer asserting against `CLI_VERSION` |
@@ -273,9 +294,19 @@ npm test
 npm run build
 npm publish --dry-run
 
-# commit the release bump, push, and wait for CI — a green run is a publish precondition
+# mirror build.yml's workspace-root steps; the bump touched package.json and bun.lock
+cd /path/to/repo
+bun run lint && bun run format:check && bun run typecheck && bun run test
+bun run cli:typecheck
+
+# commit the release bump, push, and wait for CI — green runs are a publish precondition
 git push origin main
-gh run watch "$(gh run list --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status
+sha="$(git rev-parse HEAD)"
+for wf in build site; do
+  id="$(gh run list --workflow "$wf" --limit 5 --json databaseId,headSha \
+    --jq ".[] | select(.headSha==\"$sha\") | .databaseId" | head -1)"
+  [ -n "$id" ] && gh run watch "$id" --exit-status
+done
 
 # summarize dry-run results and ask the user to confirm the real publish
 # if the account requires 2FA, the publish OTP URL is redacted as *** — wrap with script:
