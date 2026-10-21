@@ -24,7 +24,7 @@ import {
   useDeleteSkillUpdateHistoryRecord,
   useSkillUpdateHistory,
 } from "@/hooks/useSkills";
-import { formatApiError } from "@/lib/api/errors";
+import { apiErrorCode, canConfigureGitHubToken, formatApiError } from "@/lib/api/errors";
 import type { CheckedSkillUpdate, SkillUpdateHistoryRecord } from "@/lib/api/skills";
 import { cn } from "@/lib/utils";
 
@@ -305,8 +305,14 @@ export function SkillUpdateManagerDialog({
                                 })}
                               </Badge>
                             </div>
-                            <p className="text-xs text-muted-foreground">{issue.message}</p>
-                            {issue.code === "rateLimited" && (
+                            <p className="text-xs text-muted-foreground">
+                              {apiErrorCode(issue.message)
+                                ? formatApiError(issue.message)
+                                : issue.message}
+                            </p>
+                            {canConfigureGitHubToken(
+                              apiErrorCode(issue.message) ? issue.message : { code: issue.code },
+                            ) && (
                               <Button
                                 size="sm"
                                 variant="link"

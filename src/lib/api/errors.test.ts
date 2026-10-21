@@ -1,6 +1,6 @@
 import "@/i18n";
 import { describe, expect, it } from "vitest";
-import { formatApiError } from "@/lib/api/errors";
+import { canConfigureGitHubToken, formatApiError } from "@/lib/api/errors";
 import i18n from "@/i18n";
 
 describe("formatApiError", () => {
@@ -114,5 +114,30 @@ describe("formatApiError", () => {
     expect(formatApiError("unexpected")).toBe(
       "Could not complete the operation. Please try again.",
     );
+  });
+  it("distinguishes quota recovery and preserves timestamps through issue strings", async () => {
+    const retryAt = 2000000000;
+    const anonymous = { code: "rateLimited", authenticated: false, retryAt };
+    const authenticated = { ...anonymous, authenticated: true };
+    expect(formatApiError(JSON.stringify(anonymous))).toContain("Configure a token");
+    expect(formatApiError(authenticated)).toContain("Wait before trying again");
+    expect(formatApiError(`demo: ${JSON.stringify(authenticated)}`)).toBe(
+      formatApiError(authenticated),
+    );
+    expect(formatApiError(authenticated)).toContain(new Date(retryAt * 1000).toLocaleString("en"));
+    expect(canConfigureGitHubToken(anonymous)).toBe(true);
+    expect(canConfigureGitHubToken(authenticated)).toBe(false);
+    expect(canConfigureGitHubToken({ code: "githubUnauthorized" })).toBe(true);
+    expect(formatApiError({ code: "githubUnauthorized" })).toContain("invalid or revoked");
+    expect(formatApiError({ code: "githubPermissionDenied" })).toContain("Check token permissions");
+    await i18n.changeLanguage("zh");
+    try {
+      expect(formatApiError(anonymous)).toContain("配置 Token");
+      expect(formatApiError(authenticated)).toContain("等待后再试");
+      expect(formatApiError({ code: "githubUnauthorized" })).toContain("已失效或被撤销");
+      expect(formatApiError({ code: "githubPermissionDenied" })).toContain("组织授权");
+    } finally {
+      await i18n.changeLanguage("en");
+    }
   });
 });

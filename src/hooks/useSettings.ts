@@ -66,7 +66,7 @@ export function useSaveGitHubToken() {
       }
       return { token, verification };
     },
-    onSuccess: ({ token, verification }) => {
+    onSuccess: async ({ token, verification }) => {
       qc.setQueryData(CREDENTIAL_STATUS_KEY, {
         hasToken: Boolean(token),
         expiresAt: token ? (verification?.expiresAt ?? null) : null,
@@ -79,6 +79,17 @@ export function useSaveGitHubToken() {
         qc.invalidateQueries({ queryKey: GITHUB_TOKEN_VERIFICATION_KEY });
       }
       qc.invalidateQueries({ queryKey: CREDENTIAL_STATUS_KEY });
+      if (verification) {
+        // Cancel old-credential reads before retrying. Fresh disk caches remain
+        // reusable; stale fallbacks retain their old timestamp and retry GitHub.
+        const filters = {
+          predicate: (query: { queryKey: readonly unknown[] }) =>
+            query.queryKey[0] === "repos" &&
+            ["metadata", "readme", "search"].includes(String(query.queryKey[1])),
+        };
+        await qc.cancelQueries(filters);
+        void qc.invalidateQueries(filters);
+      }
     },
   });
 }

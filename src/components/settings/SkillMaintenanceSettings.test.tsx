@@ -214,6 +214,63 @@ describe("SkillMaintenanceSettings", () => {
     await waitFor(() => expect(input).toHaveFocus());
   });
 
+  it("shows authenticated quota guidance and offers token setup only for invalid credentials", async () => {
+    const user = userEvent.setup();
+    vi.mocked(invoke).mockImplementation((command) => {
+      switch (command) {
+        case "get_installed_skills":
+          return Promise.resolve([
+            { id: "skill:limited", directory: "limited", origin: "ssot" },
+            { id: "skill:invalid", directory: "invalid", origin: "ssot" },
+          ]);
+        case "get_settings":
+          return Promise.resolve({});
+        case "get_github_credential_status":
+          return Promise.resolve({ hasToken: true, expiresAt: null });
+        case "get_cache_size":
+          return Promise.resolve(0);
+        case "get_skill_update_history":
+          return Promise.resolve([]);
+        case "check_skill_updates":
+          return Promise.resolve({
+            skills: [
+              {
+                skillName: "limited",
+                hasUpdate: false,
+                repo: "owner/repo",
+                checkErrorCode: "rateLimited",
+                checkError: JSON.stringify({
+                  code: "rateLimited",
+                  authenticated: true,
+                  retryAt: 2000000000,
+                }),
+              },
+              {
+                skillName: "invalid",
+                hasUpdate: false,
+                repo: "owner/other",
+                checkErrorCode: "githubUnauthorized",
+                checkError: JSON.stringify({ code: "githubUnauthorized" }),
+              },
+            ],
+            totalRepos: 2,
+            checkedRepos: 0,
+            rateLimited: true,
+          });
+        default:
+          return Promise.reject(new Error(`Unexpected command: ${command}`));
+      }
+    });
+    renderSettings(true);
+    await user.click(screen.getByRole("button", { name: /check updates/i }));
+    await user.click(await screen.findByRole("button", { name: /update manager/i }));
+    expect(await screen.findByText(/Wait before trying again/)).toHaveTextContent(
+      "Try again after",
+    );
+    expect(screen.getByText(/invalid or revoked/)).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Configure GitHub Token" })).toHaveLength(1);
+  });
+
   it("recovers the clear-cache button after clearing fails", async () => {
     const user = userEvent.setup();
     renderSettings();

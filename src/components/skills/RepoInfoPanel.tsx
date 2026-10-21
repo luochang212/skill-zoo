@@ -12,7 +12,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useRefreshRepoPanel, useRepoMetadata, useRepoReadme } from "@/hooks/useSkills";
 import { MarkdownContent } from "@/components/skills/MarkdownContent";
 import { useRepoPanelCollapsed } from "@/hooks/useRepoPanelCollapsed";
-import { formatApiError } from "@/lib/api/errors";
+import { apiErrorCode, formatApiError } from "@/lib/api/errors";
 import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
@@ -155,7 +155,11 @@ export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
     isError: metaError,
     error: metaErrorObj,
   } = useRepoMetadata(owner, name);
-  const { data: readme, isLoading: readmeLoading } = useRepoReadme(owner, name, undefined);
+  const {
+    data: readme,
+    isLoading: readmeLoading,
+    error: readmeError,
+  } = useRepoReadme(owner, name, undefined);
   const refreshPanel = useRefreshRepoPanel(owner, name, undefined);
   const isRefreshing = refreshPanel.isPending;
   const showRefreshing = isRefreshing || spinnerHolding;
@@ -382,6 +386,10 @@ export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
                         <Skeleton className="h-3.5 w-4/5" />
                       </div>
                     </div>
+                  ) : readmeError && apiErrorCode(readmeError) !== "repoNotFound" ? (
+                    <p className="text-xs text-destructive/80" role="alert">
+                      {formatApiError(readmeError)}
+                    </p>
                   ) : readme ? (
                     <motion.div
                       initial={{ opacity: 0 }}
