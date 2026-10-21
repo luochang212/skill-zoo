@@ -1,0 +1,248 @@
+---
+import { useTranslations, type Lang } from '../i18n/ui';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+---
+
+<section class="hero-report" id="cta">
+  <div class="hero-report-inner">
+    <div class="hero-report-grid">
+      <div data-reveal style="--r-delay: 0ms">
+        <h2 data-i18n="cta-title">{t("cta-title")}</h2>
+        <p class="lead" data-i18n="cta-desc" style="max-width: 100%">{t("cta-desc")}</p>
+        <div style="display: flex; gap: 24px; margin-top: 24px; flex-wrap: wrap">
+          <a
+            class="gh-cta-btn"
+            href="https://github.com/luochang212/skill-zoo"
+            target="_blank"
+            rel="noopener noreferrer"
+            >GitHub →</a
+          >
+          <a
+            class="gh-cta-btn"
+            href="https://www.luochang.ink/posts/skill_zoo/"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Blog</a
+          >
+        </div>
+      </div>
+      <div class="hero-report-fig" data-reveal style="--r-delay: 150ms">
+        <div class="mockup-window" id="zoo-mockup">
+          <!-- App header (merged: macOS dots + logo + tabs) -->
+          <div class="m-app-header">
+            <div class="mockup-dots">
+              <span class="mockup-dot red"></span>
+              <span class="mockup-dot yellow"></span>
+              <span class="mockup-dot green"></span>
+            </div>
+            <span class="m-logo">Skill Zoo</span>
+            <div class="m-tab-bar">
+              <span class="m-tab">Discover</span>
+              <span class="m-tab active">Local</span>
+              <span class="m-tab">Settings</span>
+            </div>
+          </div>
+          <!-- App body -->
+          <div class="m-body">
+            <div class="m-sidebar">
+              <div class="m-sidebar-header">Skills</div>
+              <div class="m-sidebar-items">
+                <div class="m-sidebar-item active">
+                  <span class="m-si-icon">◇</span>All<span
+                    class="m-si-badge"
+                    >12</span
+                  >
+                </div>
+                <div class="m-sidebar-item">
+                  <span class="m-si-icon">★</span>Star<span
+                    class="m-si-badge"
+                    >5</span
+                  >
+                </div>
+                <div class="m-sidebar-item">
+                  <span class="m-si-icon">▣</span>My Skills<span
+                    class="m-si-badge"
+                    >3</span
+                  >
+                </div>
+                <div class="m-sidebar-item">
+                  <span class="m-si-icon">▤</span>Archive<span
+                    class="m-si-badge"
+                    >2</span
+                  >
+                </div>
+                <div class="m-sidebar-item">
+                  <span class="m-si-icon">▦</span>Repos
+                </div>
+                <div class="m-sidebar-item m-si-repo-child">
+                  luochang212/skill-zoo
+                </div>
+                <div class="m-sidebar-item m-si-repo-child">
+                  vercel-labs/ai-sdk
+                </div>
+                <div class="m-sidebar-item m-si-repo-child">
+                  coder/prompt-kit
+                </div>
+                <div class="m-sidebar-item m-si-repo-child">
+                  qoder/agent-hub
+                </div>
+                <div class="m-sidebar-item m-si-repo-child">Unassigned</div>
+              </div>
+            </div>
+            <div class="m-content">
+              <div class="m-toolbar">
+                <input
+                  class="m-search"
+                  value="Search installed…"
+                  readonly
+                />
+                <span class="m-filter active">All</span>
+                <span class="m-filter">Claude Code</span>
+                <span class="m-filter">Codex</span>
+                <span class="m-filter">Gemini</span>
+                <span class="m-filter">Cursor</span>
+                <span class="m-filter">Hermes</span>
+                <span class="m-spacer"></span>
+                <span class="m-view-btn active">▦</span>
+                <span class="m-view-btn">☰</span>
+              </div>
+              <div class="m-card-grid">
+                <div class="m-card">
+                  <div class="m-card-top">
+                    <span class="m-card-name">code-review</span>
+                    <span class="m-card-star">★</span>
+                  </div>
+                  <div class="m-card-desc">
+                    Review diffs for correctness bugs and simplification
+                    cleanups.
+                  </div>
+                  <div class="m-card-repo">luochang212/skill-zoo</div>
+                </div>
+                <div class="m-card">
+                  <div class="m-card-top">
+                    <span class="m-card-name">frontend-design</span>
+                    <span class="m-card-star">★</span>
+                  </div>
+                  <div class="m-card-desc">
+                    Build beautiful, responsive frontend UIs with modern
+                    best practices.
+                  </div>
+                  <div class="m-card-repo">luochang212/skill-zoo</div>
+                </div>
+                <div class="m-card">
+                  <div class="m-card-top">
+                    <span class="m-card-name">web-scraper</span>
+                    <span class="m-card-star">★</span>
+                  </div>
+                  <div class="m-card-desc">
+                    Scrape websites with smart content extraction and
+                    pagination.
+                  </div>
+                  <div class="m-card-repo">luochang212/skill-zoo</div>
+                </div>
+                <div class="m-card">
+                  <div class="m-card-top">
+                    <span class="m-card-name">skill-creator</span>
+                    <span class="m-card-star">★</span>
+                  </div>
+                  <div class="m-card-desc">
+                    Create, modify, and optimize AI coding assistant skills.
+                  </div>
+                  <div class="m-card-repo">luochang212/skill-zoo</div>
+                </div>
+                <div class="m-card">
+                  <div class="m-card-top">
+                    <span class="m-card-name">gh-fix-ci</span>
+                    <span class="m-card-star">★</span>
+                  </div>
+                  <div class="m-card-desc">
+                    Diagnose and fix broken GitHub Actions CI pipelines.
+                  </div>
+                  <div class="m-card-repo">luochang212/skill-zoo</div>
+                </div>
+                <div class="m-card">
+                  <div class="m-card-top">
+                    <span class="m-card-name">prototype</span>
+                    <span class="m-card-star">★</span>
+                  </div>
+                  <div class="m-card-desc">
+                    Quickly spin up throwaway prototypes and experiments.
+                  </div>
+                  <div class="m-card-repo">luochang212/skill-zoo</div>
+                </div>
+                <div class="m-card">
+                  <div class="m-card-top">
+                    <span class="m-card-name">app-release</span>
+                    <span class="m-card-star">★</span>
+                  </div>
+                  <div class="m-card-desc">
+                    Ship new versions via CI-triggered release tags and
+                    Homebrew cask updates.
+                  </div>
+                  <div class="m-card-repo">luochang212/skill-zoo</div>
+                </div>
+                <div class="m-card">
+                  <div class="m-card-top">
+                    <span class="m-card-name">github-research</span>
+                    <span class="m-card-star">★</span>
+                  </div>
+                  <div class="m-card-desc">
+                    Analyze GitHub repositories across 5 dimensions with
+                    structured reports.
+                  </div>
+                  <div class="m-card-repo">luochang212/skill-zoo</div>
+                </div>
+                <div class="m-card">
+                  <div class="m-card-top">
+                    <span class="m-card-name">agents-md</span>
+                    <span class="m-card-star">★</span>
+                  </div>
+                  <div class="m-card-desc">
+                    Scaffold AGENTS.md for multi-agent code review with
+                    guardrails.
+                  </div>
+                  <div class="m-card-repo">luochang212/skill-zoo</div>
+                </div>
+                <div class="m-card">
+                  <div class="m-card-top">
+                    <span class="m-card-name">stock-watcher</span>
+                    <span class="m-card-star">★</span>
+                  </div>
+                  <div class="m-card-desc">
+                    Monitor A-share stocks with real-time quotes and
+                    technical indicators.
+                  </div>
+                  <div class="m-card-repo">luochang212/skill-zoo</div>
+                </div>
+                <div class="m-card">
+                  <div class="m-card-top">
+                    <span class="m-card-name">china-stock</span>
+                    <span class="m-card-star">★</span>
+                  </div>
+                  <div class="m-card-desc">
+                    Analyze China A-share market with fundamentals,
+                    technicals, and sector rotation.
+                  </div>
+                  <div class="m-card-repo">luochang212/skill-zoo</div>
+                </div>
+                <div class="m-card">
+                  <div class="m-card-top">
+                    <span class="m-card-name">design-guidelines</span>
+                    <span class="m-card-star">★</span>
+                  </div>
+                  <div class="m-card-desc">
+                    Apply web design principles: typography, spacing, color
+                    systems, and responsive layout.
+                  </div>
+                  <div class="m-card-repo">luochang212/skill-zoo</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

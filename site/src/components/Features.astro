@@ -1,0 +1,156 @@
+---
+import { useTranslations, type Lang } from '../i18n/ui';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+---
+
+<section class="sec dark" id="features">
+  <div class="sec-inner">
+    <div class="eyebrow" data-i18n="feat-eyebrow">{t("feat-eyebrow")}</div>
+    <h2 data-i18n="feat-title" data-reveal style="--r-delay: 0ms">{t("feat-title")}</h2>
+    <p
+      class="lead"
+      style="max-width: 760px; --r-delay: 120ms"
+      data-i18n="feat-lead"
+      data-reveal
+    >{t("feat-lead")}</p>
+
+    <div
+      class="card-grid feature-wave-grid"
+      data-reveal
+      style="--r-delay: 240ms"
+    >
+      <div class="card dark-card">
+        <div
+          class="icon"
+          style="background: rgba(197, 102, 59, 0.12); color: #c5663b"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <line x1="21" y1="21" x2="16.5" y2="16.5" />
+          </svg>
+        </div>
+        <h3 data-i18n="feat-discover">{t("feat-discover")}</h3>
+        <p data-i18n="feat-discover-d">{t("feat-discover-d")}</p>
+      </div>
+      <div class="card dark-card">
+        <div
+          class="icon"
+          style="background: rgba(74, 124, 150, 0.12); color: #4a7c96"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+          >
+            <path d="M12 2L2 7l10 5 10-5-10-5z" />
+            <path d="M2 17l10 5 10-5" />
+            <path d="M2 12l10 5 10-5" />
+          </svg>
+        </div>
+        <h3 data-i18n="feat-install">{t("feat-install")}</h3>
+        <p data-i18n="feat-install-d">{t("feat-install-d")}</p>
+      </div>
+      <div class="card dark-card">
+        <div
+          class="icon"
+          style="background: rgba(107, 139, 93, 0.12); color: #6b8b5d"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+          >
+            <path
+              d="M2 6a2 2 0 012-2h5l2 2h9a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"
+            />
+          </svg>
+        </div>
+        <h3 data-i18n="feat-local">{t("feat-local")}</h3>
+        <p data-i18n="feat-local-d">{t("feat-local-d")}</p>
+      </div>
+      <div class="card dark-card">
+        <div
+          class="icon"
+          style="background: rgba(197, 102, 59, 0.12); color: #c5663b"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+          >
+            <path d="M17 3a2.8 2.8 0 014 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+          </svg>
+        </div>
+        <h3 data-i18n="feat-editor">{t("feat-editor")}</h3>
+        <p data-i18n="feat-editor-d">{t("feat-editor-d")}</p>
+      </div>
+      <div class="card dark-card">
+        <div
+          class="icon"
+          style="background: rgba(74, 124, 150, 0.12); color: #4a7c96"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <line x1="12" y1="8" x2="12" y2="16" />
+            <line x1="8" y1="12" x2="16" y2="12" />
+          </svg>
+        </div>
+        <h3 data-i18n="feat-create">{t("feat-create")}</h3>
+        <p data-i18n="feat-create-d">{t("feat-create-d")}</p>
+      </div>
+      <div class="card dark-card">
+        <div
+          class="icon"
+          style="background: rgba(74, 124, 150, 0.12); color: #4a7c96"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+          >
+            <circle cx="12" cy="12" r="3" />
+            <path
+              d="M12 1v3m0 16v3M4.2 4.2l2.1 2.1m11.4 11.4l2.1 2.1M1 12h3m16 0h3M4.2 19.8l2.1-2.1m11.4-11.4l2.1-2.1"
+            />
+          </svg>
+        </div>
+        <h3 data-i18n="feat-settings">{t("feat-settings")}</h3>
+        <p data-i18n="feat-settings-d">{t("feat-settings-d")}</p>
+      </div>
+    </div>
+  </div>
+</section>

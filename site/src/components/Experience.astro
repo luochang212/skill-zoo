@@ -1,0 +1,140 @@
+---
+import { useTranslations, type Lang } from '../i18n/ui';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+---
+
+<section class="sec dark">
+  <div class="sec-inner">
+    <div class="eyebrow" data-i18n="ux-eyebrow">{t("ux-eyebrow")}</div>
+    <h2 data-i18n="ux-title" data-reveal style="--r-delay: 0ms">{t("ux-title")}</h2>
+    <p
+      class="lead"
+      data-i18n="ux-lead"
+      data-reveal
+      style="--r-delay: 120ms"
+    >{t("ux-lead")}</p>
+
+    <div class="card-grid" data-reveal style="--r-delay: 240ms">
+      <div class="card dark-card" style="grid-column: span 2">
+        <div
+          class="icon icon-sm"
+          style="background: rgba(197, 102, 59, 0.12); color: #c5663b"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+          >
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+          </svg>
+        </div>
+        <h3 data-i18n="ux-opt-title">{t("ux-opt-title")}</h3>
+        <pre
+          class="no-copy"
+          style="
+            background: rgba(0, 0, 0, 0.2);
+            border-color: rgba(255, 255, 255, 0.06);
+          "
+        ><span style="color:#C5663B;">onMutate:</span>  取消进行中查询 → 快照当前缓存 → 立即修改 UI
+<span style="color:#C5663B;">onError:</span>   回滚至快照状态
+<span style="color:#C5663B;">onSettled:</span> 失效相关查询，触发后台重新获取</pre>
+        <p style="margin-top: 10px" data-i18n="ux-opt-desc">{t("ux-opt-desc")}</p>
+      </div>
+      <div class="card dark-card">
+        <div
+          class="icon"
+          style="background: rgba(197, 102, 59, 0.12); color: #c5663b"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+          >
+            <ellipse cx="12" cy="5" rx="9" ry="3" />
+            <path d="M21 12c0 1.7-4 3-9 3s-9-1.3-9-3" />
+            <path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5" />
+          </svg>
+        </div>
+        <h3 data-i18n="ux-cache-title">{t("ux-cache-title")}</h3>
+        <p data-i18n="ux-cache-desc">{t("ux-cache-desc")}</p>
+      </div>
+      <div class="card dark-card">
+        <div
+          class="icon"
+          style="background: rgba(74, 124, 150, 0.12); color: #4a7c96"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+          >
+            <rect x="3" y="3" width="7" height="7" rx="1" />
+            <rect x="14" y="3" width="7" height="7" rx="1" />
+            <rect x="3" y="14" width="7" height="7" rx="1" />
+            <rect x="14" y="14" width="7" height="7" rx="1" />
+          </svg>
+        </div>
+        <h3 data-i18n="ux-skeleton-title">{t("ux-skeleton-title")}</h3>
+        <p data-i18n="ux-skeleton-desc">{t("ux-skeleton-desc")}</p>
+      </div>
+      <div class="card dark-card">
+        <div
+          class="icon"
+          style="background: rgba(107, 139, 93, 0.12); color: #6b8b5d"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+          >
+            <path d="M1 4v6h6" />
+            <path d="M23 20v-6h-6" />
+            <path d="M20.5 8.5A9 9 0 005.5 15.5" />
+            <path d="M3.5 15.5A9 9 0 0018.5 8.5" />
+          </svg>
+        </div>
+        <h3 data-i18n="ux-sync-title">{t("ux-sync-title")}</h3>
+        <p data-i18n="ux-sync-desc">{t("ux-sync-desc")}</p>
+      </div>
+      <div class="card dark-card">
+        <div
+          class="icon"
+          style="background: rgba(197, 102, 59, 0.12); color: #c5663b"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <polyline points="12 7 12 12 16 14" />
+          </svg>
+        </div>
+        <h3 data-i18n="ux-min-title">{t("ux-min-title")}</h3>
+        <p data-i18n="ux-min-desc">{t("ux-min-desc")}</p>
+      </div>
+    </div>
+  </div>
+</section>

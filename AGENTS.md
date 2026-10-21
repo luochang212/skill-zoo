@@ -36,6 +36,7 @@ Core insight: a Skill is a file. This app is essentially a file manager with a p
 
 - **Desktop app** — `src-tauri/`
 - **CLI** — `packages/cli/`
+- **Project website** — `site/` (independent static Astro build; see `site/README.md`)
 
 ## Core Design Decisions
 
@@ -142,3 +143,17 @@ When `package.json` changes — a dependency added or removed, or `bun install` 
     rm -rf node_modules/.vite && bun run dev
 
 Or force a one-time re-bundle with `bunx --bun vite --force`. Note that `bun install` fixes `node_modules` but does not touch the Vite cache, and a running dev server holds the stale optimizer state in memory — a full restart is required.
+
+## Project Website
+
+`site/` owns the public landing page. Build it independently with
+`npm --prefix site ci`, `npm --prefix site run check`, and
+`npm --prefix site run build`; browser regressions use `npm --prefix site test`
+after installing Playwright Chromium. The desktop/CLI builds do not cover it.
+
+Edit both languages in `site/src/i18n/ui.ts` in the same change. Preserve the
+`/skill-zoo/` deployment base, `/zh/` route, old `?lang=zh/en` links, and
+`site/public/version.json` as the released-version source. Release automation
+updates that manifest; do not substitute the development package version.
+Website deployment is `.github/workflows/site.yml`; assets live in
+`site/public/`, while unrelated documentation stays in `docs/`.

@@ -1,0 +1,25 @@
+---
+import Base from '../layouts/Base.astro';
+import type { Lang } from '../i18n/ui';
+import Hero from './Hero.astro';
+import Overview from './Overview.astro';
+import Architecture from './Architecture.astro';
+import Features from './Features.astro';
+import DesignDecisions from './DesignDecisions.astro';
+import Experience from './Experience.astro';
+import Agents from './Agents.astro';
+import GetStarted from './GetStarted.astro';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+---
+
+<Base lang={lang}>
+  <Hero lang={lang} />
+  <Overview lang={lang} />
+  <Architecture lang={lang} />
+  <Features lang={lang} />
+  <DesignDecisions lang={lang} />
+  <Experience lang={lang} />
+  <Agents lang={lang} />
+  <GetStarted lang={lang} />
+</Base>

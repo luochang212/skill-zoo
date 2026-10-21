@@ -22,5 +22,5 @@ paths were used. Screenshot tooling and mocks were kept outside the app source.
 
 When refreshing, use the current UI and the same viewport, theme, and scale.
 Keep all three output dimensions and the carousel aspect ratio in
-`docs/index.html` aligned. Check the resulting page in both languages and at
+`site/src/scripts/carousel.js` and `site/src/styles/global.css` aligned. Check the resulting page in both languages and at
 desktop and mobile widths.

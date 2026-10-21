@@ -17,3 +17,7 @@ archived/
 docs/superpowers/
 
 .deepsec/
+
+site/.astro/
+site/test-results/
+site/playwright-report/

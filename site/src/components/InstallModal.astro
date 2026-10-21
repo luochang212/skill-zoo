@@ -1,0 +1,65 @@
+---
+import { useTranslations, messages, type Lang } from '../i18n/ui';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+---
+
+<div class="modal-overlay" id="install-modal" hidden>
+  <div class="modal-card">
+    <button class="modal-close" id="modal-close" aria-label="Close">
+      &times;
+    </button>
+    <h2 class="modal-title" data-i18n="install-title">{t("install-title")}</h2>
+    <div class="modal-os-tabs" id="os-tabs">
+      <button
+        class="modal-os-tab active"
+        data-os="macos"
+        data-i18n="install-os-macos"
+      >{t("install-os-macos")}</button>
+      <button
+        class="modal-os-tab"
+        data-os="windows"
+        data-i18n="install-os-windows"
+      >{t("install-os-windows")}</button>
+      <button
+        class="modal-os-tab"
+        data-os="linux"
+        data-i18n="install-os-linux"
+      >{t("install-os-linux")}</button>
+    </div>
+    <div class="modal-dl-row">
+      <span class="modal-dl-file" id="dl-filename"
+        >Skill-Zoo-v0.0.0-macOS.dmg</span
+      >
+      <span
+        class="modal-dl-retry"
+        data-i18n="install-retry"
+        style="margin-left: auto"
+        >{t("install-retry")}</span
+      >
+      <a
+        class="modal-dl-link"
+        id="dl-manual"
+        href="#"
+        data-i18n="install-manual-click"
+        >{t("install-manual-click")}</a
+      >
+    </div>
+    <div class="modal-steps" id="modal-steps">
+      <!-- Populated by JS for active OS -->
+    </div>
+    <div class="modal-alt" id="modal-alt">
+      <!-- Populated by JS for active OS -->
+    </div>
+    <div class="modal-footer">
+      <a
+        href="https://github.com/luochang212/skill-zoo/releases"
+        target="_blank"
+        data-i18n="install-all-releases"
+        >{t("install-all-releases")}</a
+      >
+    </div>
+  </div>
+</div>
+<script type="application/json" id="install-messages" set:html={JSON.stringify(Object.fromEntries(Object.entries(messages).filter(([key]) => key.startsWith("install-")).map(([key, value]) => [key, value[lang]])))} />

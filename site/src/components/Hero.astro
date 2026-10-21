@@ -1,0 +1,27 @@
+---
+import { useTranslations, type Lang } from '../i18n/ui';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+---
+
+<section class="hero-zoo" id="hero-zoo">
+  <div class="hero-grid"></div>
+  <div class="hero-grain"></div>
+  <div class="hero-entrance">
+    <h1 class="glowing-txt">
+      SK<span class="faulty-letter">I</span>LL ZOO
+    </h1>
+  </div>
+  <p class="hero-subtitle hero-entrance hero-sub" data-i18n="hero-subtitle">{t("hero-subtitle")}</p>
+  <a href="#report" class="scroll-hint">
+    <span data-i18n="scroll">{t("scroll")}</span>
+    <svg viewBox="0 0 24 24">
+      <path
+        d="M12 5v14M5 12l7 7 7-7"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+  </a>
+</section>

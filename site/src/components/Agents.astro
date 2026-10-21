@@ -1,0 +1,133 @@
+---
+import { basePath } from '../lib/paths';
+import { useTranslations, type Lang } from '../i18n/ui';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+---
+
+<section class="sec">
+  <div class="sec-inner">
+    <div class="eyebrow" data-i18n="agents-eyebrow">{t("agents-eyebrow")}</div>
+    <h2 data-i18n="agents-title" data-reveal style="--r-delay: 0ms">{t("agents-title")}</h2>
+    <p
+      class="lead"
+      data-i18n="agents-lead"
+      data-reveal
+      style="--r-delay: 120ms"
+    >{t("agents-lead")}</p>
+
+    <div class="agent-showcase" data-reveal style="--r-delay: 240ms">
+      <div class="agent-grid" aria-label="Supported coding agents">
+        <div class="agent-card">
+          <span class="agent-icon">
+            <img src={basePath + "agent-icons/claude-code.png"} alt="" />
+          </span>
+          <div class="agent-name">Claude Code</div>
+        </div>
+        <div class="agent-card">
+          <span class="agent-icon">
+            <img src={basePath + "agent-icons/codex.png"} alt="" />
+          </span>
+          <div class="agent-name">Codex</div>
+        </div>
+        <div class="agent-card">
+          <span class="agent-icon">
+            <img src={basePath + "agent-icons/gemini.png"} alt="" />
+          </span>
+          <div class="agent-name">Gemini</div>
+        </div>
+        <div class="agent-card">
+          <span class="agent-icon">
+            <img src={basePath + "agent-icons/opencode.png"} alt="" />
+          </span>
+          <div class="agent-name">OpenCode</div>
+        </div>
+        <div class="agent-card">
+          <span class="agent-icon">
+            <img src={basePath + "agent-icons/cursor.png"} alt="" />
+          </span>
+          <div class="agent-name">Cursor</div>
+        </div>
+        <div class="agent-card">
+          <span class="agent-icon">
+            <img src={basePath + "agent-icons/trae.png"} alt="" />
+          </span>
+          <div class="agent-name">Trae</div>
+        </div>
+        <div class="agent-card">
+          <span class="agent-icon">
+            <img src={basePath + "agent-icons/kimi-code.png"} alt="" />
+          </span>
+          <div class="agent-name">Kimi Code</div>
+        </div>
+        <div class="agent-card">
+          <span class="agent-icon">
+            <img src={basePath + "agent-icons/hermes.png"} alt="" />
+          </span>
+          <div class="agent-name">Hermes</div>
+        </div>
+        <div class="agent-card">
+          <span class="agent-icon">
+            <img src={basePath + "agent-icons/openclaw.png"} alt="" />
+          </span>
+          <div class="agent-name">OpenClaw</div>
+        </div>
+        <div class="agent-card">
+          <span class="agent-icon">
+            <img src={basePath + "agent-icons/workbuddy.svg"} alt="" />
+          </span>
+          <div class="agent-name">WorkBuddy</div>
+        </div>
+        <div class="agent-card">
+          <span class="agent-icon">
+            <img src={basePath + "agent-icons/qoder-cn.png"} alt="" />
+          </span>
+          <div class="agent-name">Qoder CN</div>
+        </div>
+        <div class="agent-card">
+          <span class="agent-icon">
+            <img src={basePath + "agent-icons/qoderworkcn.png"} alt="" />
+          </span>
+          <div class="agent-name">QoderWork CN</div>
+        </div>
+        <div class="agent-card">
+          <span class="agent-icon">
+            <img src={basePath + "agent-icons/windsurf.svg"} alt="" />
+          </span>
+          <div class="agent-name">Windsurf</div>
+        </div>
+        <div class="agent-card">
+          <span class="agent-icon">
+            <img src={basePath + "agent-icons/grok.svg"} alt="" />
+          </span>
+          <div class="agent-name">Grok Build</div>
+        </div>
+        <div class="agent-card">
+          <span class="agent-icon">
+            <img src={basePath + "agent-icons/qwen-code.png"} alt="" />
+          </span>
+          <div class="agent-name">Qwen Code</div>
+        </div>
+        <div class="agent-card">
+          <span class="agent-icon">
+            <img src={basePath + "agent-icons/pi.svg"} alt="" />
+          </span>
+          <div class="agent-name">Pi</div>
+        </div>
+        <div class="agent-card">
+          <span class="agent-icon">
+            <img src={basePath + "agent-icons/antigravity.png"} alt="" />
+          </span>
+          <div class="agent-name">Antigravity</div>
+        </div>
+        <div class="agent-card">
+          <span class="agent-icon">
+            <img src={basePath + "agent-icons/zcode.png"} alt="" />
+          </span>
+          <div class="agent-name">ZCode</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

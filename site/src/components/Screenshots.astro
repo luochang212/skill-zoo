@@ -1,0 +1,21 @@
+---
+import { basePath } from '../lib/paths';
+const screenshots = [
+  ['screenshot-1.webp', 'Local skill management with agent filters, favorites, and archives'],
+  ['screenshot-2.webp', 'Discover skills and GitHub repositories'],
+  ['screenshot-3.webp', 'Skill editor with file tree and split Markdown preview'],
+];
+---
+
+<div class="carousel-wrapper" id="carousel-wrapper" data-reveal style="--r-delay: 240ms">
+  <div class="carousel" id="carousel">
+    {screenshots.map(([file, alt]) => (
+      <div class="carousel-card">
+        <img src={basePath + 'screenshots/' + file} alt={alt} width="2200" height="1400" draggable="false" />
+      </div>
+    ))}
+  </div>
+</div>
+<div class="carousel-dots" id="carousel-dots">
+  {screenshots.map(([, alt], index) => <button data-idx={index} aria-label={alt} />)}
+</div>

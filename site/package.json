@@ -1,0 +1,24 @@
+{
+  "name": "skill-zoo-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "test": "playwright test",
+    "check": "astro check"
+  },
+  "engines": {
+    "node": ">=22.22.0"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "^3.7.4",
+    "astro": "^7.4.1"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.12",
+    "@playwright/test": "^1.64.1",
+    "typescript": "^6.0.3"
+  }
+}

@@ -1,0 +1,58 @@
+---
+import { useTranslations, type Lang } from '../i18n/ui';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+---
+
+<section class="sec">
+  <div class="sec-inner">
+    <div class="eyebrow" data-i18n="design-eyebrow">{t("design-eyebrow")}</div>
+    <h2 data-i18n="design-title" data-reveal style="--r-delay: 0ms">{t("design-title")}</h2>
+    <p
+      class="lead"
+      data-i18n="design-lead"
+      data-reveal
+      style="--r-delay: 120ms"
+    >{t("design-lead")}</p>
+
+    <div class="num-list" data-reveal style="--r-delay: 240ms">
+      <div class="num-item">
+        <div class="num-circle">1</div>
+        <div>
+          <h3 data-i18n="d1-title">{t("d1-title")}</h3>
+          <p data-i18n="d1-desc">{t("d1-desc")}</p>
+          <div style="margin-top: 8px">
+            <span class="tag">notify crate</span>
+            <span class="tag green">SHA-256 哈希缓存</span>
+            <span class="tag">skills-changed 事件</span>
+          </div>
+        </div>
+      </div>
+      <div class="num-item">
+        <div class="num-circle">2</div>
+        <div>
+          <h3 data-i18n="d2-title">{t("d2-title")}</h3>
+          <p data-i18n="d2-desc">{t("d2-desc")}</p>
+          <div style="margin-top: 8px">
+            <span class="tag">detect_home_path</span>
+            <span class="tag green">seen_ids 去重</span>
+            <span class="tag">symlink / junction</span>
+          </div>
+        </div>
+      </div>
+      <div class="num-item">
+        <div class="num-circle">3</div>
+        <div>
+          <h3 data-i18n="d3-title">{t("d3-title")}</h3>
+          <p data-i18n="d3-desc">{t("d3-desc")}</p>
+          <div style="margin-top: 8px">
+            <span class="tag">Tauri IPC</span>
+            <span class="tag green">CSP 限制</span>
+            <span class="tag">路径验证</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
