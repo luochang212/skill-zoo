@@ -349,7 +349,9 @@ impl CliService {
                     continue;
                 }
                 Err(e) => {
-                    errors.extend(skills.iter().map(|(name, _)| format!("{name}: {e}")));
+                    let error = crate::error::CommandError::from(e);
+                    let message = serde_json::to_string(&error).unwrap_or(error.message);
+                    errors.extend(skills.iter().map(|(name, _)| format!("{name}: {message}")));
                     continue;
                 }
             };
@@ -546,16 +548,13 @@ impl CliService {
         resp: reqwest::Response,
         repo: &str,
     ) -> Result<Option<RepoTreeResponse>, AppError> {
-        match resp.status().as_u16() {
-            403 if resp
-                .headers()
-                .get("x-ratelimit-remaining")
-                .is_some_and(|v| v == "0") =>
-            {
-                Err(AppError::RateLimited(repo.to_string()))
+        // Preserve the missing repository/branch result used by callers.
+        if resp.status().as_u16() != 404 {
+            if let Some(error) = crate::services::github::response_error(&resp, repo) {
+                return Err(error);
             }
-            429 => Err(AppError::RateLimited(repo.to_string())),
-            403 => Err(AppError::DownloadUnavailable(repo.to_string())),
+        }
+        match resp.status().as_u16() {
             200 => {
                 let json: RepoTreeResponse = resp.json().await.map_err(|e| {
                     AppError::Parse(format!("Invalid tree response from GitHub: {e}"))
@@ -1244,7 +1243,7 @@ mod tests {
                 .unwrap();
             let result = CliService::parse_repo_tree_response(response, "owner/repo").await;
             if rate_limited {
-                assert!(matches!(result, Err(AppError::RateLimited(_))));
+                assert!(matches!(result, Err(AppError::RateLimited { .. })));
             } else {
                 assert!(matches!(result, Err(AppError::DownloadUnavailable(_))));
             }

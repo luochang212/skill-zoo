@@ -20,6 +20,59 @@ fn github_get_with_token(
     }
 }
 
+/// Classify API failures without treating generic proxy 403s as GitHub permissions.
+pub fn response_error(response: &reqwest::Response, repo: &str) -> Option<AppError> {
+    let status = response.status().as_u16();
+    let headers = response.headers();
+    let header = |name| headers.get(name).and_then(|value| value.to_str().ok());
+    if status == 429 || (status == 403 && header("x-ratelimit-remaining") == Some("0")) {
+        let now = chrono::Utc::now().timestamp();
+        let usable_time = |timestamp: &i64| {
+            *timestamp > now && chrono::DateTime::from_timestamp(*timestamp, 0).is_some()
+        };
+        let retry_at = header("retry-after")
+            .and_then(|value| {
+                value
+                    .parse::<u32>()
+                    .ok()
+                    .map(|seconds| now + i64::from(seconds))
+                    .or_else(|| {
+                        chrono::DateTime::parse_from_rfc2822(value)
+                            .ok()
+                            .map(|date| date.timestamp())
+                    })
+            })
+            .filter(usable_time)
+            .or_else(|| {
+                header("x-ratelimit-reset")
+                    .and_then(|value| value.parse::<i64>().ok())
+                    .filter(usable_time)
+            });
+        let authenticated = header("x-ratelimit-limit")
+            .and_then(|value| value.parse::<u32>().ok())
+            .map_or_else(
+                || crate::config::github_token().is_some(),
+                |limit| limit > 60,
+            );
+        return Some(AppError::RateLimited {
+            repo: repo.into(),
+            authenticated,
+            retry_at,
+        });
+    }
+    match status {
+        200..=299 => None,
+        401 => Some(AppError::GitHubUnauthorized(repo.into())),
+        403 if headers.contains_key("x-accepted-github-permissions")
+            || headers.contains_key("x-github-sso") =>
+        {
+            Some(AppError::GitHubPermissionDenied(repo.into()))
+        }
+        404 => Some(AppError::RepoNotFound(repo.into())),
+        _ => Some(AppError::DownloadUnavailable(repo.into())),
+    }
+}
+
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitHubTokenVerification {
@@ -395,5 +448,76 @@ mod tests {
         assert!(parse_repo_ref("https://gitlab.com/foo/bar").is_err());
         assert!(parse_repo_query("bad owner/repo").is_err());
         assert!(parse_repo_query("owner/repo/tree/bad..branch").is_err());
+    }
+}
+
+#[cfg(test)]
+mod response_tests {
+    use super::*;
+    use crate::error::CommandError;
+
+    #[tokio::test]
+    async fn api_failures_preserve_recovery_details() {
+        let mut server = mockito::Server::new_async().await;
+        let reset = chrono::Utc::now().timestamp() + 3600;
+        for (status, remaining, limit, permission, code) in [
+            (401, "42", "5000", false, "githubUnauthorized"),
+            (403, "0", "60", false, "rateLimited"),
+            (403, "0", "5000", false, "rateLimited"),
+            (429, "42", "5000", false, "rateLimited"),
+            (403, "42", "5000", true, "githubPermissionDenied"),
+            (403, "42", "5000", false, "downloadUnavailable"),
+            (404, "42", "5000", false, "repoNotFound"),
+            (500, "42", "5000", false, "downloadUnavailable"),
+        ] {
+            let mut mock = server
+                .mock("GET", "/api")
+                .with_status(status)
+                .with_header("x-ratelimit-remaining", remaining)
+                .with_header("x-ratelimit-limit", limit)
+                .with_header("x-ratelimit-reset", &reset.to_string());
+            if permission {
+                mock = mock.with_header("x-accepted-github-permissions", "contents=read");
+            }
+            let mock = mock.create_async().await;
+            let response = reqwest::get(format!("{}/api", server.url())).await.unwrap();
+            let error = CommandError::from(response_error(&response, "o/r").unwrap());
+            assert_eq!(error.code, code);
+            let json = serde_json::to_value(&error).unwrap();
+            assert_eq!(json["repo"], "o/r");
+            if code == "rateLimited" {
+                assert_eq!(json["authenticated"], limit == "5000");
+                assert_eq!(json["retryAt"], reset);
+            } else {
+                assert!(json.get("authenticated").is_none());
+                assert!(json.get("retryAt").is_none());
+            }
+            mock.assert_async().await;
+            mock.remove_async().await;
+        }
+    }
+
+    #[tokio::test]
+    async fn retry_after_precedes_reset_and_invalid_times_are_omitted() {
+        let mut server = mockito::Server::new_async().await;
+        for retry in ["120", "invalid"] {
+            let mock = server
+                .mock("GET", "/api")
+                .with_status(429)
+                .with_header("retry-after", retry)
+                .with_header("x-ratelimit-reset", "-1")
+                .with_header("x-ratelimit-limit", "5000")
+                .create_async()
+                .await;
+            let before = chrono::Utc::now().timestamp();
+            let response = reqwest::get(format!("{}/api", server.url())).await.unwrap();
+            let error = CommandError::from(response_error(&response, "o/r").unwrap());
+            if retry == "120" {
+                assert!(error.retry_at.unwrap() >= before + 120);
+            } else {
+                assert_eq!(error.retry_at, None);
+            }
+            mock.remove_async().await;
+        }
     }
 }

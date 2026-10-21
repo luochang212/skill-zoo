@@ -2251,6 +2251,8 @@ fn skill_file_error(code: &'static str, message: impl Into<String>) -> CommandEr
         code,
         message: message.into(),
         repo: None,
+        authenticated: None,
+        retry_at: None,
     }
 }
 
@@ -2573,12 +2575,10 @@ async fn fetch_github_repo_metadata(owner: &str, name: &str) -> Result<DiscoverR
                 "metadata fetch HTTP {} for {owner}/{name}",
                 resp.status().as_u16()
             );
-            let status = resp.status().as_u16();
-            if status == 404 {
-                Err(AppError::RepoNotFound(format!("{owner}/{name}")))
-            } else {
-                Err(AppError::DownloadUnavailable(format!("{owner}/{name}")))
-            }
+            Err(
+                crate::services::github::response_error(&resp, &format!("{owner}/{name}"))
+                    .unwrap_or_else(|| AppError::DownloadUnavailable(format!("{owner}/{name}"))),
+            )
         }
         Err(e) => Err(classify_download_error(format!("{owner}/{name}"), e)),
     }
@@ -2756,11 +2756,9 @@ async fn fetch_repo_readme(
         .send()
         .await
         .map_err(|e| classify_download_error(format!("{owner}/{name}"), e))?;
-    if resp.status().as_u16() == 404 {
-        return Err(AppError::RepoNotFound(format!("{owner}/{name}")));
-    }
-    if !resp.status().is_success() {
-        return Err(AppError::DownloadUnavailable(format!("{owner}/{name}")));
+    if let Some(error) = crate::services::github::response_error(&resp, &format!("{owner}/{name}"))
+    {
+        return Err(error);
     }
     let json: serde_json::Value = resp
         .json()

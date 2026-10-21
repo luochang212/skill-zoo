@@ -1115,6 +1115,7 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
     let total_repos = skills_by_repo.len();
     let mut checked_repos: usize = 0;
     let mut rate_limited = false;
+    let mut rate_limit_message = None;
 
     let mut checked_skills: HashMap<String, CheckedRemoteSkill> = HashMap::new();
 
@@ -1169,37 +1170,28 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
                     );
                 }
             }
-            Err(crate::error::AppError::RateLimited(_)) => {
+            Err(error @ crate::error::AppError::RateLimited { .. }) => {
                 // Actually rate limited — stop further requests
                 rate_limited = true;
+                let error = crate::error::CommandError::from(error);
+                let message = serde_json::to_string(&error).unwrap_or(error.message);
+                rate_limit_message = Some(message.clone());
                 for (skill_name, _) in skills_in_repo {
                     checked_skills.insert(
                         skill_name.clone(),
-                        CheckedRemoteSkill::error(
-                            repo.clone(),
-                            "rateLimited",
-                            format!(
-                                "GitHub rate limit stopped update checks for {}",
-                                repo_branch_ref(&owner, &repo, branch.as_deref())
-                            ),
-                        ),
+                        CheckedRemoteSkill::error(repo.clone(), "rateLimited", message.clone()),
                     );
                 }
             }
             Err(error) => {
-                // Network error — skip this repo, don't stop
+                // Non-quota failures affect only this repository.
+                let error = crate::error::CommandError::from(error);
+                let code = error.code;
+                let message = serde_json::to_string(&error).unwrap_or(error.message);
                 for (skill_name, _) in skills_in_repo {
                     checked_skills.insert(
                         skill_name.clone(),
-                        CheckedRemoteSkill::error(
-                            repo.clone(),
-                            "checkFailed",
-                            format!(
-                                "Could not check updates for {}: {}",
-                                repo_branch_ref(&owner, &repo, branch.as_deref()),
-                                error
-                            ),
-                        ),
+                        CheckedRemoteSkill::error(repo.clone(), code, message.clone()),
                     );
                 }
             }
@@ -1218,7 +1210,9 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
                 CheckedRemoteSkill::error(
                     format!("{owner}/{name}"),
                     "rateLimited",
-                    "Skipped because GitHub rate limit stopped update checks.",
+                    rate_limit_message.clone().unwrap_or_else(|| {
+                        "Skipped because GitHub rate limit stopped update checks.".into()
+                    }),
                 )
             } else {
                 CheckedRemoteSkill::ok(None, format!("{owner}/{name}"))
