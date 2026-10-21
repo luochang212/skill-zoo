@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.57] — 2026-10-22
+
+### Changed
+- The public landing page is now an independently built Astro site: static English at `/skill-zoo/`, Chinese at `/skill-zoo/zh/`, with the existing `?lang=zh|en` links, screenshots and release downloads preserved. GitHub Actions builds and deploys it independently of the desktop and CLI builds.
+- The recommended-repositories list replaces `taste-skill` with `anatomy` (interactive isometric SVG illustrations).
+- The website's Real-time FS Sync card now uses a dedicated hand-drawn sync-loop icon instead of the shared refresh glyph.
+
+### Fixed
+- Saving a verified GitHub token now refreshes active repository metadata, README and repository-search reads, and marks inactive ones stale for their next use. Valid disk caches remain reusable, failed saves leave queries untouched, and saving never starts an install or update write.
+- GitHub API read failures now distinguish invalid credentials, anonymous or authenticated quota exhaustion, permission failures, missing repositories and transport errors, with actionable English/Chinese guidance and the quota retry time. Errors without a dedicated code keep their backend detail, and token setup guidance is no longer shown for authenticated quota exhaustion.
+- A README recovered from a cached ZIP is persisted as stale instead of gaining a fresh seven-day cache lifetime, so saving a token retries GitHub while the fallback content remains available offline.
+- Adding a common command now scrolls its editor into view and focuses it, so a long list no longer hides the new textarea below the fold.
+- A metadata refresh can no longer overwrite a star or archive change written while it was reading disk, and batch deletion now applies and saves its metadata changes in one locked step.
+- A late save no longer clears a newer draft: save confirmation and auxiliary drafts are bound to the editing session and skill identity, and undoing back to the saved text clears the draft.
+- Merging duplicate skills refuses sources that contain symbolic links or junctions instead of silently dropping the links, and removes a destination it created when the merge fails.
+- Reinstalling or updating an existing skill preserves lock fields the desktop does not recognize, so values written by newer producers survive an older writer.
+
 ## [0.3.56] — 2026-10-21
 
 ### Changed
