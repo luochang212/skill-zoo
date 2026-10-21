@@ -2936,9 +2936,9 @@
 
         <div class="stat-row">
           <div>
-            <div class="stat-num">54</div>
-            <div class="stat-label" data-i18n="stat-commands">
-              Tauri IPC 命令
+            <div class="stat-num">3</div>
+            <div class="stat-label" data-i18n="stat-platforms">
+              桌面平台
             </div>
           </div>
           <div>
@@ -3470,9 +3470,8 @@
             </div>
             <h3 data-i18n="feat-discover">发现与浏览</h3>
             <p data-i18n="feat-discover-d">
-              3D
-              透视卡片轮播展示精选仓库，自动播放，悬停暂停。最近访问记录与推荐仓库列表，多个入口帮你发现感兴趣的
-              Skill。
+              按关键词搜索技能，或输入 GitHub
+              仓库链接直接浏览。精选仓库、推荐列表与最近访问，帮你找到需要的 Skill。
             </p>
           </div>
           <div class="card dark-card">
@@ -3496,8 +3495,8 @@
             </div>
             <h3 data-i18n="feat-install">仓库详情与安装</h3>
             <p data-i18n="feat-install-d">
-              支持批量勾选安装，右侧滑出预览面板即时查看
-              SKILL.md。支持强制刷新下载，ZIP 缓存 24 小时 TTL。
+              安装前预览
+              SKILL.md，批量选择技能与目标编程工具。下载缓存减少重复等待，已安装状态与名称冲突清晰可见。
             </p>
           </div>
           <div class="card dark-card">
@@ -3521,7 +3520,7 @@
             </div>
             <h3 data-i18n="feat-local">本地 Skill 管理</h3>
             <p data-i18n="feat-local-d">
-              侧边栏五类筛选（全部/收藏/归档/我的/一致性审计），网格与列表双视图，支持按名称、仓库、更新时间排序及关键字搜索。
+              统一管理已安装技能与外部导入目录，支持收藏、归档、批量操作和一致性审计。按编程工具或仓库筛选，切换网格与列表视图。
             </p>
           </div>
           <div class="card dark-card">
@@ -3543,8 +3542,8 @@
             </div>
             <h3 data-i18n="feat-editor">Skill 编辑器</h3>
             <p data-i18n="feat-editor-d">
-              四标签页：Markdown 渲染、文本编辑、可拖拽分屏、文件树浏览。YAML
-              frontmatter 自动解析为信息表格，内含安全审计面板。
+              预览、编辑、分屏三种模式，边改边看 Markdown
+              效果。通过侧边文件树浏览和编辑辅助文件，切换或关闭前提醒保存未提交的修改。
             </p>
           </div>
           <div class="card dark-card">
@@ -3594,8 +3593,8 @@
             </div>
             <h3 data-i18n="feat-settings">全局设置</h3>
             <p data-i18n="feat-settings-d">
-              主题切换、语言运行时切换、编程工具路径可见性管理，以及 Skill
-              批量更新与重新扫描，所有配置集中管理。
+              管理主题、语言、内置与自定义编程工具。更新管理器集中检查和更新技能；可选 GitHub Token
+              提高 API 配额，减少仓库信息读取受限。
             </p>
           </div>
         </div>
@@ -3659,12 +3658,11 @@
             <div>
               <h3 data-i18n="d3-title">Tauri IPC 是唯一桥梁</h3>
               <p data-i18n="d3-desc">
-                前端零文件系统访问、零 GitHub API 调用、零 git
-                执行。所有外部交互通过 33 个类型化 Rust Tauri
-                命令完成。路径遍历严格验证，拒绝绝对路径与父目录引用。
+                前端零文件系统访问、零 GitHub API 调用、零 git 执行。所有外部交互通过类型化 Rust
+                Tauri 命令完成。路径遍历严格验证，拒绝绝对路径与父目录引用。
               </p>
               <div style="margin-top: 8px">
-                <span class="tag">33 Tauri 命令</span>
+                <span class="tag">Tauri IPC</span>
                 <span class="tag green">CSP 限制</span>
                 <span class="tag">路径验证</span>
               </div>
@@ -3967,18 +3965,11 @@
           <div data-reveal style="--r-delay: 0ms">
             <h2 data-i18n="cta-title">准备好整理你的技能库了吗？</h2>
             <p class="lead" data-i18n="cta-desc" style="max-width: 100%">
-              为 Claude Code、Codex、OpenCode 等 Coding Agent
-              打造的本地技能管理器。覆盖技能的全生命周期，同时提供桌面 GUI 与
-              npm CLI 两种交互方式。
+              支持 Claude Code、Codex、Cursor、OpenCode 等 20
+              多款编程工具，也可添加自定义工具。通过桌面 App、npm CLI 或本地 Web
+              UI，管理同一份技能文件。
             </p>
-            <div
-              style="
-                display: flex;
-                gap: 24px;
-                margin-top: 24px;
-                flex-wrap: wrap;
-              "
-            >
+            <div style="display: flex; gap: 24px; margin-top: 24px; flex-wrap: wrap">
               <a
                 class="gh-cta-btn"
                 href="https://github.com/luochang212/skill-zoo"
@@ -4307,7 +4298,7 @@
           zh: "三层结构：React 前端通过 Tauri IPC 与 Rust 后端通信。前端零文件系统、零网络访问，所有交互走类型化 Rust 命令；后端管理文件系统与外部服务。",
           en: "Three-layer structure: React frontend communicates with Rust backend via Tauri IPC. Zero filesystem and network access from the frontend — all interactions go through typed Rust commands; the backend manages filesystem and external services.",
         },
-        "stat-commands": { zh: "Tauri IPC 命令", en: "Tauri IPC Commands" },
+        "stat-platforms": { zh: "桌面平台", en: "Desktop Platforms" },
         "stat-langs": {
           zh: "平台语言 (TS + Rust)",
           en: "Languages (TS + Rust)",
@@ -4323,23 +4314,23 @@
         },
         "feat-discover": { zh: "发现与浏览", en: "Discover & Browse" },
         "feat-discover-d": {
-          zh: "3D 透视卡片轮播展示精选仓库，自动播放，悬停暂停。最近访问记录与推荐仓库列表，多个入口帮你发现感兴趣的 Skill。",
-          en: "3D perspective card carousel showcasing curated repos with auto-play. Recent visits and recommended repos help you discover skills.",
+          zh: "按关键词搜索技能，或输入 GitHub 仓库链接直接浏览。精选仓库、推荐列表与最近访问，帮你找到需要的 Skill。",
+          en: "Search skills by keyword or open a GitHub repository URL. Curated repos, recommendations, and recent visits help you find the skills you need.",
         },
         "feat-install": { zh: "仓库详情与安装", en: "Repo Details & Install" },
         "feat-install-d": {
-          zh: "支持批量勾选安装，右侧滑出预览面板即时查看 SKILL.md。支持强制刷新下载，ZIP 缓存 24 小时 TTL。",
-          en: "Batch-select to install, slide-out preview panel for SKILL.md. Force-refresh downloads with 24h ZIP cache TTL.",
+          zh: "安装前预览 SKILL.md，批量选择技能与目标编程工具。下载缓存减少重复等待，已安装状态与名称冲突清晰可见。",
+          en: "Preview SKILL.md before installing, then select skills and target coding agents in batches. Download caching saves repeat waits; installed skills and name conflicts are clearly marked.",
         },
         "feat-local": { zh: "本地 Skill 管理", en: "Local Skill Management" },
         "feat-local-d": {
-          zh: "侧边栏五类筛选（全部/收藏/归档/我的/一致性审计），网格与列表双视图，支持按名称、仓库、更新时间排序及关键字搜索。",
-          en: "Five sidebar filters (all/starred/archived/mine/consistency), grid and list views, sort by name, repo, update time, and keyword search.",
+          zh: "统一管理已安装技能与外部导入目录，支持收藏、归档、批量操作和一致性审计。按编程工具或仓库筛选，切换网格与列表视图。",
+          en: "Manage installed skills and imported folders together, with favorites, archives, batch actions, and consistency checks. Filter by coding agent or repository and switch between grid and list views.",
         },
         "feat-editor": { zh: "Skill 编辑器", en: "Skill Editor" },
         "feat-editor-d": {
-          zh: "三标签页：Markdown 预览、文本编辑、可拖拽分屏，侧边栏文件树快速切换。YAML frontmatter 自动解析为信息表格，内置一致性审计面板。",
-          en: "Three tabs: Markdown preview, text editor, draggable split view, with a sidebar file tree for quick navigation. YAML frontmatter parsed into info table with built-in consistency audit.",
+          zh: "预览、编辑、分屏三种模式，边改边看 Markdown 效果。通过侧边文件树浏览和编辑辅助文件，切换或关闭前提醒保存未提交的修改。",
+          en: "Preview, edit, or use split view to see Markdown changes as you type. Browse and edit supporting files in the sidebar tree, with unsaved-change prompts before switching or closing.",
         },
         "feat-create": { zh: "Skill 创建", en: "Skill Creation" },
         "feat-create-d": {
@@ -4348,8 +4339,8 @@
         },
         "feat-settings": { zh: "全局设置", en: "Global Settings" },
         "feat-settings-d": {
-          zh: "主题切换、语言运行时切换、编程工具路径可见性管理，以及 Skill 批量更新与重新扫描，所有配置集中管理。",
-          en: "Theme, language runtime, coding agent path visibility, batch skill updates and rescan — all settings in one place.",
+          zh: "管理主题、语言、内置与自定义编程工具。更新管理器集中检查和更新技能；可选 GitHub Token 提高 API 配额，减少仓库信息读取受限。",
+          en: "Manage themes, languages, and built-in or custom coding agents. Check and apply skill updates in one manager. An optional GitHub token raises API limits for more reliable repository information.",
         },
         // Design Philosophy
         "design-eyebrow": { zh: "设计哲学", en: "Design Philosophy" },
@@ -4379,8 +4370,8 @@
           en: "Tauri IPC is the only bridge",
         },
         "d3-desc": {
-          zh: "前端零文件系统访问、零 GitHub API 调用、零 git 执行。所有外部交互通过 54 个类型化 Rust Tauri 命令完成。路径遍历严格验证，拒绝绝对路径与父目录引用。",
-          en: "Zero filesystem access, zero GitHub API calls, zero git execution from the frontend. All external interaction goes through 54 typed Rust Tauri commands. Path traversal is strictly validated — absolute paths and parent directory references are rejected.",
+          zh: "前端零文件系统访问、零 GitHub API 调用、零 git 执行。所有外部交互通过类型化 Rust Tauri 命令完成。路径遍历严格验证，拒绝绝对路径与父目录引用。",
+          en: "Zero filesystem access, zero GitHub API calls, zero git execution from the frontend. All external interaction goes through typed Rust Tauri commands. Path traversal is strictly validated — absolute paths and parent directory references are rejected.",
         },
         // UX
         "ux-eyebrow": { zh: "用户体验", en: "User Experience" },
@@ -4455,8 +4446,8 @@
         },
         // macOS steps
         "install-mac-step1": {
-          zh: "打开下载的 <code>.dmg</code> 文件",
-          en: "Open the downloaded <code>.dmg</code> file",
+          zh: "确认系统为 macOS 13.3 或更新版本，打开下载的 <code>.dmg</code> 文件",
+          en: "On macOS 13.3 or later, open the downloaded <code>.dmg</code> file",
         },
         "install-mac-step2": {
           zh: "将 <strong>Skill Zoo</strong> 拖入 <code>Applications</code> 文件夹",
@@ -4518,8 +4509,8 @@
           en: "Ready to organize your skill library?",
         },
         "cta-desc": {
-          zh: "为 Claude Code、Codex、Cursor、OpenCode 等 23 款 Coding Agent 打造的本地技能管理器。覆盖技能的全生命周期，同时提供桌面 GUI 与 npm CLI 两种交互方式。",
-          en: "A local skill manager built for Claude Code, Codex, Cursor, OpenCode and 23 coding agents in total. Covers the full skill lifecycle, with both a desktop GUI and npm CLI.",
+          zh: "支持 Claude Code、Codex、Cursor、OpenCode 等 20 多款编程工具，也可添加自定义工具。通过桌面 App、npm CLI 或本地 Web UI，管理同一份技能文件。",
+          en: "Supports 20+ coding agents including Claude Code, Codex, Cursor, and OpenCode, plus custom agents. Manage the same skill files through the desktop app, npm CLI, or local Web UI.",
         },
       };
 
@@ -4582,12 +4573,15 @@
       const sources = [
         {
           src: "./screenshots/screenshot-1.webp",
-          alt: "Skill Zoo main interface",
+          alt: "Local skill management with agent filters, favorites, and archives",
         },
-        { src: "./screenshots/screenshot-2.webp", alt: "Skill detail view" },
-        { src: "./screenshots/screenshot-3.webp", alt: "Settings page" },
+        { src: "./screenshots/screenshot-2.webp", alt: "Discover skills and GitHub repositories" },
+        {
+          src: "./screenshots/screenshot-3.webp",
+          alt: "Skill editor with file tree and split Markdown preview",
+        },
       ];
-      const ASPECT = 2200 / 1405;
+      const ASPECT = 2200 / 1400;
       const isMobile = () => window.innerWidth < 768;
       const carousel = document.getElementById("carousel");
       const wrapper = document.getElementById("carousel-wrapper");
@@ -4598,7 +4592,7 @@
       const cards = sources.map((s, i) => {
         const card = document.createElement("div");
         card.className = "carousel-card";
-        card.innerHTML = `<img src="${s.src}" alt="${s.alt}" draggable="false">`;
+        card.innerHTML = `<img src="${s.src}" alt="${s.alt}" width="2200" height="1400" draggable="false">`;
         card.addEventListener("click", () => {
           if (i !== current) goTo(i);
         });
