@@ -128,6 +128,30 @@ fn test_skill_folder_hash_skips_symlinks_without_following() {
 }
 
 #[test]
+fn test_skill_folder_hash_ignores_os_metadata_files() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let root = tmp.path().join("demo");
+    std::fs::create_dir_all(&root).expect("mkdir");
+    std::fs::write(root.join("SKILL.md"), "# demo\n").expect("write");
+
+    let baseline = skill_zoo_lib::services::lock::compute_skill_folder_hash(&root).expect("hash");
+
+    // Browsing the folder in Finder or Explorer drops metadata files that are
+    // not skill content; they must not claim the user edited the skill.
+    std::fs::write(root.join(".DS_Store"), "finder").expect("write");
+    std::fs::write(root.join("Thumbs.db"), "explorer").expect("write");
+    let after_metadata =
+        skill_zoo_lib::services::lock::compute_skill_folder_hash(&root).expect("hash");
+
+    assert_eq!(baseline, after_metadata);
+    let mut entry = make_lock_entry("anthropics/skills");
+    entry.skill_folder_hash = Some(baseline);
+    assert!(!skill_zoo_lib::services::lock::skill_folder_drifted(
+        &root, &entry
+    ));
+}
+
+#[test]
 fn test_skill_folder_drifted_requires_baseline_and_evidence() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let root = tmp.path().join("demo");

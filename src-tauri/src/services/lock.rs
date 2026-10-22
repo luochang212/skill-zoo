@@ -11,6 +11,9 @@ pub const SUPPORTED_LOCK_VERSION: i32 = 3;
 /// Recursion cap for baseline hashing, mirroring the install copy depth cap.
 const MAX_HASH_DEPTH: usize = 20;
 
+/// Files written by file browsers, not by the user's edits.
+const IGNORED_BASELINE_FILES: &[&str] = &[".DS_Store", "Thumbs.db"];
+
 /// Process-wide mutex serializing all lock-file read-modify-write so concurrent
 /// `SkillLock::update` calls don't lose fields to interleaved writes.
 static LOCK_WRITE: Mutex<()> = Mutex::new(());
@@ -180,7 +183,8 @@ impl SkillLockEntry {
 /// Deterministic content baseline over an installed skill folder, as documented
 /// in `docs/local-protocol.md`: SHA-256 over `relative-path + 0x00 + bytes` for
 /// every regular file, ordered by relative path. Symbolic links are skipped,
-/// never followed, so only real content moves the baseline.
+/// never followed, and so are OS metadata files (`.DS_Store`, `Thumbs.db`), so
+/// only real content moves the baseline.
 pub fn compute_skill_folder_hash(dir: &Path) -> Result<String, AppError> {
     use sha2::Digest;
 
@@ -244,6 +248,13 @@ fn collect_regular_files(
         if file_type.is_dir() {
             collect_regular_files(root, &path, depth + 1, out)?;
         } else if file_type.is_file() {
+            let ignored = entry
+                .file_name()
+                .to_str()
+                .is_some_and(|name| IGNORED_BASELINE_FILES.contains(&name));
+            if ignored {
+                continue;
+            }
             let rel = path.strip_prefix(root).unwrap_or(&path).to_path_buf();
             out.push((rel, path));
         }
