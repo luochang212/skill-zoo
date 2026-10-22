@@ -8,7 +8,7 @@ Claude Code's plugin/marketplace system installs skills under `~/.claude/plugins
 
 - Discover skills that installed Claude Code plugins expose: `<installPath>/skills/<name>/SKILL.md` for every entry in `~/.claude/plugins/installed_plugins.json`, plus `~/.claude/plugins/marketplaces/<repo>/skills/<name>/SKILL.md` for cloned marketplace repositories. Discovery is manifest-driven for the cache — never a blind glob, because the cache keeps stale version directories alongside the installed one.
 - Surface these skills on the Local page as read-only management objects with provenance (plugin and marketplace name): content viewable in the editor's read-only mode, but no editing, saving, linking, archiving, removal or update actions — the files belong to the plugin system, and the backend refuses mutations on those paths, not just the UI.
-- Follow Claude Code's visibility setting: hiding the claude-code agent in Settings hides its plugin skills too.
+- Keep the Plugins category available whenever plugin skills are discovered, independent of coding-agent visibility: plugin skills are read-only inspections, not a managed surface of the agent.
 - Keep plugin skills out of every same-name conflict, duplicate and install-preflight check: a name collision with a plugin skill never blocks an install, because the directories are disjoint and the agent resolves precedence itself.
 - Scope is the Claude Code documented layout only; other tools' plugin systems, plugin enable/disable management, and deeper directory nesting stay out of scope.
 

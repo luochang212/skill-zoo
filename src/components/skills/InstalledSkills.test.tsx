@@ -712,7 +712,8 @@ describe("InstalledSkills plugin category", () => {
   });
 
   it("keeps plugin skills out of All and lists them in the Plugins tab", () => {
-    mocks.visibleAgentOrder = ["claude-code"];
+    // Claude Code is hidden, yet its plugin skills stay inspectable.
+    mocks.visibleAgentOrder = ["codex"];
     mocks.skills = [
       skill({ id: "ssot-skill", name: "SSOT Skill", origin: "ssot", apps: {} }),
       pluginSkill,
@@ -730,7 +731,7 @@ describe("InstalledSkills plugin category", () => {
   });
 
   it("applies the agent filter inside the plugin category", () => {
-    mocks.visibleAgentOrder = ["claude-code", "codex"];
+    mocks.visibleAgentOrder = ["codex"];
     mocks.skills = [pluginSkill];
 
     renderInstalledSkills({ type: "plugin" });

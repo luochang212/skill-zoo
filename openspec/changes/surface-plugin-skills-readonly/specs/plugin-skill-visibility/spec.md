@@ -47,19 +47,19 @@ Plugin skills SHALL appear on the Local page as viewable entries, but the system
 - **WHEN** the update manager enumerates skills
 - **THEN** plugin skills are not included, since their lifecycle belongs to the plugin system
 
-### Requirement: Plugin skills carry provenance and follow agent visibility
+### Requirement: Plugin skills carry provenance and stay independently visible
 
-Each plugin skill SHALL be labeled with its provenance — the owning plugin and, when known, the marketplace. Plugin skills SHALL be visible only while the claude-code agent is visible in Settings; hiding that agent hides its plugin skills, and showing it again restores them. Filesystem discovery SHALL NOT depend on that visibility.
+Each plugin skill SHALL be labeled with its provenance — the owning plugin and, when known, the marketplace. The Plugins category SHALL be available whenever plugin skills are discovered, independent of coding-agent visibility: plugin skills are read-only inspections, so hiding the claude-code agent in Settings SHALL NOT hide them. Filesystem discovery SHALL NOT depend on that visibility.
 
 #### Scenario: Provenance is shown
 
-- **WHEN** a plugin skill is displayed on the Local page
+- **WHEN** a plugin skill is displayed in the Plugins category
 - **THEN** its card identifies the owning plugin and marketplace alongside the skill metadata
 
-#### Scenario: Hiding the agent hides plugin skills
+#### Scenario: Hiding the agent keeps plugin skills inspectable
 
-- **WHEN** the user hides the claude-code agent in Settings
-- **THEN** plugin skills leave the local view and reappear when the agent is shown again
+- **WHEN** the user hides the claude-code agent in Settings while its plugins expose skills
+- **THEN** the Plugins category still lists those skills with full content view
 
 ### Requirement: Plugin skill name collisions stay independent
 

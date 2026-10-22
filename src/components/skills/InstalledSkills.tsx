@@ -475,15 +475,13 @@ export const InstalledSkills = memo(function InstalledSkills({
       ),
     [hideNonSsot, skillsList, visibleAgentSet],
   );
-  // Plugin skills live only in their own sidebar category; the same visibility
-  // and hide-non-SSOT rules apply there.
+  // Plugin skills live only in their own sidebar category. The category is
+  // their sole surface — read-only inspections that must not vanish when the
+  // owning coding agent is hidden — so coding-agent visibility does not gate
+  // it; hide-non-SSOT still applies.
   const pluginSkills = useMemo(
-    () =>
-      skillsList.filter(
-        (s) =>
-          s.origin === "plugin" && !hideNonSsot && isInVisibleLocalScope(s, visibleAgentSet, true),
-      ),
-    [hideNonSsot, skillsList, visibleAgentSet],
+    () => skillsList.filter((s) => s.origin === "plugin" && !hideNonSsot),
+    [hideNonSsot, skillsList],
   );
   const consistencySkills = useMemo(
     () => visibleSkills.filter((s) => isInVisibleLocalScope(s, visibleAgentSet, false)),
