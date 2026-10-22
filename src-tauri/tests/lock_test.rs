@@ -58,8 +58,19 @@ fn test_content_baseline_ignores_missing_and_empty_hash() {
     assert_eq!(entry.content_baseline(), None);
     entry.skill_folder_hash = Some(String::new());
     assert_eq!(entry.content_baseline(), None);
-    entry.skill_folder_hash = Some("abc".to_string());
-    assert_eq!(entry.content_baseline(), Some("abc"));
+    // Legacy writers stored the 40-character git SHA; it is not a usable
+    // baseline and must never produce a permanent false drift report.
+    entry.skill_folder_hash = Some("72258d6496ccd708fb946591d944282d6de03f13".to_string());
+    assert_eq!(entry.content_baseline(), None);
+    entry.skill_folder_hash =
+        Some("8293DB63637957643ABB559A59C1122EF387E21F61B60E8B0B3B2DFDA73BAE36".to_string());
+    assert_eq!(entry.content_baseline(), None);
+    entry.skill_folder_hash =
+        Some("8293db63637957643abb559a59c1122ef387e21f61b60e8b0b3b2dfda73bae36".to_string());
+    assert_eq!(
+        entry.content_baseline(),
+        Some("8293db63637957643abb559a59c1122ef387e21f61b60e8b0b3b2dfda73bae36")
+    );
 }
 
 #[test]

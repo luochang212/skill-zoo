@@ -16,6 +16,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -401,7 +402,7 @@ export function SkillUpdateManagerDialog({
                 })}
               </DialogDescription>
             </DialogHeader>
-            <div className="flex justify-end gap-2">
+            <DialogFooter>
               <Button size="sm" variant="outline" onClick={() => setDriftConfirmItem(null)}>
                 {t("common.cancel")}
               </Button>
@@ -417,7 +418,7 @@ export function SkillUpdateManagerDialog({
               >
                 {t("settings.maintenance.driftConfirmOverwrite")}
               </Button>
-            </div>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </DialogContent>

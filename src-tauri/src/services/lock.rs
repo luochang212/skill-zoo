@@ -139,11 +139,17 @@ impl SkillLockEntry {
         )
     }
 
-    /// The stored content baseline, or `None` when it is unknown
-    /// (missing field or the empty value written by older producers).
+    /// The stored content baseline, or `None` when it is unknown: missing,
+    /// empty, or a legacy value (older writers stored 40-char git SHAs) that
+    /// this app's SHA-256 algorithm could not have produced.
     pub fn content_baseline(&self) -> Option<&str> {
         match self.skill_folder_hash.as_deref() {
-            Some(hash) if !hash.is_empty() => Some(hash),
+            Some(hash)
+                if hash.len() == 64
+                    && hash.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) =>
+            {
+                Some(hash)
+            }
             _ => None,
         }
     }

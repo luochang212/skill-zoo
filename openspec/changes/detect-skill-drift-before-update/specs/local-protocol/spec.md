@@ -23,9 +23,9 @@ The `skillFolderHash` field of a lock entry SHALL hold the desktop's content bas
 
 A lock entry with no `skillFolderHash` or an empty string SHALL be read as an unknown baseline, not a mismatch. The desktop SHALL NOT report drift for such entries and SHALL populate the field on the next install or update write. The CLI SHALL read and preserve the value without interpreting it, and neither surface SHALL fail to read the lock.
 
-#### Scenario: Legacy empty value
+#### Scenario: Legacy values are unknown baselines
 
-- **WHEN** a lock entry carries no `skillFolderHash` or an empty string, as produced by older writers
+- **WHEN** a lock entry carries no `skillFolderHash`, an empty string, or a legacy value this app's algorithm could not have produced (for example the 40-character git commit SHA written by older writers)
 - **THEN** both surfaces accept the entry and the desktop does not claim the skill is locally modified
 
 #### Scenario: CLI preserves without interpreting
