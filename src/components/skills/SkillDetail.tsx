@@ -182,7 +182,7 @@ export function SkillDetail({
                 }
               : undefined
           }
-          onConfigure={readOnly ? undefined : () => setConfigureOpen(true)}
+          onConfigure={readOnly || isPluginSkill ? undefined : () => setConfigureOpen(true)}
           onRemove={onRemove && !isPluginSkill ? handleRemoveClick : undefined}
           onArchive={
             onArchive && !isExternalImport && !isPluginSkill

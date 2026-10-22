@@ -124,8 +124,7 @@ describe("SkillDetail", () => {
         skill={{
           ...skill,
           origin: "plugin",
-          pluginSource: "plugins-demo@mp",
-          marketplaceSource: "mp",
+          pluginSource: "plugins/cache/demo/plugin/1.0.0/skills/plugin-skill",
         }}
         skillName="Skill 1"
         contentLoading={false}
@@ -140,6 +139,9 @@ describe("SkillDetail", () => {
     expect(screen.queryByTitle("Update from Git")).not.toBeInTheDocument();
     expect(screen.queryByTitle("Remove skill")).not.toBeInTheDocument();
     expect(screen.queryByTitle("Archive")).not.toBeInTheDocument();
+    // Linking agents is a write operation the backend refuses for plugin
+    // skills, so the affordance must not be offered at all.
+    expect(screen.queryByTitle("Configure coding agents")).not.toBeInTheDocument();
     expect(onUpdate).not.toHaveBeenCalled();
   });
 

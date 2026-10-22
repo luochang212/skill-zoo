@@ -178,7 +178,6 @@
     "batchDescription": "Remove {{count}} skills?",
     "batchPartialFailed": "{{count}} skill(s) could not be removed.",
     "externalImportNote": "Imported skills will only be unregistered; their source files will not be deleted.",
-    "pluginNote": "Plugin skills belong to their plugin and cannot be removed here.",
     "mixedImportNote": "Imported skills will only be unregistered. Other skills will have agent links and local files removed."
   },
   "driftDialog": {
@@ -290,8 +289,8 @@
   },
   "settings": {
     "pluginsDiscovery": {
-      "title": "Plugin skill discovery",
-      "desc": "Discover read-only skills provided by coding-agent plugins, listed under Plugins; turning off removes them immediately"
+      "title": "Plugin skills",
+      "desc": "Show read-only skills provided by coding-agent plugins; turning off removes them immediately"
     },
     "github": {
       "title": "Advanced features",

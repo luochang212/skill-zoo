@@ -178,7 +178,6 @@
     "batchDescription": "确认删除以下 {{count}} 个技能？",
     "batchPartialFailed": "{{count}} 个技能删除失败。",
     "externalImportNote": "已选中的导入技能仅会移除注册记录，源文件不会被删除。",
-    "pluginNote": "插件技能归插件所有，无法在此删除。",
     "mixedImportNote": "导入技能仅移除注册记录，源文件不会被删除。其余技能将同步移除编程工具关联和本地文件。"
   },
   "driftDialog": {
@@ -290,8 +289,8 @@
   },
   "settings": {
     "pluginsDiscovery": {
-      "title": "插件技能发现",
-      "desc": "发现编程工具插件提供的只读技能，在本地页「插件」分类查看，关闭后立即移除"
+      "title": "插件技能",
+      "desc": "展示编程工具插件提供的只读技能，关闭后立即移除"
     },
     "github": {
       "title": "高级功能",

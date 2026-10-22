@@ -706,8 +706,7 @@ describe("InstalledSkills plugin category", () => {
     name: "plugin-skill",
     origin: "plugin",
     homeAgent: "claude-code",
-    pluginSource: "demo@mp",
-    marketplaceSource: "mp",
+    pluginSource: "plugins/cache/demo/plugin/1.0.0/skills/plugin-skill",
     apps: { "claude-code": true },
   });
 

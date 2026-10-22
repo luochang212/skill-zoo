@@ -618,10 +618,6 @@ export const InstalledSkills = memo(function InstalledSkills({
     () => visibleSelectedSkills.some((s) => s.origin === "external"),
     [visibleSelectedSkills],
   );
-  const hasPluginInSelection = useMemo(
-    () => visibleSelectedSkills.some((s) => s.origin === "plugin"),
-    [visibleSelectedSkills],
-  );
   const allExternalInSelection = useMemo(
     () =>
       visibleSelectedSkills.length > 0 &&
@@ -976,9 +972,7 @@ export const InstalledSkills = memo(function InstalledSkills({
                                 : onViewSkill(skill.id, skill.directory, skill.name)
                             }
                             onToggleStar={
-                              isArchiveView || category.type === "plugin"
-                                ? undefined
-                                : () => handleToggleStar(skill)
+                              selectionDisabled ? undefined : () => handleToggleStar(skill)
                             }
                             starred={skill.starred}
                             issues={isArchiveView ? undefined : filteredIssuesMap.get(skill.id)}
@@ -1015,9 +1009,7 @@ export const InstalledSkills = memo(function InstalledSkills({
                                 : onViewSkill(skill.id, skill.directory, skill.name)
                             }
                             onToggleStar={
-                              isArchiveView || category.type === "plugin"
-                                ? undefined
-                                : () => handleToggleStar(skill)
+                              selectionDisabled ? undefined : () => handleToggleStar(skill)
                             }
                             starred={skill.starred}
                             issues={isArchiveView ? undefined : filteredIssuesMap.get(skill.id)}
@@ -1083,8 +1075,7 @@ export const InstalledSkills = memo(function InstalledSkills({
                     disabled={
                       archiveSkillsMutation.isPending ||
                       removeSkillsMutation.isPending ||
-                      hasExternalInSelection ||
-                      hasPluginInSelection
+                      hasExternalInSelection
                     }
                     onClick={() => setBatchAction("archive")}
                   >
@@ -1184,9 +1175,7 @@ export const InstalledSkills = memo(function InstalledSkills({
               ? t("removeDialog.externalImportNote")
               : hasExternalInSelection
                 ? t("removeDialog.mixedImportNote")
-                : hasPluginInSelection
-                  ? t("removeDialog.pluginNote")
-                  : undefined
+                : undefined
           }
         />
       </div>

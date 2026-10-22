@@ -19,7 +19,6 @@ export interface InstalledSkill {
   contentHash?: string;
   homeAgent?: string;
   pluginSource?: string;
-  marketplaceSource?: string;
   starred?: boolean;
   isMine?: boolean;
   installedAt: number;
