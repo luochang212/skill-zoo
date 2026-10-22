@@ -911,12 +911,22 @@ pub async fn get_installed_skills(
         }
     }
     if !force.unwrap_or(false) {
-        let is_empty = state
-            .skill_cache
-            .read()
-            .map_err(|e| e.to_string())?
-            .is_empty();
-        if !is_empty {
+        let (is_empty, has_stale_plugins) = {
+            let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
+            let settings = state.settings.lock().map_err(|e| e.to_string())?;
+            let discovery_off = settings
+                .get("plugins_discovery_enabled")
+                .map(|v| v == "false")
+                .unwrap_or(false);
+            (
+                cache.is_empty(),
+                discovery_off && cache.iter().any(|s| s.origin == "plugin"),
+            )
+        };
+        // A switched-off discovery must fully retract: stale plugin entries in
+        // an otherwise warm cache fall through to the rebuild, whose
+        // replace_all purges them.
+        if !is_empty && !has_stale_plugins {
             return SkillService::read_all_skills(&state.skill_cache, &state.metadata)
                 .map_err(|e| e.to_string());
         }

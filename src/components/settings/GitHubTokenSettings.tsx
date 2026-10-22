@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { ExternalLink, KeyRound, PlugZap, Puzzle } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -21,6 +22,7 @@ import {
   useSaveGitHubToken,
 } from "@/hooks/useSettings";
 import { ToggleRow } from "@/components/ui/toggle-row";
+import { skillsApi } from "@/lib/api/skills";
 
 const EXPIRY_SOON_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -61,7 +63,10 @@ export function GitHubTokenSettings({
 } = {}) {
   const [internalOpen, setInternalOpen] = useState(false);
   const { t, i18n } = useTranslation();
+  const qc = useQueryClient();
   const { data: pluginsDiscoveryEnabled } = usePluginsDiscoveryEnabled();
+  // Flipping the switch retracts or repopulates plugin entries immediately:
+  // the refetch rebuilds the cache, which purges when discovery is off.
   const updatePluginsDiscovery = useUpdatePluginsDiscoveryEnabled();
   const statusQuery = useGitHubCredentialStatus();
   const saveToken = useSaveGitHubToken();
@@ -189,7 +194,15 @@ export function GitHubTokenSettings({
         title={t("settings.pluginsDiscovery.title")}
         description={t("settings.pluginsDiscovery.desc")}
         checked={pluginsDiscoveryEnabled ?? true}
-        onCheckedChange={(checked) => updatePluginsDiscovery.mutate(checked)}
+        onCheckedChange={(checked) =>
+          updatePluginsDiscovery.mutate(checked, {
+            onSuccess: async () => {
+              // Force the cache rebuild so the flip takes effect at once.
+              await skillsApi.getInstalledSkills(true);
+              qc.invalidateQueries({ queryKey: ["skills", "installed"] });
+            },
+          })
+        }
       />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent

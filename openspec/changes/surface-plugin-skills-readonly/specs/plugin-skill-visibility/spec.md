@@ -25,14 +25,14 @@ The system SHALL apply one discovery rule uniformly to every registered coding a
 - **THEN** the skill is attributed to the agent with the deepest (nearest) home
 
 
-### Requirement: Plugin discovery is user-controllable
+### Requirement: Plugin discovery is user-controllable and retracts fully
 
-Plugin skill discovery SHALL default to enabled and SHALL be switchable from Settings under Advanced features. When disabled, the system SHALL perform no plugin filesystem walk and SHALL remove previously discovered plugin skills from the Plugins category; enabling it again SHALL re-discover them on the next refresh.
+Plugin skill discovery SHALL default to enabled and SHALL be switchable from Settings under Advanced features. Turning the switch off SHALL immediately retract the whole feature: the next local view refresh performs no plugin filesystem walk and removes discovered plugin skills from the Plugins category and its counts, leaving no scan cost or residual entries. Turning it back on SHALL re-discover plugin skills on the next refresh.
 
-#### Scenario: Disabled discovery has no runtime presence
+#### Scenario: Switching off retracts immediately
 
 - **WHEN** plugin discovery is switched off in Settings
-- **THEN** refreshes perform no plugin walk, discovered plugin skills leave the Plugins category, and no plugin scan cost remains
+- **THEN** the local view refresh performs no plugin walk, discovered plugin skills leave the Plugins category and its sidebar entry disappears, and no plugin scan cost remains
 
 #### Scenario: Re-enabling restores discovery
 

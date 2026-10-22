@@ -291,7 +291,7 @@
   "settings": {
     "pluginsDiscovery": {
       "title": "Plugin skill discovery",
-      "desc": "Discover read-only skills that coding-agent plugins provide, listed under Plugins on the Local page. Refreshes re-walk each agent's home; turning this off stops the scan entirely and removes discovered entries."
+      "desc": "Discover read-only skills provided by coding-agent plugins, listed under Plugins; turning off removes them immediately"
     },
     "github": {
       "title": "Advanced features",
