@@ -12,8 +12,8 @@ use crate::services::github;
 use crate::services::lock::{SkillLock, SUPPORTED_LOCK_VERSION};
 use crate::services::opener::open_directory;
 use crate::services::skill::{
-    is_symlink_or_junction, DiscoverableSkill, InstalledSkill, ManagedSkill, RepoSkillsResult,
-    SkillFileNode, SkillService, SymlinkStatus,
+    is_symlink_or_junction, plugin_read_only_error, DiscoverableSkill, InstalledSkill,
+    ManagedSkill, RepoSkillsResult, SkillFileNode, SkillService, SymlinkStatus,
 };
 use crate::store::AppState;
 use serde::{Deserialize, Serialize};
@@ -50,7 +50,6 @@ pub struct CheckedSkillUpdate {
     pub skill_name: String,
     pub current_sha: String,
     pub latest_sha: String,
-    #[serde(default)]
     pub force: Option<bool>,
 }
 
@@ -254,14 +253,6 @@ fn remove_external_import_links_for_target(
         &config::get_agents_skills_dir(),
     )?;
     Ok(removed)
-}
-
-/// Uniform refusal for write operations addressed at plugin-owned skills.
-fn plugin_read_only_error(skill_name: &str, plugin_source: Option<&str>) -> String {
-    format!(
-        "{skill_name} belongs to the {} plugin and is read-only in Skill Zoo.",
-        plugin_source.unwrap_or("owning")
-    )
 }
 
 fn selected_agent_skill_dirs(agents: &[String]) -> Vec<PathBuf> {
@@ -914,10 +905,7 @@ pub async fn get_installed_skills(
         let (is_empty, has_stale_plugins) = {
             let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
             let settings = state.settings.lock().map_err(|e| e.to_string())?;
-            let discovery_off = settings
-                .get("plugins_discovery_enabled")
-                .map(|v| v == "false")
-                .unwrap_or(false);
+            let discovery_off = !settings.plugins_discovery_enabled();
             (
                 cache.is_empty(),
                 discovery_off && cache.iter().any(|s| s.origin == "plugin"),
@@ -3646,7 +3634,7 @@ mod tests {
             },
         ];
 
-        let (entries, errors, skipped) = checked_update_entries_from_lock(&cache, &lock, &checked);
+        let (entries, errors, _skipped) = checked_update_entries_from_lock(&cache, &lock, &checked);
 
         assert!(entries.is_empty());
         assert_eq!(errors.len(), 2);
@@ -3911,7 +3899,6 @@ mod tests {
             content_hash: None,
             home_agent: None,
             plugin_source: None,
-            marketplace_source: None,
             apps: std::collections::HashMap::new(),
             installed_at: 0,
             updated_at: 0,
@@ -3934,7 +3921,6 @@ mod tests {
             content_hash: None,
             home_agent: None,
             plugin_source: None,
-            marketplace_source: None,
             starred: false,
             is_mine: false,
             installed_at: 0,

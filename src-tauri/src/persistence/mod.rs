@@ -95,12 +95,10 @@ pub struct SkillCacheEntry {
     pub home_agent: Option<String>,
     #[serde(default)]
     pub apps: HashMap<String, bool>,
-    /// Owning plugin for origin="plugin" entries, e.g. "frontend-design@claude-plugins-official".
+    /// Where an origin="plugin" entry came from, relative to the owning agent's
+    /// home directory, e.g. "plugins/cache/mp/plugin/1.0.0/skills/demo".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub plugin_source: Option<String>,
-    /// Owning marketplace for origin="plugin" entries, when known.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub marketplace_source: Option<String>,
     pub installed_at: i64,
     pub updated_at: i64,
 }
@@ -277,6 +275,13 @@ pub struct Settings {
 }
 
 impl Settings {
+    /// Plugin skill discovery, on unless explicitly switched off.
+    pub fn plugins_discovery_enabled(&self) -> bool {
+        self.get("plugins_discovery_enabled")
+            .map(|value| value != "false")
+            .unwrap_or(true)
+    }
+
     pub fn load() -> Result<Self, AppError> {
         let path = config::get_app_config_dir().join("settings.json");
         if !path.exists() {

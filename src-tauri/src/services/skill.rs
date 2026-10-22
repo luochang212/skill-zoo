@@ -60,8 +60,6 @@ pub struct InstalledSkill {
     pub home_agent: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub plugin_source: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub marketplace_source: Option<String>,
     pub starred: bool,
     pub is_mine: bool,
     pub installed_at: i64,
@@ -185,6 +183,16 @@ pub struct SkillFileNode {
     pub children: Option<Vec<SkillFileNode>>,
 }
 
+/// Uniform refusal for write operations addressed at plugin-owned skills.
+pub fn plugin_read_only_error(skill_name: &str, plugin_source: Option<&str>) -> String {
+    match plugin_source {
+        Some(source) => {
+            format!("{skill_name} is read-only: it belongs to a coding-agent plugin ({source}).")
+        }
+        None => format!("{skill_name} belongs to a coding-agent plugin and is read-only."),
+    }
+}
+
 #[derive(Debug)]
 pub struct ManagedSkill {
     pub entry: SkillCacheEntry,
@@ -203,10 +211,9 @@ impl ManagedSkill {
             ));
         }
         if writable && entry.origin == "plugin" {
-            return Err(AppError::BadRequest(format!(
-                "{} belongs to the {} plugin and is read-only in Skill Zoo.",
-                entry.name,
-                entry.plugin_source.as_deref().unwrap_or("owning")
+            return Err(AppError::BadRequest(plugin_read_only_error(
+                &entry.name,
+                entry.plugin_source.as_deref(),
             )));
         }
         let home = PathBuf::from(
@@ -293,7 +300,6 @@ impl From<SkillCacheEntry> for InstalledSkill {
             content_hash: e.content_hash,
             home_agent: e.home_agent,
             plugin_source: e.plugin_source,
-            marketplace_source: e.marketplace_source,
             starred: false, // set by get_cached_skills from metadata
             is_mine: false, // set by get_cached_skills from metadata
             installed_at: e.installed_at,
@@ -471,19 +477,24 @@ struct DiscoveredPlugin {
 /// Imperfect, documented heuristic: when one agent's tree holds several copies
 /// of the same skill name (versioned caches do), keep only the newest copy;
 /// distinct names never collapse, and different agents stay independent.
+/// Equal mtimes resolve by path, so a tie still yields exactly one entry.
 fn keep_newest_duplicates(discovered: Vec<DiscoveredPlugin>) -> Vec<DiscoveredPlugin> {
-    let mut newest: HashMap<(&str, &str), std::time::SystemTime> = HashMap::new();
+    let mut newest: HashMap<(&str, &str), &DiscoveredPlugin> = HashMap::new();
     for plugin in &discovered {
-        let slot = newest
+        newest
             .entry((plugin.agent_id.as_str(), plugin.name.as_str()))
-            .or_insert(plugin.mtime);
-        *slot = (*slot).max(plugin.mtime);
+            .and_modify(|current| {
+                if plugin.mtime > current.mtime
+                    || (plugin.mtime == current.mtime && plugin.path < current.path)
+                {
+                    *current = plugin;
+                }
+            })
+            .or_insert(plugin);
     }
-    discovered
-        .iter()
-        .filter(|plugin| newest[&(plugin.agent_id.as_str(), plugin.name.as_str())] == plugin.mtime)
-        .cloned()
-        .collect()
+    let mut kept: Vec<DiscoveredPlugin> = newest.into_values().cloned().collect();
+    kept.sort_by(|a, b| a.path.cmp(&b.path));
+    kept
 }
 
 pub struct SkillService;
@@ -860,24 +871,20 @@ impl SkillService {
         }
     }
 
-    /// Scan skills exposed by installed Claude Code plugins as read-only
-    /// entries with `origin="plugin"`. Discovery reads only manifest-named
-    /// `installPath`s plus cloned marketplace roots, so stale cache versions
-    /// never surface. See the plugin-skill-visibility capability.
-    /// Scan plugin skills for every registered coding agent with one generic
-    /// rule: walk the agent's home directory (everything except its flat
-    /// skills directory, other agents' skills directories and the SSOT store),
+    /// Scan skills exposed by coding-agent plugins as read-only entries with
+    /// `origin="plugin"`, using one generic rule for every registered agent:
+    /// walk the agent's home directory (everything except its flat skills
+    /// directory, other agents' skills directories and the SSOT store),
     /// skipping junk directories, bounded in depth; any directory directly
     /// containing a `SKILL.md` is a plugin skill. No layout or vendor format
     /// knowledge — the same rule serves built-ins and custom registrations.
+    /// See the plugin-skill-visibility capability.
     fn scan_plugin_skills_into(entries: &mut Vec<SkillCacheEntry>) {
         // Honored before any filesystem work: when disabled the scan produces
         // nothing and the rebuild's replace_all purges previously discovered
         // entries, so a switched-off feature has zero runtime presence.
         let enabled = Settings::load()
-            .ok()
-            .and_then(|s| s.get("plugins_discovery_enabled").cloned())
-            .map(|v| v == "true")
+            .map(|settings| settings.plugins_discovery_enabled())
             .unwrap_or(true);
         if !enabled {
             return;
@@ -904,15 +911,7 @@ impl SkillService {
         let mut discovered: Vec<DiscoveredPlugin> = Vec::new();
         for (agent_id, home, _) in &homes {
             let mut owned: Vec<DiscoveredPlugin> = Vec::new();
-            Self::collect_plugin_skill_dirs(
-                agent_id,
-                home,
-                home,
-                &pruned,
-                0,
-                &mut claimed,
-                &mut owned,
-            );
+            Self::collect_plugin_skill_dirs(agent_id, home, &pruned, 0, &mut claimed, &mut owned);
             discovered.extend(owned);
         }
 
@@ -930,13 +929,9 @@ impl SkillService {
             if !seen_ids.insert(id.clone()) {
                 continue;
             }
-            if let Some(entry) = Self::build_plugin_skill_entry(
-                &id,
-                &directory,
-                &plugin.agent_id,
-                &plugin.path,
-                &directory,
-            ) {
+            if let Some(entry) =
+                Self::build_plugin_skill_entry(&id, &directory, &plugin.agent_id, &plugin.path)
+            {
                 entries.push(entry);
             }
         }
@@ -947,10 +942,8 @@ impl SkillService {
     /// temp/backup directories, the SSOT store and every agent's flat skills
     /// directory (those belong to the regular scans). Skills nested inside
     /// another discovered skill are not visited: a skill folder is a leaf.
-    #[allow(clippy::too_many_arguments)]
     fn collect_plugin_skill_dirs(
         agent_id_of: &str,
-        home: &Path,
         dir: &Path,
         pruned: &[PathBuf],
         depth: usize,
@@ -997,15 +990,7 @@ impl SkillService {
                 }
                 continue;
             }
-            Self::collect_plugin_skill_dirs(
-                agent_id_of,
-                home,
-                &path,
-                pruned,
-                depth + 1,
-                claimed,
-                out,
-            );
+            Self::collect_plugin_skill_dirs(agent_id_of, &path, pruned, depth + 1, claimed, out);
         }
     }
 
@@ -1015,7 +1000,6 @@ impl SkillService {
         directory: &str,
         agent_id: &str,
         path: &Path,
-        provenance: &str,
     ) -> Option<SkillCacheEntry> {
         let (parsed_name, description) = Self::parse_skill_md(&path.join("SKILL.md")).ok()?;
         let name = path
@@ -1051,8 +1035,7 @@ impl SkillService {
             content_hash,
             home_agent: Some(agent_id.to_string()),
             apps,
-            plugin_source: Some(provenance.to_string()),
-            marketplace_source: None,
+            plugin_source: Some(directory.to_string()),
             installed_at,
             updated_at,
         })
@@ -1730,7 +1713,6 @@ impl SkillService {
             home_agent,
             apps,
             plugin_source: None,
-            marketplace_source: None,
             installed_at,
             updated_at,
         })
@@ -1840,7 +1822,6 @@ impl SkillService {
             home_agent: None,
             apps,
             plugin_source: None,
-            marketplace_source: None,
             installed_at: import.imported_at,
             updated_at: import.updated_at,
         })
@@ -1942,7 +1923,6 @@ impl SkillService {
             home_agent,
             apps,
             plugin_source: None,
-            marketplace_source: None,
             installed_at,
             updated_at,
         })
@@ -2040,6 +2020,11 @@ impl SkillService {
         let mut statuses = Vec::new();
 
         for skill in cache.skills() {
+            // Plugin skills are read-only and have no link affordance, so they
+            // must not inflate the matrix with one row per agent.
+            if skill.origin == "plugin" {
+                continue;
+            }
             let target_path = if let Some(ref hp) = skill.home_path {
                 std::path::PathBuf::from(hp)
             } else {
@@ -3368,7 +3353,6 @@ mod tests {
             home_agent: None,
             apps: Default::default(),
             plugin_source: None,
-            marketplace_source: None,
             installed_at: 0,
             updated_at: 0,
         }
@@ -3782,6 +3766,45 @@ mod tests {
             assert!(error.to_string().contains("read-only"));
             // Read-only viewing still resolves.
             ManagedSkill::resolve(&cache, &entry.id, false).expect("read resolve");
+        });
+    }
+
+    #[test]
+    fn plugin_duplicate_names_collapse_even_when_mtimes_tie() {
+        let tie = std::time::UNIX_EPOCH + std::time::Duration::from_secs(100);
+        let mk = |path: &str| DiscoveredPlugin {
+            agent_id: "agent-a".to_string(),
+            name: "alpha".to_string(),
+            mtime: tie,
+            path: PathBuf::from(path),
+        };
+
+        // Copies made in the same second share an mtime; the category must
+        // still list the skill once, and the choice must be deterministic.
+        let kept = keep_newest_duplicates(vec![mk("/z/alpha"), mk("/a/alpha")]);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].path, PathBuf::from("/a/alpha"));
+    }
+
+    #[test]
+    fn plugin_skills_stay_out_of_symlink_status() {
+        let tmp = tempfile::tempdir().unwrap();
+        crate::config::with_test_home(tmp.path(), || {
+            let mut entry = test_cache_entry("plugin:claude-code:plugins/x", "plugins/x", "o", "r");
+            entry.origin = "plugin".to_string();
+            entry.home_agent = Some("claude-code".to_string());
+            entry.home_path = Some(tmp.path().join("plugins/x").to_string_lossy().to_string());
+            let cache = SkillCache::from_entries(vec![entry]);
+
+            // Plugin skills have no link affordance, so they must not inflate
+            // the link matrix with a row per agent.
+            let statuses = SkillService::get_symlink_status(
+                &cache,
+                &crate::persistence::Settings {
+                    values: Default::default(),
+                },
+            );
+            assert!(statuses.is_empty());
         });
     }
 }

@@ -25,7 +25,6 @@ pub fn make_cache_entry(id: &str, name: &str, directory: &str) -> SkillCacheEntr
         home_agent: None,
         apps: std::collections::HashMap::new(),
         plugin_source: None,
-        marketplace_source: None,
         installed_at: 1000,
         updated_at: 2000,
     }
