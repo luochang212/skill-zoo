@@ -12,10 +12,10 @@
     "description": "Research skills from a PhD advisor's decade of experience: idea evaluation, literature survey, paper drafting, figures, submission review, and rebuttal"
   },
   {
-    "owner": "addyosmani",
-    "name": "agent-skills",
+    "owner": "hugohe3",
+    "name": "ppt-master",
     "branch": "main",
-    "description": "Production-grade engineering skills for AI coding agents"
+    "description": "Turn documents or topics into native PowerPoint decks — real .pptx shapes, transitions, data-backed charts, tables and audio narration"
   },
   {
     "owner": "wheresryan22",
