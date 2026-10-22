@@ -85,7 +85,6 @@
   },
   "skill": {
     "mine": "我的",
-    "pluginBadge": "插件",
     "view": "查看",
     "edit": "编辑",
     "split": "分屏",
@@ -290,6 +289,10 @@
     "linkSuccess": "{{skill}} 已链接到 {{agent}}"
   },
   "settings": {
+    "pluginsDiscovery": {
+      "title": "插件技能发现",
+      "desc": "发现各编程工具插件提供的只读技能，在本地页的「插件」分类下查看。每次刷新会重新扫描各工具目录；关闭后完全停止扫描，并移除已发现的条目。"
+    },
     "github": {
       "title": "高级功能",
       "rowTitle": "GitHub API 访问令牌",

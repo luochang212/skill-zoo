@@ -24,6 +24,20 @@ The system SHALL apply one discovery rule uniformly to every registered coding a
 - **WHEN** one agent's home is nested inside another agent's home and both walks can see the same skill
 - **THEN** the skill is attributed to the agent with the deepest (nearest) home
 
+
+### Requirement: Plugin discovery is user-controllable
+
+Plugin skill discovery SHALL default to enabled and SHALL be switchable from Settings under Advanced features. When disabled, the system SHALL perform no plugin filesystem walk and SHALL remove previously discovered plugin skills from the Plugins category; enabling it again SHALL re-discover them on the next refresh.
+
+#### Scenario: Disabled discovery has no runtime presence
+
+- **WHEN** plugin discovery is switched off in Settings
+- **THEN** refreshes perform no plugin walk, discovered plugin skills leave the Plugins category, and no plugin scan cost remains
+
+#### Scenario: Re-enabling restores discovery
+
+- **WHEN** the switch is turned back on
+- **THEN** the next refresh re-discovers plugin skills and the category reappears
 ### Requirement: Duplicate names keep the newest copy
 
 When one agent's tree holds several discovered copies of the same skill name — versioned caches do this — the system SHALL keep only the newest copy per agent and name. This heuristic is imperfect by design: it may keep a stale copy whose mtime is newer, and it may collapse distinct same-named skills.

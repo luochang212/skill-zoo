@@ -38,7 +38,13 @@ export function SkillCardRow({
   const { t } = useTranslation();
   const installedSkill = isInstalled ? (skill as InstalledSkill) : null;
 
-  const repoLabel = skill.repoOwner && skill.repoName ? `${skill.repoOwner}/${skill.repoName}` : "";
+  const repoLabel = installedSkill
+    ? installedSkill.origin === "plugin"
+      ? (installedSkill.pluginSource ?? "")
+      : installedSkill.repoOwner && installedSkill.repoName
+        ? `${installedSkill.repoOwner}/${installedSkill.repoName}`
+        : ""
+    : "";
 
   return (
     <div
@@ -74,19 +80,6 @@ export function SkillCardRow({
             className="text-[9px] px-1.5 py-0 h-4 bg-primary text-primary-foreground shrink-0"
           >
             {t("skill.mine")}
-          </Badge>
-        )}
-        {installedSkill?.origin === "plugin" && (
-          <Badge
-            variant="outline"
-            className="text-[9px] px-1.5 py-0 h-4 shrink-0"
-            title={
-              [installedSkill.pluginSource, installedSkill.marketplaceSource]
-                .filter(Boolean)
-                .join(" · ") || undefined
-            }
-          >
-            {t("skill.pluginBadge")}
           </Badge>
         )}
         <SkillBadges issues={issues} onNavigate={onNavigateConsistency} />

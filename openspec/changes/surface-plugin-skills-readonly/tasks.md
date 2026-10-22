@@ -8,6 +8,7 @@
 
 ## 2. Backend: read-only enforcement
 
+- [x] 2.0 Gate discovery on a Settings switch under Advanced features (default on): off performs no walk and the rebuild purges discovered entries; plugin entries carry no content hash. Backend flag test included.
 - [x] 2.1 Add a plugin-path guard to the write commands (save, link, archive, remove, merge, update) that refuses plugin-owned targets with an error naming the owning plugin; add refusal tests for each command family.
 - [x] 2.2 Exclude plugin skills from duplicate/consistency checks and install preflight scope, per the local-skill-scope delta; add scope tests.
 

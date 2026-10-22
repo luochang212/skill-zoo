@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ExternalLink, KeyRound, PlugZap } from "lucide-react";
+import { ExternalLink, KeyRound, PlugZap, Puzzle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
@@ -16,8 +16,11 @@ import { cn } from "@/lib/utils";
 import {
   useGitHubCredentialStatus,
   useGitHubTokenVerification,
+  usePluginsDiscoveryEnabled,
+  useUpdatePluginsDiscoveryEnabled,
   useSaveGitHubToken,
 } from "@/hooks/useSettings";
+import { ToggleRow } from "@/components/ui/toggle-row";
 
 const EXPIRY_SOON_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -58,6 +61,8 @@ export function GitHubTokenSettings({
 } = {}) {
   const [internalOpen, setInternalOpen] = useState(false);
   const { t, i18n } = useTranslation();
+  const { data: pluginsDiscoveryEnabled } = usePluginsDiscoveryEnabled();
+  const updatePluginsDiscovery = useUpdatePluginsDiscoveryEnabled();
   const statusQuery = useGitHubCredentialStatus();
   const saveToken = useSaveGitHubToken();
   // null = untouched — the input shows the mask stand-in for the saved token.
@@ -179,6 +184,13 @@ export function GitHubTokenSettings({
           {t(hasToken ? "settings.github.manage" : "settings.github.setUp")}
         </Button>
       </div>
+      <ToggleRow
+        icon={<Puzzle className="h-4 w-4 text-violet-500" />}
+        title={t("settings.pluginsDiscovery.title")}
+        description={t("settings.pluginsDiscovery.desc")}
+        checked={pluginsDiscoveryEnabled ?? true}
+        onCheckedChange={(checked) => updatePluginsDiscovery.mutate(checked)}
+      />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent
           className="w-[calc(100vw-2rem)] max-w-[440px]"

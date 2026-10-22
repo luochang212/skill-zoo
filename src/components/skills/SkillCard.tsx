@@ -64,19 +64,6 @@ export function SkillCard({
                 {t("skill.mine")}
               </Badge>
             )}
-            {installedSkill?.origin === "plugin" && (
-              <Badge
-                variant="outline"
-                className="text-[9px] px-1.5 py-0 h-4 shrink-0"
-                title={
-                  [installedSkill.pluginSource, installedSkill.marketplaceSource]
-                    .filter(Boolean)
-                    .join(" · ") || undefined
-                }
-              >
-                {t("skill.pluginBadge")}
-              </Badge>
-            )}
             <SkillBadges issues={issues} onNavigate={onNavigateConsistency} />
           </div>
           <div className="flex items-center gap-1 shrink-0">
@@ -89,6 +76,11 @@ export function SkillCard({
         {"repoOwner" in skill && skill.repoOwner && (
           <p className="text-xs text-foreground/55">
             {skill.repoOwner}/{skill.repoName}
+          </p>
+        )}
+        {installedSkill?.origin === "plugin" && installedSkill.pluginSource && (
+          <p className="truncate text-xs text-foreground/55" title={installedSkill.pluginSource}>
+            {installedSkill.pluginSource}
           </p>
         )}
       </CardHeader>

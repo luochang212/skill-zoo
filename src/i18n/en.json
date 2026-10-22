@@ -85,7 +85,6 @@
   },
   "skill": {
     "mine": "Mine",
-    "pluginBadge": "Plugin",
     "view": "View",
     "edit": "Edit",
     "split": "Split",
@@ -290,6 +289,10 @@
     "linkSuccess": "{{skill}} linked to {{agent}}"
   },
   "settings": {
+    "pluginsDiscovery": {
+      "title": "Plugin skill discovery",
+      "desc": "Discover read-only skills that coding-agent plugins provide, listed under Plugins on the Local page. Refreshes re-walk each agent's home; turning this off stops the scan entirely and removes discovered entries."
+    },
     "github": {
       "title": "Advanced features",
       "rowTitle": "GitHub API access token",

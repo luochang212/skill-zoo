@@ -871,6 +871,17 @@ impl SkillService {
     /// containing a `SKILL.md` is a plugin skill. No layout or vendor format
     /// knowledge — the same rule serves built-ins and custom registrations.
     fn scan_plugin_skills_into(entries: &mut Vec<SkillCacheEntry>) {
+        // Honored before any filesystem work: when disabled the scan produces
+        // nothing and the rebuild's replace_all purges previously discovered
+        // entries, so a switched-off feature has zero runtime presence.
+        let enabled = Settings::load()
+            .ok()
+            .and_then(|s| s.get("plugins_discovery_enabled").cloned())
+            .map(|v| v == "true")
+            .unwrap_or(true);
+        if !enabled {
+            return;
+        }
         let agents = config::agents();
         let mut homes: Vec<(&str, PathBuf, PathBuf)> = agents
             .iter()
@@ -1022,7 +1033,10 @@ impl SkillService {
         let (installed_at, updated_at) = Self::resolve_timestamps(None, &home_path, now);
         let mut apps = HashMap::new();
         apps.insert(agent_id.to_string(), true);
-        let content_hash = Self::compute_content_hash(&home_path);
+        // No content hash: it feeds duplicate, consistency and merge checks,
+        // which plugin skills are excluded from — hashing thousands of plugin
+        // files on every rebuild would be pure overhead.
+        let content_hash = None;
         Some(SkillCacheEntry {
             id: id.to_string(),
             name,
@@ -3704,6 +3718,38 @@ mod tests {
             .find(|p| p.agent_id == "agent-a" && p.name == "alpha")
             .unwrap();
         assert_eq!(alpha.mtime, base + std::time::Duration::from_secs(300));
+    }
+
+    #[test]
+    fn plugin_discovery_respects_the_feature_switch() {
+        let tmp = tempfile::tempdir().unwrap();
+        crate::config::with_test_home(tmp.path(), || {
+            let home = tmp.path().join(".claude");
+            std::fs::create_dir_all(home.join("plugins/marketplaces/repo/skills/beta")).unwrap();
+            std::fs::write(
+                home.join("plugins/marketplaces/repo/skills/beta/SKILL.md"),
+                "# beta",
+            )
+            .unwrap();
+
+            // Default (no setting recorded): discovery runs.
+            let mut entries = Vec::new();
+            SkillService::scan_plugin_skills_into(&mut entries);
+            assert_eq!(entries.len(), 1);
+
+            // Switched off: no filesystem walk happens and nothing is produced,
+            // so the rebuild's replace_all purges previously discovered entries.
+            crate::persistence::Settings {
+                values: [("plugins_discovery_enabled".to_string(), "false".to_string())]
+                    .into_iter()
+                    .collect(),
+            }
+            .save()
+            .unwrap();
+            let mut entries = Vec::new();
+            SkillService::scan_plugin_skills_into(&mut entries);
+            assert!(entries.is_empty());
+        });
     }
 
     #[test]

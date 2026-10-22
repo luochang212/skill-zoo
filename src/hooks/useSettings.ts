@@ -113,6 +113,31 @@ export function useHideNonSsot() {
   });
 }
 
+const PLUGINS_DISCOVERY_KEY = ["settings", "pluginsDiscoveryEnabled"] as const;
+
+export function usePluginsDiscoveryEnabled() {
+  return useQuery({
+    queryKey: PLUGINS_DISCOVERY_KEY,
+    queryFn: async () => {
+      const settings = await settingsApi.getSettings();
+      return settings["plugins_discovery_enabled"] !== "false";
+    },
+    staleTime: 0,
+  });
+}
+
+export function useUpdatePluginsDiscoveryEnabled() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (enabled: boolean) =>
+      settingsApi.updateSetting("plugins_discovery_enabled", enabled ? "true" : "false"),
+    onSuccess: () => {
+      qc.setQueryData(PLUGINS_DISCOVERY_KEY, undefined);
+      qc.invalidateQueries({ queryKey: PLUGINS_DISCOVERY_KEY });
+    },
+  });
+}
+
 export function useUpdateHideNonSsot() {
   const qc = useQueryClient();
   return useMutation({
