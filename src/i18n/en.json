@@ -183,7 +183,8 @@
   },
   "driftDialog": {
     "title": "Overwrite local modifications?",
-    "description": "Updating replaces the locally modified files of"
+    "description": "Updating replaces the locally modified files of",
+    "overwrite": "Update and overwrite"
   },
   "archiveDialog": {
     "title": "Archive Skill",

@@ -183,7 +183,8 @@
   },
   "driftDialog": {
     "title": "覆盖本地修改？",
-    "description": "更新会用仓库版本覆盖"
+    "description": "更新会用仓库版本覆盖",
+    "overwrite": "更新并覆盖"
   },
   "archiveDialog": {
     "title": "归档技能",

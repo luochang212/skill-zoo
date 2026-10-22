@@ -175,7 +175,13 @@ export function SkillDetail({
         <SkillHero
           skill={skill}
           onBack={onBack}
-          onUpdate={onUpdate && !isPluginSkill ? handleUpdate : undefined}
+          onUpdate={
+            onUpdate && !isPluginSkill
+              ? () => {
+                  void handleUpdate();
+                }
+              : undefined
+          }
           onConfigure={readOnly ? undefined : () => setConfigureOpen(true)}
           onRemove={onRemove && !isPluginSkill ? handleRemoveClick : undefined}
           onArchive={
