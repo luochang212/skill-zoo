@@ -83,7 +83,8 @@ export function SkillDetail({
   const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentSkillIdRef = useRef(skill?.id);
   const isExternalImport = skill?.origin === "external";
-  const contentReadOnly = readOnly || isExternalImport;
+  const isPluginSkill = skill?.origin === "plugin";
+  const contentReadOnly = readOnly || isExternalImport || isPluginSkill;
 
   const clearUpdateTimer = useCallback(() => {
     if (successTimerRef.current) {
@@ -174,10 +175,14 @@ export function SkillDetail({
         <SkillHero
           skill={skill}
           onBack={onBack}
-          onUpdate={onUpdate ? handleUpdate : undefined}
+          onUpdate={onUpdate && !isPluginSkill ? handleUpdate : undefined}
           onConfigure={readOnly ? undefined : () => setConfigureOpen(true)}
-          onRemove={onRemove ? handleRemoveClick : undefined}
-          onArchive={onArchive && !isExternalImport ? () => setArchiveConfirmOpen(true) : undefined}
+          onRemove={onRemove && !isPluginSkill ? handleRemoveClick : undefined}
+          onArchive={
+            onArchive && !isExternalImport && !isPluginSkill
+              ? () => setArchiveConfirmOpen(true)
+              : undefined
+          }
           onRestore={onRestore}
           onToggleStar={onToggleStar}
           onOpenDir={
@@ -256,7 +261,7 @@ export function SkillDetail({
           savePending={savePending}
           dirty={dirty}
           readOnly={contentReadOnly}
-          enableReadOnlyFileTree={isExternalImport && !readOnly}
+          enableReadOnlyFileTree={(isExternalImport || isPluginSkill) && !readOnly}
           onUnsavedDraftsChange={onUnsavedDraftsChange}
         />
       )}

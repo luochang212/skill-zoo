@@ -95,6 +95,12 @@ pub struct SkillCacheEntry {
     pub home_agent: Option<String>,
     #[serde(default)]
     pub apps: HashMap<String, bool>,
+    /// Owning plugin for origin="plugin" entries, e.g. "frontend-design@claude-plugins-official".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_source: Option<String>,
+    /// Owning marketplace for origin="plugin" entries, when known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub marketplace_source: Option<String>,
     pub installed_at: i64,
     pub updated_at: i64,
 }

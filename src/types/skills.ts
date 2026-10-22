@@ -2,7 +2,7 @@ export interface SkillApps {
   [agentId: string]: boolean;
 }
 
-export type SkillOrigin = "ssot" | "agent" | "external";
+export type SkillOrigin = "ssot" | "agent" | "external" | "plugin";
 
 export interface InstalledSkill {
   id: string;
@@ -18,6 +18,8 @@ export interface InstalledSkill {
   homePath?: string;
   contentHash?: string;
   homeAgent?: string;
+  pluginSource?: string;
+  marketplaceSource?: string;
   starred?: boolean;
   isMine?: boolean;
   installedAt: number;

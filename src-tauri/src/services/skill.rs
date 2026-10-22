@@ -58,6 +58,10 @@ pub struct InstalledSkill {
     pub home_path: Option<String>,
     pub content_hash: Option<String>,
     pub home_agent: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_source: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub marketplace_source: Option<String>,
     pub starred: bool,
     pub is_mine: bool,
     pub installed_at: i64,
@@ -181,6 +185,7 @@ pub struct SkillFileNode {
     pub children: Option<Vec<SkillFileNode>>,
 }
 
+#[derive(Debug)]
 pub struct ManagedSkill {
     pub entry: SkillCacheEntry,
     pub root: PathBuf,
@@ -196,6 +201,13 @@ impl ManagedSkill {
             return Err(AppError::BadRequest(
                 "External imported skills are read-only in Skill Zoo.".into(),
             ));
+        }
+        if writable && entry.origin == "plugin" {
+            return Err(AppError::BadRequest(format!(
+                "{} belongs to the {} plugin and is read-only in Skill Zoo.",
+                entry.name,
+                entry.plugin_source.as_deref().unwrap_or("owning")
+            )));
         }
         let home = PathBuf::from(
             entry
@@ -280,6 +292,8 @@ impl From<SkillCacheEntry> for InstalledSkill {
             home_path: e.home_path,
             content_hash: e.content_hash,
             home_agent: e.home_agent,
+            plugin_source: e.plugin_source,
+            marketplace_source: e.marketplace_source,
             starred: false, // set by get_cached_skills from metadata
             is_mine: false, // set by get_cached_skills from metadata
             installed_at: e.installed_at,
@@ -703,6 +717,7 @@ impl SkillService {
                 let mut entries: Vec<SkillCacheEntry> = Vec::new();
                 Self::scan_filesystem_into(&mut entries);
                 Self::scan_external_imports_into(&mut entries);
+                Self::scan_plugin_skills_into(&mut entries);
                 entries
             })
         })
@@ -816,6 +831,151 @@ impl SkillService {
                 entries.push(entry);
             }
         }
+    }
+
+    /// Scan skills exposed by installed Claude Code plugins as read-only
+    /// entries with `origin="plugin"`. Discovery reads only manifest-named
+    /// `installPath`s plus cloned marketplace roots, so stale cache versions
+    /// never surface. See the plugin-skill-visibility capability.
+    fn scan_plugin_skills_into(entries: &mut Vec<SkillCacheEntry>) {
+        let Some(plugins_root) = Self::claude_plugins_root() else {
+            return;
+        };
+        let claude_agent_id = "claude-code".to_string();
+
+        // (skill source root, plugin id, marketplace)
+        let mut sources: Vec<(PathBuf, Option<String>, Option<String>)> = Vec::new();
+        if let Ok(manifest) = std::fs::read_to_string(plugins_root.join("installed_plugins.json")) {
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&manifest) {
+                // Version 2 shape: {"plugins": {"<plugin>@<marketplace>": [{installPath}]}}.
+                if let Some(plugins) = parsed.get("plugins").and_then(|p| p.as_object()) {
+                    for (plugin_id, installs) in plugins {
+                        let marketplace = plugin_id.rsplit('@').next().map(str::to_string);
+                        let install_paths =
+                            installs.as_array().into_iter().flatten().filter_map(|i| {
+                                i.get("installPath")
+                                    .and_then(|p| p.as_str())
+                                    .map(str::to_string)
+                            });
+                        for install_path in install_paths {
+                            let path = PathBuf::from(&install_path);
+                            if path.is_dir() {
+                                sources.push((path, Some(plugin_id.clone()), marketplace.clone()));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if let Ok(marketplaces) = std::fs::read_dir(plugins_root.join("marketplaces")) {
+            for repo in marketplaces.flatten() {
+                let path = repo.path();
+                if path.is_dir() {
+                    let name = repo.file_name().to_str().map(str::to_string);
+                    sources.push((path, None, name));
+                }
+            }
+        }
+        Self::collect_plugin_skill_entries(&plugins_root, sources, &claude_agent_id, entries);
+    }
+
+    /// Expand each plugin source into `skills/<name>/SKILL.md` entries.
+    fn collect_plugin_skill_entries(
+        plugins_root: &Path,
+        sources: Vec<(PathBuf, Option<String>, Option<String>)>,
+        claude_agent_id: &str,
+        entries: &mut Vec<SkillCacheEntry>,
+    ) {
+        let mut seen_ids: HashSet<String> = entries.iter().map(|e| e.id.clone()).collect();
+        for (source_root, plugin, marketplace) in sources {
+            let Ok(names) = std::fs::read_dir(source_root.join("skills")) else {
+                continue;
+            };
+            for skill_dir in names.flatten() {
+                let path = skill_dir.path();
+                if !path.is_dir() || is_symlink_or_junction(&path) {
+                    continue;
+                }
+                if !path.join("SKILL.md").is_file() {
+                    continue;
+                }
+                let Ok(relative) = path.strip_prefix(plugins_root) else {
+                    continue;
+                };
+                let directory = relative.to_string_lossy().replace('\\', "/");
+                let id = format!("plugin:{directory}");
+                if !seen_ids.insert(id.clone()) {
+                    continue;
+                }
+                let home_path =
+                    crate::persistence::normalize_path_separators(path.to_str().unwrap_or(""));
+                if let Some(entry) = Self::build_plugin_skill_entry(
+                    &id,
+                    &directory,
+                    &home_path,
+                    claude_agent_id,
+                    plugin.clone(),
+                    marketplace.clone(),
+                ) {
+                    entries.push(entry);
+                }
+            }
+        }
+    }
+
+    /// Build one read-only plugin skill cache entry from its physical folder.
+    fn build_plugin_skill_entry(
+        id: &str,
+        directory: &str,
+        home_path: &str,
+        claude_agent_id: &str,
+        plugin: Option<String>,
+        marketplace: Option<String>,
+    ) -> Option<SkillCacheEntry> {
+        let root = Path::new(home_path);
+        let (parsed_name, description) = Self::parse_skill_md(&root.join("SKILL.md")).ok()?;
+        let name = root
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(directory)
+            .to_string();
+        let yaml_name = if parsed_name == name {
+            None
+        } else {
+            Some(parsed_name)
+        };
+        let now = chrono::Utc::now().timestamp();
+        let (installed_at, updated_at) = Self::resolve_timestamps(None, home_path, now);
+        let mut apps = HashMap::new();
+        apps.insert(claude_agent_id.to_string(), true);
+        Some(SkillCacheEntry {
+            id: id.to_string(),
+            name,
+            yaml_name,
+            description,
+            directory: directory.to_string(),
+            repo_owner: None,
+            repo_name: None,
+            source_url: None,
+            origin: "plugin".to_string(),
+            home_path: Some(home_path.to_string()),
+            content_hash: Self::compute_content_hash(home_path),
+            home_agent: Some(claude_agent_id.to_string()),
+            apps,
+            plugin_source: plugin,
+            marketplace_source: marketplace,
+            installed_at,
+            updated_at,
+        })
+    }
+
+    /// Locate `~/.claude/plugins` from the claude-code agent's skills dir.
+    fn claude_plugins_root() -> Option<PathBuf> {
+        let agents = config::agents();
+        let agent = agents.iter().find(|a| a.id == "claude-code")?;
+        let skills_dir = config::agent_skills_dir(agent)?;
+        let root = skills_dir.parent()?.join("plugins");
+        root.is_dir().then_some(root)
     }
 
     /// Resolve timestamps for a skill cache entry.
@@ -1347,7 +1507,11 @@ impl SkillService {
         let mut matches: Vec<&SkillCacheEntry> = cache
             .skills()
             .iter()
-            .filter(|entry| entry.directory == install_directory && entry.origin != "external")
+            .filter(|entry| {
+                entry.directory == install_directory
+                    && entry.origin != "external"
+                    && entry.origin != "plugin"
+            })
             .collect();
 
         if matches.is_empty() && repo_skill_path == "." {
@@ -1485,6 +1649,8 @@ impl SkillService {
             content_hash,
             home_agent,
             apps,
+            plugin_source: None,
+            marketplace_source: None,
             installed_at,
             updated_at,
         })
@@ -1593,6 +1759,8 @@ impl SkillService {
             content_hash,
             home_agent: None,
             apps,
+            plugin_source: None,
+            marketplace_source: None,
             installed_at: import.imported_at,
             updated_at: import.updated_at,
         })
@@ -1693,6 +1861,8 @@ impl SkillService {
             content_hash,
             home_agent,
             apps,
+            plugin_source: None,
+            marketplace_source: None,
             installed_at,
             updated_at,
         })
@@ -2128,11 +2298,11 @@ impl SkillService {
             )));
         }
 
-        // Filter out external imports — they can't be merged into SSOT
-        // because their source files are owned by the user elsewhere.
+        // Filter out external imports and plugin skills — their source files
+        // are owned by the user or by the plugin, not by Skill Zoo.
         let entries: Vec<SkillCacheEntry> = entries
             .into_iter()
-            .filter(|entry| entry.origin != "external")
+            .filter(|entry| entry.origin != "external" && entry.origin != "plugin")
             .collect();
 
         if entries.is_empty() {
@@ -3117,6 +3287,8 @@ mod tests {
             content_hash: None,
             home_agent: None,
             apps: Default::default(),
+            plugin_source: None,
+            marketplace_source: None,
             installed_at: 0,
             updated_at: 0,
         }
@@ -3365,6 +3537,134 @@ mod tests {
             });
             SkillService::reload_metadata(&metadata).unwrap();
             assert!(metadata.read().unwrap().get("ssot:demo").starred);
+        });
+    }
+
+    #[test]
+    fn plugin_discovery_reads_manifest_sources_and_marketplace_clones() {
+        let tmp = tempfile::tempdir().unwrap();
+        crate::config::with_test_home(tmp.path(), || {
+            let plugins = tmp.path().join(".claude/plugins");
+
+            // Installed plugin via manifest installPath, plus a stale cache
+            // version the manifest does not reference.
+            let installed = plugins.join("cache/mp/plugins-demo/1.0.0");
+            std::fs::create_dir_all(installed.join("skills/alpha")).unwrap();
+            std::fs::write(
+                installed.join("skills/alpha/SKILL.md"),
+                "---\nname: alpha-skill\ndescription: From an installed plugin\n---\n# alpha",
+            )
+            .unwrap();
+            let stale = plugins.join("cache/mp/plugins-demo/0.9.0/skills/ghost");
+            std::fs::create_dir_all(&stale).unwrap();
+            std::fs::write(stale.join("SKILL.md"), "# ghost").unwrap();
+
+            std::fs::create_dir_all(plugins.join("marketplaces/repo/skills/beta")).unwrap();
+            std::fs::write(
+                plugins.join("marketplaces/repo/skills/beta/SKILL.md"),
+                "# beta",
+            )
+            .unwrap();
+            // Same leaf name in a second source stays an independent entry.
+            std::fs::create_dir_all(plugins.join("marketplaces/repo/skills/alpha")).unwrap();
+            std::fs::write(
+                plugins.join("marketplaces/repo/skills/alpha/SKILL.md"),
+                "# alpha clone",
+            )
+            .unwrap();
+            let manifest = format!(
+                r#"{{"version":2,"plugins":{{"plugins-demo@mp":[{{"scope":"user","installPath":"{}"}}]}}}}"#,
+                installed.display()
+            );
+            std::fs::write(plugins.join("installed_plugins.json"), manifest).unwrap();
+
+            let mut entries = Vec::new();
+            SkillService::scan_plugin_skills_into(&mut entries);
+
+            let by_id = |suffix: &str| {
+                entries
+                    .iter()
+                    .find(|e| e.id.ends_with(suffix))
+                    .unwrap_or_else(|| panic!("missing entry {suffix}"))
+            };
+            let alpha = by_id("cache/mp/plugins-demo/1.0.0/skills/alpha");
+            assert_eq!(alpha.origin, "plugin");
+            assert_eq!(alpha.plugin_source.as_deref(), Some("plugins-demo@mp"));
+            assert_eq!(alpha.marketplace_source.as_deref(), Some("mp"));
+            assert_eq!(alpha.home_agent.as_deref(), Some("claude-code"));
+            assert_eq!(alpha.apps.get("claude-code"), Some(&true));
+            assert!(alpha.yaml_name.as_deref() == Some("alpha-skill"));
+
+            let beta = by_id("marketplaces/repo/skills/beta");
+            assert_eq!(beta.plugin_source, None);
+            assert_eq!(beta.marketplace_source.as_deref(), Some("repo"));
+
+            // Same leaf name from two sources: independent ids, both present.
+            assert_eq!(
+                entries
+                    .iter()
+                    .filter(|e| e.name == "alpha")
+                    .map(|e| e.id.as_str())
+                    .count(),
+                2
+            );
+            // Stale cache versions never surface.
+            assert!(!entries.iter().any(|e| e.name == "ghost"));
+        });
+    }
+
+    #[test]
+    fn plugin_discovery_tolerates_unreadable_manifest() {
+        let tmp = tempfile::tempdir().unwrap();
+        crate::config::with_test_home(tmp.path(), || {
+            let plugins = tmp.path().join(".claude/plugins");
+            std::fs::create_dir_all(plugins.join("marketplaces/repo/skills/beta")).unwrap();
+            std::fs::write(
+                plugins.join("marketplaces/repo/skills/beta/SKILL.md"),
+                "# beta",
+            )
+            .unwrap();
+            std::fs::create_dir_all(&plugins).unwrap();
+            std::fs::write(plugins.join("installed_plugins.json"), "{not json").unwrap();
+
+            let mut entries = Vec::new();
+            SkillService::scan_plugin_skills_into(&mut entries);
+
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].name, "beta");
+        });
+    }
+
+    #[test]
+    fn plugin_skills_stay_outside_conflict_scope_and_refuse_writes() {
+        let tmp = tempfile::tempdir().unwrap();
+        crate::config::with_test_home(tmp.path(), || {
+            let skill_dir = tmp
+                .path()
+                .join(".claude/plugins/marketplaces/repo/skills/beta");
+            std::fs::create_dir_all(&skill_dir).unwrap();
+            std::fs::write(skill_dir.join("SKILL.md"), "# beta").unwrap();
+
+            let mut entries = Vec::new();
+            SkillService::scan_plugin_skills_into(&mut entries);
+            assert_eq!(entries.len(), 1);
+            let entry = entries.remove(0);
+
+            // Conflict/duplicate scope excludes plugin skills entirely.
+            let visible_agents = HashMap::from([("claude-code".to_string(), true)]);
+            assert!(!SkillService::is_visible_local_skill(
+                &entry,
+                &visible_agents,
+                false
+            ));
+
+            // Write resolution refuses plugin-owned folders.
+            let cache = crate::persistence::SkillCache::from_entries(vec![entry.clone()]);
+            let error = ManagedSkill::resolve(&cache, &entry.id, true)
+                .expect_err("plugin writes must be refused");
+            assert!(error.to_string().contains("read-only"));
+            // Read-only viewing still resolves.
+            ManagedSkill::resolve(&cache, &entry.id, false).expect("read resolve");
         });
     }
 }

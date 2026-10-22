@@ -114,6 +114,35 @@ describe("SkillDetail", () => {
     expect(await screen.findByTitle("Updated")).toBeInTheDocument();
   });
 
+  it("opens plugin skills read-only without mutation affordances", () => {
+    const onUpdate = vi.fn(() => Promise.resolve({ updated: true }));
+    const onRemove = vi.fn();
+    const onArchive = vi.fn();
+
+    renderWithQueryClient(
+      <SkillDetail
+        skill={{
+          ...skill,
+          origin: "plugin",
+          pluginSource: "plugins-demo@mp",
+          marketplaceSource: "mp",
+        }}
+        skillName="Skill 1"
+        contentLoading={false}
+        content="# Plugin skill content"
+        onChange={() => {}}
+        onUpdate={onUpdate}
+        onRemove={onRemove}
+        onArchive={onArchive}
+      />,
+    );
+
+    expect(screen.queryByTitle("Update from Git")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Remove skill")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Archive")).not.toBeInTheDocument();
+    expect(onUpdate).not.toHaveBeenCalled();
+  });
+
   it("clears update success when switching skills", async () => {
     const onUpdate = vi.fn(() => Promise.resolve({ updated: true }));
     const { queryClient, rerender } = renderWithQueryClient(

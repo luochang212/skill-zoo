@@ -599,6 +599,10 @@ export const InstalledSkills = memo(function InstalledSkills({
     () => visibleSelectedSkills.some((s) => s.origin === "external"),
     [visibleSelectedSkills],
   );
+  const hasPluginInSelection = useMemo(
+    () => visibleSelectedSkills.some((s) => s.origin === "plugin"),
+    [visibleSelectedSkills],
+  );
   const allExternalInSelection = useMemo(
     () =>
       visibleSelectedSkills.length > 0 &&
@@ -1046,7 +1050,8 @@ export const InstalledSkills = memo(function InstalledSkills({
                     disabled={
                       archiveSkillsMutation.isPending ||
                       removeSkillsMutation.isPending ||
-                      hasExternalInSelection
+                      hasExternalInSelection ||
+                      hasPluginInSelection
                     }
                     onClick={() => setBatchAction("archive")}
                   >
@@ -1146,7 +1151,9 @@ export const InstalledSkills = memo(function InstalledSkills({
               ? t("removeDialog.externalImportNote")
               : hasExternalInSelection
                 ? t("removeDialog.mixedImportNote")
-                : undefined
+                : hasPluginInSelection
+                  ? t("removeDialog.pluginNote")
+                  : undefined
           }
         />
       </div>

@@ -131,7 +131,7 @@ describe("SkillUpdateManagerDialog drifted updates", () => {
     onUpdate,
   }: {
     updates: (typeof driftedUpdate)[];
-    onUpdate: ReturnType<typeof vi.fn>;
+    onUpdate: (updates: (typeof driftedUpdate)[]) => void;
   }) {
     const [open, setOpen] = useState(true);
     const ref = useRef<HTMLButtonElement>(null);

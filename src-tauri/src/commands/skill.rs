@@ -256,6 +256,14 @@ fn remove_external_import_links_for_target(
     Ok(removed)
 }
 
+/// Uniform refusal for write operations addressed at plugin-owned skills.
+fn plugin_read_only_error(skill_name: &str, plugin_source: Option<&str>) -> String {
+    format!(
+        "{skill_name} belongs to the {} plugin and is read-only in Skill Zoo.",
+        plugin_source.unwrap_or("owning")
+    )
+}
+
 fn selected_agent_skill_dirs(agents: &[String]) -> Vec<PathBuf> {
     agents
         .iter()
@@ -1508,6 +1516,14 @@ pub async fn remove_skills(
             }
         };
 
+        if skill.origin == "plugin" {
+            failed.push(RemoveSkillFailure {
+                skill_id: skill_id.clone(),
+                error: plugin_read_only_error(&skill.name, skill.plugin_source.as_deref()),
+            });
+            continue;
+        }
+
         if let Err(e) = remove_cached_skill_from_disk(&skill) {
             failed.push(RemoveSkillFailure {
                 skill_id: skill_id.clone(),
@@ -1588,6 +1604,12 @@ fn assert_skill_archiveable(skill: &InstalledSkill) -> Result<(), String> {
             "External imports cannot be archived because their source folders are owned by the user."
                 .to_string(),
         );
+    }
+    if skill.origin == "plugin" {
+        return Err(plugin_read_only_error(
+            &skill.name,
+            skill.plugin_source.as_deref(),
+        ));
     }
     Ok(())
 }
@@ -2151,6 +2173,12 @@ pub fn toggle_symlink(
     let skill = SkillService::find_in_cache(&state.skill_cache, &skill_id)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
+    if skill.origin == "plugin" {
+        return Err(plugin_read_only_error(
+            &skill.name,
+            skill.plugin_source.as_deref(),
+        ));
+    }
 
     let home_path = skill
         .home_path
@@ -3872,6 +3900,8 @@ mod tests {
             home_path,
             content_hash: None,
             home_agent: None,
+            plugin_source: None,
+            marketplace_source: None,
             apps: std::collections::HashMap::new(),
             installed_at: 0,
             updated_at: 0,
@@ -3893,6 +3923,8 @@ mod tests {
             home_path: Some(directory.to_string()),
             content_hash: None,
             home_agent: None,
+            plugin_source: None,
+            marketplace_source: None,
             starred: false,
             is_mine: false,
             installed_at: 0,
