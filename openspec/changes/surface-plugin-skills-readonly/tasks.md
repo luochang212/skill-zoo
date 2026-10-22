@@ -2,9 +2,9 @@
 
 ## 1. Backend: plugin source discovery
 
-- [x] 1.1 Parse `~/.claude/plugins/installed_plugins.json` (version 2 shape) tolerantly: missing/unreadable file yields no manifest sources, unknown shapes are skipped without failing the scan.
-- [x] 1.2 Implement discovery over the two source kinds — manifest `installPath` entries and `marketplaces/*/skills/` clones — recognizing only `skills/<name>/SKILL.md`, and produce scan entries with a distinct plugin origin carrying plugin + marketplace provenance.
-- [x] 1.3 Wire discovery into the existing cache-rebuild pipeline, gated on claude-code visibility, and add backend unit tests with fixture plugin trees: installed plugin with skills, marketplace clone, stale cache version ignored, unreadable manifest degrades, collision names stay separate.
+- [x] 1.1 Implement one generic discovery rule for every registered coding agent (built-in or custom): walk the agent's home excluding its flat skills directory, other agents' skills directories and the SSOT store; prune the shared junk list and app temp/backup dirs; bound the depth; recognize any directory directly containing a `SKILL.md`.
+- [x] 1.2 Attribute ownership of nested-home skills to the deepest home, collapse same-name copies to the newest by mtime, and produce scan entries with a distinct plugin origin carrying source-path provenance and the owning agent in `apps`/`homeAgent`.
+- [x] 1.3 Wire discovery into the existing cache-rebuild pipeline and add backend unit tests with fixture trees covering marketplace clones, bundled skills, connector folders, versioned-cache duplicates, junk pruning, nested-home ownership and read-only refusal.
 
 ## 2. Backend: read-only enforcement
 

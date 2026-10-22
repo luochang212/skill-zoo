@@ -459,6 +459,33 @@ fn external_source_under_ssot(source_path: &Path) -> bool {
         .is_some_and(|root| source_path == root || source_path.starts_with(root))
 }
 
+/// A `SKILL.md` directory found in an agent's plugin tree.
+#[derive(Clone)]
+struct DiscoveredPlugin {
+    agent_id: String,
+    name: String,
+    mtime: std::time::SystemTime,
+    path: PathBuf,
+}
+
+/// Imperfect, documented heuristic: when one agent's tree holds several copies
+/// of the same skill name (versioned caches do), keep only the newest copy;
+/// distinct names never collapse, and different agents stay independent.
+fn keep_newest_duplicates(discovered: Vec<DiscoveredPlugin>) -> Vec<DiscoveredPlugin> {
+    let mut newest: HashMap<(&str, &str), std::time::SystemTime> = HashMap::new();
+    for plugin in &discovered {
+        let slot = newest
+            .entry((plugin.agent_id.as_str(), plugin.name.as_str()))
+            .or_insert(plugin.mtime);
+        *slot = (*slot).max(plugin.mtime);
+    }
+    discovered
+        .iter()
+        .filter(|plugin| newest[&(plugin.agent_id.as_str(), plugin.name.as_str())] == plugin.mtime)
+        .cloned()
+        .collect()
+}
+
 pub struct SkillService;
 
 impl SkillService {
@@ -837,89 +864,137 @@ impl SkillService {
     /// entries with `origin="plugin"`. Discovery reads only manifest-named
     /// `installPath`s plus cloned marketplace roots, so stale cache versions
     /// never surface. See the plugin-skill-visibility capability.
+    /// Scan plugin skills for every registered coding agent with one generic
+    /// rule: walk the agent's home directory (everything except its flat
+    /// skills directory, other agents' skills directories and the SSOT store),
+    /// skipping junk directories, bounded in depth; any directory directly
+    /// containing a `SKILL.md` is a plugin skill. No layout or vendor format
+    /// knowledge — the same rule serves built-ins and custom registrations.
     fn scan_plugin_skills_into(entries: &mut Vec<SkillCacheEntry>) {
-        let Some(plugins_root) = Self::claude_plugins_root() else {
-            return;
-        };
-        let claude_agent_id = "claude-code".to_string();
+        let agents = config::agents();
+        let mut homes: Vec<(&str, PathBuf, PathBuf)> = agents
+            .iter()
+            .filter_map(|agent| {
+                let skills_dir = config::agent_skills_dir(agent)?;
+                let home = skills_dir.parent()?.to_path_buf();
+                home.is_dir()
+                    .then_some((agent.id.as_str(), home, skills_dir))
+            })
+            .collect();
+        // Nested homes (for example `.gemini/antigravity` inside `.gemini`):
+        // the deepest home owns the skills it contains, so claim deepest-first.
+        homes.sort_by(|a, b| b.1.components().count().cmp(&a.1.components().count()));
 
-        // (skill source root, plugin id, marketplace)
-        let mut sources: Vec<(PathBuf, Option<String>, Option<String>)> = Vec::new();
-        if let Ok(manifest) = std::fs::read_to_string(plugins_root.join("installed_plugins.json")) {
-            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&manifest) {
-                // Version 2 shape: {"plugins": {"<plugin>@<marketplace>": [{installPath}]}}.
-                if let Some(plugins) = parsed.get("plugins").and_then(|p| p.as_object()) {
-                    for (plugin_id, installs) in plugins {
-                        let marketplace = plugin_id.rsplit('@').next().map(str::to_string);
-                        let install_paths =
-                            installs.as_array().into_iter().flatten().filter_map(|i| {
-                                i.get("installPath")
-                                    .and_then(|p| p.as_str())
-                                    .map(str::to_string)
-                            });
-                        for install_path in install_paths {
-                            let path = PathBuf::from(&install_path);
-                            if path.is_dir() {
-                                sources.push((path, Some(plugin_id.clone()), marketplace.clone()));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        if let Ok(marketplaces) = std::fs::read_dir(plugins_root.join("marketplaces")) {
-            for repo in marketplaces.flatten() {
-                let path = repo.path();
-                if path.is_dir() {
-                    let name = repo.file_name().to_str().map(str::to_string);
-                    sources.push((path, None, name));
-                }
-            }
-        }
-        Self::collect_plugin_skill_entries(&plugins_root, sources, &claude_agent_id, entries);
-    }
+        let ssot_dir = config::get_agents_skills_dir();
+        let mut pruned: Vec<PathBuf> = vec![ssot_dir];
+        pruned.extend(homes.iter().map(|(_, _, skills_dir)| skills_dir.clone()));
 
-    /// Expand each plugin source into `skills/<name>/SKILL.md` entries.
-    fn collect_plugin_skill_entries(
-        plugins_root: &Path,
-        sources: Vec<(PathBuf, Option<String>, Option<String>)>,
-        claude_agent_id: &str,
-        entries: &mut Vec<SkillCacheEntry>,
-    ) {
+        let mut claimed: HashSet<PathBuf> = HashSet::new();
+        let mut discovered: Vec<DiscoveredPlugin> = Vec::new();
+        for (agent_id, home, _) in &homes {
+            let mut owned: Vec<DiscoveredPlugin> = Vec::new();
+            Self::collect_plugin_skill_dirs(
+                agent_id,
+                home,
+                home,
+                &pruned,
+                0,
+                &mut claimed,
+                &mut owned,
+            );
+            discovered.extend(owned);
+        }
+
         let mut seen_ids: HashSet<String> = entries.iter().map(|e| e.id.clone()).collect();
-        for (source_root, plugin, marketplace) in sources {
-            let Ok(names) = std::fs::read_dir(source_root.join("skills")) else {
+        let kept = keep_newest_duplicates(discovered);
+        for plugin in kept {
+            let Some((_, home, _)) = homes.iter().find(|(id, _, _)| *id == plugin.agent_id) else {
                 continue;
             };
-            for skill_dir in names.flatten() {
-                let path = skill_dir.path();
-                if !path.is_dir() || is_symlink_or_junction(&path) {
-                    continue;
-                }
-                if !path.join("SKILL.md").is_file() {
-                    continue;
-                }
-                let Ok(relative) = path.strip_prefix(plugins_root) else {
-                    continue;
-                };
-                let directory = relative.to_string_lossy().replace('\\', "/");
-                let id = format!("plugin:{directory}");
-                if !seen_ids.insert(id.clone()) {
-                    continue;
-                }
-                let home_path =
-                    crate::persistence::normalize_path_separators(path.to_str().unwrap_or(""));
-                if let Some(entry) = Self::build_plugin_skill_entry(
-                    &id,
-                    &directory,
-                    &home_path,
-                    claude_agent_id,
-                    plugin.clone(),
-                    marketplace.clone(),
-                ) {
-                    entries.push(entry);
-                }
+            let Ok(relative) = plugin.path.strip_prefix(home) else {
+                continue;
+            };
+            let directory = relative.to_string_lossy().replace('\\', "/").to_string();
+            let id = format!("plugin:{}:{directory}", plugin.agent_id);
+            if !seen_ids.insert(id.clone()) {
+                continue;
             }
+            if let Some(entry) = Self::build_plugin_skill_entry(
+                &id,
+                &directory,
+                &plugin.agent_id,
+                &plugin.path,
+                &directory,
+            ) {
+                entries.push(entry);
+            }
+        }
+    }
+
+    /// Depth-first walk of one agent's home for directories that directly
+    /// contain a `SKILL.md`. Prunes the shared junk list, the app's own
+    /// temp/backup directories, the SSOT store and every agent's flat skills
+    /// directory (those belong to the regular scans). Skills nested inside
+    /// another discovered skill are not visited: a skill folder is a leaf.
+    #[allow(clippy::too_many_arguments)]
+    fn collect_plugin_skill_dirs(
+        agent_id_of: &str,
+        home: &Path,
+        dir: &Path,
+        pruned: &[PathBuf],
+        depth: usize,
+        claimed: &mut HashSet<PathBuf>,
+        out: &mut Vec<DiscoveredPlugin>,
+    ) {
+        const MAX_PLUGIN_DEPTH: usize = 6;
+        if depth > MAX_PLUGIN_DEPTH {
+            return;
+        }
+        for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+            let path = entry.path();
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            if file_type.is_symlink() || !file_type.is_dir() {
+                continue;
+            }
+            if pruned
+                .iter()
+                .any(|root| path == *root || path.starts_with(root))
+            {
+                continue;
+            }
+            let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+                continue;
+            };
+            if crate::config::SKIP_DIRS.contains(&name) || SkillService::is_app_temp_dir(name) {
+                continue;
+            }
+            if path.join("SKILL.md").is_file() {
+                // Claim before recording so a shallower agent's walk skips
+                // skills already owned by a deeper nested home.
+                if claimed.insert(path.canonicalize().unwrap_or_else(|_| path.clone())) {
+                    let mtime = std::fs::metadata(&path)
+                        .and_then(|m| m.modified())
+                        .unwrap_or(std::time::UNIX_EPOCH);
+                    out.push(DiscoveredPlugin {
+                        agent_id: agent_id_of.to_string(),
+                        name: name.to_string(),
+                        mtime,
+                        path: path.clone(),
+                    });
+                }
+                continue;
+            }
+            Self::collect_plugin_skill_dirs(
+                agent_id_of,
+                home,
+                &path,
+                pruned,
+                depth + 1,
+                claimed,
+                out,
+            );
         }
     }
 
@@ -927,14 +1002,12 @@ impl SkillService {
     fn build_plugin_skill_entry(
         id: &str,
         directory: &str,
-        home_path: &str,
-        claude_agent_id: &str,
-        plugin: Option<String>,
-        marketplace: Option<String>,
+        agent_id: &str,
+        path: &Path,
+        provenance: &str,
     ) -> Option<SkillCacheEntry> {
-        let root = Path::new(home_path);
-        let (parsed_name, description) = Self::parse_skill_md(&root.join("SKILL.md")).ok()?;
-        let name = root
+        let (parsed_name, description) = Self::parse_skill_md(&path.join("SKILL.md")).ok()?;
+        let name = path
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or(directory)
@@ -944,10 +1017,12 @@ impl SkillService {
         } else {
             Some(parsed_name)
         };
+        let home_path = crate::persistence::normalize_path_separators(path.to_str()?);
         let now = chrono::Utc::now().timestamp();
-        let (installed_at, updated_at) = Self::resolve_timestamps(None, home_path, now);
+        let (installed_at, updated_at) = Self::resolve_timestamps(None, &home_path, now);
         let mut apps = HashMap::new();
-        apps.insert(claude_agent_id.to_string(), true);
+        apps.insert(agent_id.to_string(), true);
+        let content_hash = Self::compute_content_hash(&home_path);
         Some(SkillCacheEntry {
             id: id.to_string(),
             name,
@@ -958,24 +1033,15 @@ impl SkillService {
             repo_name: None,
             source_url: None,
             origin: "plugin".to_string(),
-            home_path: Some(home_path.to_string()),
-            content_hash: Self::compute_content_hash(home_path),
-            home_agent: Some(claude_agent_id.to_string()),
+            home_path: Some(home_path),
+            content_hash,
+            home_agent: Some(agent_id.to_string()),
             apps,
-            plugin_source: plugin,
-            marketplace_source: marketplace,
+            plugin_source: Some(provenance.to_string()),
+            marketplace_source: None,
             installed_at,
             updated_at,
         })
-    }
-
-    /// Locate `~/.claude/plugins` from the claude-code agent's skills dir.
-    fn claude_plugins_root() -> Option<PathBuf> {
-        let agents = config::agents();
-        let agent = agents.iter().find(|a| a.id == "claude-code")?;
-        let skills_dir = config::agent_skills_dir(agent)?;
-        let root = skills_dir.parent()?.join("plugins");
-        root.is_dir().then_some(root)
     }
 
     /// Resolve timestamps for a skill cache entry.
@@ -3541,98 +3607,103 @@ mod tests {
     }
 
     #[test]
-    fn plugin_discovery_reads_manifest_sources_and_marketplace_clones() {
+    fn plugin_discovery_walks_agent_homes_with_one_generic_rule() {
         let tmp = tempfile::tempdir().unwrap();
         crate::config::with_test_home(tmp.path(), || {
-            let plugins = tmp.path().join(".claude/plugins");
+            let skills_dir = tmp.path().join("custom-tool/skills");
+            let home = tmp.path().join("custom-tool");
+            std::fs::create_dir_all(&skills_dir).unwrap();
 
-            // Installed plugin via manifest installPath, plus a stale cache
-            // version the manifest does not reference.
-            let installed = plugins.join("cache/mp/plugins-demo/1.0.0");
-            std::fs::create_dir_all(installed.join("skills/alpha")).unwrap();
+            // Real-world shapes observed across agents, all found by the same rule:
+            std::fs::create_dir_all(home.join("marketplace/skills/beta")).unwrap();
+            std::fs::write(home.join("marketplace/skills/beta/SKILL.md"), "# beta").unwrap();
+            std::fs::create_dir_all(home.join("bundled/skills/grok-like")).unwrap();
+            std::fs::write(home.join("bundled/skills/grok-like/SKILL.md"), "# grok").unwrap();
+            // WorkBuddy connector shape: the SKILL.md sits inside skills/ itself.
+            std::fs::create_dir_all(home.join("connectors/connector-one/skills")).unwrap();
             std::fs::write(
-                installed.join("skills/alpha/SKILL.md"),
-                "---\nname: alpha-skill\ndescription: From an installed plugin\n---\n# alpha",
+                home.join("connectors/connector-one/skills/SKILL.md"),
+                "# connector",
             )
             .unwrap();
-            let stale = plugins.join("cache/mp/plugins-demo/0.9.0/skills/ghost");
-            std::fs::create_dir_all(&stale).unwrap();
-            std::fs::write(stale.join("SKILL.md"), "# ghost").unwrap();
+            // Duplicate name across copies (versioned-cache shape): only one survives.
+            for copy in ["cache/mp/plug/1.0.0", "cache/mp/plug/0.9.0"] {
+                std::fs::create_dir_all(home.join(copy).join("skills/alpha")).unwrap();
+                std::fs::write(home.join(copy).join("skills/alpha/SKILL.md"), "# alpha").unwrap();
+            }
+            // Junk and already-covered surfaces never surface:
+            std::fs::create_dir_all(home.join("node_modules/pkg")).unwrap();
+            std::fs::write(home.join("node_modules/pkg/SKILL.md"), "# junk").unwrap();
+            std::fs::create_dir_all(skills_dir.join("flat")).unwrap();
+            std::fs::write(skills_dir.join("flat/SKILL.md"), "# flat").unwrap();
 
-            std::fs::create_dir_all(plugins.join("marketplaces/repo/skills/beta")).unwrap();
-            std::fs::write(
-                plugins.join("marketplaces/repo/skills/beta/SKILL.md"),
-                "# beta",
-            )
-            .unwrap();
-            // Same leaf name in a second source stays an independent entry.
-            std::fs::create_dir_all(plugins.join("marketplaces/repo/skills/alpha")).unwrap();
-            std::fs::write(
-                plugins.join("marketplaces/repo/skills/alpha/SKILL.md"),
-                "# alpha clone",
-            )
-            .unwrap();
-            let manifest = format!(
-                r#"{{"version":2,"plugins":{{"plugins-demo@mp":[{{"scope":"user","installPath":"{}"}}]}}}}"#,
-                installed.display()
-            );
-            std::fs::write(plugins.join("installed_plugins.json"), manifest).unwrap();
+            crate::config::publish_agents(crate::persistence::agents::AgentRegistry {
+                version: 1,
+                agents: vec![crate::persistence::agents::CustomAgent {
+                    id: "dsh-test-agent".into(),
+                    label: "Test Agent".into(),
+                    skills_dir: skills_dir.canonicalize().unwrap(),
+                }],
+            });
 
             let mut entries = Vec::new();
             SkillService::scan_plugin_skills_into(&mut entries);
 
-            let by_id = |suffix: &str| {
+            let names = |needle: &str| entries.iter().filter(|e| e.id.contains(needle)).count();
+            assert_eq!(names("marketplace/skills/beta"), 1);
+            assert_eq!(names("bundled/skills/grok-like"), 1);
+            assert_eq!(names("connectors/connector-one/skills"), 1);
+            // Same-name duplicates collapse to one; the stale copy never doubles it.
+            assert_eq!(names("skills/alpha"), 1);
+            assert!(!entries.iter().any(|e| e.id.contains("node_modules")));
+            // The agent's own flat skills directory belongs to the regular scan.
+            assert!(!entries.iter().any(|e| e.id.contains("skills/flat")));
+            // Entries belong to the discovering agent.
+            assert!(
                 entries
                     .iter()
-                    .find(|e| e.id.ends_with(suffix))
-                    .unwrap_or_else(|| panic!("missing entry {suffix}"))
-            };
-            let alpha = by_id("cache/mp/plugins-demo/1.0.0/skills/alpha");
-            assert_eq!(alpha.origin, "plugin");
-            assert_eq!(alpha.plugin_source.as_deref(), Some("plugins-demo@mp"));
-            assert_eq!(alpha.marketplace_source.as_deref(), Some("mp"));
-            assert_eq!(alpha.home_agent.as_deref(), Some("claude-code"));
-            assert_eq!(alpha.apps.get("claude-code"), Some(&true));
-            assert!(alpha.yaml_name.as_deref() == Some("alpha-skill"));
-
-            let beta = by_id("marketplaces/repo/skills/beta");
-            assert_eq!(beta.plugin_source, None);
-            assert_eq!(beta.marketplace_source.as_deref(), Some("repo"));
-
-            // Same leaf name from two sources: independent ids, both present.
-            assert_eq!(
-                entries
-                    .iter()
-                    .filter(|e| e.name == "alpha")
-                    .map(|e| e.id.as_str())
-                    .count(),
-                2
+                    .all(|e| e.origin == "plugin"
+                        && e.home_agent.as_deref() == Some("dsh-test-agent"))
             );
-            // Stale cache versions never surface.
-            assert!(!entries.iter().any(|e| e.name == "ghost"));
         });
     }
 
     #[test]
-    fn plugin_discovery_tolerates_unreadable_manifest() {
-        let tmp = tempfile::tempdir().unwrap();
-        crate::config::with_test_home(tmp.path(), || {
-            let plugins = tmp.path().join(".claude/plugins");
-            std::fs::create_dir_all(plugins.join("marketplaces/repo/skills/beta")).unwrap();
-            std::fs::write(
-                plugins.join("marketplaces/repo/skills/beta/SKILL.md"),
-                "# beta",
-            )
+    fn plugin_duplicate_names_keep_newest_copy() {
+        let base = std::time::SystemTime::UNIX_EPOCH;
+        let mk = |agent: &str, name: &str, secs: u64| DiscoveredPlugin {
+            agent_id: agent.to_string(),
+            name: name.to_string(),
+            mtime: base + std::time::Duration::from_secs(secs),
+            path: PathBuf::from(format!("/{agent}/{name}")),
+        };
+
+        let kept = keep_newest_duplicates(vec![
+            mk("agent-a", "alpha", 100),
+            mk("agent-a", "alpha", 300),
+            mk("agent-a", "beta", 100),
+            mk("agent-b", "alpha", 50),
+        ]);
+
+        let mut names: Vec<(String, String)> = kept
+            .iter()
+            .map(|p| (p.agent_id.clone(), p.name.clone()))
+            .collect();
+        names.sort();
+        assert_eq!(
+            names,
+            vec![
+                ("agent-a".to_string(), "alpha".to_string()),
+                ("agent-a".to_string(), "beta".to_string()),
+                ("agent-b".to_string(), "alpha".to_string()),
+            ]
+        );
+        // The surviving alpha is the newest copy.
+        let alpha = kept
+            .iter()
+            .find(|p| p.agent_id == "agent-a" && p.name == "alpha")
             .unwrap();
-            std::fs::create_dir_all(&plugins).unwrap();
-            std::fs::write(plugins.join("installed_plugins.json"), "{not json").unwrap();
-
-            let mut entries = Vec::new();
-            SkillService::scan_plugin_skills_into(&mut entries);
-
-            assert_eq!(entries.len(), 1);
-            assert_eq!(entries[0].name, "beta");
-        });
+        assert_eq!(alpha.mtime, base + std::time::Duration::from_secs(300));
     }
 
     #[test]

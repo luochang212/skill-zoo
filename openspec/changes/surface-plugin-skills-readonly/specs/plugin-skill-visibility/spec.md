@@ -1,32 +1,37 @@
 ## ADDED Requirements
 
-### Requirement: Plugin skills are discovered from two source kinds
+### Requirement: Plugin skills are discovered generically from every coding agent
 
-The system SHALL discover skills exposed by installed Claude Code plugins from exactly two source kinds: the `installPath` of entries in `~/.claude/plugins/installed_plugins.json`, and cloned marketplace repositories under `~/.claude/plugins/marketplaces/`. Within each source, only `<source>/skills/<name>/` directories containing a `SKILL.md` are recognized.
+The system SHALL apply one discovery rule uniformly to every registered coding agent, built-in or custom: walk the agent's home directory excluding its flat skills directory, other agents' skills directories and the SSOT store; skip the shared junk list, the app's own temp/backup directories, and symbolic links; bound the depth; and recognize every directory that directly contains a `SKILL.md` as a plugin skill. No vendor layout, manifest format or agent is special-cased.
 
-#### Scenario: Installed plugin skill appears
+#### Scenario: Marketplace clone is found
 
-- **WHEN** `installed_plugins.json` lists a plugin whose `installPath` contains `skills/<name>/SKILL.md`
-- **THEN** that skill is discovered and appears on the Local page
+- **WHEN** an agent's home contains a cloned marketplace repository with `skills/<name>/SKILL.md`
+- **THEN** those skills are discovered for that agent without any manifest
 
-#### Scenario: Marketplace-bundled skill appears
+#### Scenario: Bundled and connector layouts are found
 
-- **WHEN** a cloned marketplace repository contains `skills/<name>/SKILL.md`
-- **THEN** that skill is discovered without any manifest entry
+- **WHEN** an agent's home contains bundled skills or connector folders whose skill definition sits at any depth (for example `skills/SKILL.md` directly inside the folder)
+- **THEN** each directory directly containing a `SKILL.md` is discovered as a plugin skill
 
-### Requirement: Cache discovery is manifest-driven
+#### Scenario: Covered surfaces and junk never surface
 
-The system SHALL NOT discover skills under the plugin cache except through `installPath` values from the manifest, so stale version directories never surface. A missing or unreadable manifest SHALL skip only the manifest-derived sources and SHALL NOT surface an error on the Local page.
+- **WHEN** the walk encounters the agent's flat skills directory, another agent's skills directory, the SSOT store, the shared junk list or app temp/backup directories
+- **THEN** those subtrees are pruned and their skills are not double-reported
 
-#### Scenario: Stale cache version is ignored
+#### Scenario: Nested homes attribute ownership
 
-- **WHEN** the plugin cache contains a version directory that is not referenced by `installed_plugins.json`
-- **THEN** skills under that directory are not discovered
+- **WHEN** one agent's home is nested inside another agent's home and both walks can see the same skill
+- **THEN** the skill is attributed to the agent with the deepest (nearest) home
 
-#### Scenario: Unreadable manifest degrades gracefully
+### Requirement: Duplicate names keep the newest copy
 
-- **WHEN** `installed_plugins.json` is missing or unreadable
-- **THEN** manifest-derived skills are skipped, marketplace-cloned skills still appear, and no error is surfaced to the Local page
+When one agent's tree holds several discovered copies of the same skill name — versioned caches do this — the system SHALL keep only the newest copy per agent and name. This heuristic is imperfect by design: it may keep a stale copy whose mtime is newer, and it may collapse distinct same-named skills.
+
+#### Scenario: Versioned cache collapses
+
+- **WHEN** an agent's plugin tree contains two copies of `alpha` and one copy of `beta`
+- **THEN** exactly one `alpha` and one `beta` are listed, with `alpha` being the newest copy
 
 ### Requirement: Plugin skills are read-only management objects
 
