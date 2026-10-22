@@ -9,7 +9,7 @@ Claude Code owns `~/.claude/plugins/`: `installed_plugins.json` (version 2) maps
 Goals:
 
 - Read-only visibility of plugin-exposed skills with trustworthy provenance.
-- Discovery that cannot surface stale cache content.
+- Discovery that treats every coding agent alike and lists each skill name once.
 - One integration point: the existing scan/cache-rebuild pipeline, not a parallel store.
 
 Non-Goals:
@@ -38,7 +38,7 @@ Non-Goals:
 ## Risks / Trade-offs
 
 - [Claude Code changes its plugin layout] → discovery is bounded to two documented source kinds and degrades to nothing visible if they move; no corruption is possible because we never write there. The capability is scoped so extending to a new layout is additive.
-- [Marketplace clones bundle non-skill content] → only `skills/<name>/SKILL.md` one level below the clone root is recognized; large clones cost one directory listing each.
+- [Marketplace clones and translated copies are discovered too] → because the rule recognizes every `SKILL.md` under an agent home, a cloned marketplace contributes its whole skill set, including `docs/<lang>/skills/` translations and other format directories. Same-name copies (up to eight on a live install) collapse to one entry by mtime, ties by path. Accepted on purpose: on a machine with one marketplace clone this yields 213 entries from 490 files, and each card shows the source path it came from — a marketplace copy is therefore distinguishable from an installed one. Revisit only if the category becomes confusing in practice.
 - [Users expect to "manage" plugin skills they can see] → provenance labels and read-only affordances must make ownership obvious; the refusal error names the owning plugin so confusion is answered at the moment it happens.
 
 ## Migration Plan

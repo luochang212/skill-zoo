@@ -1,4 +1,9 @@
-## ADDED Requirements
+# plugin-skill-visibility Specification
+
+## Purpose
+Makes the skills that coding-agent plugins ship visible without taking ownership of them: plugin skill folders live outside the SSOT store and every agent skills directory, so they are discovered by one filesystem rule, listed read-only under a Plugins category with provenance, and protected by a backend refusal on every write path — their lifecycle belongs to the plugin system, not to Skill Zoo.
+
+## Requirements
 
 ### Requirement: Plugin skills are discovered generically from every coding agent
 
@@ -24,7 +29,6 @@ The system SHALL apply one discovery rule uniformly to every registered coding a
 - **WHEN** one agent's home is nested inside another agent's home and both walks can see the same skill
 - **THEN** the skill is attributed to the agent with the deepest (nearest) home
 
-
 ### Requirement: Plugin discovery is user-controllable and retracts fully
 
 Plugin skill discovery SHALL default to enabled and SHALL be switchable from Settings under Advanced features. Turning the switch off SHALL immediately retract the whole feature: the next local view refresh performs no plugin filesystem walk and removes discovered plugin skills from the Plugins category and its counts, leaving no scan cost or residual entries. Turning it back on SHALL re-discover plugin skills on the next refresh.
@@ -38,6 +42,7 @@ Plugin skill discovery SHALL default to enabled and SHALL be switchable from Set
 
 - **WHEN** the switch is turned back on
 - **THEN** the next refresh re-discovers plugin skills and the category reappears
+
 ### Requirement: Duplicate names keep the newest copy
 
 When one agent's tree holds several discovered copies of the same skill name — versioned caches do this — the system SHALL keep only the newest copy per agent and name. This heuristic is imperfect by design: it may keep a stale copy whose mtime is newer, and it may collapse distinct same-named skills.
@@ -68,12 +73,12 @@ Plugin skills SHALL appear on the Local page as viewable entries, but the system
 
 ### Requirement: Plugin skills carry provenance and stay independently visible
 
-Each plugin skill SHALL be labeled with its provenance — the owning plugin and, when known, the marketplace. The Plugins category SHALL be available whenever plugin skills are discovered, independent of coding-agent visibility: plugin skills are read-only inspections, so hiding the claude-code agent in Settings SHALL NOT hide them. Filesystem discovery SHALL NOT depend on that visibility.
+Each plugin skill SHALL be labeled with its provenance: the source location under the owning coding agent's home directory where it was discovered. The Plugins category SHALL be available whenever plugin skills are discovered, independent of coding-agent visibility: plugin skills are read-only inspections, so hiding the claude-code agent in Settings SHALL NOT hide them. Filesystem discovery SHALL NOT depend on that visibility.
 
 #### Scenario: Provenance is shown
 
 - **WHEN** a plugin skill is displayed in the Plugins category
-- **THEN** its card identifies the owning plugin and marketplace alongside the skill metadata
+- **THEN** its card identifies the source location it was discovered at alongside the skill metadata
 
 #### Scenario: Hiding the agent keeps plugin skills inspectable
 

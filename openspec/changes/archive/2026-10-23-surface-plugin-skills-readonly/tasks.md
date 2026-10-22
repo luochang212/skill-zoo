@@ -14,12 +14,12 @@
 
 ## 3. Frontend: read-only local entries
 
-- [x] 3.1 Render plugin skills under a dedicated Plugins sidebar category (between Favorites and Imports; the main list and its counts exclude them), with provenance labels (plugin, marketplace) and read-only affordances; the search and coding-agent filters apply inside the category; selection, batch actions, favorites and drag targets are disabled; add EN/ZH strings.
+- [x] 3.1 Render plugin skills under a dedicated Plugins sidebar category (between Favorites and Imports; the main list and its counts exclude them), with provenance labels (source path) and read-only affordances; the search and coding-agent filters apply inside the category; selection, batch actions, favorites and drag targets are disabled; add EN/ZH strings.
 - [x] 3.2 Open plugin skills in the editor's read-only mode from the Local page and the file tree.
 - [x] 3.3 Frontend tests: provenance rendering, hidden actions, read-only editor state, and visibility toggling with the claude-code agent.
 
 ## 4. Verification
 
 - [x] 4.1 Run `cargo test --features test-helpers --manifest-path src-tauri/Cargo.toml` and `bun run test`; run `bun run lint` and `bun run format`.
-- [x] 4.2 Verify against a real `~/.claude/plugins` installation: installed-plugin and marketplace skills appear with provenance, stale cache versions do not, and a plugin update is reflected after the next rebuild.
+- [x] 4.2 Verify against a real `~/.claude/plugins` installation: installed-plugin and marketplace skills appear with provenance, duplicate cache versions collapse to one entry, and a plugin update is reflected after the next rebuild.
 - [x] 4.3 Sync affected main specs (`plugin-skill-visibility` new, `local-skill-scope` modified) and pass `openspec validate --all --strict` before archive.

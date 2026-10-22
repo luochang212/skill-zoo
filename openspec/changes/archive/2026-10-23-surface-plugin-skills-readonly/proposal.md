@@ -7,10 +7,10 @@ Claude Code's plugin/marketplace system installs skills under `~/.claude/plugins
 ## What Changes
 
 - Discover plugin skills for every registered coding agent with one generic rule: walk the agent's home directory (everything except its flat skills directory, other agents' skills directories and the SSOT store), skipping junk directories, bounded in depth; any directory directly containing a `SKILL.md` is a plugin skill. No vendor layout knowledge; when a tree holds several copies of one skill name, the newest copy wins.
-- Surface these skills on the Local page as read-only management objects with provenance (plugin and marketplace name): content viewable in the editor's read-only mode, but no editing, saving, linking, archiving, removal or update actions — the files belong to the plugin system, and the backend refuses mutations on those paths, not just the UI.
+- Surface these skills on the Local page as read-only management objects with provenance (the source path they were discovered at): content viewable in the editor's read-only mode, but no editing, saving, linking, archiving, removal or update actions — the files belong to the plugin system, and the backend refuses mutations on those paths, not just the UI.
 - Keep the Plugins category available whenever plugin skills are discovered, independent of coding-agent visibility: plugin skills are read-only inspections, not a managed surface of the agent.
 - Keep plugin skills out of every same-name conflict, duplicate and install-preflight check: a name collision with a plugin skill never blocks an install, because the directories are disjoint and the agent resolves precedence itself.
-- Scope is the Claude Code documented layout only; other tools' plugin systems, plugin enable/disable management, and deeper directory nesting stay out of scope.
+- Scope is filesystem discovery only: no vendor layout is hard-coded, plugin install/enable/disable management stays with the owning tool, and directory nesting beyond the walk's depth cap is not followed.
 
 ## Capabilities
 
