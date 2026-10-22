@@ -30,6 +30,8 @@ pub struct UpdateResult {
     pub fail_count: usize,
     pub errors: Vec<String>,
     pub updated: Vec<String>,
+    /// Batch-only: skills skipped because local modifications would be lost.
+    pub skipped_drifted: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -288,14 +290,28 @@ impl CliService {
     }
 
     async fn update_skill_entries(
-        to_update: Vec<(String, SkillLockEntry)>,
+        mut to_update: Vec<(String, SkillLockEntry)>,
     ) -> Result<UpdateResult, AppError> {
+        // Batch updates never overwrite local modifications silently: drifted
+        // skills are skipped here and reported in the completion summary.
+        let ssot_dir = config::get_agents_skills_dir();
+        let mut skipped_drifted = Vec::new();
+        to_update.retain(|(name, entry)| {
+            if crate::services::lock::skill_folder_drifted(&ssot_dir.join(name), entry) {
+                skipped_drifted.push(name.clone());
+                false
+            } else {
+                true
+            }
+        });
+
         if to_update.is_empty() {
             return Ok(UpdateResult {
                 success_count: 0,
                 fail_count: 0,
                 errors: vec![],
                 updated: vec![],
+                skipped_drifted,
             });
         }
 
@@ -374,6 +390,7 @@ impl CliService {
         let mut result = Self::update_known_skill_entries(known_updates).await?;
         result.errors.extend(errors);
         result.fail_count = result.errors.len();
+        result.skipped_drifted = skipped_drifted;
         Ok(result)
     }
 
@@ -415,6 +432,7 @@ impl CliService {
                 fail_count: 0,
                 errors: vec![],
                 updated: vec![],
+                skipped_drifted: vec![],
             });
         }
 
@@ -466,11 +484,23 @@ impl CliService {
 
         if !updated_shas.is_empty() {
             let now = chrono::Utc::now().to_rfc3339();
+            // Hash outside the lock RMW: the closure must stay pure memory mutation.
+            let ssot_dir = config::get_agents_skills_dir();
+            let fresh_hashes: std::collections::HashMap<String, Option<String>> = updated_shas
+                .iter()
+                .map(|(name, _)| {
+                    (
+                        name.clone(),
+                        crate::services::lock::compute_skill_folder_hash(&ssot_dir.join(name)).ok(),
+                    )
+                })
+                .collect();
             SkillLock::update(|lock| {
                 for (name, sha) in &updated_shas {
                     if let Some(entry) = lock.skills.get_mut(name) {
                         entry.updated_at = Some(now.clone());
                         entry.commit_sha = Some(sha.clone());
+                        entry.skill_folder_hash = fresh_hashes.get(name).cloned().flatten();
                     }
                 }
                 Ok(())
@@ -482,6 +512,7 @@ impl CliService {
             fail_count: errors.len(),
             errors,
             updated,
+            skipped_drifted: vec![],
         })
     }
 
@@ -1021,6 +1052,17 @@ impl CliService {
         let now = chrono::Utc::now().to_rfc3339();
         let source = format!("{owner}/{repo}");
         let source_url = format!("https://github.com/{owner}/{repo}");
+        let ssot_dir = config::get_agents_skills_dir();
+        // Hash outside the lock RMW: the closure must stay pure memory mutation.
+        let folder_hashes: std::collections::HashMap<String, Option<String>> = skills
+            .iter()
+            .map(|(name, _)| {
+                (
+                    name.clone(),
+                    crate::services::lock::compute_skill_folder_hash(&ssot_dir.join(name)).ok(),
+                )
+            })
+            .collect();
 
         SkillLock::update(|lock| {
             for (name, skill_path) in skills {
@@ -1046,7 +1088,7 @@ impl CliService {
                         source_url: Some(source_url.clone()),
                         branch: branch.map(str::to_string),
                         skill_path: Some(skill_path.clone()),
-                        skill_folder_hash: Some(String::new()),
+                        skill_folder_hash: folder_hashes.get(name).cloned().flatten(),
                         installed_at: Some(existing_installed_at.unwrap_or_else(|| now.clone())),
                         updated_at: Some(now.clone()),
                         commit_sha,
@@ -1215,6 +1257,45 @@ mod tests {
             assert_eq!(
                 updated.skills["demo"].source.as_deref(),
                 Some("new-owner/new-repo")
+            );
+        });
+    }
+
+    #[test]
+    fn install_lock_update_writes_real_content_baseline() {
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            let skill_dir = config::get_agents_skills_dir().join("demo");
+            std::fs::create_dir_all(&skill_dir).unwrap();
+            std::fs::write(skill_dir.join("SKILL.md"), "# demo\n").unwrap();
+
+            CliService::update_lock_after_install(
+                &[("demo".into(), "skills/demo".into())],
+                "owner",
+                "repo",
+                None::<&str>,
+                &Default::default(),
+            )
+            .unwrap();
+
+            let entry = SkillLock::read().unwrap().skills["demo"].clone();
+            let baseline = entry
+                .content_baseline()
+                .expect("baseline written on install");
+
+            // Unmodified folder: no drift.
+            assert!(!crate::services::lock::skill_folder_drifted(
+                &skill_dir, &entry
+            ));
+
+            // A local edit moves the content away from the baseline.
+            std::fs::write(skill_dir.join("SKILL.md"), "# demo edited\n").unwrap();
+            assert!(crate::services::lock::skill_folder_drifted(
+                &skill_dir, &entry
+            ));
+            assert_ne!(
+                crate::services::lock::compute_skill_folder_hash(&skill_dir).unwrap(),
+                baseline
             );
         });
     }

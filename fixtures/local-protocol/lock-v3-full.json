@@ -7,7 +7,7 @@
       "sourceUrl": "https://github.com/owner/repo",
       "ref": "main",
       "skillPath": "skills/demo",
-      "skillFolderHash": "sha256-demo",
+      "skillFolderHash": "8293db63637957643abb559a59c1122ef387e21f61b60e8b0b3b2dfda73bae36",
       "installedAt": "2026-01-02T03:04:05Z",
       "updatedAt": "2026-01-03T03:04:05Z",
       "commitSha": "abc123",

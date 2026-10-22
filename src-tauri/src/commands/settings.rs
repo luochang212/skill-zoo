@@ -1028,6 +1028,7 @@ pub struct SkillUpdateStatus {
     pub current_sha: Option<String>,
     pub latest_sha: Option<String>,
     pub repo: String,
+    pub locally_modified: bool,
     pub check_error_code: Option<String>,
     pub check_error: Option<String>,
 }
@@ -1224,12 +1225,18 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
             _ => false,
         };
 
+        let locally_modified = crate::services::lock::skill_folder_drifted(
+            &crate::config::get_agents_skills_dir().join(skill_name),
+            entry,
+        );
+
         skills.push(SkillUpdateStatus {
             skill_name: skill_name.clone(),
             has_update,
             current_sha,
             latest_sha: checked.latest_sha,
             repo: checked.repo,
+            locally_modified,
             check_error_code: checked.check_error_code,
             check_error: checked.check_error,
         });

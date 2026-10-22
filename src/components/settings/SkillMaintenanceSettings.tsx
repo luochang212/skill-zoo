@@ -79,6 +79,7 @@ export function SkillMaintenanceSettings({
         currentSha: skill.currentSha!,
         latestSha: skill.latestSha!,
         repo: skill.repo,
+        locallyModified: skill.locallyModified,
       }));
   }, [checkMutation.data, ssotSkillDirs]);
 
@@ -143,13 +144,23 @@ export function SkillMaintenanceSettings({
           skillName: update.skillName,
           currentSha: update.currentSha,
           latestSha: update.latestSha,
+          force: update.force,
         })),
         {
-          onSuccess: () => checkMutation.reset(),
+          onSuccess: (result) => {
+            if (result.skippedDrifted.length > 0) {
+              toast.warning(
+                t("settings.maintenance.skippedDriftedToast", {
+                  names: result.skippedDrifted.join(", "),
+                }),
+              );
+            }
+            checkMutation.reset();
+          },
         },
       );
     },
-    [checkMutation, updateAllMutation],
+    [checkMutation, t, updateAllMutation],
   );
 
   return (

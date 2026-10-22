@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 
 export interface SkillUpdateCandidate extends CheckedSkillUpdate {
   repo: string;
+  locallyModified: boolean;
 }
 
 export interface SkillUpdateIssue {
@@ -96,6 +97,7 @@ export function SkillUpdateManagerDialog({
   const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("updates");
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [driftConfirmItem, setDriftConfirmItem] = useState<SkillUpdateCandidate | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const configureGitHubTokenRef = useRef(false);
   const historyQuery = useSkillUpdateHistory(open);
@@ -106,7 +108,11 @@ export function SkillUpdateManagerDialog({
 
   useEffect(() => {
     if (!open) return;
-    setSelected(new Set(updates.map((update) => update.skillName)));
+    // Batch updates never silently overwrite local modifications, so drifted
+    // candidates start unselected and are updated individually via force.
+    setSelected(
+      new Set(updates.filter((update) => !update.locallyModified).map((u) => u.skillName)),
+    );
   }, [open, updates]);
 
   const selectedUpdates = useMemo(
@@ -255,7 +261,7 @@ export function SkillUpdateManagerDialog({
                         onCheckedChange={(checked) =>
                           toggleSelected(update.skillName, Boolean(checked))
                         }
-                        disabled={isUpdating}
+                        disabled={isUpdating || update.locallyModified}
                         aria-label={t("settings.maintenance.selectUpdate", {
                           skill: update.skillName,
                         })}
@@ -268,11 +274,32 @@ export function SkillUpdateManagerDialog({
                           <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-[10px]">
                             {update.repo}
                           </Badge>
+                          {update.locallyModified && (
+                            <Badge
+                              variant="outline"
+                              className="h-5 shrink-0 gap-1 border-amber-500/50 px-1.5 text-[10px] text-amber-600"
+                            >
+                              <AlertTriangle className="h-3 w-3" />
+                              {t("settings.maintenance.locallyModifiedBadge")}
+                            </Badge>
+                          )}
                         </div>
                         <p className="truncate font-mono text-xs text-muted-foreground">
                           {shortSha(update.currentSha)} -&gt; {shortSha(update.latestSha)}
                         </p>
                       </div>
+                      {update.locallyModified && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 shrink-0 gap-1.5 text-xs"
+                          disabled={isUpdating}
+                          onClick={() => setDriftConfirmItem(update)}
+                        >
+                          <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                          {t("settings.maintenance.updateAnyway")}
+                        </Button>
+                      )}
                     </div>
                   ))}
                   {issues.length > 0 && (
@@ -336,7 +363,7 @@ export function SkillUpdateManagerDialog({
             </div>
           </>
         ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div className="min-h-0 flex-1 overflow-y-auto">
             {historyQuery.isLoading ? (
               <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
                 {t("settings.maintenance.loadingHistory")}
@@ -357,6 +384,42 @@ export function SkillUpdateManagerDialog({
             )}
           </div>
         )}
+
+        {/* Per-skill confirmation before overwriting local modifications */}
+        <Dialog
+          open={driftConfirmItem != null}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setDriftConfirmItem(null);
+          }}
+        >
+          <DialogContent className="sm:max-w-[380px]">
+            <DialogHeader>
+              <DialogTitle>{t("settings.maintenance.driftConfirmTitle")}</DialogTitle>
+              <DialogDescription>
+                {t("settings.maintenance.driftConfirmDesc", {
+                  skill: driftConfirmItem?.skillName ?? "",
+                })}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-2">
+              <Button size="sm" variant="outline" onClick={() => setDriftConfirmItem(null)}>
+                {t("common.cancel")}
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={isUpdating}
+                onClick={() => {
+                  if (!driftConfirmItem) return;
+                  onUpdate([{ ...driftConfirmItem, force: true }]);
+                  setDriftConfirmItem(null);
+                }}
+              >
+                {t("settings.maintenance.driftConfirmOverwrite")}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   );

@@ -154,6 +154,7 @@
     "diskFull": "磁盘空间不足，请清理后重试。",
     "skillNotFound": "该技能已不存在于磁盘中。",
     "badRequest": "请求无效：{{message}}",
+    "skillLocallyModified": "该技能在本地有修改，更新会覆盖你的修改。",
     "badRequestGeneric": "请求无效，请检查输入后重试。",
     "repoNotFound": "仓库未找到，可能是私有仓库或链接不正确。",
     "rateLimit": "GitHub 请求已被暂时限流，请稍后再试。",
@@ -177,6 +178,10 @@
     "batchPartialFailed": "{{count}} 个技能删除失败。",
     "externalImportNote": "已选中的导入技能仅会移除注册记录，源文件不会被删除。",
     "mixedImportNote": "导入技能仅移除注册记录，源文件不会被删除。其余技能将同步移除编程工具关联和本地文件。"
+  },
+  "driftDialog": {
+    "title": "覆盖本地修改？",
+    "description": "更新会用仓库版本覆盖"
   },
   "archiveDialog": {
     "title": "归档技能",
@@ -358,6 +363,12 @@
       "selectedUpdates": "已选择 {{selected}} / {{total}}",
       "updateSelected": "更新所选",
       "updateIssuesGroup": "需要处理 ({{count}})",
+      "locallyModifiedBadge": "本地已修改",
+      "updateAnyway": "仍要更新",
+      "driftConfirmTitle": "覆盖本地修改？",
+      "driftConfirmDesc": "更新 {{skill}} 会用仓库版本覆盖本地修改过的文件，你的修改将丢失。",
+      "driftConfirmOverwrite": "更新并覆盖",
+      "skippedDriftedToast": "已跳过本地修改过的技能：{{names}}。可单独更新并选择覆盖。",
       "updateIssueBadge": "检查失败",
       "noAvailableUpdates": "当前没有已检查出的更新。点击检查更新刷新列表。",
       "loadingHistory": "正在加载更新历史...",

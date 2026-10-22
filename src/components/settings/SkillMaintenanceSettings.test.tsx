@@ -148,7 +148,9 @@ describe("SkillMaintenanceSettings", () => {
     expect(screen.getByRole("button", { name: /^update selected$/i })).toBeDisabled();
     await user.keyboard("{Escape}");
     finished = true;
-    act(() => finish({ skills: [], successCount: 1, failCount: 0, errors: [] }));
+    act(() =>
+      finish({ skills: [], successCount: 1, failCount: 0, errors: [], skippedDrifted: [] }),
+    );
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledExactlyOnceWith("1 skill(s) updated successfully"),
     );
@@ -319,6 +321,7 @@ describe("SkillMaintenanceSettings", () => {
             successCount: 0,
             failCount: 1,
             errors: ["agent-browser: Rate limited: vercel-labs/agent-browser"],
+            skippedDrifted: [],
           });
         default:
           return Promise.reject(new Error(`Unexpected command: ${command}`));
@@ -375,6 +378,7 @@ describe("SkillMaintenanceSettings", () => {
             successCount: 0,
             failCount: 1,
             errors: ["agent-browser: Download temporarily unavailable: vercel-labs/agent-browser"],
+            skippedDrifted: [],
           });
         default:
           return Promise.reject(new Error(`Unexpected command: ${command}`));
@@ -439,6 +443,7 @@ describe("SkillMaintenanceSettings", () => {
             successCount: 1,
             failCount: 0,
             errors: [],
+            skippedDrifted: [],
           });
         default:
           return Promise.reject(new Error(`Unexpected command: ${command}`));

@@ -154,6 +154,7 @@
     "diskFull": "Disk is full. Free up some space and try again.",
     "skillNotFound": "This skill no longer exists on disk.",
     "badRequest": "Invalid request: {{message}}",
+    "skillLocallyModified": "This skill was modified locally. Updating replaces your edits.",
     "badRequestGeneric": "Invalid request. Check your input and try again.",
     "repoNotFound": "Repository not found. It may be private or the link is incorrect.",
     "rateLimit": "GitHub requests are temporarily rate limited. Please try again later.",
@@ -177,6 +178,10 @@
     "batchPartialFailed": "{{count}} skill(s) could not be removed.",
     "externalImportNote": "Imported skills will only be unregistered; their source files will not be deleted.",
     "mixedImportNote": "Imported skills will only be unregistered. Other skills will have agent links and local files removed."
+  },
+  "driftDialog": {
+    "title": "Overwrite local modifications?",
+    "description": "Updating replaces the locally modified files of"
   },
   "archiveDialog": {
     "title": "Archive Skill",
@@ -358,6 +363,12 @@
       "selectedUpdates": "{{selected}} of {{total}} selected",
       "updateSelected": "Update Selected",
       "updateIssuesGroup": "Needs attention ({{count}})",
+      "locallyModifiedBadge": "Modified locally",
+      "updateAnyway": "Update anyway",
+      "driftConfirmTitle": "Overwrite local modifications?",
+      "driftConfirmDesc": "Updating {{skill}} replaces the locally modified files with the repository version. Your edits will be lost.",
+      "driftConfirmOverwrite": "Update and overwrite",
+      "skippedDriftedToast": "Skipped locally modified skills: {{names}}. Update them individually to overwrite.",
       "updateIssueBadge": "Check failed",
       "noAvailableUpdates": "No checked updates are available. Run Check Updates to refresh the list.",
       "loadingHistory": "Loading update history...",

@@ -195,9 +195,9 @@ export default function App() {
     }
   }, [hasLocalDetail, editor.skillId, archivedEditor?.archiveId]);
 
-  const handleUpdate = async () => {
+  const handleUpdate = async (force?: boolean) => {
     if (!editor.skillId) return Promise.resolve(null);
-    return updateMutation.mutateAsync(editor.skillId);
+    return updateMutation.mutateAsync({ skillId: editor.skillId, force });
   };
 
   const handleRemove = () => {
@@ -295,7 +295,9 @@ export default function App() {
           onRemove={handleRemove}
           onArchive={handleArchive}
           onToggleStar={handleToggleStar}
-          updatePending={updateMutation.isPending && updateMutation.variables === editor.skillId}
+          updatePending={
+            updateMutation.isPending && updateMutation.variables?.skillId === editor.skillId
+          }
           removePending={removeMutation.isPending}
           archivePending={archiveMutation.isPending}
           archiveDisabled={editor.dirty || auxDraftsDirty}

@@ -15,6 +15,7 @@ import { BackButton } from "@/components/ui/BackButton";
 import { ConfigureDialog } from "@/components/skills/ConfigureDialog";
 import { SkillContentPane, type ContentTab } from "@/components/skills/SkillContentPane";
 import { skillsApi } from "@/lib/api/skills";
+import { apiErrorCode } from "@/lib/api/errors";
 import { AlertTriangle } from "lucide-react";
 import type { InstalledSkill } from "@/types/skills";
 
@@ -27,7 +28,7 @@ interface SkillDetailProps {
   content: string;
   onChange: (content: string) => void;
   onBack?: () => void;
-  onUpdate?: () => Promise<unknown>;
+  onUpdate?: (force?: boolean) => Promise<unknown>;
   onRemove?: () => void;
   onArchive?: () => void;
   onRestore?: () => void;
@@ -76,6 +77,7 @@ export function SkillDetail({
   const [configureOpen, setConfigureOpen] = useState(false);
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+  const [driftConfirmOpen, setDriftConfirmOpen] = useState(false);
   const [updateSuccess, setUpdateSuccess] = useState(false);
   const [updateUpToDate, setUpdateUpToDate] = useState(false);
   const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -119,12 +121,12 @@ export function SkillDetail({
     [onTabChange],
   );
 
-  const handleUpdate = async () => {
+  const handleUpdate = async (force?: boolean) => {
     if (!onUpdate) return;
     const updateSkillId = skill?.id;
     clearUpdateStatus();
     try {
-      const result = (await onUpdate()) as { updated: boolean } | null;
+      const result = (await onUpdate(force)) as { updated: boolean } | null;
       if (currentSkillIdRef.current !== updateSkillId) return;
       if (result?.updated) {
         setUpdateUpToDate(false);
@@ -135,12 +137,20 @@ export function SkillDetail({
         setUpdateUpToDate(true);
         successTimerRef.current = setTimeout(() => setUpdateUpToDate(false), 2000);
       }
-    } catch {
+    } catch (error) {
       if (currentSkillIdRef.current === updateSkillId) {
         clearUpdateStatus();
       }
-      // Error toast is handled by the global mutation onError handler
+      // Other error toasts are handled by the global mutation onError handler.
+      if (apiErrorCode(error) === "skillLocallyModified") {
+        setDriftConfirmOpen(true);
+      }
     }
+  };
+
+  const handleDriftConfirm = async () => {
+    setDriftConfirmOpen(false);
+    await handleUpdate(true);
   };
 
   const handleRemoveClick = () => {
@@ -308,6 +318,26 @@ export function SkillDetail({
               disabled={archivePending || archiveDisabled}
             >
               {archivePending ? t("common.archiving") : t("common.archive")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Local-modification confirmation dialog */}
+      <Dialog open={driftConfirmOpen} onOpenChange={setDriftConfirmOpen}>
+        <DialogContent className="sm:max-w-[380px]">
+          <DialogHeader>
+            <DialogTitle>{t("driftDialog.title")}</DialogTitle>
+            <DialogDescription>
+              {t("driftDialog.description")}{" "}
+              <span className="font-medium text-foreground">{skillName}</span>?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setDriftConfirmOpen(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button variant="destructive" size="sm" onClick={handleDriftConfirm}>
+              {t("driftDialog.overwrite")}
             </Button>
           </DialogFooter>
         </DialogContent>

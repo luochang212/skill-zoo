@@ -125,9 +125,9 @@ export function useInstallSkills() {
 
 export function useUpdateSkill() {
   const qc = useQueryClient();
-  return useMutation<SingleSkillUpdateResult, Error, string>({
+  return useMutation<SingleSkillUpdateResult, Error, { skillId: string; force?: boolean }>({
     mutationKey: ["updateSkill"],
-    mutationFn: (skillId: string) => skillsApi.updateSkill(skillId),
+    mutationFn: ({ skillId, force }) => skillsApi.updateSkill(skillId, force),
     onSuccess: (result) => {
       invalidateFor(qc, "updateSkill");
       if (result.updated) {

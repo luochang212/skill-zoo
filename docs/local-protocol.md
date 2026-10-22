@@ -47,6 +47,12 @@ Metadata refresh acquires the desktop metadata write lock before reading disk an
 
 For GitHub lock entries, `ref` stores an explicit branch only when the user or curated source selected one, for example a `/tree/<branch>` URL. Missing `ref` means the skill follows the repository's default branch. Readers must not treat a missing `ref` as `main`; writers must omit `ref` when the branch is unknown/default rather than guessing.
 
+## Skill Folder Baseline Hash
+
+For GitHub lock entries, `skillFolderHash` stores the desktop's content baseline for the installed skill folder: the lowercase hex SHA-256 over `relative-path + 0x00 + file-bytes` for every regular file below the skill directory, ordered by relative path bytes. Symbolic links are skipped and never followed, so only real content changes move the baseline; symlink targets are invisible to it. Nesting deeper than 20 levels is refused rather than hashed partially.
+
+The desktop writes the field when a remote install or an update finishes writing content, and refreshes it on every confirmed content write. A missing or empty value — as written by older producers — is an unknown baseline: it never reports local modification and never blocks updates, and a hashing failure at compare time likewise judges as "not drifted". Batch updates skip locally modified skills and report them in the completion summary instead of overwriting them; single updates require explicit confirmation before overwriting. The CLI reads and preserves the field without interpreting it.
+
 ## External Imports
 
 External imports are separately registered user-owned skill directories. New imports must originate outside Skill Zoo's SSOT and registered agent skill directories; existing external sources retain external ownership when a subsequently registered custom agent encloses them. The desktop app records these references in `~/.skill-zoo/imports.json`; the source directory remains the user's source of truth and must not be copied, moved, deleted, or archived by Skill Zoo-compatible tools.

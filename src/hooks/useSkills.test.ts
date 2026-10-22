@@ -220,7 +220,9 @@ describe("useUpdateSkill", () => {
 
     const { result } = renderHook(() => useUpdateSkill(), { wrapper });
     await act(async () => {
-      await expect(result.current.mutateAsync("skill-1")).rejects.toThrow("update failed");
+      await expect(result.current.mutateAsync({ skillId: "skill-1" })).rejects.toThrow(
+        "update failed",
+      );
     });
 
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["skills", "updateHistory"] });

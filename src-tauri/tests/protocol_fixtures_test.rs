@@ -20,6 +20,12 @@ fn test_desktop_reads_current_protocol_fixtures() {
     assert_eq!(lock_entry.branch.as_deref(), Some("main"));
     assert_eq!(lock_entry.skill_path.as_deref(), Some("skills/demo"));
     assert_eq!(lock_entry.commit_sha.as_deref(), Some("abc123"));
+    // The populated baseline hash must parse and be usable for drift checks.
+    assert_eq!(
+        lock_entry.skill_folder_hash.as_deref(),
+        Some("8293db63637957643abb559a59c1122ef387e21f61b60e8b0b3b2dfda73bae36")
+    );
+    assert!(lock_entry.content_baseline().is_some());
     // Unknown optional fields must survive parsing for read-modify-write
     // writers so future producers' data is not dropped.
     assert_eq!(

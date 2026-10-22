@@ -25,6 +25,7 @@ const ERROR_KEYS: Record<string, string> = {
   diskFull: "error.diskFull",
   notFound: "error.skillNotFound",
   badRequest: "error.badRequest",
+  skillLocallyModified: "error.skillLocallyModified",
 };
 
 export function formatApiError(error: unknown): string {

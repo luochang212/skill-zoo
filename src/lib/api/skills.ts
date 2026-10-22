@@ -37,7 +37,8 @@ export const skillsApi = {
   getInstalledSkills: (force?: boolean) =>
     invoke<InstalledSkill[]>("get_installed_skills", { force }),
 
-  updateSkill: (skillId: string) => invoke<SingleSkillUpdateResult>("update_skill", { skillId }),
+  updateSkill: (skillId: string, force?: boolean) =>
+    invoke<SingleSkillUpdateResult>("update_skill", { skillId, force: force ?? null }),
 
   updateAllSkills: (checkedUpdates?: CheckedSkillUpdate[]) =>
     invoke<UpdateAllResult>("update_all_skills", { checkedUpdates: checkedUpdates ?? null }),
@@ -161,12 +162,14 @@ export interface UpdateAllResult {
   failCount: number;
   errors: string[];
   updated: string[];
+  skippedDrifted: string[];
 }
 
 export interface CheckedSkillUpdate {
   skillName: string;
   currentSha: string;
   latestSha: string;
+  force?: boolean;
 }
 
 export interface SkillUpdateStatus {
@@ -175,6 +178,7 @@ export interface SkillUpdateStatus {
   currentSha: string | null;
   latestSha: string | null;
   repo: string;
+  locallyModified: boolean;
   checkErrorCode?: string | null;
   checkError?: string | null;
 }

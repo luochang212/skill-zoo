@@ -41,6 +41,7 @@ pub struct UpdateAllResult {
     pub fail_count: usize,
     pub errors: Vec<String>,
     pub updated: Vec<String>,
+    pub skipped_drifted: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -49,6 +50,8 @@ pub struct CheckedSkillUpdate {
     pub skill_name: String,
     pub current_sha: String,
     pub latest_sha: String,
+    #[serde(default)]
+    pub force: Option<bool>,
 }
 
 const MAX_IMAGE_PREVIEW_BYTES: u64 = 25 * 1024 * 1024;
@@ -924,6 +927,7 @@ pub async fn get_installed_skills(
 pub async fn update_skill(
     state: State<'_, AppState>,
     skill_id: String,
+    force: Option<bool>,
 ) -> Result<SingleSkillUpdateResult, CommandError> {
     let _agent_lease = state.acquire_local_lease().map_err(CommandError::from)?;
     let skill = SkillService::find_in_cache(&state.skill_cache, &skill_id)
@@ -975,6 +979,7 @@ pub async fn update_skill(
             fail_count: 0,
             errors: vec![],
             updated: vec![],
+            skipped_drifted: vec![],
         };
         record_update_history_with_started_at(started_at, "single", requested_skills, &result);
 
@@ -997,6 +1002,26 @@ pub async fn update_skill(
         latest_sha: new_sha,
     };
 
+    // A locally modified skill is never overwritten without an explicit decision.
+    if force != Some(true) {
+        let ssot_dir = crate::config::get_agents_skills_dir();
+        if crate::services::lock::skill_folder_drifted(
+            &ssot_dir.join(&skill.directory),
+            &known_update.entry,
+        ) {
+            return Err(CommandError {
+                code: "skillLocallyModified",
+                message: format!(
+                    "{} was modified locally. Updating replaces your edits.",
+                    skill.name
+                ),
+                repo: None,
+                authenticated: None,
+                retry_at: None,
+            });
+        }
+    }
+
     let result = CliService::update_known_skill_entries(vec![known_update])
         .await
         .unwrap_or_else(|e| {
@@ -1006,6 +1031,7 @@ pub async fn update_skill(
                 fail_count: 1,
                 errors: vec![format!("{}: {e}", skill.directory)],
                 updated: vec![],
+                skipped_drifted: vec![],
             }
         });
 
@@ -1053,7 +1079,7 @@ pub async fn update_all_skills(
             .iter()
             .map(|checked| checked.skill_name.clone())
             .collect();
-        let (known_updates, validation_errors) = {
+        let (known_updates, validation_errors, skipped_drifted) = {
             let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
             let lock = SkillLock::read().map_err(|e| e.to_string())?;
             checked_update_entries_from_lock(&cache, &lock, &checked_updates)
@@ -1064,9 +1090,10 @@ pub async fn update_all_skills(
                 fail_count: 0,
                 errors: vec![],
                 updated: vec![],
+                skipped_drifted,
             }
         } else {
-            CliService::update_known_skill_entries(known_updates)
+            let mut result = CliService::update_known_skill_entries(known_updates)
                 .await
                 .unwrap_or_else(|e| {
                     eprintln!("Update checked skills error: {e}");
@@ -1075,8 +1102,11 @@ pub async fn update_all_skills(
                         fail_count: 0,
                         errors: vec![e.to_string()],
                         updated: vec![],
+                        skipped_drifted: vec![],
                     }
-                })
+                });
+            result.skipped_drifted = skipped_drifted;
+            result
         };
         result.errors.extend(validation_errors);
         ("selected", requested_skills, result)
@@ -1096,6 +1126,7 @@ pub async fn update_all_skills(
                     fail_count: 0,
                     errors: vec![e.to_string()],
                     updated: vec![],
+                    skipped_drifted: vec![],
                 }
             });
         ("all", requested_skills, result)
@@ -1134,6 +1165,7 @@ pub async fn update_all_skills(
         fail_count: update_result.fail_count,
         errors: update_result.errors,
         updated: update_result.updated,
+        skipped_drifted: update_result.skipped_drifted,
     })
 }
 
@@ -1237,10 +1269,12 @@ fn checked_update_entries_from_lock(
     cache: &crate::persistence::SkillCache,
     lock: &SkillLock,
     checked_updates: &[CheckedSkillUpdate],
-) -> (Vec<KnownSkillUpdate>, Vec<String>) {
+) -> (Vec<KnownSkillUpdate>, Vec<String>, Vec<String>) {
     let allowed: HashSet<String> = update_all_candidate_dirs(cache).into_iter().collect();
     let mut updates = Vec::new();
     let mut errors = Vec::new();
+    let mut skipped_drifted = Vec::new();
+    let ssot_dir = crate::config::get_agents_skills_dir();
 
     for checked in checked_updates {
         if !allowed.contains(&checked.skill_name) {
@@ -1271,6 +1305,15 @@ fn checked_update_entries_from_lock(
             ));
             continue;
         }
+        if checked.force != Some(true)
+            && crate::services::lock::skill_folder_drifted(
+                &ssot_dir.join(&checked.skill_name),
+                &entry,
+            )
+        {
+            skipped_drifted.push(checked.skill_name.clone());
+            continue;
+        }
         updates.push(KnownSkillUpdate {
             name: checked.skill_name.clone(),
             entry,
@@ -1278,7 +1321,7 @@ fn checked_update_entries_from_lock(
         });
     }
 
-    (updates, errors)
+    (updates, errors, skipped_drifted)
 }
 
 fn update_result_with_error_count(
@@ -3555,15 +3598,17 @@ mod tests {
                 skill_name: "ssot-skill".to_string(),
                 current_sha: "stale".to_string(),
                 latest_sha: "new-ssot".to_string(),
+                force: None,
             },
             CheckedSkillUpdate {
                 skill_name: "local-skill".to_string(),
                 current_sha: "old-local".to_string(),
                 latest_sha: "new-local".to_string(),
+                force: None,
             },
         ];
 
-        let (entries, errors) = checked_update_entries_from_lock(&cache, &lock, &checked);
+        let (entries, errors, skipped) = checked_update_entries_from_lock(&cache, &lock, &checked);
 
         assert!(entries.is_empty());
         assert_eq!(errors.len(), 2);
@@ -3592,14 +3637,73 @@ mod tests {
             skill_name: "ssot-skill".to_string(),
             current_sha: "old-ssot".to_string(),
             latest_sha: "new-ssot".to_string(),
+            force: None,
         }];
 
-        let (entries, errors) = checked_update_entries_from_lock(&cache, &lock, &checked);
+        let (entries, errors, skipped) = checked_update_entries_from_lock(&cache, &lock, &checked);
 
         assert!(errors.is_empty());
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].name, "ssot-skill");
         assert_eq!(entries[0].latest_sha, "new-ssot");
+        assert!(skipped.is_empty());
+    }
+
+    #[test]
+    fn checked_update_skips_drifted_skills_unless_forced() {
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            let skill_dir = crate::config::get_agents_skills_dir().join("ssot-skill");
+            std::fs::create_dir_all(&skill_dir).unwrap();
+            std::fs::write(skill_dir.join("SKILL.md"), "# edited locally\n").unwrap();
+
+            let cache = crate::persistence::SkillCache::from_entries(vec![test_cache_entry(
+                "repo:owner/repo:ssot-skill",
+                "ssot-skill",
+                "ssot",
+            )]);
+            let mut entry = test_lock_entry("owner/repo", "old-ssot");
+            // A baseline that no longer matches the folder content.
+            entry.skill_folder_hash =
+                Some("8293db63637957643abb559a59c1122ef387e21f61b60e8b0b3b2dfda73bae36".into());
+            let mut lock = SkillLock {
+                extra: Default::default(),
+                version: SUPPORTED_LOCK_VERSION,
+                skills: Default::default(),
+                dismissed: serde_json::json!({}),
+            };
+            lock.skills.insert("ssot-skill".to_string(), entry);
+
+            let make_checked = |force: Option<bool>| {
+                vec![CheckedSkillUpdate {
+                    skill_name: "ssot-skill".to_string(),
+                    current_sha: "old-ssot".to_string(),
+                    latest_sha: "new-ssot".to_string(),
+                    force,
+                }]
+            };
+
+            let (entries, errors, skipped) =
+                checked_update_entries_from_lock(&cache, &lock, &make_checked(None));
+            assert!(entries.is_empty());
+            assert!(errors.is_empty());
+            assert_eq!(skipped, vec!["ssot-skill".to_string()]);
+
+            let (entries, errors, skipped) =
+                checked_update_entries_from_lock(&cache, &lock, &make_checked(Some(true)));
+            assert_eq!(entries.len(), 1);
+            assert!(errors.is_empty());
+            assert!(skipped.is_empty());
+
+            // Unknown baselines never block the batch.
+            let mut lock = lock;
+            lock.skills.get_mut("ssot-skill").unwrap().skill_folder_hash = Some(String::new());
+            let (entries, errors, skipped) =
+                checked_update_entries_from_lock(&cache, &lock, &make_checked(None));
+            assert_eq!(entries.len(), 1);
+            assert!(errors.is_empty());
+            assert!(skipped.is_empty());
+        });
     }
 
     #[test]
@@ -3609,6 +3713,7 @@ mod tests {
             fail_count: 0,
             errors: vec!["network failed".to_string()],
             updated: vec![],
+            skipped_drifted: vec![],
         });
 
         assert_eq!(result.fail_count, 1);
@@ -3623,6 +3728,7 @@ mod tests {
                 fail_count: 0,
                 errors: vec![],
                 updated: vec!["demo".to_string()],
+                skipped_drifted: vec![],
             },
             "cache refresh failed".to_string(),
         );

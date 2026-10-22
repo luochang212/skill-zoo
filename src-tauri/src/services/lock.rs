@@ -2,10 +2,14 @@ use crate::config;
 use crate::error::AppError;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::io::Read;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 pub const SUPPORTED_LOCK_VERSION: i32 = 3;
+
+/// Recursion cap for baseline hashing, mirroring the install copy depth cap.
+const MAX_HASH_DEPTH: usize = 20;
 
 /// Process-wide mutex serializing all lock-file read-modify-write so concurrent
 /// `SkillLock::update` calls don't lose fields to interleaved writes.
@@ -135,6 +139,15 @@ impl SkillLockEntry {
         )
     }
 
+    /// The stored content baseline, or `None` when it is unknown
+    /// (missing field or the empty value written by older producers).
+    pub fn content_baseline(&self) -> Option<&str> {
+        match self.skill_folder_hash.as_deref() {
+            Some(hash) if !hash.is_empty() => Some(hash),
+            _ => None,
+        }
+    }
+
     /// Get source_url if present; derive from source field as fallback.
     pub fn effective_url(&self) -> Option<String> {
         if let Some(url) = &self.source_url {
@@ -156,4 +169,78 @@ impl SkillLockEntry {
         let url = self.effective_url();
         (owner, name, url)
     }
+}
+
+/// Deterministic content baseline over an installed skill folder, as documented
+/// in `docs/local-protocol.md`: SHA-256 over `relative-path + 0x00 + bytes` for
+/// every regular file, ordered by relative path. Symbolic links are skipped,
+/// never followed, so only real content moves the baseline.
+pub fn compute_skill_folder_hash(dir: &Path) -> Result<String, AppError> {
+    use sha2::Digest;
+
+    let mut files = Vec::new();
+    collect_regular_files(dir, dir, 0, &mut files)?;
+    files.sort_by(|a, b| {
+        a.0.as_os_str()
+            .as_encoded_bytes()
+            .cmp(b.0.as_os_str().as_encoded_bytes())
+    });
+    let mut hasher = sha2::Sha256::new();
+    for (rel, abs) in files {
+        hasher.update(rel.as_os_str().as_encoded_bytes());
+        hasher.update([0u8]);
+        let mut file = std::fs::File::open(&abs).map_err(AppError::Io)?;
+        let mut buf = [0u8; 8192];
+        loop {
+            let read = file.read(&mut buf).map_err(AppError::Io)?;
+            if read == 0 {
+                break;
+            }
+            hasher.update(&buf[..read]);
+        }
+    }
+    let digest = hasher.finalize();
+    Ok(digest.iter().map(|b| format!("{:02x}", b)).collect())
+}
+
+/// Whether the folder's current content differs from the entry's stored
+/// baseline. Unknown baselines and unreadable folders judge as "not drifted":
+/// drift must never be claimed without evidence.
+pub fn skill_folder_drifted(dir: &Path, entry: &SkillLockEntry) -> bool {
+    let Some(baseline) = entry.content_baseline() else {
+        return false;
+    };
+    match compute_skill_folder_hash(dir) {
+        Ok(current) => current != baseline,
+        Err(_) => false,
+    }
+}
+
+fn collect_regular_files(
+    root: &Path,
+    dir: &Path,
+    depth: usize,
+    out: &mut Vec<(PathBuf, PathBuf)>,
+) -> Result<(), AppError> {
+    if depth > MAX_HASH_DEPTH {
+        return Err(AppError::BadRequest(format!(
+            "Skill folder nesting exceeds the maximum depth of {MAX_HASH_DEPTH}: {}",
+            dir.display()
+        )));
+    }
+    for entry in std::fs::read_dir(dir).map_err(AppError::Io)? {
+        let entry = entry.map_err(AppError::Io)?;
+        let file_type = entry.file_type().map_err(AppError::Io)?;
+        if file_type.is_symlink() {
+            continue;
+        }
+        let path = entry.path();
+        if file_type.is_dir() {
+            collect_regular_files(root, &path, depth + 1, out)?;
+        } else if file_type.is_file() {
+            let rel = path.strip_prefix(root).unwrap_or(&path).to_path_buf();
+            out.push((rel, path));
+        }
+    }
+    Ok(())
 }

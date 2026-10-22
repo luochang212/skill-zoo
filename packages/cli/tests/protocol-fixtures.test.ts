@@ -69,8 +69,26 @@ describe("desktop local protocol fixtures", () => {
     expect(reread.skills.demo?.skillPath).toBe("skills/new-demo");
     expect(root["futureTop"]).toBe("keep-me");
     expect(entry?.["futureOptional"]).toBe("keep-me");
+    // The desktop's content baseline round-trips untouched: the CLI reads and
+    // preserves it without interpreting it.
+    expect(reread.skills.demo?.skillFolderHash).toBe(
+      "8293db63637957643abb559a59c1122ef387e21f61b60e8b0b3b2dfda73bae36",
+    );
     // Fixtures represent desktop protocol state and must never be rewritten.
     expect(await fs.readFile(fixturePath("lock-v3-full.json"), "utf8")).toBe(fixtureBefore);
+  });
+
+  it("tolerates a legacy empty skillFolderHash as an unknown baseline", async () => {
+    const home = await makeTempHome();
+    const paths = getPaths(home);
+    await copyFixture("lock-v3-full.json", paths.agentLockFile);
+
+    const lock = await readLock(home);
+    lock.skills.demo!.skillFolderHash = "";
+    await writeLock(home, lock);
+
+    const reread = await readLock(home);
+    expect(reread.skills.demo?.skillFolderHash).toBe("");
   });
 
   it("applies defaults for minimal current fixtures", async () => {

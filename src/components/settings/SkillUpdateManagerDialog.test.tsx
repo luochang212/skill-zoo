@@ -103,3 +103,96 @@ describe("SkillUpdateManagerDialog closing", () => {
     await waitFor(() => expect(client.isMutating()).toBe(0));
   });
 });
+
+describe("SkillUpdateManagerDialog drifted updates", () => {
+  beforeEach(async () => {
+    vi.mocked(invoke).mockReset();
+    vi.mocked(invoke).mockResolvedValue([]);
+    await i18n.changeLanguage("en");
+  });
+
+  const driftedUpdate = {
+    skillName: "drifted-skill",
+    currentSha: "aaa1111",
+    latestSha: "bbb2222",
+    repo: "owner/repo",
+    locallyModified: true,
+  };
+  const cleanUpdate = {
+    skillName: "clean-skill",
+    currentSha: "ccc3333",
+    latestSha: "ddd4444",
+    repo: "owner/repo",
+    locallyModified: false,
+  };
+
+  function DriftHarness({
+    updates,
+    onUpdate,
+  }: {
+    updates: (typeof driftedUpdate)[];
+    onUpdate: ReturnType<typeof vi.fn>;
+  }) {
+    const [open, setOpen] = useState(true);
+    const ref = useRef<HTMLButtonElement>(null);
+    return (
+      <>
+        <button ref={ref} onClick={() => setOpen(true)}>
+          Reopen
+        </button>
+        <SkillUpdateManagerDialog
+          open={open}
+          onOpenChange={setOpen}
+          returnFocusRef={ref}
+          updates={updates}
+          issues={[]}
+          isChecking={false}
+          isUpdating={false}
+          onCheckUpdates={() => {}}
+          onUpdate={onUpdate}
+        />
+      </>
+    );
+  }
+
+  it("starts drifted skills unselected with a per-skill force action", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    const onUpdate = vi.fn();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <DriftHarness updates={[driftedUpdate, cleanUpdate]} onUpdate={onUpdate} />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole("dialog");
+
+    // The clean skill starts selected; the drifted one does not.
+    expect(screen.getByRole("checkbox", { name: /select update for clean-skill/i })).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: /select update for drifted-skill/i }),
+    ).toBeDisabled();
+
+    // Updating the selection only sends the clean skill without force.
+    await user.click(screen.getByRole("button", { name: /update selected/i }));
+    expect(onUpdate).toHaveBeenCalledWith([cleanUpdate]);
+  });
+
+  it("requires explicit confirmation before overwriting a drifted skill", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    const onUpdate = vi.fn();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <DriftHarness updates={[driftedUpdate]} onUpdate={onUpdate} />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole("dialog");
+
+    await user.click(screen.getByRole("button", { name: /update anyway/i }));
+    expect(onUpdate).not.toHaveBeenCalled();
+
+    const overwrite = await screen.findByRole("button", { name: /update and overwrite/i });
+    await user.click(overwrite);
+    expect(onUpdate).toHaveBeenCalledWith([{ ...driftedUpdate, force: true }]);
+  });
+});
