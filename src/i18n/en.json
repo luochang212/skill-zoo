@@ -32,6 +32,7 @@
     "title": "Skills",
     "all": "All",
     "star": "Star",
+    "plugins": "Plugins",
     "dropToStar": "Drop here to star",
     "alreadyStarred": "Already starred",
     "import": "Import",

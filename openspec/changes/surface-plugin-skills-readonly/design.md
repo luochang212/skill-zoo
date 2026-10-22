@@ -25,6 +25,8 @@ Non-Goals:
 
 **Plugin skills as a distinct object origin, not external imports.** They get their own origin kind in scan results so the UI and command layer can treat them uniformly: labeled, read-only, visibility-coupled to claude-code. Reusing `external` would drag in import-specific semantics (management actions, link repair) that must not apply here.
 
+**A dedicated sidebar category is the plugin home, not the main list.** A large marketplace clone can contribute hundreds of skills; flooding the main grid would bury the user's own content. Plugin skills therefore appear only under a Plugins category (between Favorites and Imports), where the existing search and coding-agent filters compose naturally via each entry's `apps` map. Selection, batch actions, favorites and drag targets are disabled there — read-only objects get no write-shaped affordances.
+
 **Mutations refused in the backend, not just hidden in the UI.** Write commands (save, link, archive, remove, merge, update) check the target path against the discovered plugin roots and refuse with a clear error. The frontend hides the actions, but the guard is the boundary — same philosophy as the Tauri-only filesystem bridge.
 
 **Freshness via the existing cache-rebuild cycle, not a dedicated watcher.** Plugin sources are scanned during every cache rebuild (startup and watched-root events), so plugin updates show up on the next rebuild or Local-page refresh, without adding watcher roots for a tree another tool owns. Accepted trade-off: a plugin update mid-session is not reflected until the next rebuild — acceptable for a read-only view, and it avoids racing Claude Code's own writes.

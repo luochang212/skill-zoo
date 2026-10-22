@@ -13,7 +13,7 @@
 
 ## 3. Frontend: read-only local entries
 
-- [x] 3.1 Render plugin skills on the Local page with provenance labels (plugin, marketplace) and read-only affordances; hide install/link/archive/delete/update actions; add EN/ZH strings.
+- [x] 3.1 Render plugin skills under a dedicated Plugins sidebar category (between Favorites and Imports; the main list and its counts exclude them), with provenance labels (plugin, marketplace) and read-only affordances; the search and coding-agent filters apply inside the category; selection, batch actions, favorites and drag targets are disabled; add EN/ZH strings.
 - [x] 3.2 Open plugin skills in the editor's read-only mode from the Local page and the file tree.
 - [x] 3.3 Frontend tests: provenance rendering, hidden actions, read-only editor state, and visibility toggling with the claude-code agent.
 

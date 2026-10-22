@@ -190,7 +190,7 @@ export function SkillDetail({
               : undefined
           }
           onRestore={onRestore}
-          onToggleStar={onToggleStar}
+          onToggleStar={onToggleStar && !isPluginSkill ? onToggleStar : undefined}
           onOpenDir={
             readOnly
               ? undefined

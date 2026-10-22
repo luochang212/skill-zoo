@@ -7,6 +7,7 @@ import {
   Import,
   Folder,
   Layers,
+  Puzzle,
   ShieldCheck,
   ChevronDown,
   ChevronUp,
@@ -28,6 +29,8 @@ function CountBadge({ count }: { count: number }) {
 
 interface SkillSidebarProps {
   skills: InstalledSkill[];
+  plugins?: InstalledSkill[];
+  countPlugins?: InstalledSkill[];
   countSkills?: InstalledSkill[];
   archivedCount?: number;
   countArchivedCount?: number;
@@ -39,6 +42,8 @@ interface SkillSidebarProps {
 
 export function SkillSidebar({
   skills,
+  plugins = [],
+  countPlugins = plugins,
   countSkills = skills,
   archivedCount = 0,
   countArchivedCount = archivedCount,
@@ -52,6 +57,7 @@ export function SkillSidebar({
   const { ref: starDropRef, isDropTarget: starDropActive } = useStarSkillDropTarget();
 
   const countSkillIds = useMemo(() => new Set(countSkills.map((s) => s.id)), [countSkills]);
+  const countPluginIds = useMemo(() => new Set(countPlugins.map((s) => s.id)), [countPlugins]);
 
   const {
     starredCount,
@@ -60,6 +66,8 @@ export function SkillSidebar({
     filteredImportedCount,
     mineCount,
     filteredMineCount,
+    pluginCount,
+    filteredPluginCount,
     repos,
   } = useMemo(() => {
     const repoMap = new Map<string, { owner: string; name: string; maxUpdatedAt: number }>();
@@ -69,6 +77,8 @@ export function SkillSidebar({
     let nextFilteredImportedCount = 0;
     let nextMineCount = 0;
     let nextFilteredMineCount = 0;
+    let nextPluginCount = 0;
+    let nextFilteredPluginCount = 0;
 
     for (const s of skills) {
       const countsTowardFilter = countSkillIds.has(s.id);
@@ -102,6 +112,11 @@ export function SkillSidebar({
       }
     }
 
+    for (const s of plugins) {
+      nextPluginCount++;
+      if (countPluginIds.has(s.id)) nextFilteredPluginCount++;
+    }
+
     const nextRepos = Array.from(repoMap.values()).toSorted((a, b) => {
       // Missing time → end
       if (!a.maxUpdatedAt && !b.maxUpdatedAt)
@@ -121,9 +136,11 @@ export function SkillSidebar({
       filteredImportedCount: nextFilteredImportedCount,
       mineCount: nextMineCount,
       filteredMineCount: nextFilteredMineCount,
+      pluginCount: nextPluginCount,
+      filteredPluginCount: nextFilteredPluginCount,
       repos: nextRepos,
     };
-  }, [countSkillIds, skills]);
+  }, [countPluginIds, countSkillIds, plugins, skills]);
 
   const isActive = (cat: SidebarCategory) =>
     category.type === cat.type && JSON.stringify(category) === JSON.stringify(cat);
@@ -132,6 +149,7 @@ export function SkillSidebar({
   const starCount = isActive({ type: "starred" }) ? filteredStarredCount : starredCount;
   const importCount = isActive({ type: "import" }) ? filteredImportedCount : importedCount;
   const mySkillsCount = isActive({ type: "mine" }) ? filteredMineCount : mineCount;
+  const pluginBadgeCount = isActive({ type: "plugin" }) ? filteredPluginCount : pluginCount;
   const archiveCount = isActive({ type: "archived" }) ? countArchivedCount : archivedCount;
   const canDropStar = !!draggedSkill && !draggedSkill.starred;
 
@@ -187,6 +205,25 @@ export function SkillSidebar({
             </span>
             {!draggedSkill && <CountBadge count={starCount} />}
           </button>
+
+          {/* Plugins */}
+          {pluginCount > 0 && (
+            <button
+              onClick={() => onSelectCategory({ type: "plugin" })}
+              className={cn(
+                "w-full px-4 py-2.5 flex items-center text-[13px] transition-colors",
+                isActive({ type: "plugin" })
+                  ? "bg-primary/5 text-foreground border-l-2 border-l-primary"
+                  : "text-foreground/70 hover:bg-accent/50 hover:text-foreground",
+              )}
+            >
+              <span className="flex items-center gap-2.5 min-w-0 flex-1">
+                <Puzzle className="h-4 w-4 shrink-0" />
+                <span>{t("sidebar.plugins")}</span>
+              </span>
+              <CountBadge count={pluginBadgeCount} />
+            </button>
+          )}
 
           {/* Import */}
           {importedCount > 0 && (

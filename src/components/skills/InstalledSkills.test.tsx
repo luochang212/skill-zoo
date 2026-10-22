@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { InstalledSkills } from "./InstalledSkills";
-import type { InstalledSkill } from "@/types/skills";
+import type { InstalledSkill, SidebarCategory } from "@/types/skills";
 import type { ReactNode } from "react";
 
 class ResizeObserverMock {
@@ -108,10 +108,10 @@ function skill(overrides: Partial<InstalledSkill> & Pick<InstalledSkill, "id" | 
   } satisfies InstalledSkill;
 }
 
-function renderInstalledSkills() {
+function renderInstalledSkills(category: SidebarCategory = { type: "all" }) {
   return render(
     <InstalledSkills
-      category={{ type: "all" }}
+      category={category}
       onSelectCategory={vi.fn()}
       onViewSkill={vi.fn()}
       onViewArchivedSkill={vi.fn()}
@@ -693,5 +693,53 @@ describe("InstalledSkills visible agent filtering", () => {
     // Not placeholder-only: the name must come from an attribute.
     expect(search).toHaveAttribute("aria-label", "Search installed...");
     expect(search.className).toContain("focus-visible:border-ring");
+  });
+});
+
+describe("InstalledSkills plugin category", () => {
+  beforeEach(() => {
+    globalThis.ResizeObserver = ResizeObserverMock;
+  });
+
+  const pluginSkill = skill({
+    id: "plugin:marketplaces/repo/skills/beta",
+    name: "plugin-skill",
+    origin: "plugin",
+    homeAgent: "claude-code",
+    pluginSource: "demo@mp",
+    marketplaceSource: "mp",
+    apps: { "claude-code": true },
+  });
+
+  it("keeps plugin skills out of All and lists them in the Plugins tab", () => {
+    mocks.visibleAgentOrder = ["claude-code"];
+    mocks.skills = [
+      skill({ id: "ssot-skill", name: "SSOT Skill", origin: "ssot", apps: {} }),
+      pluginSkill,
+    ];
+
+    const all = renderInstalledSkills();
+    expect(screen.getByRole("button", { name: "SSOT Skill" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "plugin-skill" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /插件|Plugins/i })).toBeInTheDocument();
+    all.unmount();
+
+    renderInstalledSkills({ type: "plugin" });
+    expect(screen.getByRole("button", { name: "plugin-skill" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "SSOT Skill" })).not.toBeInTheDocument();
+  });
+
+  it("applies the agent filter inside the plugin category", () => {
+    mocks.visibleAgentOrder = ["claude-code", "codex"];
+    mocks.skills = [pluginSkill];
+
+    renderInstalledSkills({ type: "plugin" });
+    expect(screen.getByRole("button", { name: "plugin-skill" })).toBeInTheDocument();
+
+    // Codex has no plugin skills: the tab empties under that filter.
+    act(() => {
+      screen.getByRole("button", { name: "Codex" }).click();
+    });
+    expect(screen.queryByRole("button", { name: "plugin-skill" })).not.toBeInTheDocument();
   });
 });

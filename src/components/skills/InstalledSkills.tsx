@@ -469,7 +469,19 @@ export const InstalledSkills = memo(function InstalledSkills({
     () =>
       skillsList.filter(
         (s) =>
-          (!hideNonSsot || s.origin === "ssot") && isInVisibleLocalScope(s, visibleAgentSet, true),
+          s.origin !== "plugin" &&
+          (!hideNonSsot || s.origin === "ssot") &&
+          isInVisibleLocalScope(s, visibleAgentSet, true),
+      ),
+    [hideNonSsot, skillsList, visibleAgentSet],
+  );
+  // Plugin skills live only in their own sidebar category; the same visibility
+  // and hide-non-SSOT rules apply there.
+  const pluginSkills = useMemo(
+    () =>
+      skillsList.filter(
+        (s) =>
+          s.origin === "plugin" && !hideNonSsot && isInVisibleLocalScope(s, visibleAgentSet, true),
       ),
     [hideNonSsot, skillsList, visibleAgentSet],
   );
@@ -484,6 +496,10 @@ export const InstalledSkills = memo(function InstalledSkills({
   const sidebarCountSkills = useMemo(
     () => visibleSkills.filter((s) => matchesToolbarFilters(s, search, agentFilter)),
     [agentFilter, search, visibleSkills],
+  );
+  const sidebarPluginCount = useMemo(
+    () => pluginSkills.filter((s) => matchesToolbarFilters(s, search, agentFilter)),
+    [agentFilter, pluginSkills, search],
   );
 
   const sidebarArchivedCount = useMemo(
@@ -511,29 +527,31 @@ export const InstalledSkills = memo(function InstalledSkills({
     () =>
       isArchiveView
         ? visibleArchivedSkills
-        : visibleSkills.filter((s) => {
-            switch (category.type) {
-              case "starred":
-                return s.starred;
-              case "import":
-                return s.origin === "external";
-              case "mine":
-                return s.isMine;
-              case "repo":
-                return (
-                  s.repoOwner?.toLowerCase() === category.owner.toLowerCase() &&
-                  s.repoName?.toLowerCase() === category.name.toLowerCase()
-                );
-              case "unassigned":
-                return !(s.repoOwner && s.repoName);
-              case "consistency":
-                return true; // ConsistencyPanel handles its own rendering
-              case "all":
-              default:
-                return true;
-            }
-          }),
-    [category, isArchiveView, visibleArchivedSkills, visibleSkills],
+        : category.type === "plugin"
+          ? pluginSkills
+          : visibleSkills.filter((s) => {
+              switch (category.type) {
+                case "starred":
+                  return s.starred;
+                case "import":
+                  return s.origin === "external";
+                case "mine":
+                  return s.isMine;
+                case "repo":
+                  return (
+                    s.repoOwner?.toLowerCase() === category.owner.toLowerCase() &&
+                    s.repoName?.toLowerCase() === category.name.toLowerCase()
+                  );
+                case "unassigned":
+                  return !(s.repoOwner && s.repoName);
+                case "consistency":
+                  return true; // ConsistencyPanel handles its own rendering
+                case "all":
+                default:
+                  return true;
+              }
+            }),
+    [category, isArchiveView, pluginSkills, visibleArchivedSkills, visibleSkills],
   );
 
   const filtered = useMemo(
@@ -576,9 +594,12 @@ export const InstalledSkills = memo(function InstalledSkills({
     [filtered, isArchiveView, sortDirection, sortField],
   );
 
+  // Plugin skills are read-only management objects: selection stays disabled
+  // so batch actions can never target them.
+  const selectionDisabled = isArchiveView || category.type === "plugin";
   const visibleSelectedSkills = useMemo(
-    () => sorted.filter((s) => selectedIds.has(s.id)),
-    [selectedIds, sorted],
+    () => sorted.filter((s) => !selectionDisabled && selectedIds.has(s.id)),
+    [selectionDisabled, selectedIds, sorted],
   );
   const visibleSelectedIds = useMemo(
     () => visibleSelectedSkills.map((s) => s.id),
@@ -662,6 +683,8 @@ export const InstalledSkills = memo(function InstalledSkills({
       <div className="flex h-full relative">
         <SkillSidebar
           skills={visibleSkills}
+          plugins={pluginSkills}
+          countPlugins={sidebarPluginCount}
           countSkills={sidebarCountSkills}
           archivedCount={visibleArchivedSkills.length}
           countArchivedCount={sidebarArchivedCount}
@@ -827,6 +850,8 @@ export const InstalledSkills = memo(function InstalledSkills({
       {/* Sidebar */}
       <SkillSidebar
         skills={visibleSkills}
+        plugins={pluginSkills}
+        countPlugins={sidebarPluginCount}
         countSkills={sidebarCountSkills}
         archivedCount={visibleArchivedSkills.length}
         countArchivedCount={sidebarArchivedCount}
@@ -937,7 +962,7 @@ export const InstalledSkills = memo(function InstalledSkills({
                         <SkillDragSource
                           key={skill.id}
                           skill={skill}
-                          disabled={isArchiveView}
+                          disabled={selectionDisabled}
                           className="h-full"
                         >
                           <SkillCard
@@ -952,7 +977,11 @@ export const InstalledSkills = memo(function InstalledSkills({
                                 ? onViewArchivedSkill(skill.id, skill.name)
                                 : onViewSkill(skill.id, skill.directory, skill.name)
                             }
-                            onToggleStar={isArchiveView ? undefined : () => handleToggleStar(skill)}
+                            onToggleStar={
+                              isArchiveView || category.type === "plugin"
+                                ? undefined
+                                : () => handleToggleStar(skill)
+                            }
                             starred={skill.starred}
                             issues={isArchiveView ? undefined : filteredIssuesMap.get(skill.id)}
                             onNavigateConsistency={handleNavigateToConsistency}
@@ -969,12 +998,12 @@ export const InstalledSkills = memo(function InstalledSkills({
                         onSort={handleSort}
                         allSelected={allSelected}
                         onToggleSelectAll={allSelected ? handleDeselectVisible : handleSelectAll}
-                        selectable
+                        selectable={!selectionDisabled}
                         dateLabel={isArchiveView ? t("skill.archived") : t("skill.updated")}
                         selectAllLabel={t("browse.selectAll")}
                       />
                       {sorted.map((skill) => (
-                        <SkillDragSource key={skill.id} skill={skill} disabled={isArchiveView}>
+                        <SkillDragSource key={skill.id} skill={skill} disabled={selectionDisabled}>
                           <SkillCardRow
                             skill={
                               isArchiveView
@@ -987,11 +1016,17 @@ export const InstalledSkills = memo(function InstalledSkills({
                                 ? onViewArchivedSkill(skill.id, skill.name)
                                 : onViewSkill(skill.id, skill.directory, skill.name)
                             }
-                            onToggleStar={isArchiveView ? undefined : () => handleToggleStar(skill)}
+                            onToggleStar={
+                              isArchiveView || category.type === "plugin"
+                                ? undefined
+                                : () => handleToggleStar(skill)
+                            }
                             starred={skill.starred}
                             issues={isArchiveView ? undefined : filteredIssuesMap.get(skill.id)}
-                            selected={selectedIds.has(skill.id)}
-                            onToggleSelect={() => handleToggleSelect(skill.id)}
+                            selected={selectedIds.has(skill.id) && !selectionDisabled}
+                            onToggleSelect={() =>
+                              !selectionDisabled && handleToggleSelect(skill.id)
+                            }
                             onNavigateConsistency={handleNavigateToConsistency}
                             selectable={false}
                           />

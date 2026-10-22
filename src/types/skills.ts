@@ -102,6 +102,7 @@ export type View = "discover" | "local" | "settings";
 export type SidebarCategory =
   | { type: "all" }
   | { type: "starred" }
+  | { type: "plugin" }
   | { type: "import" }
   | { type: "archived" }
   | { type: "mine" }
