@@ -7,7 +7,7 @@ import { useAgentConfigs } from "@/lib/agents";
 import type { AgentPreferences, SkillCompanionItem, VisibleAgents } from "@/types/skills";
 
 const VISIBLE_AGENTS_KEY = ["settings", "visibleAgents"] as const;
-const HIDE_NON_SSOT_KEY = ["settings", "hideNonSsot"] as const;
+const SHOW_NON_SSOT_KEY = ["settings", "showNonSsot"] as const;
 const AGENT_ORDER_KEY = ["settings", "agentOrder"] as const;
 const SKILL_USAGE_AGENT_KEY = ["settings", "skillUsageAgent"] as const;
 const SKILL_USAGE_AGENT_SETTING = "skill_usage_agent";
@@ -102,12 +102,17 @@ export function useVisibleAgents() {
   });
 }
 
-export function useHideNonSsot() {
+/**
+ * Whether the local view includes skills outside the SSOT store. On by
+ * default, so a fresh view lists everything discovered; turning it off
+ * narrows the list to the skills Skill Zoo manages.
+ */
+export function useShowNonSsot() {
   return useQuery({
-    queryKey: HIDE_NON_SSOT_KEY,
+    queryKey: SHOW_NON_SSOT_KEY,
     queryFn: async () => {
       const settings = await settingsApi.getSettings();
-      return settings["hide_non_ssot"] === "true";
+      return settings["show_non_ssot"] !== "false";
     },
     staleTime: 0,
   });
@@ -138,13 +143,13 @@ export function useUpdatePluginsDiscoveryEnabled() {
   });
 }
 
-export function useUpdateHideNonSsot() {
+export function useUpdateShowNonSsot() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (hide: boolean) =>
-      settingsApi.updateSetting("hide_non_ssot", hide ? "true" : "false"),
+    mutationFn: (show: boolean) =>
+      settingsApi.updateSetting("show_non_ssot", show ? "true" : "false"),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: HIDE_NON_SSOT_KEY });
+      qc.invalidateQueries({ queryKey: SHOW_NON_SSOT_KEY });
       qc.invalidateQueries({ queryKey: ["skills", "installed"] });
     },
   });

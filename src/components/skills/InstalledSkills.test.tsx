@@ -17,7 +17,9 @@ const mocks = vi.hoisted(() => ({
   skills: [] as InstalledSkill[],
   archivedSkills: [] as InstalledSkill[],
   visibleAgentOrder: ["claude-code", "codex"] as string[],
-  hideNonSsot: false,
+  // Test stub for the settings query; individual tests flip it to exercise
+  // the SSOT-only view.
+  showNonSsot: true,
   starSkill: vi.fn(),
   toggleSymlink: vi.fn(),
   batchUnlinkSkills: vi.fn(),
@@ -77,7 +79,7 @@ vi.mock("@/hooks/useSkills", () => ({
 
 vi.mock("@/hooks/useSettings", () => ({
   useVisibleAgentOrder: () => mocks.visibleAgentOrder,
-  useHideNonSsot: () => ({ data: mocks.hideNonSsot }),
+  useShowNonSsot: () => ({ data: mocks.showNonSsot }),
 }));
 
 vi.mock("@/lib/agents", () => ({
@@ -136,7 +138,7 @@ describe("InstalledSkills visible agent filtering", () => {
     mocks.skills = [];
     mocks.archivedSkills = [];
     mocks.visibleAgentOrder = ["claude-code", "codex"];
-    mocks.hideNonSsot = false;
+    mocks.showNonSsot = true;
     mocks.starSkill.mockReset();
     mocks.toggleSymlink.mockReset();
     mocks.toggleSymlink.mockResolvedValue(undefined);
@@ -393,9 +395,9 @@ describe("InstalledSkills visible agent filtering", () => {
     expect(screen.getByRole("button", { name: "All0" })).toBeInTheDocument();
   });
 
-  it("still applies the hide non-SSOT setting", () => {
+  it("still applies the show-SSOT-only setting", () => {
     mocks.visibleAgentOrder = ["claude-code"];
-    mocks.hideNonSsot = true;
+    mocks.showNonSsot = false;
     mocks.skills = [
       skill({
         id: "ssot-skill",
@@ -577,9 +579,9 @@ describe("InstalledSkills visible agent filtering", () => {
     expect(screen.queryByRole("button", { name: /Consistency/ })).not.toBeInTheDocument();
   });
 
-  it("does not blame visible agents when hide non-SSOT hides otherwise visible skills", () => {
+  it("does not blame visible agents when show-SSOT-only hides otherwise visible skills", () => {
     mocks.visibleAgentOrder = ["claude-code"];
-    mocks.hideNonSsot = true;
+    mocks.showNonSsot = false;
     mocks.skills = [
       skill({
         id: "agent-skill",
@@ -711,8 +713,10 @@ describe("InstalledSkills plugin category", () => {
   });
 
   it("keeps plugin skills out of All and lists them in the Plugins tab", () => {
-    // Claude Code is hidden, yet its plugin skills stay inspectable.
+    // Claude Code is hidden and the SSOT filter is on, yet plugin skills stay
+    // inspectable: their own Settings switch governs them.
     mocks.visibleAgentOrder = ["codex"];
+    mocks.showNonSsot = false;
     mocks.skills = [
       skill({ id: "ssot-skill", name: "SSOT Skill", origin: "ssot", apps: {} }),
       pluginSkill,

@@ -14,7 +14,7 @@ import {
 import { toast } from "sonner";
 import { useConsistencyCheck, type SkillIssues, type ConsistencyTab } from "@/hooks/useSkillIssues";
 import { useConsistencyLabelSettings } from "@/hooks/useConsistencyLabelSettings";
-import { useVisibleAgentOrder, useHideNonSsot } from "@/hooks/useSettings";
+import { useVisibleAgentOrder, useShowNonSsot } from "@/hooks/useSettings";
 import { useAgentConfigs } from "@/lib/agents";
 import { SkillCard } from "@/components/skills/SkillCard";
 import { SkillCardRow } from "@/components/skills/SkillCardRow";
@@ -409,7 +409,7 @@ export const InstalledSkills = memo(function InstalledSkills({
   const archiveSkillsMutation = useArchiveSelectedSkills();
   const restoreArchivedSkillsMutation = useRestoreArchivedSkills();
   const visibleAgentOrder = useVisibleAgentOrder();
-  const { data: hideNonSsot } = useHideNonSsot();
+  const { data: showNonSsot = true } = useShowNonSsot();
   const { data: agentConfigs } = useAgentConfigs();
   const { showDuplicate, showConflict, showMismatch } = useConsistencyLabelSettings();
 
@@ -470,19 +470,16 @@ export const InstalledSkills = memo(function InstalledSkills({
       skillsList.filter(
         (s) =>
           s.origin !== "plugin" &&
-          (!hideNonSsot || s.origin === "ssot") &&
+          (showNonSsot || s.origin === "ssot") &&
           isInVisibleLocalScope(s, visibleAgentSet, true),
       ),
-    [hideNonSsot, skillsList, visibleAgentSet],
+    [showNonSsot, skillsList, visibleAgentSet],
   );
   // Plugin skills live only in their own sidebar category. The category is
   // their sole surface — read-only inspections that must not vanish when the
-  // owning coding agent is hidden — so coding-agent visibility does not gate
-  // it; hide-non-SSOT still applies.
-  const pluginSkills = useMemo(
-    () => skillsList.filter((s) => s.origin === "plugin" && !hideNonSsot),
-    [hideNonSsot, skillsList],
-  );
+  // owning coding agent is hidden — so neither coding-agent visibility nor the
+  // SSOT filter gates it; their own Settings switch governs discovery.
+  const pluginSkills = useMemo(() => skillsList.filter((s) => s.origin === "plugin"), [skillsList]);
   const consistencySkills = useMemo(
     () => visibleSkills.filter((s) => isInVisibleLocalScope(s, visibleAgentSet, false)),
     [visibleAgentSet, visibleSkills],

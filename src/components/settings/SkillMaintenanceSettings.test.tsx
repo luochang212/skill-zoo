@@ -66,6 +66,8 @@ describe("SkillMaintenanceSettings", () => {
           return Promise.resolve([]);
         case "get_settings":
           return Promise.resolve({});
+        case "update_setting":
+          return Promise.resolve(undefined);
         case "get_github_credential_status":
           return Promise.resolve({ hasToken: false, expiresAt: null });
         case "get_cache_size":
@@ -617,5 +619,26 @@ describe("SkillMaintenanceSettings", () => {
     await screen.findByText("missing-skill");
     await screen.findByText("Skill path no longer exists in owner/repo@main: skills/missing-skill");
     expect(await screen.findByRole("button", { name: /^update selected$/i })).toBeDisabled();
+  });
+
+  it("shows non-SSOT and plugin skills by default", async () => {
+    renderSettings();
+
+    expect(await screen.findByRole("switch", { name: "Show non-SSOT skills" })).toBeChecked();
+    expect(screen.getByRole("switch", { name: "Show plugin skills" })).toBeChecked();
+  });
+
+  it("writes the non-SSOT preference when switched off", async () => {
+    const user = userEvent.setup();
+    renderSettings();
+
+    await user.click(await screen.findByRole("switch", { name: "Show non-SSOT skills" }));
+
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("update_setting", {
+        key: "show_non_ssot",
+        value: "false",
+      }),
+    );
   });
 });

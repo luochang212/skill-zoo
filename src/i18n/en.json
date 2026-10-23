@@ -289,8 +289,8 @@
   },
   "settings": {
     "pluginsDiscovery": {
-      "title": "Plugin skills",
-      "desc": "Show read-only skills provided by coding-agent plugins; turning off removes them immediately"
+      "title": "Show plugin skills",
+      "desc": "Show plugin skills provided by coding agents"
     },
     "github": {
       "title": "Advanced features",
@@ -394,8 +394,8 @@
         "all": "All skills"
       },
       "rescanBtn": "Rescan",
-      "hideNonSsot": "Hide non-SSOT skills",
-      "hideNonSsotDesc": "Only show skills managed by Skill Zoo, hide user-placed skills in coding agent directories",
+      "showNonSsot": "Show non-SSOT skills",
+      "showNonSsotDesc": "Show skills in coding agent directories and external imports; off keeps only SSOT skills",
       "installedCount": "{{count}} skill(s) currently installed",
       "clearCache": "Clear Download Cache",
       "clearCacheDesc": "Remove cached repository archives to free up disk space",

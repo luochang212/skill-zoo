@@ -289,8 +289,8 @@
   },
   "settings": {
     "pluginsDiscovery": {
-      "title": "插件技能",
-      "desc": "展示编程工具插件提供的只读技能，关闭后立即移除"
+      "title": "显示插件技能",
+      "desc": "显示编程工具的插件技能"
     },
     "github": {
       "title": "高级功能",
@@ -394,8 +394,8 @@
         "all": "全部技能"
       },
       "rescanBtn": "重新扫描",
-      "hideNonSsot": "隐藏非 SSOT 技能",
-      "hideNonSsotDesc": "仅显示 Skill Zoo 管理的技能，隐藏用户放在编程工具目录中的技能",
+      "showNonSsot": "显示非 SSOT 技能",
+      "showNonSsotDesc": "显示编程工具目录中的技能与外部导入，关闭后只保留 SSOT 技能",
       "installedCount": "当前已安装 {{count}} 个技能",
       "clearCache": "清除下载缓存",
       "clearCacheDesc": "删除已缓存的仓库归档文件以释放磁盘空间",

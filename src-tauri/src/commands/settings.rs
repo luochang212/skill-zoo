@@ -335,7 +335,7 @@ mod tests {
                 "expected {key} to be rejected naming the save command"
             );
         }
-        for key in ["theme", "hide_non_ssot", "github_token_expiry"] {
+        for key in ["theme", "show_non_ssot", "github_token_expiry"] {
             assert!(super::credential_key_violation(key).is_none());
         }
     }

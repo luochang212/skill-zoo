@@ -1,4 +1,4 @@
-import { FolderInput, FolderOpen, History, RefreshCw, Trash2, Wrench } from "lucide-react";
+import { FolderInput, FolderOpen, History, Puzzle, RefreshCw, Trash2, Wrench } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -11,8 +11,13 @@ import { LocalImportsDialog } from "@/components/settings/LocalImportsDialog";
 import { Button } from "@/components/ui/button";
 import { ToggleRow } from "@/components/ui/toggle-row";
 import { useUpdateAllSkills, useInstalledSkills } from "@/hooks/useSkills";
-import { useHideNonSsot, useUpdateHideNonSsot } from "@/hooks/useSettings";
-import { useMutation } from "@tanstack/react-query";
+import {
+  usePluginsDiscoveryEnabled,
+  useShowNonSsot,
+  useUpdatePluginsDiscoveryEnabled,
+  useUpdateShowNonSsot,
+} from "@/hooks/useSettings";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useIsMutationPending } from "@/hooks/usePendingMutation";
 import { skillsApi, type CheckUpdatesResult } from "@/lib/api/skills";
 import { cn } from "@/lib/utils";
@@ -31,8 +36,13 @@ export function SkillMaintenanceSettings({
 } = {}) {
   const { data: skills } = useInstalledSkills();
   const updateAllMutation = useUpdateAllSkills();
-  const { data: hideNonSsot } = useHideNonSsot();
-  const updateHideNonSsot = useUpdateHideNonSsot();
+  const qc = useQueryClient();
+  const { data: showNonSsot } = useShowNonSsot();
+  const updateShowNonSsot = useUpdateShowNonSsot();
+  // Flipping discovery retracts or repopulates plugin entries immediately:
+  // the forced refetch rebuilds the cache, which purges when discovery is off.
+  const { data: pluginsDiscoveryEnabled } = usePluginsDiscoveryEnabled();
+  const updatePluginsDiscovery = useUpdatePluginsDiscoveryEnabled();
   const { t } = useTranslation();
   const [clearingCache, setClearingCache] = useState(false);
   const [cacheSize, setCacheSize] = useState<number | null>(null);
@@ -312,10 +322,26 @@ export function SkillMaintenanceSettings({
 
         <ToggleRow
           icon={<Wrench className="h-4 w-4 text-blue-500" />}
-          title={t("settings.maintenance.hideNonSsot")}
-          description={t("settings.maintenance.hideNonSsotDesc")}
-          checked={hideNonSsot ?? false}
-          onCheckedChange={(checked) => updateHideNonSsot.mutate(checked)}
+          title={t("settings.maintenance.showNonSsot")}
+          description={t("settings.maintenance.showNonSsotDesc")}
+          checked={showNonSsot ?? true}
+          onCheckedChange={(checked) => updateShowNonSsot.mutate(checked)}
+        />
+
+        <ToggleRow
+          icon={<Puzzle className="h-4 w-4 text-violet-500" />}
+          title={t("settings.pluginsDiscovery.title")}
+          description={t("settings.pluginsDiscovery.desc")}
+          checked={pluginsDiscoveryEnabled ?? true}
+          onCheckedChange={(checked) =>
+            updatePluginsDiscovery.mutate(checked, {
+              onSuccess: async () => {
+                // Force the cache rebuild so the flip takes effect at once.
+                await skillsApi.getInstalledSkills(true);
+                qc.invalidateQueries({ queryKey: ["skills", "installed"] });
+              },
+            })
+          }
         />
 
         <p className="text-[11px] text-muted-foreground">
