@@ -131,7 +131,7 @@ describe("CLI output", () => {
     const home = await makeTempHome();
     const stdout = new CaptureStream();
     const stderr = new CaptureStream();
-    process.exitCode = undefined;
+    process.exitCode = 0;
 
     await runCli(["--home", home, "archive", "missing-skill", "--yes", "--json"], {
       stdout,
@@ -147,7 +147,7 @@ describe("CLI output", () => {
     expect(payload.ok).toBe(false);
     expect(payload.data.failed[0]?.ref).toBe("missing-skill");
     expect(process.exitCode).toBe(1);
-    process.exitCode = undefined;
+    process.exitCode = 0;
   });
 
   it("uses explicit dry-run field names for archive JSON", async () => {
@@ -332,7 +332,7 @@ describe("CLI output", () => {
     await writeSkill(path.join(home, ".codex", "skills", "demo"), "name: Demo");
     const stdout = new CaptureStream();
     const stderr = new CaptureStream();
-    process.exitCode = undefined;
+    process.exitCode = 0;
 
     await runCli(["--home", home, "inspect", "demo", "--json"], {
       stdout,
@@ -345,7 +345,7 @@ describe("CLI output", () => {
     expect(payload.ok).toBe(false);
     expect(payload.error).toContain("ambiguous");
     expect(process.exitCode).toBe(1);
-    process.exitCode = undefined;
+    process.exitCode = 0;
   });
 
   it("reports ambiguous show refs with a non-zero exit code", async () => {
@@ -355,7 +355,7 @@ describe("CLI output", () => {
     await writeSkill(path.join(home, ".codex", "skills", "demo"), "name: Demo");
     const stdout = new CaptureStream();
     const stderr = new CaptureStream();
-    process.exitCode = undefined;
+    process.exitCode = 0;
 
     await runCli(["--home", home, "show", "demo", "--json"], {
       stdout,
@@ -368,7 +368,7 @@ describe("CLI output", () => {
     expect(payload.ok).toBe(false);
     expect(payload.error).toContain("ambiguous");
     expect(process.exitCode).toBe(1);
-    process.exitCode = undefined;
+    process.exitCode = 0;
   });
 
   it("filters installed skills by enabled agent", async () => {
@@ -443,7 +443,7 @@ describe("CLI output", () => {
     const home = await makeTempHome();
     const stdout = new CaptureStream();
     const stderr = new CaptureStream();
-    process.exitCode = undefined;
+    process.exitCode = 0;
 
     await runCli(["--home", home, "list", "--archived", "--agent", "codex", "--json"], {
       stdout,
@@ -456,7 +456,7 @@ describe("CLI output", () => {
     expect(payload.ok).toBe(false);
     expect(payload.error).toContain("only supported for installed skills");
     expect(process.exitCode).toBe(1);
-    process.exitCode = undefined;
+    process.exitCode = 0;
   });
 
   it("keeps doctor warnings successful for automation", async () => {
@@ -465,7 +465,7 @@ describe("CLI output", () => {
     await writeSkill(path.join(paths.agentsSkillsDir, "demo"), "name: Demo");
     const stdout = new CaptureStream();
     const stderr = new CaptureStream();
-    process.exitCode = undefined;
+    process.exitCode = 0;
 
     await runCli(["--home", home, "doctor", "--json"], {
       stdout,
@@ -477,7 +477,7 @@ describe("CLI output", () => {
     expect(stderr.toString()).toBe("");
     expect(payload.ok).toBe(true);
     expect(payload.data.status).toBe("warn");
-    expect(process.exitCode).toBeUndefined();
+    expect(process.exitCode).toBe(0);
   });
 
   it("marks doctor errors as failed for automation", async () => {
@@ -489,7 +489,7 @@ describe("CLI output", () => {
     await fs.rm(path.join(paths.archiveSkillsDir, archiveId!), { recursive: true, force: true });
     const stdout = new CaptureStream();
     const stderr = new CaptureStream();
-    process.exitCode = undefined;
+    process.exitCode = 0;
 
     await runCli(["--home", home, "doctor", "--json"], {
       stdout,
@@ -502,7 +502,7 @@ describe("CLI output", () => {
     expect(payload.ok).toBe(false);
     expect(payload.data.status).toBe("error");
     expect(process.exitCode).toBe(1);
-    process.exitCode = undefined;
+    process.exitCode = 0;
   });
 
   it("dry-runs doctor fix as a successful JSON command", async () => {
@@ -511,7 +511,7 @@ describe("CLI output", () => {
     await writeSkill(path.join(paths.agentsSkillsDir, "demo"), "name: Demo");
     const stdout = new CaptureStream();
     const stderr = new CaptureStream();
-    process.exitCode = undefined;
+    process.exitCode = 0;
 
     await runCli(["--home", home, "doctor", "fix", "--dry-run", "--json"], {
       stdout,
@@ -529,7 +529,7 @@ describe("CLI output", () => {
     expect(payload.data.actions).toContainEqual(
       expect.objectContaining({ kind: "rebuild-cache", status: "planned" }),
     );
-    expect(process.exitCode).toBeUndefined();
+    expect(process.exitCode).toBe(0);
   });
 
   it("refuses doctor fix writes without confirmation in non-interactive shells", async () => {
@@ -538,7 +538,7 @@ describe("CLI output", () => {
     await writeSkill(path.join(paths.agentsSkillsDir, "demo"), "name: Demo");
     const stdout = new CaptureStream();
     const stderr = new CaptureStream();
-    process.exitCode = undefined;
+    process.exitCode = 0;
 
     await runCli(["--home", home, "doctor", "fix", "--json"], {
       stdout,
@@ -551,7 +551,7 @@ describe("CLI output", () => {
     expect(payload.ok).toBe(false);
     expect(payload.error).toContain("Refusing to write without --yes");
     expect(process.exitCode).toBe(1);
-    process.exitCode = undefined;
+    process.exitCode = 0;
   });
 
   it("reports consistency warnings without failing automation", async () => {
@@ -560,7 +560,7 @@ describe("CLI output", () => {
     await writeSkill(path.join(paths.agentsSkillsDir, "demo"), "name: Demo");
     const stdout = new CaptureStream();
     const stderr = new CaptureStream();
-    process.exitCode = undefined;
+    process.exitCode = 0;
 
     await runCli(["--home", home, "consistency", "--json"], {
       stdout,
@@ -576,6 +576,6 @@ describe("CLI output", () => {
     expect(payload.ok).toBe(true);
     expect(payload.data.status).toBe("warn");
     expect(payload.data.summary.mismatch).toBe(1);
-    expect(process.exitCode).toBeUndefined();
+    expect(process.exitCode).toBe(0);
   });
 });
