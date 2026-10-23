@@ -24,6 +24,8 @@ export function useBackgroundSkillUpdates() {
       if (action.type !== "success" || notified.current.has(mutation)) return;
       notified.current.add(mutation);
       const result = mutation.state.data as UpdateAllResult;
+      let message = "";
+      let kind: "success" | "warning" | "error" = "success";
       if (result.failCount > 0) {
         const summary = i18n.t(
           result.successCount > 0
@@ -31,18 +33,21 @@ export function useBackgroundSkillUpdates() {
             : "settings.maintenance.updateAllFailureSummary",
           { success: result.successCount, fail: result.failCount },
         );
-        const message = result.errors[0]
-          ? `${summary}: ${formatApiError(result.errors[0])}`
-          : summary;
-        if (result.successCount > 0) toast.warning(message);
-        else toast.error(message);
+        message = result.errors[0] ? `${summary}: ${formatApiError(result.errors[0])}` : summary;
+        kind = result.successCount > 0 ? "warning" : "error";
       } else if (result.successCount > 0) {
-        toast.success(
-          i18n.t("settings.maintenance.updateAllSuccess", { count: result.successCount }),
-        );
-      } else {
-        toast.success(i18n.t("settings.maintenance.allUpToDate"));
+        message = i18n.t("settings.maintenance.updateAllSuccess", { count: result.successCount });
+      } else if (result.skippedDrifted.length === 0) {
+        message = i18n.t("settings.maintenance.allUpToDate");
       }
+      if (result.skippedDrifted.length > 0) {
+        const skipped = i18n.t("settings.maintenance.skippedDriftedToast", {
+          names: result.skippedDrifted.join(", "),
+        });
+        message = [message, skipped].filter(Boolean).join(" ");
+        if (kind !== "error") kind = "warning";
+      }
+      toast[kind](message);
     });
   }, [queryClient]);
 }

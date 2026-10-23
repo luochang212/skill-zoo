@@ -151,7 +151,14 @@ describe("SkillMaintenanceSettings", () => {
     await user.keyboard("{Escape}");
     finished = true;
     act(() =>
-      finish({ skills: [], successCount: 1, failCount: 0, errors: [], skippedDrifted: [] }),
+      finish({
+        skills: [],
+        successCount: 1,
+        failCount: 0,
+        errors: [],
+        updated: ["demo"],
+        skippedDrifted: [],
+      }),
     );
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledExactlyOnceWith("1 skill(s) updated successfully"),
@@ -160,6 +167,66 @@ describe("SkillMaintenanceSettings", () => {
     await screen.findByText(/No checked updates are available/);
     await user.click(screen.getByRole("button", { name: /history/i }));
     await screen.findByText("1 updated, 0 failed");
+  });
+
+  it("keeps unfinished candidates after clean and forced updates without rechecking", async () => {
+    const user = userEvent.setup();
+    const names = ["clean", "edited-b", "edited-c"];
+    vi.mocked(invoke).mockImplementation((command, args) => {
+      switch (command) {
+        case "get_installed_skills":
+          return Promise.resolve(
+            names.map((name) => ({ id: `ssot:${name}`, directory: name, origin: "ssot" })),
+          );
+        case "get_settings":
+          return Promise.resolve({});
+        case "get_cache_size":
+          return Promise.resolve(0);
+        case "get_skill_update_history":
+          return Promise.resolve([]);
+        case "check_skill_updates":
+          return Promise.resolve({
+            skills: names.map((name) => ({
+              skillName: name,
+              hasUpdate: true,
+              currentSha: "old",
+              latestSha: "new",
+              repo: "owner/repo",
+              locallyModified: name !== "clean",
+            })),
+            totalRepos: 1,
+            checkedRepos: 1,
+            rateLimited: false,
+          });
+        case "update_all_skills": {
+          const updates = (args as { checkedUpdates: { skillName: string }[] }).checkedUpdates;
+          return Promise.resolve({
+            skills: [],
+            successCount: 1,
+            failCount: 0,
+            errors: [],
+            updated: [updates[0]!.skillName],
+            skippedDrifted: [],
+          });
+        }
+        default:
+          return Promise.reject(new Error(`Unexpected command: ${command}`));
+      }
+    });
+    renderSettings();
+    await user.click(screen.getByRole("button", { name: /check updates/i }));
+    await user.click(await screen.findByRole("button", { name: /update manager/i }));
+    await user.click(screen.getByRole("button", { name: /update selected/i }));
+    await waitFor(() => expect(screen.queryByText("clean")).not.toBeInTheDocument());
+    expect(screen.getByText("edited-b")).toBeInTheDocument();
+    expect(screen.getByText("edited-c")).toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: /update anyway/i })[0]!);
+    await user.click(screen.getByRole("button", { name: /update and overwrite/i }));
+    await waitFor(() => expect(screen.queryByText("edited-b")).not.toBeInTheDocument());
+    expect(screen.getByText("edited-c")).toBeInTheDocument();
+    expect(
+      vi.mocked(invoke).mock.calls.filter(([command]) => command === "check_skill_updates"),
+    ).toHaveLength(1);
   });
 
   it("takes rate-limited update items to the GitHub token input on dialog close", async () => {
@@ -323,6 +390,7 @@ describe("SkillMaintenanceSettings", () => {
             successCount: 0,
             failCount: 1,
             errors: ["agent-browser: Rate limited: vercel-labs/agent-browser"],
+            updated: [],
             skippedDrifted: [],
           });
         default:
@@ -380,6 +448,7 @@ describe("SkillMaintenanceSettings", () => {
             successCount: 0,
             failCount: 1,
             errors: ["agent-browser: Download temporarily unavailable: vercel-labs/agent-browser"],
+            updated: [],
             skippedDrifted: [],
           });
         default:
@@ -445,6 +514,7 @@ describe("SkillMaintenanceSettings", () => {
             successCount: 1,
             failCount: 0,
             errors: [],
+            updated: [],
             skippedDrifted: [],
           });
         default:

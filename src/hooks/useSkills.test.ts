@@ -13,6 +13,7 @@ import {
   useUpdateAllSkills,
   useUpdateSkill,
   useSkillsWatcher,
+  SKILL_UPDATE_CHECK_KEY,
 } from "./useSkills";
 import { createQueryWrapper } from "@/test/utils";
 import type { InstalledSkill } from "@/types/skills";
@@ -211,6 +212,19 @@ describe("useRestoreArchivedSkill", () => {
 describe("useUpdateSkill", () => {
   beforeEach(() => {
     vi.mocked(invoke).mockReset();
+  });
+
+  it("removes a detail-updated candidate while keeping the remaining checked updates", async () => {
+    vi.mocked(invoke).mockResolvedValue({ updated: true, skill: mockSkills[0] });
+    const { wrapper, queryClient } = createQueryWrapper();
+    queryClient.setQueryData(SKILL_UPDATE_CHECK_KEY, {
+      skills: mockSkills.map((skill) => ({ skillName: skill.directory })),
+    });
+    const { result } = renderHook(useUpdateSkill, { wrapper });
+    await act(() => result.current.mutateAsync({ skillId: "skill-1" }));
+    expect(queryClient.getQueryData(SKILL_UPDATE_CHECK_KEY)).toEqual({
+      skills: [{ skillName: "/path/to/skill-2" }],
+    });
   });
 
   it("invalidates update history even when the update fails", async () => {

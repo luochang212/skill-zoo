@@ -8,6 +8,7 @@ import {
   skillsApi,
   type ArchiveSkillsResult,
   type CheckedSkillUpdate,
+  type CheckUpdatesResult,
   type RemoveSkillsResult,
   type RestoreArchivedSkillsResult,
   type SingleSkillUpdateResult,
@@ -20,6 +21,8 @@ import type {
   InstalledSkill,
 } from "@/types/skills";
 import { useEffect } from "react";
+
+export const SKILL_UPDATE_CHECK_KEY = ["skills", "updateCheck"] as const;
 
 export function useInstalledSkills() {
   return useQuery({
@@ -129,6 +132,14 @@ export function useUpdateSkill() {
     mutationKey: ["updateSkill"],
     mutationFn: ({ skillId, force }) => skillsApi.updateSkill(skillId, force),
     onSuccess: (result) => {
+      qc.setQueryData<CheckUpdatesResult>(SKILL_UPDATE_CHECK_KEY, (previous) =>
+        previous
+          ? {
+              ...previous,
+              skills: previous.skills.filter((skill) => skill.skillName !== result.skill.directory),
+            }
+          : previous,
+      );
       invalidateFor(qc, "updateSkill");
       if (result.updated) {
         toast.success(`${result.skill.name} updated to the latest version`);
@@ -143,7 +154,23 @@ export function useUpdateAllSkills() {
   return useMutation<UpdateAllResult, Error, CheckedSkillUpdate[] | undefined>({
     mutationKey: ["updateAllSkills"],
     mutationFn: (checkedUpdates) => skillsApi.updateAllSkills(checkedUpdates),
-    onSuccess: () => invalidateFor(qc, "updateAllSkills"),
+    onSuccess: (result) => {
+      qc.setQueryData<CheckUpdatesResult>(SKILL_UPDATE_CHECK_KEY, (previous) =>
+        previous
+          ? {
+              ...previous,
+              skills: previous.skills
+                .filter((skill) => !result.updated.includes(skill.skillName))
+                .map((skill) =>
+                  result.skippedDrifted.includes(skill.skillName)
+                    ? Object.assign({}, skill, { locallyModified: true })
+                    : skill,
+                ),
+            }
+          : previous,
+      );
+      invalidateFor(qc, "updateAllSkills");
+    },
     onSettled: () => qc.invalidateQueries({ queryKey: ["skills", "updateHistory"] }),
   });
 }

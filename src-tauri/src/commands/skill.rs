@@ -929,6 +929,16 @@ pub async fn get_installed_skills(
     .map_err(|e| e.to_string())
 }
 
+fn locally_modified_error(skill_name: &str) -> CommandError {
+    CommandError {
+        code: "skillLocallyModified",
+        message: format!("{skill_name} was modified locally. Updating replaces your edits."),
+        repo: None,
+        authenticated: None,
+        retry_at: None,
+    }
+}
+
 #[tauri::command]
 pub async fn update_skill(
     state: State<'_, AppState>,
@@ -1006,6 +1016,7 @@ pub async fn update_skill(
         name: skill.directory.clone(),
         entry: lock_entry,
         latest_sha: new_sha,
+        force: force == Some(true),
     };
 
     // A locally modified skill is never overwritten without an explicit decision.
@@ -1015,16 +1026,7 @@ pub async fn update_skill(
             &ssot_dir.join(&skill.directory),
             &known_update.entry,
         ) {
-            return Err(CommandError {
-                code: "skillLocallyModified",
-                message: format!(
-                    "{} was modified locally. Updating replaces your edits.",
-                    skill.name
-                ),
-                repo: None,
-                authenticated: None,
-                retry_at: None,
-            });
+            return Err(locally_modified_error(&skill.name));
         }
     }
 
@@ -1040,6 +1042,10 @@ pub async fn update_skill(
                 skipped_drifted: vec![],
             }
         });
+
+    if !result.skipped_drifted.is_empty() {
+        return Err(locally_modified_error(&skill.name));
+    }
 
     if result.fail_count > 0 {
         record_update_history_with_started_at(started_at, "single", requested_skills, &result);
@@ -1111,7 +1117,7 @@ pub async fn update_all_skills(
                         skipped_drifted: vec![],
                     }
                 });
-            result.skipped_drifted = skipped_drifted;
+            result.skipped_drifted.extend(skipped_drifted);
             result
         };
         result.errors.extend(validation_errors);
@@ -1324,6 +1330,7 @@ fn checked_update_entries_from_lock(
             name: checked.skill_name.clone(),
             entry,
             latest_sha: checked.latest_sha.clone(),
+            force: checked.force == Some(true),
         });
     }
 
@@ -3718,6 +3725,7 @@ mod tests {
             let (entries, errors, skipped) =
                 checked_update_entries_from_lock(&cache, &lock, &make_checked(Some(true)));
             assert_eq!(entries.len(), 1);
+            assert!(entries[0].force);
             assert!(errors.is_empty());
             assert!(skipped.is_empty());
 
@@ -3727,6 +3735,7 @@ mod tests {
             let (entries, errors, skipped) =
                 checked_update_entries_from_lock(&cache, &lock, &make_checked(None));
             assert_eq!(entries.len(), 1);
+            assert!(!entries[0].force);
             assert!(errors.is_empty());
             assert!(skipped.is_empty());
         });

@@ -10,14 +10,14 @@ import {
 import { LocalImportsDialog } from "@/components/settings/LocalImportsDialog";
 import { Button } from "@/components/ui/button";
 import { ToggleRow } from "@/components/ui/toggle-row";
-import { useUpdateAllSkills, useInstalledSkills } from "@/hooks/useSkills";
+import { SKILL_UPDATE_CHECK_KEY, useUpdateAllSkills, useInstalledSkills } from "@/hooks/useSkills";
 import {
   usePluginsDiscoveryEnabled,
   useShowNonSsot,
   useUpdatePluginsDiscoveryEnabled,
   useUpdateShowNonSsot,
 } from "@/hooks/useSettings";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useIsMutationPending } from "@/hooks/usePendingMutation";
 import { skillsApi, type CheckUpdatesResult } from "@/lib/api/skills";
 import { cn } from "@/lib/utils";
@@ -50,9 +50,16 @@ export function SkillMaintenanceSettings({
   const [localImportsOpen, setLocalImportsOpen] = useState(false);
   const updateManagerButtonRef = useRef<HTMLButtonElement>(null);
 
+  const { data: checkedUpdates } = useQuery<CheckUpdatesResult>({
+    queryKey: SKILL_UPDATE_CHECK_KEY,
+    queryFn: () => skillsApi.checkSkillUpdates(),
+    enabled: false,
+  });
+
   const checkMutation = useMutation<CheckUpdatesResult, Error>({
     mutationKey: ["checkSkillUpdates"],
     mutationFn: () => skillsApi.checkSkillUpdates(),
+    onSuccess: (result) => qc.setQueryData(SKILL_UPDATE_CHECK_KEY, result),
   });
 
   const refreshCacheSize = useCallback(async () => {
@@ -75,8 +82,8 @@ export function SkillMaintenanceSettings({
   );
 
   const checkedUpdateCandidates = useMemo<SkillUpdateCandidate[]>(() => {
-    if (!checkMutation.data) return [];
-    return checkMutation.data.skills
+    if (!checkedUpdates) return [];
+    return checkedUpdates.skills
       .filter(
         (skill) =>
           skill.hasUpdate &&
@@ -91,11 +98,11 @@ export function SkillMaintenanceSettings({
         repo: skill.repo,
         locallyModified: skill.locallyModified,
       }));
-  }, [checkMutation.data, ssotSkillDirs]);
+  }, [checkedUpdates, ssotSkillDirs]);
 
   const checkedUpdateIssues = useMemo<SkillUpdateIssue[]>(() => {
-    if (!checkMutation.data) return [];
-    return checkMutation.data.skills
+    if (!checkedUpdates) return [];
+    return checkedUpdates.skills
       .filter(
         (skill) =>
           skill.checkError != null &&
@@ -108,16 +115,16 @@ export function SkillMaintenanceSettings({
         code: skill.checkErrorCode ?? "checkFailed",
         message: skill.checkError!,
       }));
-  }, [checkMutation.data, ssotSkillDirs]);
+  }, [checkedUpdates, ssotSkillDirs]);
 
   const updatableCount = checkedUpdateCandidates.length;
   const updateIssueCount = checkedUpdateIssues.length;
 
-  const hasChecked = checkMutation.data != null;
+  const hasChecked = checkedUpdates != null;
   const isChecking = useIsMutationPending("checkSkillUpdates") || checkMutation.isPending;
   const isUpdating = useIsMutationPending("updateAllSkills") || updateAllMutation.isPending;
-  const rateLimited = checkMutation.data?.rateLimited ?? false;
-  const checkedRepos = checkMutation.data?.checkedRepos ?? 0;
+  const rateLimited = checkedUpdates?.rateLimited ?? false;
+  const checkedRepos = checkedUpdates?.checkedRepos ?? 0;
   const rateLimitedWithoutResults = rateLimited && checkedRepos === 0;
   const rateLimitedWithPartialCheck = rateLimited && checkedRepos > 0;
   const showUpdateManagerButton =
@@ -156,21 +163,9 @@ export function SkillMaintenanceSettings({
           latestSha: update.latestSha,
           force: update.force,
         })),
-        {
-          onSuccess: (result) => {
-            if (result.skippedDrifted.length > 0) {
-              toast.warning(
-                t("settings.maintenance.skippedDriftedToast", {
-                  names: result.skippedDrifted.join(", "),
-                }),
-              );
-            }
-            checkMutation.reset();
-          },
-        },
       );
     },
-    [checkMutation, t, updateAllMutation],
+    [updateAllMutation],
   );
 
   return (

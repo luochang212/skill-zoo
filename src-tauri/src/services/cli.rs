@@ -39,6 +39,13 @@ pub struct KnownSkillUpdate {
     pub name: String,
     pub entry: SkillLockEntry,
     pub latest_sha: String,
+    pub force: bool,
+}
+
+#[derive(Debug, PartialEq)]
+enum ReinstallOutcome {
+    Updated,
+    SkippedDrifted,
 }
 
 struct RepoZipRequest {
@@ -390,7 +397,7 @@ impl CliService {
         let mut result = Self::update_known_skill_entries(known_updates).await?;
         result.errors.extend(errors);
         result.fail_count = result.errors.len();
-        result.skipped_drifted = skipped_drifted;
+        result.skipped_drifted.extend(skipped_drifted);
         Ok(result)
     }
 
@@ -418,6 +425,7 @@ impl CliService {
                 name: name.to_string(),
                 entry: entry.clone(),
                 latest_sha: new_sha,
+                force: false,
             })),
             _ => Ok(None),
         }
@@ -439,6 +447,7 @@ impl CliService {
         let (groups, mut errors) = Self::group_known_updates_by_repo(to_update);
         let mut updated: Vec<String> = Vec::new();
         let mut updated_shas: Vec<(String, String)> = Vec::new();
+        let mut skipped_drifted = Vec::new();
 
         for group in &groups {
             let request =
@@ -466,16 +475,18 @@ impl CliService {
             let discovered = Self::discover_skills_in_tree(&clone_path);
             for skill in &group.skills {
                 match Self::reinstall_skill_from_discovered(
-                    &skill.name,
+                    skill,
                     &group.owner,
                     &group.repo,
                     &clone_path,
-                    skill.entry.skill_path.as_deref(),
                     &discovered,
                 ) {
-                    Ok(()) => {
+                    Ok(ReinstallOutcome::Updated) => {
                         updated.push(skill.name.clone());
                         updated_shas.push((skill.name.clone(), skill.latest_sha.clone()));
+                    }
+                    Ok(ReinstallOutcome::SkippedDrifted) => {
+                        skipped_drifted.push(skill.name.clone())
                     }
                     Err(e) => errors.push(format!("{}: {e}", skill.name)),
                 }
@@ -512,7 +523,7 @@ impl CliService {
             fail_count: errors.len(),
             errors,
             updated,
-            skipped_drifted: vec![],
+            skipped_drifted,
         })
     }
 
@@ -1100,13 +1111,14 @@ impl CliService {
     }
 
     fn reinstall_skill_from_discovered(
-        name: &str,
+        skill: &KnownSkillUpdate,
         owner: &str,
         repo: &str,
         repo_root: &Path,
-        lock_skill_path: Option<&str>,
         discovered: &[(String, String, PathBuf)],
-    ) -> Result<(), AppError> {
+    ) -> Result<ReinstallOutcome, AppError> {
+        let name = &skill.name;
+        let lock_skill_path = skill.entry.skill_path.as_deref();
         let skill_path =
             Self::find_discovered_skill_for_update(repo_root, name, lock_skill_path, discovered)
                 .ok_or_else(|| {
@@ -1131,7 +1143,12 @@ impl CliService {
         let tmp_path = tmp.path().to_path_buf();
 
         Self::copy_dir_contents(skill_path, &tmp_path)?;
-        Self::replace_skill_dir_with_rollback(&dest, &tmp_path)
+        // Downloading and staging can take time; protect edits saved since preflight.
+        if !skill.force && crate::services::lock::skill_folder_drifted(&dest, &skill.entry) {
+            return Ok(ReinstallOutcome::SkippedDrifted);
+        }
+        Self::replace_skill_dir_with_rollback(&dest, &tmp_path)?;
+        Ok(ReinstallOutcome::Updated)
     }
 
     fn find_discovered_skill_for_update<'a>(
@@ -2124,7 +2141,74 @@ mod tests {
             name: name.to_string(),
             entry: test_lock_entry(source, Some(&format!("skills/{name}")), Some("old")),
             latest_sha: latest_sha.to_string(),
+            force: false,
         }
+    }
+
+    #[test]
+    fn update_rechecks_edits_made_after_preflight_before_replacement() {
+        let home = tempfile::tempdir().unwrap();
+        config::with_test_home(home.path(), || {
+            let dest = config::get_agents_skills_dir().join("demo");
+            std::fs::create_dir_all(&dest).unwrap();
+            std::fs::write(dest.join("SKILL.md"), "# original").unwrap();
+            let mut update = test_known_update("demo", "owner/repo", "new");
+            update.entry.skill_folder_hash =
+                Some(crate::services::lock::compute_skill_folder_hash(&dest).unwrap());
+            SkillLock::update(|lock| {
+                lock.skills.insert("demo".into(), update.entry.clone());
+                Ok(())
+            })
+            .unwrap();
+            assert!(!crate::services::lock::skill_folder_drifted(
+                &dest,
+                &update.entry
+            ));
+
+            // The archive has finished downloading after the user's external edit.
+            let repo = home.path().join("downloaded");
+            let source = repo.join("skills/demo");
+            std::fs::create_dir_all(&source).unwrap();
+            std::fs::write(source.join("SKILL.md"), "# upstream").unwrap();
+            std::fs::write(dest.join("SKILL.md"), "# saved during download").unwrap();
+            let discovered = CliService::discover_skills_in_tree(&repo);
+            let baseline = update.entry.skill_folder_hash.clone();
+            assert_eq!(
+                CliService::reinstall_skill_from_discovered(
+                    &update,
+                    "owner",
+                    "repo",
+                    &repo,
+                    &discovered
+                )
+                .unwrap(),
+                ReinstallOutcome::SkippedDrifted
+            );
+            assert_eq!(
+                std::fs::read_to_string(dest.join("SKILL.md")).unwrap(),
+                "# saved during download"
+            );
+            assert_eq!(
+                SkillLock::read().unwrap().skills["demo"].skill_folder_hash,
+                baseline
+            );
+            update.force = true;
+            assert_eq!(
+                CliService::reinstall_skill_from_discovered(
+                    &update,
+                    "owner",
+                    "repo",
+                    &repo,
+                    &discovered
+                )
+                .unwrap(),
+                ReinstallOutcome::Updated
+            );
+            assert_eq!(
+                std::fs::read_to_string(dest.join("SKILL.md")).unwrap(),
+                "# upstream"
+            );
+        });
     }
 
     fn test_lock_entry(

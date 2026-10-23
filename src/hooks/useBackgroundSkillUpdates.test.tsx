@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "@/i18n";
 import { formatApiError } from "@/lib/api/errors";
-import { useUpdateAllSkills } from "./useSkills";
+import { SKILL_UPDATE_CHECK_KEY, useUpdateAllSkills } from "./useSkills";
 import { useBackgroundSkillUpdates } from "./useBackgroundSkillUpdates";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn() } }));
@@ -46,7 +46,14 @@ describe("background skill update notifications", () => {
     "notifies once for %s successes and %s failures",
     async (successCount, failCount, errors, kind, message) => {
       const { client, listener, wrapper } = setup();
-      const result = { skills: [], successCount, failCount, errors };
+      const result = {
+        skills: [],
+        successCount,
+        failCount,
+        errors,
+        updated: [],
+        skippedDrifted: [],
+      };
       const mutation = client.getMutationCache().build(client, {
         mutationKey: ["updateAllSkills"],
         mutationFn: async () => result,
@@ -86,7 +93,16 @@ describe("background skill update notifications", () => {
     updater.unmount();
     expect(client.isMutating({ mutationKey: ["updateAllSkills"] })).toBe(1);
     await i18n.changeLanguage("zh");
-    act(() => finish({ skills: [], successCount: 1, failCount: 0, errors: [] }));
+    act(() =>
+      finish({
+        skills: [],
+        successCount: 1,
+        failCount: 0,
+        errors: [],
+        updated: [],
+        skippedDrifted: [],
+      }),
+    );
     await waitFor(() => expect(toast.success).toHaveBeenCalledExactlyOnceWith("1 个技能更新成功"));
     expect(client.getQueryState(["skills", "updateHistory"])?.isInvalidated).toBe(true);
     expect(client.getQueryState(["skills", "installed"])?.isInvalidated).toBe(true);
@@ -118,4 +134,74 @@ describe("background skill update notifications", () => {
     );
     expect(toast.warning).not.toHaveBeenCalled();
   });
+
+  it.each([
+    [0, 0],
+    [1, 0],
+    [0, 1],
+    [1, 1],
+  ] as const)(
+    "reports skipped edits after the initiating hook unmounts (%s updated, %s failed)",
+    async (successCount, failCount) => {
+      const { client, wrapper } = setup();
+      client.setQueryData(SKILL_UPDATE_CHECK_KEY, {
+        skills: ["done", "edited", "failed", "unselected"].map((skillName) => ({
+          skillName,
+          locallyModified: false,
+        })),
+        totalRepos: 1,
+        checkedRepos: 1,
+        rateLimited: false,
+      });
+      let finish!: (result: unknown) => void;
+      vi.mocked(invoke).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const updater = renderHook(useUpdateAllSkills, { wrapper });
+      act(() => updater.result.current.mutate(undefined));
+      await waitFor(() => expect(invoke).toHaveBeenCalled());
+      updater.unmount();
+      await i18n.changeLanguage("zh");
+      act(() =>
+        finish({
+          skills: [],
+          successCount,
+          failCount,
+          errors: failCount ? ["failed: network"] : [],
+          updated: successCount ? ["done"] : [],
+          skippedDrifted: ["edited"],
+        }),
+      );
+      const kind = failCount > 0 && successCount === 0 ? "error" : "warning";
+      await waitFor(() => expect(toast[kind]).toHaveBeenCalledTimes(1));
+      const message = vi.mocked(toast[kind]).mock.calls[0]?.[0];
+      expect(message).toContain(
+        i18n.t("settings.maintenance.skippedDriftedToast", { names: "edited" }),
+      );
+      if (successCount && !failCount) expect(message).toContain("1 个技能更新成功");
+      if (failCount) {
+        expect(message).toContain(formatApiError("failed: network"));
+        expect(message).toContain(
+          i18n.t(
+            successCount
+              ? "settings.maintenance.updateAllPartial"
+              : "settings.maintenance.updateAllFailureSummary",
+            { success: successCount, fail: failCount },
+          ),
+        );
+      }
+      expect(toast.success).not.toHaveBeenCalled();
+      expect(client.getQueryData(SKILL_UPDATE_CHECK_KEY)).toMatchObject({
+        skills: [
+          ...(successCount ? [] : [{ skillName: "done", locallyModified: false }]),
+          { skillName: "edited", locallyModified: true },
+          { skillName: "failed", locallyModified: false },
+          { skillName: "unselected", locallyModified: false },
+        ],
+      });
+    },
+  );
 });
