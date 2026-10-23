@@ -150,8 +150,8 @@ describe("GitHubTokenSettings", () => {
     });
     renderSettings();
     await openDialog();
-    // A failed passive check is not the save flow's "Verification failed" —
-    // the dialog just keeps the saved-state display.
+    // A failed passive check is not the save flow's "Verification failed".
+    // The dialog just keeps the saved-state display.
     const dialog = await screen.findByRole("dialog");
     expect(await within(dialog).findByText("Token configured")).toBeInTheDocument();
     expect(within(dialog).queryByText(/Verification failed/)).not.toBeInTheDocument();
@@ -176,10 +176,10 @@ describe("GitHubTokenSettings", () => {
     renderSettings();
     const input = await openDialog();
     const save = screen.getByRole("button", { name: /^save$/i });
-    // Partially cleared — still unchanged semantics.
+    // Partially cleared. Still unchanged semantics.
     fireEvent.change(input, { target: { value: "\uF79A".repeat(20) } });
     expect(save).toBeDisabled();
-    // Dots mixed with new text — still not a token, still unavailable.
+    // Dots mixed with new text. Still not a token, still unavailable.
     fireEvent.change(input, { target: { value: "\uF79A".repeat(10) + "abc" } });
     expect(save).toBeDisabled();
     await user.click(save);
@@ -315,7 +315,7 @@ describe("GitHubTokenSettings", () => {
     expect(saved.token).toBe("previous-token");
   });
 
-  it("offers no removal affordance — saving a new token is the only way a credential changes", async () => {
+  it("offers no removal affordance because saving a new token is the only way a credential changes", async () => {
     saved = { token: "previous-token", expiresAt: null };
     const user = userEvent.setup();
     renderSettings();

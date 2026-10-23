@@ -249,7 +249,7 @@ fn aggregate_events(
         // plus the accumulated events. `BufRead::lines` splits lines exactly
         // like `str::lines` (same CRLF / trailing-newline handling), so any
         // valid UTF-8 file yields identical results. A line that fails to
-        // decode is skipped — strictly more robust than the old
+        // decode is skipped, which is strictly more robust than the old
         // `read_to_string`, which dropped the entire file on one bad byte.
         let Ok(file) = std::fs::File::open(path) else {
             continue;
@@ -541,7 +541,7 @@ fn extract_skill_name_from_cmd(text: &str) -> Option<String> {
 }
 
 // ---------------------------------------------------------------------------
-// OpenCode collector — queries SQLite directly
+// OpenCode collector. It queries SQLite directly
 // ---------------------------------------------------------------------------
 
 fn query_opencode_skill_events(
@@ -657,7 +657,7 @@ fn match_heading_to_whitelist(heading: &str, whitelist: &HashSet<String>) -> Opt
     if whitelist.contains(&kebab) {
         return Some(kebab);
     }
-    // Also try without conversion — the heading might already be kebab-case
+    // Also try without conversion because the heading might already be kebab-case
     // (e.g. "code-audit" matches directory name exactly).
     if whitelist.contains(heading) {
         return Some(heading.to_string());
@@ -1314,7 +1314,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let db_path = temp.path().join("test.db");
         let conn = rusqlite::Connection::open(&db_path).unwrap();
-        // Same skill appears as both injected text AND explicit tool call —
+        // Same skill appears as both injected text AND explicit tool call, so it
         // should be deduplicated.
         conn.execute_batch(
             "CREATE TABLE part (

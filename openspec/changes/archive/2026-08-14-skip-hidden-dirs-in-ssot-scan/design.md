@@ -15,9 +15,9 @@
 
 ## Decisions
 
-1. **在 SKIP_DIRS 检查处一并跳过 `starts_with('.')` 的目录名**（一行条件，与 `crate::config::SKIP_DIRS.contains(&dir_name)` 并列）。位置：在 `SKILL.md` 识别之前——隐藏目录即使含 SKILL.md 也不识别。
+1. **在 SKIP_DIRS 检查处一并跳过 `starts_with('.')` 的目录名**（一行条件，与 `crate::config::SKIP_DIRS.contains(&dir_name)` 并列）。位置：在 `SKILL.md` 识别之前，因此隐藏目录即使含 SKILL.md 也不被识别。
 2. **不动 symlink 分支**：`is_symlink_or_junction` 检查在目录名过滤之前，外部导入的 symlink 匹配不受影响（spec 的第三条需求）。SSOT 内的 symlink 若 target 是外部导入源，仍照常匹配。
-3. **不动 `scan_dir`（cli.rs 的发现阶段）**：它已跳过 symlink 目录；隐藏目录若含 SKILL.md 会作为技能被"发现"——但发现的是**源仓库**内容（解压树），仓库内 `.foo/` 是否算技能由安装选择层决定，与 SSOT 扫描的语义不同，不在本 change。
+3. **不动 `scan_dir`（cli.rs 的发现阶段）**：它已跳过 symlink 目录；隐藏目录若含 SKILL.md 会作为技能被"发现"，但发现的是**源仓库**内容（解压树）。仓库内 `.foo/` 是否算技能由安装选择层决定，与 SSOT 扫描的语义不同，不在本 change。
 
 ## Risks / Trade-offs
 
@@ -26,4 +26,4 @@
 
 ## Migration Plan
 
-无数据迁移。已存在的幽灵技能缓存条目在下次 rebuild（watcher/启动）时自然消失——`replace_all` 以扫描结果为真相重建缓存。
+无数据迁移。已存在的幽灵技能缓存条目在下次 rebuild（watcher/启动）时自然消失，因为 `replace_all` 以扫描结果为真相重建缓存。

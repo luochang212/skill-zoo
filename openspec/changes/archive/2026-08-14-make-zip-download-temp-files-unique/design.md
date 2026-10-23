@@ -16,7 +16,7 @@
 
 ## Decisions
 
-1. **唯一名后缀 = 进程 id + 纳秒时间戳**（与 `unique_backup_path` 同款模式，cli.rs:1038-1042）。同一进程内纳秒时间戳碰撞概率可忽略；跨进程由 pid 区分。不需要 `tempfile` 依赖（已是依赖，但手动命名更贴合"下载中途可能被 `remove_file` 清理"的现有流程——tmp 文件在超限时会被主动 `remove_file`，用 `tempfile::TempDir` 反而要处理析构与 rename 的冲突）。
+1. **唯一名后缀 = 进程 id + 纳秒时间戳**（与 `unique_backup_path` 同款模式，cli.rs:1038-1042）。同一进程内纳秒时间戳碰撞概率可忽略；跨进程由 pid 区分。不需要 `tempfile` 依赖（已是依赖，但手动命名更贴合"下载中途可能被 `remove_file` 清理"的现有流程。tmp 文件在超限时会被主动 `remove_file`，而用 `tempfile::TempDir` 反而要处理析构与 rename 的冲突）。
 2. **提取 `zip_tmp_path(cache_dir, owner, repo, branch) -> PathBuf` 私有函数**，唯一逻辑集中一处、可单元测试。`cache_ref_key` 仍用于缓存文件名（幂等 key），唯一性只加在 tmp 层。
 3. **rename 的并发语义不变**：两路并发都完成时后 rename 者覆盖，二者内容一致（同分支），最终缓存完整。
 

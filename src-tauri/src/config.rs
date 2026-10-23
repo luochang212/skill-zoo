@@ -29,7 +29,7 @@ pub fn http_client() -> &'static reqwest::Client {
 
 /// Saved desktop GitHub credentials: the token plus the expiry GitHub reported
 /// for it. `expires_at` is `None` when GitHub reports no expiry or the stored
-/// value cannot be read, which keeps the token attached — only a token that is
+/// value cannot be read, which keeps the token attached. Only a token that is
 /// *known* to be expired falls back to anonymous requests.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GitHubCredentials {

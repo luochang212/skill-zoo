@@ -2,7 +2,7 @@
 
 ## Context
 
-`copy_dir_contents`（src-tauri/src/services/cli.rs:861）是安装（`add_skills`）与更新（`reinstall_skill_from_discovered`）共用的复制原语，输入是 zip 解压后的技能目录（GitHub 归档保留 symlink，zip 8.6.0 `extract` 物化为真实软链）。当前实现先 `path.is_dir()`（stat，跟随软链）后 `is_symlink_or_junction`（lstat），导致目录软链被当普通目录递归；文件软链的 `read_link` 结果直接 `exists()`/`copy`，相对目标按进程 CWD 解析。同文件 `scan_dir`（发现阶段）已有 `depth > 20` 上限且跳过软链目录——复制阶段缺同样的防护。
+`copy_dir_contents`（src-tauri/src/services/cli.rs:861）是安装（`add_skills`）与更新（`reinstall_skill_from_discovered`）共用的复制原语，输入是 zip 解压后的技能目录（GitHub 归档保留 symlink，zip 8.6.0 `extract` 物化为真实软链）。当前实现先 `path.is_dir()`（stat，跟随软链）后 `is_symlink_or_junction`（lstat），导致目录软链被当普通目录递归；文件软链的 `read_link` 结果直接 `exists()`/`copy`，相对目标按进程 CWD 解析。同文件 `scan_dir`（发现阶段）已有 `depth > 20` 上限且跳过软链目录。复制阶段却缺同样的防护。
 
 ## Goals / Non-Goals
 
@@ -20,7 +20,7 @@
 ## Decisions
 
 1. **目录软链：直接跳过（不复制、不重建链接）。**
-   备选 a) 在目标重建软链——SSOT 的设计约定是技能目录存真实文件、软链只出现在 agent 目录，重建会破坏该约定；备选 b) 仅当解析目标落在解压根内才跟随——需要 canonicalize + 边界判断，且仍要防环，复杂度换不回明确收益。跳过与 `scan_dir` 现行策略一致：经由软链目录可达的内容在发现阶段本来就不可见，复制阶段跟随它属于行为不一致。
+   备选 a) 在目标重建软链。SSOT 的设计约定是技能目录存真实文件、软链只出现在 agent 目录，重建会破坏该约定。备选 b) 仅当解析目标落在解压根内才跟随。这需要 canonicalize + 边界判断，且仍要防环，复杂度换不回明确收益。跳过与 `scan_dir` 现行策略一致：经由软链目录可达的内容在发现阶段本来就不可见，复制阶段跟随它属于行为不一致。
 
 2. **文件软链：以 `link.parent().join(target)` 解析后再判定。**
    相对 target 语义上就是相对链接所在目录（POSIX）；解析后 `metadata().is_file()` 为真才复制内容，否则（悬空、目录、设备文件等）跳过。绝对 target 同样经此路径统一处理。禁止再对裸 target 调用 `exists()`/`copy`。

@@ -362,7 +362,7 @@ describe("SkillCompanionSettings", () => {
 
     await user.click(await screen.findByRole("button", { name: "View" }));
 
-    // Default agent is Claude Code — the usage description mentions it
+    // Default agent is Claude Code, so the usage description mentions it
     expect(
       await screen.findByText("Statistics on skill usage from Claude Code"),
     ).toBeInTheDocument();
@@ -387,7 +387,7 @@ describe("SkillCompanionSettings", () => {
 
     await user.click(await screen.findByRole("button", { name: "View" }));
 
-    // The persisted agent is Codex — the usage description should mention it
+    // The persisted agent is Codex, so the usage description should mention it
     expect(await screen.findByText("Statistics on skill usage from Codex")).toBeInTheDocument();
     // Codex's usage data should be requested
     await waitFor(() =>

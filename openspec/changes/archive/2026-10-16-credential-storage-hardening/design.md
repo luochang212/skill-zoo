@@ -7,7 +7,7 @@ Context: a worth-fix evaluation (security review of the token feature, 2026-10-1
 - `~/.skill-zoo/settings.json` on a real machine is `-rw-r--r--` with `umask 0022`; the only writer is `persistence::atomic_write` (`File::create` → `0o666 & ~umask`). Home is `drwxr-x---` (owner + staff), and macOS local users are in `staff`, so another local user can read the file on a shared machine.
 - Agent lifecycle transactions journal the full `settings.json` content (before/after) into `agent-lifecycle.json` (`commands/agents.rs` → `agent_transaction::commit`), so a token lands there too.
 - Frontend `update_setting` callers only write `theme`, `hide_non_ssot`, and the skill-usage agent; no caller writes the credential keys. The CLI never touches `github_token` (grep across `packages/cli`).
-- The renderer receives the raw token via `get_settings` (full settings map) — see Accepted trade-offs.
+- The renderer receives the raw token via `get_settings` (full settings map); see Accepted trade-offs.
 
 ## Decisions
 
@@ -19,11 +19,11 @@ Context: a worth-fix evaluation (security review of the token feature, 2026-10-1
 
 ## Threat model (why severity is low but the fix is worth it)
 
-Attacker = another local user or malware with a different local account. No victim action is required beyond the token existing on disk (deterministic exposure); exploitation requires a multi-user machine (rare for the typical single-user Mac). Impact if read: the token is a fine-grained PAT with public-repo read and zero permissions — quota theft, nothing private. Not fixing leaves the exposure open permanently; the fix is cheap, which is why this is a hygiene-level fix rather than an expected-value one.
+Attacker = another local user or malware with a different local account. No victim action is required beyond the token existing on disk (deterministic exposure); exploitation requires a multi-user machine (rare for the typical single-user Mac). Impact if read: the token is a fine-grained PAT with public-repo read and zero permissions, so the worst case is quota theft and nothing private. Not fixing leaves the exposure open permanently; the fix is cheap, which is why this is a hygiene-level fix rather than an expected-value one.
 
 ## Accepted trade-offs
 
-- **Renderer token exposure (not fixed here).** The raw token remains readable in the renderer via `get_settings` for dialog prefill. Renderer compromise already implies broader compromise through existing IPC commands (skill file writes/deletes); CSP `connect-src` restricts egress to GitHub hosts, and a zero-permission token cannot exfiltrate via GitHub write APIs. Revisit if the token gains permissions or when migrating to the keychain — merging `useGitHubToken`/`useGitHubTokenExpiresAt` into one credentials query is the natural vehicle.
+- **Renderer token exposure (not fixed here).** The raw token remains readable in the renderer via `get_settings` for dialog prefill. Renderer compromise already implies broader compromise through existing IPC commands (skill file writes/deletes); CSP `connect-src` restricts egress to GitHub hosts, and a zero-permission token cannot exfiltrate via GitHub write APIs. Revisit if the token gains permissions or when migrating to the keychain, and merging `useGitHubToken`/`useGitHubTokenExpiresAt` into one credentials query is the natural vehicle then.
 - **Intermittent CLI re-exposure** as described in Decision 5.
 
 ## Verification boundary

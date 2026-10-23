@@ -4,7 +4,7 @@ context: |
   Skill Zoo: a desktop app for managing AI coding-assistant Skills, plus a companion CLI.
   Stack: Tauri 2 (Rust backend in src-tauri/), React + TypeScript + TanStack Query
   frontend (src/), Bun toolchain, CLI in packages/cli/.
-  Authoritative conventions live in AGENTS.md at the repo root — read it first.
+  Authoritative conventions live in AGENTS.md at the repo root. Read it first.
   Key invariants: the filesystem is the source of truth (~/.agents/skills/ is the
   SSOT store; app-created agent entries are symlinks, while user-owned local
   skills stay in their original directories); all frontend-backend I/O

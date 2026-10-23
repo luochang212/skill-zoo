@@ -160,7 +160,7 @@ describe("useAppUpdater", () => {
     await user.click(screen.getByRole("button", { name: /check/i }));
     await screen.findByText("readyToRestart");
 
-    // The stale startup check finally answers "no update" — it must not
+    // The stale startup check finally answers "no update". It must not
     // reset the finished download back to idle (review S7).
     resolveStartupCheck(null);
     await waitFor(() => expect(check).toHaveBeenCalledTimes(2));

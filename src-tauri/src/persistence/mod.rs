@@ -77,7 +77,7 @@ pub fn normalize_path_separators(path: &str) -> String {
     path.replace('\\', "/")
 }
 
-/// A single entry in the skills cache — filesystem scan result without user metadata.
+/// A single entry in the skills cache. It is a filesystem scan result without user metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillCacheEntry {

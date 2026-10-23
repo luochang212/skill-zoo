@@ -84,7 +84,7 @@ fn lease_bind_error(dir: &Path, error: std::io::Error) -> AppError {
 // same port and the loser's bind fails while the winner's test is still
 // finishing. Retry briefly in test builds: a live holder releases within
 // milliseconds, while a real lease leak outlasts the window and still fails.
-// Production keeps the single attempt — a conflict there means another
+// Production keeps the single attempt because a conflict there means another
 // process owns the lease and must be reported immediately.
 fn bind_lease_port(dir: &Path, port: u16) -> Result<std::net::TcpListener, AppError> {
     let attempts = if cfg!(test) { 100 } else { 1 };

@@ -8,7 +8,7 @@ __COMMITS__
 
 | File | Platform |
 | --- | --- |
-| `Skill-Zoo-__VERSION__-macOS.dmg` | macOS (Universal — Intel & Apple Silicon) |
+| `Skill-Zoo-__VERSION__-macOS.dmg` | macOS (Universal build for Intel & Apple Silicon) |
 | `Skill-Zoo-__VERSION__-Windows.exe` | Windows Installer |
 | `Skill-Zoo-__VERSION__-Windows-Portable.zip` | Windows Portable |
 | `Skill-Zoo-__VERSION__-Linux-x86_64.AppImage` | Linux x86_64 AppImage |
@@ -42,7 +42,7 @@ Download `Skill-Zoo-__VERSION__-Windows.exe` and run it. The installer sets up s
 <!--
 #### alternative: Portable
 
-Download `Skill-Zoo-__VERSION__-Windows-Portable.zip`, extract it to any folder, and double-click `skill-zoo.exe` to run. SmartScreen may also show a warning — handle it the same way.
+Download `Skill-Zoo-__VERSION__-Windows-Portable.zip`, extract it to any folder, and double-click `skill-zoo.exe` to run. SmartScreen may also show a warning. Handle it the same way.
 -->
 
 ### Linux
@@ -68,7 +68,7 @@ sudo dpkg -i Skill-Zoo-__VERSION__-Linux-*.deb
 
 | 文件 | 平台 |
 | --- | --- |
-| `Skill-Zoo-__VERSION__-macOS.dmg` | macOS（通用 — Intel 和 Apple Silicon） |
+| `Skill-Zoo-__VERSION__-macOS.dmg` | macOS（通用版，支持 Intel 和 Apple Silicon） |
 | `Skill-Zoo-__VERSION__-Windows.exe` | Windows 安装版 |
 | `Skill-Zoo-__VERSION__-Windows-Portable.zip` | Windows 便携版 |
 | `Skill-Zoo-__VERSION__-Linux-x86_64.AppImage` | Linux x86_64 AppImage |

@@ -16,7 +16,7 @@
 
 ## Decisions
 
-1. **查询键加 skillId 在最前（skillId 在前还是 path 在前？）：** 采用 `["skills","file",skillId,path]`——skillId 在前与 `["skills","content",skillId,directory]`（useSkillContent，255-257 行）的形态一致，且使失效前缀 `["skills","file",skillId]` 天然按技能作用域。失效处同步改为 `["skills","file",skillId,path]`。
+1. **查询键加 skillId 在最前（skillId 在前还是 path 在前？）：** 采用 `["skills","file",skillId,path]`。skillId 在前与 `["skills","content",skillId,directory]`（useSkillContent，255-257 行）的形态一致，且使失效前缀 `["skills","file",skillId]` 天然按技能作用域。失效处同步改为 `["skills","file",skillId,path]`。
 2. **`useSaveSkillFileContent` 的失效**：`onSuccess: (_, { path })` 已能拿到 skillId（mutation variables），直接构造完整 key 失效，保持精确（不清相邻技能缓存）。
 3. **updateAllSkills 补 `["skills","content"]`**：与 updateSkill 对齐；`["skills","content"]` 前缀失效会覆盖 `["skills","content",skillId,directory]` 全部子键（React Query 前缀匹配），正是所需。
 4. **删 `["skills","files"]`**：两处删除；`queryInvalidation.test.ts:37` 断言改为断言不含死键（而非删掉断言），防止死键回归。

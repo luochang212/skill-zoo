@@ -226,10 +226,10 @@ pub async fn verify_github_token(
 }
 
 /// Live verification of the *saved* token for the credential dialog. The
-/// token is read here, server-side, and never crosses the bridge — only the
+/// token is read here, server-side, and never crosses the bridge. Only the
 /// verification result does.
 /// The saved token for live verification, present only when a non-blank token
-/// exists — the same "configured" view `credential_status` reports, so a
+/// exists, matching the "configured" view `credential_status` reports, so a
 /// whitespace-only legacy value is never sent to GitHub.
 fn verifiable_saved_token(values: &HashMap<String, String>) -> Option<String> {
     values
@@ -1154,7 +1154,7 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
                 }
             }
             Ok(None) => {
-                // Repo not found or branch doesn't exist — skip, continue
+                // Repo not found or branch doesn't exist, so skip and continue
                 checked_repos += 1;
 
                 for (skill_name, _) in skills_in_repo {
@@ -1172,7 +1172,7 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
                 }
             }
             Err(error @ crate::error::AppError::RateLimited { .. }) => {
-                // Actually rate limited — stop further requests
+                // Actually rate limited, so stop further requests
                 rate_limited = true;
                 let message = crate::error::CommandError::from(error).to_json();
                 rate_limit_message = Some(message.clone());

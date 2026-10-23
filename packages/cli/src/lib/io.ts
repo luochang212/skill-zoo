@@ -135,7 +135,7 @@ export async function createAgentLink(linkPath: string, targetPath: string): Pro
 
 /**
  * Replace an existing symlink with one pointing at targetPath. Callers must
- * have verified the path is a symlink (never an entity directory) — this is
+ * have verified the path is a symlink (never an entity directory). This is
  * the repair path for invalid links, not a general overwrite primitive.
  */
 export async function replaceAgentLink(linkPath: string, targetPath: string): Promise<boolean> {

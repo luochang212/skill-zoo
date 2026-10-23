@@ -2,11 +2,11 @@
 
 ## 1. 定位与架构(实证)
 
-一句话定位:技能**启动器**而非管理器——终端里两级选择(分类→技能),确认后要么执行技能目录里的 run.sh,要么把 SKILL.md 正文当 prompt 拉起 `claude`。
+一句话定位:技能**启动器**而非管理器。它在终端里做两级选择(分类→技能),确认后要么执行技能目录里的 run.sh,要么把 SKILL.md 正文当 prompt 拉起 `claude`。
 
 技术栈:Go + charmbracelet bubbletea/lipgloss,全部逻辑在单文件 `main.go`(554 行),无状态存储、无安装/同步/卸载,磁盘零写入。
 
-SSOT/分发模型:无。只读扫描一个目录(`~/.claude/skills`,可用 SKILLS_DIR 覆盖,`main.go:428-433`),平铺一层;技能身份=目录名。分类是**合成的**——读每个 SKILL.md frontmatter 的 `category:` 字段聚合,不是目录结构,缺省落 "uncategorized"(`main.go:226-249, 312-320`)。
+SSOT/分发模型:无。只读扫描一个目录(`~/.claude/skills`,可用 SKILLS_DIR 覆盖,`main.go:428-433`),平铺一层;技能身份=目录名。分类是**合成的**,因为它读每个 SKILL.md frontmatter 的 `category:` 字段聚合,不是目录结构,缺省落 "uncategorized"(`main.go:226-249, 312-320`)。
 
 形态:TUI。技能来源:仅本地目录。
 
@@ -38,4 +38,4 @@ SSOT/分发模型:无。只读扫描一个目录(`~/.claude/skills`,可用 SKILL
 
 ## 5. 借鉴裁定
 
-NOTHING: 它是 554 行的启动器,不是管理器——"在 GUI 里代跑技能/脚本"这个核心交互在桌面端是安全与架构双输,而它唯一沾边的有价值想法(用用户已装的 agent CLI 驱动技能)已被 chops 的 ComposePanel 以更完整的形态覆盖(见 Shpigford-chops.md §3.1)。
+NOTHING: 它是 554 行的启动器,不是管理器。"在 GUI 里代跑技能/脚本"这个核心交互在桌面端是安全与架构双输,而它唯一沾边的有价值想法(用用户已装的 agent CLI 驱动技能)已被 chops 的 ComposePanel 以更完整的形态覆盖(见 Shpigford-chops.md §3.1)。

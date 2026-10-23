@@ -3,9 +3,9 @@
 ## [0.3.58] — 2026-10-23
 
 ### Added
-- Skills installed by coding-agent plugins — Claude Code's marketplace clones and plugin caches included — now appear as read-only entries in a dedicated Plugins category on the Local page, labeled with the source path they were found at. Discovery uses one generic rule for every registered agent rather than a vendor layout: a bounded walk of the agent's home directory that skips junk directories and other skill roots, keeping the newest copy when a name repeats. Plugin skills are excluded from same-name conflict, duplicate and install-preflight checks, and the backend refuses edit, save, link, archive, removal and update writes on them. (#8)
+- Skills installed by coding-agent plugins now appear as read-only entries in a dedicated Plugins category on the Local page, labeled with the source path they were found at. That includes Claude Code's marketplace clones and plugin caches. Discovery uses one generic rule for every registered agent rather than a vendor layout: a bounded walk of the agent's home directory that skips junk directories and other skill roots, keeping the newest copy when a name repeats. Plugin skills are excluded from same-name conflict, duplicate and install-preflight checks, and the backend refuses edit, save, link, archive, removal and update writes on them. (#8)
 - A "Show plugin skills" switch under Settings → Skill maintenance controls that walk. It is off by default, and switching it off retracts every plugin entry immediately.
-- Updates now protect local edits: `skillFolderHash` stores a real content baseline — SHA-256 over the installed folder's regular files, ordered by relative path, skipping symlinks and `.DS_Store`/`Thumbs.db`. A skill that no longer matches its baseline is marked "Modified locally"; a single update asks before overwriting it, and a batch update skips it and lists it in the completion summary so it can be updated on its own. Locks with no usable baseline — including the legacy 40-character commit SHA — keep updating without a warning and gain a baseline on the next successful write.
+- Updates now protect local edits: `skillFolderHash` stores a real content baseline. That baseline is a SHA-256 over the installed folder's regular files, ordered by relative path, skipping symlinks and `.DS_Store`/`Thumbs.db`. A skill that no longer matches its baseline is marked "Modified locally"; a single update asks before overwriting it, and a batch update skips it and lists it in the completion summary so it can be updated on its own. Locks with no usable baseline keep updating without a warning and gain a baseline on the next successful write. This includes locks holding the legacy 40-character commit SHA.
 
 ### Changed
 - The non-SSOT visibility preference is now "Show non-SSOT skills" instead of "Hide non-SSOT skills", and lives with plugin discovery under a "Skill maintenance" group. Existing users keep their effective choice: the legacy key is read as a fallback and is never rewritten or migrated.
@@ -70,11 +70,11 @@
 - Skill updates now continue in the background after the update manager is closed with X, Escape or an outside click, and a completion summary appears when they finish. While updates are running, closing the window or quitting from the tray asks for confirmation first; restarting for an app update and macOS Cmd+Q/Dock quit remain unguarded, a platform limitation of the current window library.
 
 ### Changed
-- The GitHub connection row now derives its status line from live state — anonymous quota, token configured, freshly verified quota, or expired — instead of showing a static description.
+- The GitHub connection row now derives its status line from live state instead of showing a static description. The status reflects anonymous quota, a configured token, freshly verified quota, or an expired token.
 
 ### Fixed
 - An expired saved token no longer breaks GitHub reads with misleading "Repository or branch could not be found" failures: requests fall back to the anonymous quota until the token is replaced, matching what the connection row already said. Tokens without a recorded expiry are still sent, so revoked credentials keep failing loudly. Token and expiry now persist in a single write, so a failed save leaves the previous credentials untouched.
-- Writing while another operation holds the local lease — for example removing a skill while updates run — now returns a friendly "try again when it finishes" message in both languages instead of a raw internal error.
+- Writing now returns a friendly "try again when it finishes" message in both languages instead of a raw internal error whenever another operation holds the local lease, for example removing a skill while updates run.
 
 ## [0.3.53] — 2026-10-14
 
@@ -82,13 +82,13 @@
 - Skill info and audit popovers now animate in with a 140ms fade and a 3px rise, and install and save actions get press feedback. The desktop respects the OS "reduce motion" preference and observes it live: the banner carousel stops autoplaying and animated surfaces render their final state the moment the preference flips on mid-session, while shared Radix menus, dialogs and tooltips degrade via `motion-reduce:animate-none`.
 
 ### Fixed
-- SKILL.md files saved with a leading UTF-8 BOM — common in files written by Windows editors — now parse correctly. The BOM is stripped before frontmatter extraction instead of silently breaking it, so a skill's name and description no longer disappear for such files.
+- SKILL.md files saved with a leading UTF-8 BOM now parse correctly. Such BOMs are common in files written by Windows editors. The BOM is stripped before frontmatter extraction instead of silently breaking it, so a skill's name and description no longer disappear for such files.
 - Downloaded repository archives are now scale-validated before extraction on every path that unpacks them: a decompressed-to-compressed ratio above 4x (with a 1 GiB floor so legitimate media-heavy archives still pass) or more than 100,000 entries is rejected as a decompression bomb. The Discover page previously extracted with only the download-size check, leaving the bomb vector reachable from there; it now applies the same guards as the install pipeline.
 
 ## [0.3.52] — 2026-10-13
 
 ### Fixed
-- Opening a directory from the app on macOS — a skill folder, an agent's skills directory, or the ZIP cache — now brings forward only the Finder window showing that directory and selects it in its parent, instead of activating Finder and pulling every open Finder window to the front. Directories opened from the skill file tree take the same path, so all directory opening behaves consistently.
+- Opening a directory from the app on macOS now brings forward only the Finder window showing that directory and selects it in its parent, instead of activating Finder and pulling every open Finder window to the front. This covers a skill folder, an agent's skills directory, and the ZIP cache. Directories opened from the skill file tree take the same path, so all directory opening behaves consistently.
 
 ## [0.3.51] — 2026-10-11
 
@@ -122,7 +122,7 @@
 ## [0.3.48] — 2026-09-23
 
 ### Changed
-- macOS 13.3 is now the minimum supported version, enforced as `bundle.macOS.minimumSystemVersion`. This matches the browser floor the toolchain already targets — Vite 8's default `safari16.4` build target and Tailwind v4's Safari 16.4 baseline — because macOS's WKWebView engine is tied to the OS version. Systems below 13.3 can no longer launch the app.
+- macOS 13.3 is now the minimum supported version, enforced as `bundle.macOS.minimumSystemVersion`. This matches the browser floor the toolchain already targets because macOS's WKWebView engine is tied to the OS version. That floor is Vite 8's default `safari16.4` build target and Tailwind v4's Safari 16.4 baseline. Systems below 13.3 can no longer launch the app.
 - The frontend, CLI and Vite-config TypeScript projects now enable `noUncheckedIndexedAccess` and `verbatimModuleSyntax`, so unchecked index access and ambiguous type/value imports fail at compile time instead of at runtime. No user-visible behavior change.
 
 ### Fixed
@@ -148,22 +148,22 @@
 ## [0.3.46] — 2026-08-18
 
 ### Added
-- ZCode (the `zcode` desktop client and its bundled CLI) is registered as a supported agent. Skills live at `~/.zcode/skills/` as `SKILL.md` folders — the same format as Claude Code — so registration alone wires it into discovery, install, symlinks, the watcher, and all frontend surfaces. It is hidden by default, and usage tracking is deferred until ZCode's session-log format is known. ZCode also reads the shared `~/.agents/skills` store natively, so SSOT-installed skills are available to it without extra links.
+- ZCode (the `zcode` desktop client and its bundled CLI) is registered as a supported agent. Skills live at `~/.zcode/skills/` as `SKILL.md` folders in the same format as Claude Code, so registration alone wires it into discovery, install, symlinks, the watcher, and all frontend surfaces. It is hidden by default, and usage tracking is deferred until ZCode's session-log format is known. ZCode also reads the shared `~/.agents/skills` store natively, so SSOT-installed skills are available to it without extra links.
 - The CLI agent registry (`packages/cli/src/protocol/agents.ts`) mirrors the new ZCode entry.
 
 ## [0.3.45] — 2026-08-14
 
 ### Fixed
 - SSOT and agent-directory scans now skip the app's own temporary and backup directories (`.name.install.*`, `.name.update.*`, `.name.backup.*`), so a crashed or failed install/update no longer leaves a hidden "ghost skill" behind. Dot-prefixed namespaces such as `.system` remain real skills and are still discovered.
-- Installing or updating a skill from a repository no longer follows directory symlinks, and file symlinks are resolved relative to the link's own directory rather than the process working directory, with a recursion-depth cap — a skill archive can no longer pull arbitrary host files into the skill store.
+- Installing or updating a skill from a repository no longer follows directory symlinks, and file symlinks are resolved relative to the link's own directory rather than the process working directory, with a recursion-depth cap. A skill archive can no longer pull arbitrary host files into the skill store.
 - Concurrent downloads of the same repository now write to unique temporary files, so two simultaneous downloads can no longer truncate each other and corrupt the cached zip.
-- Archiving or restoring a skill no longer freezes the whole app when the cache or metadata save fails — the store lock is released before rollback re-acquires it.
+- Archiving or restoring a skill no longer freezes the whole app when the cache or metadata save fails because the store lock is released before rollback re-acquires it.
 - File-content and image-content queries are now scoped by skill id, so two skills with the same-named file no longer share a cache entry (and saving one no longer wipes the other's); updating all skills now invalidates content caches immediately.
 
 ## [0.3.44] — 2026-08-13
 
 ### Added
-- DeepSeek Harness (the `dsh` CLI) is registered as a supported agent. Skills live at `~/.dsh/skills/` as `SKILL.md` folders — the same format as Claude Code — so registration alone wires it into discovery, install, symlinks, the watcher, and all frontend surfaces. It is hidden by default, and usage tracking is deferred until DeepSeek Harness's session-log format is known. DeepSeek Harness also reads the shared `~/.agents/skills` store natively, so SSOT-installed skills are available to it without extra links.
+- DeepSeek Harness (the `dsh` CLI) is registered as a supported agent. Skills live at `~/.dsh/skills/` as `SKILL.md` folders in the same format as Claude Code, so registration alone wires it into discovery, install, symlinks, the watcher, and all frontend surfaces. It is hidden by default, and usage tracking is deferred until DeepSeek Harness's session-log format is known. DeepSeek Harness also reads the shared `~/.agents/skills` store natively, so SSOT-installed skills are available to it without extra links.
 - The CLI agent registry (`packages/cli/src/protocol/agents.ts`) mirrors the new DeepSeek Harness entry.
 
 ### Changed
@@ -172,21 +172,21 @@
 ## [0.3.43] — 2026-08-04
 
 ### Added
-- Moonshot's Kimi Code (the `kimi-code` CLI) is registered as a supported agent. Skills live at `~/.kimi-code/skills/` as `SKILL.md` folders — the same format as Claude Code — so registration alone wires it into discovery, install, symlinks, the watcher, and all frontend surfaces. It is hidden by default, and usage tracking is deferred until Kimi Code's session-log format is known.
+- Moonshot's Kimi Code (the `kimi-code` CLI) is registered as a supported agent. Skills live at `~/.kimi-code/skills/` as `SKILL.md` folders in the same format as Claude Code, so registration alone wires it into discovery, install, symlinks, the watcher, and all frontend surfaces. It is hidden by default, and usage tracking is deferred until Kimi Code's session-log format is known.
 - The CLI agent registry (`packages/cli/src/protocol/agents.ts`) now mirrors the desktop list, adding Grok Build, Pi, and Kimi Code.
 
 ## [0.3.42] — 2026-08-04
 
 ### Added
-- Pi (the `pi` coding agent) is registered as a supported agent. Skills live at `~/.pi/agent/skills/` as `SKILL.md` folders — the same format as Claude Code — so registration alone wires it into discovery, install, symlinks, the watcher, and all frontend surfaces. It is hidden by default, and usage tracking is deferred until Pi's session-log format is known.
+- Pi (the `pi` coding agent) is registered as a supported agent. Skills live at `~/.pi/agent/skills/` as `SKILL.md` folders in the same format as Claude Code, so registration alone wires it into discovery, install, symlinks, the watcher, and all frontend surfaces. It is hidden by default, and usage tracking is deferred until Pi's session-log format is known.
 
 ## [0.3.41] — 2026-07-31
 
 ### Added
-- xAI's Grok Build (the `grok` CLI) is registered as a supported agent. Skills live at `~/.grok/skills/` as `SKILL.md` folders — the same format as Claude Code — so registration alone wires it into discovery, install, symlinks, the watcher, and all frontend surfaces. It is hidden by default, and usage tracking is deferred until Grok's session-log format is known.
+- xAI's Grok Build (the `grok` CLI) is registered as a supported agent. Skills live at `~/.grok/skills/` as `SKILL.md` folders in the same format as Claude Code, so registration alone wires it into discovery, install, symlinks, the watcher, and all frontend surfaces. It is hidden by default, and usage tracking is deferred until Grok's session-log format is known.
 
 ### Changed
-- The usage collector now streams session logs line-by-line instead of reading each file fully into memory, bounding peak memory to one line plus accumulated events — meaningful for heavy users with multi-tens-of-megabyte JSONL logs. As part of this, an invalid-UTF-8 line is now skipped rather than causing the whole file to be dropped.
+- The usage collector now streams session logs line-by-line instead of reading each file fully into memory, bounding peak memory to one line plus accumulated events, which matters for heavy users with multi-tens-of-megabyte JSONL logs. As part of this, an invalid-UTF-8 line is now skipped rather than causing the whole file to be dropped.
 - The tray companion menu now always shows the "Add new item" action (previously it appeared only when the companion list was empty), placed above the disabled copy hint. "Add common command" is relabeled to "Add new item" (EN/ZH) to match the broader use.
 
 ## [0.3.40] — 2026-07-17
@@ -198,13 +198,13 @@
 
 ### Fixed
 - Repositories with a valid root `SKILL.md` (containing both `name` and `description` frontmatter) are now consistently treated as single-skill sources. Nested skills in such repos are no longer surfaced, and the install directory is normalized to a filesystem-safe name derived from the skill frontmatter.
-- Invalid UTF-8 in root `SKILL.md` metadata no longer causes inconsistent behavior — it is handled uniformly across preview, discovery, and install paths.
+- Invalid UTF-8 in root `SKILL.md` metadata no longer causes inconsistent behavior. It is now handled uniformly across preview, discovery, and install paths.
 - Install and update selectors now correctly match root skills by lock path, including legacy installations made before root-skill normalization.
 
 ## [0.3.38] — 2026-07-15
 
 ### Fixed
-- Skill state changes — linking, unlinking, installing, and removing skills — are now failure-atomic: if a step fails partway, the operation rolls back instead of leaving partially-applied state.
+- Skill state changes are now failure-atomic for linking, unlinking, installing, and removing skills. If a step fails partway, the operation rolls back instead of leaving partially-applied state.
 - Removing an external import now persists the import-record removal before cleaning up agent links, so a failed link cleanup can no longer leave a dangling import entry.
 - Dropping a skill onto an agent it is already linked to no longer fires a redundant notification.
 
@@ -222,7 +222,7 @@
 - Skill drag-and-drop is re-enabled on Windows, where it had been disabled since 0.3.34 due to unreliable drag preview and link behavior in packaged builds.
 
 ### Fixed
-- The drag-link success toast now appears in packaged/release builds — the Sonner toaster stylesheet was not loaded, so the toast rendered invisibly.
+- The drag-link success toast now appears in packaged/release builds. The Sonner toaster stylesheet was not loaded, so the toast rendered invisibly.
 
 ## [0.3.35] — 2026-07-12
 
@@ -279,7 +279,7 @@
 ## [0.3.26] — 2026-07-11
 
 ### Changed
-- Skill file access centralized through `ManagedSkill` — file paths are now relative to the skill root with path-traversal prevention, replacing absolute-path-based commands with safer `skillId` + `relativePath` alternatives.
+- Skill file access centralized through `ManagedSkill`, so file paths are now relative to the skill root with path-traversal prevention, replacing absolute-path-based commands with safer `skillId` + `relativePath` alternatives.
 
 ### Fixed
 - Startup theme flicker on app launch.
@@ -289,7 +289,7 @@
 ## [0.3.25] — 2026-07-10
 
 ### Added
-- Batch unlink action for agent skills — remove multiple skill symlinks from an agent directory at once.
+- Batch unlink action for agent skills that removes multiple skill symlinks from an agent directory at once.
 - Guide tray users to common commands when the tray menu is opened.
 
 ### Changed
@@ -325,7 +325,7 @@
 ## [0.3.22] — 2026-07-09
 
 ### Added
-- External imports are now protected from destructive operations — delete and overwrite actions treat them as read-only references, preventing accidental data loss.
+- External imports are now protected from destructive operations. Delete and overwrite actions treat them as read-only references, preventing accidental data loss.
 - Target highlight animation when navigating to consistency issues from skill card badges.
 
 ### Fixed
@@ -339,13 +339,13 @@
 ## [0.3.21] — 2026-07-09
 
 ### Added
-- Settings update shortcut — a compact update button in the settings header that appears only when an update is available, with one-click scroll to the update section.
+- Settings update shortcut that adds a compact update button to the settings header. It appears only when an update is available and scrolls to the update section in one click.
 - Update availability caching across app restarts in localStorage, so the shortcut reappears immediately without waiting for a network check.
 - Skill usage source breakdown showing which agents contributed to usage statistics.
 - Official website link in the system tray menu.
 
 ### Changed
-- App update flow now has a distinct "available" state — updates are shown before downloading, giving users visibility into the target version.
+- App update flow now has a distinct "available" state. Updates are shown before downloading, giving users visibility into the target version.
 - App updater downloads survive section unmount, so navigating away from settings no longer cancels an in-progress download.
 - Filter installed skill cards by visible coding agents for consistency with the rest of the app.
 - README fallback: when a repo's default branch lacks a README, the app now tries the cached branch zip.
@@ -359,7 +359,7 @@
 ## [0.3.20] — 2026-07-08
 
 ### Added
-- OpenCode skill usage tracking with extensible agent registry. The `skill_usage` collector now uses a registry pattern — adding a new agent requires only one collector function and one registry entry.
+- OpenCode skill usage tracking with extensible agent registry. The `skill_usage` collector now uses a registry pattern, so adding a new agent requires only one collector function and one registry entry.
 - OpenCode slash-command skill invocations detected from injected SKILL.md text in user messages.
 - Codex `$skill-name` prefix invocations detected alongside legacy `exec_command` SKILL.md reads.
 - Pre-push git hook to run full CI checks (typecheck, tests, clippy, build) locally before pushing.
@@ -467,7 +467,7 @@
 ## [0.3.13] — 2026-07-04
 
 ### Added
-- 7 new coding agents — Windsurf, CodeBuddy, Qwen Code, Qoder, Kilo, Antigravity, and Qoder CN (total now 18).
+- Support for 7 new coding agents, bringing the total to 18. The new agents are Windsurf, CodeBuddy, Qwen Code, Qoder, Kilo, Antigravity, and Qoder CN.
 - Skill usage dialog can be saved as a screenshot; usage UI refreshed.
 - Skill detail update flow with clearer feedback and agent display.
 
@@ -489,8 +489,8 @@
 ## [0.3.12] — 2026-07-03
 
 ### Added
-- Tray skill companion shortcuts — right-click tray to copy frequently used commands.
-- Tray recent skills — automatically surfaces the last 5 skills used in Claude Code.
+- Tray skill companion shortcuts that let users right-click the tray to copy frequently used commands.
+- Tray recent skills that automatically surface the last 5 skills used in Claude Code.
 - Skill usage habits dialog with daily chart and skill ranking.
 - Agent badges are now clickable to open the configure dialog.
 
@@ -514,7 +514,7 @@
 
 ### Added
 - Update Manager dialog with per-skill selection, check diagnostics, and update history tab.
-- Update history persistence — records each update operation with success/failure tracking.
+- Update history persistence that records each update operation with success/failure tracking.
 
 ### Changed
 - GitHub URL parsing extracted to a shared module, used consistently across the backend.
@@ -593,10 +593,10 @@
 ## [0.3.3] — 2026-06-19
 
 ### Added
-- Skill info popover — hover `…` button in detail header to see repository, source, install/update dates.
+- Skill info popover. Hover the `…` button in the detail header to see repository, source, install/update dates.
 
 ### Changed
-- Detail page header collapsed from three rows to two — agent tags moved to title row, security audit icon moved into action button group.
+- Detail page header collapsed from three rows to two. Agent tags moved to the title row and the security audit icon moved into the action button group.
 - Security audit supports icon-only display mode with color-coded aggregate status.
 - Repository link replaced with inline info popover for cleaner header layout.
 
@@ -608,7 +608,7 @@
 ## [0.3.2] — 2026-06-12
 
 ### Changed
-- Discoverable skill install state is now authoritative — server-side classification (available, installed, conflict) replaces the client-side `installed` boolean.
+- Discoverable skill install state is now authoritative. Server-side classification (available, installed, conflict) replaces the client-side `installed` boolean.
 - Duplicate skill merge requires all entries to have verified matching content hashes.
 - `useRepoReadme` hook waits for the repository branch before fetching.
 - Repo category matching and sidebar keys are now case-insensitive.
@@ -627,7 +627,7 @@
 ## [0.3.1] — 2026-06-05
 
 ### Added
-- Image preview in skill file tree — supports png, jpg, gif, webp, bmp, svg, avif, ico.
+- Image preview in the skill file tree supports png, jpg, gif, webp, bmp, svg, avif, ico.
 - Image icon and teal color treatment for image files in sidebar.
 
 ### Changed
@@ -643,8 +643,8 @@
 ## [0.3.0] — 2026-06-05
 
 ### Added
-- Skill Zoo npm CLI (`npx skill-zoo`) — install, scan, status, and archive management from terminal.
-- Lightweight Skill Zoo Web UI (WUI) — browser-based skill management dashboard.
+- Skill Zoo npm CLI (`npx skill-zoo`) that provides install, scan, status, and archive management from the terminal.
+- Lightweight Skill Zoo Web UI (WUI) that provides a browser-based skill management dashboard.
 - CLI diagnostics and inspect commands for troubleshooting installed skills.
 - CLI doctor command with fix mode and cross-agent consistency checks.
 - Pull-to-refresh with resilient caching for repository panel.
@@ -668,7 +668,7 @@
 ## [0.2.9] — 2026-06-03
 
 ### Added
-- Draggable agent ordering — reorder agents by drag-and-drop.
+- Draggable agent ordering that lets users reorder agents by drag-and-drop.
 - Skill archive management UI with archive persistence.
 
 ### Changed
@@ -822,11 +822,11 @@
 ## [0.1.10] — 2026-05-21
 
 ### Added
-- Skill update checking — check installed skills against latest GitHub commits with rate-limit handling.
+- Skill update checking that compares installed skills against the latest GitHub commits with rate-limit handling.
 - Streaming repo ZIP downloads with progress events and 50 MB size limit.
 - Download cache management (clear cache, view size, open cache directory) in Settings.
 - Software self-update via `tauri-plugin-updater` for macOS DMG and Windows NSIS installer.
-- `AppUpdateSection` in Settings — auto-update flow for installers, GitHub Releases link for portable builds.
+- `AppUpdateSection` in Settings, which provides an auto-update flow for installers and a GitHub Releases link for portable builds.
 
 ### Changed
 - Codex visible by default in agent settings.
@@ -849,7 +849,7 @@
 
 ### Changed
 - Merge two macOS DMGs (Intel + Apple Silicon) into one universal binary.
-- Soften dark theme colors — raise background/card/border lightness and add a subtle warm tint.
+- Soften dark theme colors by raising background/card/border lightness and adding a subtle warm tint.
 - Replace repo skills truncation boolean with actual total count, raise cap from 500 to 800.
 
 ## [0.1.6] — 2026-05-17
@@ -942,4 +942,4 @@
 
 ### Initial Release
 
-First public release of Skill Zoo — a local desktop GUI for managing AI Agent Skills. Homebrew publishing pipeline included from the start.
+The first public release of Skill Zoo ships a local desktop GUI for managing AI Agent Skills. Homebrew publishing pipeline included from the start.

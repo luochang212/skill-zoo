@@ -40,5 +40,5 @@
 
 - [x] 7.1 `bun run test` 全套通过（含 1.x 新增测试），记录通过/失败数（实际：`bun run test` 27 files / 154 tests 全绿；首轮在并行负载下有 5 个 5s 超时，单独重跑全绿，判定为负载抖动而非回归）。
 - [x] 7.2 `bun run typecheck`、`bun run lint`（0 warnings / 0 errors）、`bun run format:check`（106 files）均干净。
-- [x] 7.3 复核证据留痕到 change 内（`verification.md`）：逐条给出判定等级（坐实 / 部分属实 / 证伪）、复现方式与实测数字，并列出未纳入本次修复的条目及原因。**不指向 `archived/`**——该目录被 `.gitignore` 忽略，引用它对克隆者会是死链。
+- [x] 7.3 复核证据留痕到 change 内（`verification.md`）：逐条给出判定等级（坐实 / 部分属实 / 证伪）、复现方式与实测数字，并列出未纳入本次修复的条目及原因。**不指向 `archived/`**。该目录被 `.gitignore` 忽略，引用它对克隆者会是死链。
 - [x] 7.4 `openspec validate fix-sidebar-theme-a11y-defects --strict` 通过。

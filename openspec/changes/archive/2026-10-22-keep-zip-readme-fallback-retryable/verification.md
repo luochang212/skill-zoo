@@ -21,9 +21,9 @@ Previously persisted entries have no provenance field, so old ZIP-derived fresh 
 
 ## Validation
 
-- Full backend suite: `cargo test --features test-helpers --manifest-path src-tauri/Cargo.toml` — passed (279 passed, two existing performance tests ignored).
-- Standard Clippy: `cargo clippy --features test-helpers --manifest-path src-tauri/Cargo.toml -- -D warnings` — passed.
-- New regression target Clippy: the same command with `--test readme_recovery_test` — passed.
-- Rust format check, `git diff --check`, `openspec validate --all --strict`, and `adrkit validate --all` — passed.
+- Full backend suite: `cargo test --features test-helpers --manifest-path src-tauri/Cargo.toml` passed (279 passed, two existing performance tests ignored).
+- Standard Clippy: `cargo clippy --features test-helpers --manifest-path src-tauri/Cargo.toml -- -D warnings` passed.
+- New regression target Clippy: the same command with `--test readme_recovery_test` passed.
+- Rust format check, `git diff --check`, `openspec validate --all --strict`, and `adrkit validate --all` all passed.
 - An additional `--all-targets` Clippy run failed on 27 warnings in pre-existing unit tests (including `cmp_owned`, `cloned_ref_to_slice_refs`, and `unnecessary_get_then_check` in unchanged test code). Those unrelated lint cleanups are outside this fix; the standard gate and the new regression target both pass with warnings denied.
 - Frontend checks were not rerun for this backend-only fix.

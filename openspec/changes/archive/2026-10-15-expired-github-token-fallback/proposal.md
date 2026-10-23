@@ -2,7 +2,7 @@
 
 ## Why
 
-A saved fine-grained token keeps being attached to every GitHub API read after its recorded expiry passes. GitHub answers 401, the update checker maps 401 like 404, and every repository is reported as "Repository or branch could not be found" — while the settings row simultaneously states the app runs with the anonymous quota. The shipped copy promises a degradation the request path never implemented, so the app misleads exactly when GitHub features break. Expired tokens are the designed-for case (the expiry display exists because they are common), and the failure is sticky across restarts until the user manually replaces or clears the token.
+A saved fine-grained token keeps being attached to every GitHub API read after its recorded expiry passes. GitHub answers 401, the update checker maps 401 like 404, and every repository is reported as "Repository or branch could not be found", while the settings row simultaneously states the app runs with the anonymous quota. The shipped copy promises a degradation the request path never implemented, so the app misleads exactly when GitHub features break. Expired tokens are the designed-for case (the expiry display exists because they are common), and the failure is sticky across restarts until the user manually replaces or clears the token.
 
 ## What Changes
 
@@ -19,4 +19,4 @@ A saved fine-grained token keeps being attached to every GitHub API read after i
 
 ## Impact
 
-Desktop Rust config/settings/GitHub services, the settings IPC surface, and the React save hook plus its component tests. English/Chinese copy is unchanged — the existing expired-token row text becomes true. No dependency, CLI, local-protocol fixture, cache, or encryption changes; revoked-token diagnostics outside expiry (401 mapped to repository-unavailable) are a separate, unchanged trade-off.
+Desktop Rust config/settings/GitHub services, the settings IPC surface, and the React save hook plus its component tests. English/Chinese copy is unchanged; the existing expired-token row text becomes true. No dependency, CLI, local-protocol fixture, cache, or encryption changes; revoked-token diagnostics outside expiry (401 mapped to repository-unavailable) are a separate, unchanged trade-off.

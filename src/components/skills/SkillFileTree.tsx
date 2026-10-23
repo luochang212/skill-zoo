@@ -168,7 +168,7 @@ function FileTreeNode({
         </span>
       </button>
 
-      {/* Children — rendered when expanded */}
+      {/* Children. Rendered when expanded */}
       {node.isDir && expanded && (
         <div>
           {isLoading ? (

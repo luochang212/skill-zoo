@@ -95,7 +95,7 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
           setImageUrls(urls);
         }
       } catch {
-        // Banner image load failed — proceed with empty state
+        // Banner image load failed, so proceed with an empty state
       } finally {
         if (!ignore) {
           setLoading(false);

@@ -22,7 +22,7 @@ The generic settings update command SHALL reject the GitHub credential keys `git
 
 ### Requirement: Credential-bearing files are owner-only
 
-Files the desktop writes that carry credential content — `settings.json` and agent lifecycle journals — SHALL be written with owner-only file permissions (`0600`), independent of the process umask, on systems with unix file modes. Owner-only permissions SHALL apply to fresh writes and to writes that reuse a temp file left by an earlier failed write.
+Credential-bearing files the desktop writes, namely `settings.json` and agent lifecycle journals, SHALL be written with owner-only file permissions (`0600`), independent of the process umask, on systems with unix file modes. Owner-only permissions SHALL apply to fresh writes and to writes that reuse a temp file left by an earlier failed write.
 
 #### Scenario: Token saved lands owner-only
 

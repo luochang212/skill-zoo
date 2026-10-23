@@ -2,7 +2,7 @@
 
 ## Why
 
-The redesigned GitHub connection row (commit 2623992) derives its subtitle from stored and freshly verified state — anonymous quota, configured, verified quota, expired — and turns amber once the recorded expiry is within seven days or has passed. The github-connection spec never recorded this behavior, so the living spec and the shipped UI disagree about what the row promises.
+The redesigned GitHub connection row (commit 2623992) derives its subtitle from stored and freshly verified state (anonymous quota, configured, verified quota, expired) and turns amber once the recorded expiry is within seven days or has passed. The github-connection spec never recorded this behavior, so the living spec and the shipped UI disagree about what the row promises.
 
 ## What Changes
 

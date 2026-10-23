@@ -9,9 +9,9 @@
 
 可达性成立：GitHub codeload 归档原样保留仓库 symlink（mode `0120000`），zip 8.6.0 的 `extract` 会将其物化为真实软链接（`zip-8.6.0/src/read.rs:416-420`），monorepo 常见的 `shared -> ../shared` 即可触发，不依赖恶意仓库。
 
-端到端验证（2026-08-14，本仓库实测）：用与 codeload 相同格式构造恶意 zip（symlink 条目 + 绝对/爬出解压目录的相对 target），经项目实际依赖的 zip 8.6.0 `extract` 解压——**三类 target（仓库内、相对爬出、绝对路径）全部原样物化为软链，解压不拦截不报错**（zip crate 的加固只挡"穿过 symlink 写出界"，不挡"物化指向外部的 symlink"）；随后调用真实 `copy_dir_contents`，受害者目录中的文件（模拟 `id_rsa`）被完整复制进安装目标。即"点安装 → 宿主机文件进入技能目录"全链路成立，无需任何代码执行。
+端到端验证（2026-08-14，本仓库实测）：用与 codeload 相同格式构造恶意 zip（symlink 条目 + 绝对/爬出解压目录的相对 target），经项目实际依赖的 zip 8.6.0 `extract` 解压后，**三类 target（仓库内、相对爬出、绝对路径）全部原样物化为软链，解压不拦截不报错**（zip crate 的加固只挡"穿过 symlink 写出界"，不挡"物化指向外部的 symlink"）。随后调用真实 `copy_dir_contents`，受害者目录中的文件（模拟 `id_rsa`）被完整复制进安装目标。即"点安装 → 宿主机文件进入技能目录"全链路成立，无需任何代码执行。
 
-勘误：原报告称循环软链（`loop -> .`）会导致栈溢出/整 App 崩溃——实测证伪。递归每层累积一个软链组件，先撞内核单路径解析上限（macOS `MAXSYMLINKS`=32），表现为安装失败加一条误导性 IO 错误，不是崩溃。真正的问题是不该跟随与误解析，而非崩溃。
+勘误：原报告称循环软链（`loop -> .`）会导致栈溢出/整 App 崩溃，这一说法已被实测证伪。递归每层累积一个软链组件，先撞内核单路径解析上限（macOS `MAXSYMLINKS`=32），表现为安装失败加一条误导性 IO 错误，不是崩溃。真正的问题是不该跟随与误解析，而非崩溃。
 
 ## What Changes
 
@@ -28,10 +28,10 @@
 
 ### Modified Capabilities
 
-（无——`openspec/specs/` 目前为空，本 change 是该能力首个规格。）
+（无。`openspec/specs/` 目前为空，本 change 是该能力首个规格。）
 
 ## Impact
 
 - 代码：`src-tauri/src/services/cli.rs` 的 `copy_dir_contents`（安装 `add_skills` 与更新 `reinstall_skill_from_discovered` 两条路径共用）。
 - 测试：`src-tauri/src/services/cli.rs` 内 `mod tests` 新增回归用例（unix-only，软链创建）。
-- 行为变化：含目录软链/悬空软链的仓库此前能"装成功"（带入外部内容或缺失文件），此后这些条目被跳过——对正常仓库无可观察影响（正常技能不含软链目录）。
+- 行为变化：含目录软链/悬空软链的仓库此前能"装成功"（带入外部内容或缺失文件），此后这些条目被跳过。这对正常仓库无可观察影响（正常技能不含软链目录）。

@@ -28,13 +28,13 @@ Tailwind v4 把 `-translate-x-full` 编译为独立属性 `translate`（已在 `
 
 `willChange` 同步改为 `"translate, opacity"`，否则浏览器仍按不会变化的 `transform` 做图层提示。
 
-*备选*：给元素加内联 `transform: translateX(...)` 并保留 `transition-transform`。否决——在同一元素上混用 `transform` 与 Tailwind 的 `translate` 变量会重新引入"哪个属性在变"的歧义，正是本缺陷的成因。
+*备选*：给元素加内联 `transform: translateX(...)` 并保留 `transition-transform`。否决，原因是在同一元素上混用 `transform` 与 Tailwind 的 `translate` 变量会重新引入"哪个属性在变"的歧义，正是本缺陷的成因。
 
 ### D2. 折叠区：折叠时不渲染子项 + grid 轨道动画
 
 当前 `max-h-[1000px] opacity-0` 同时造成两个问题：硬上限裁剪，以及折叠后子项仍可聚焦。一个改动同时消除两者：折叠时直接不渲染子项。动画改用 `grid-template-rows: 0fr → 1fr` 的轨道过渡（子项容器 `overflow: hidden`），因为它在所有目标引擎可用，而 guide 推荐的 `interpolate-size` / `calc-size()` 是 Chrome/Edge 129+ 专属。
 
-*备选*：保留渲染并设 `inert`。否决——`inert` 在旧 WebKit 上支持不全（且要额外分支），且 `max-height` 上限问题依然存在。可访问性与裁剪是两个缺陷，用"不渲染"一并解掉，代码量还更少。
+*备选*：保留渲染并设 `inert`。否决，因为 `inert` 在旧 WebKit 上支持不全（且要额外分支），且 `max-height` 上限问题依然存在。可访问性与裁剪是两个缺陷，用"不渲染"一并解掉，代码量还更少。
 
 *代价*：折叠/展开时子项被重新挂载（丢失滚动位置）。该分组内是短列表，可接受。
 
@@ -44,7 +44,7 @@ Tailwind v4 把 `-translate-x-full` 编译为独立属性 `translate`（已在 `
 
 关键点：handler 内不能用闭包里的 `theme`，否则用户从"跟随系统"改为"深色"后，监听仍会把界面改回系统配色。选择在事件触发时重读 `localStorage["theme"]`，因为那是权威持久化值，且避免了把 `useTheme` 的局部状态提升为全局状态。
 
-*备选*：把主题状态提升到 Context/全局 store。否决——为修一个监听位置而引入全局状态层，超出最小改动的收益，且与"设置页局部状态 + 持久化为权威"的既有结构冲突。
+*备选*：把主题状态提升到 Context/全局 store。否决。理由是为修一个监听位置而引入全局状态层，超出最小改动的收益，且与"设置页局部状态 + 持久化为权威"的既有结构冲突。
 
 ### D4. 视图过渡内用 `flushSync` 提交主题
 
@@ -52,7 +52,7 @@ Tailwind v4 把 `-translate-x-full` 编译为独立属性 `translate`（已在 `
 
 改为在 callback 内 `flushSync` 提交，使 DOM 变更在 callback 返回前完成。保留 `document.startViewTransition` 存在性判断与原有非过渡分支。
 
-*备选*：把 class 写入从 effect 移到 render 期。否决——React 渲染期写 DOM 是反模式，且会破坏严格模式下的可预期性。
+*备选*：把 class 写入从 effect 移到 render 期。否决。React 渲染期写 DOM 是反模式，且会破坏严格模式下的可预期性。
 
 ### D5. `color-scheme` 双值，而非改 `applyTheme` 的解析逻辑
 
@@ -68,9 +68,9 @@ Tailwind v4 把 `-translate-x-full` 编译为独立属性 `translate`（已在 `
 
 *备选一*：照抄 `Button`/`Switch`/`Checkbox` 的 `focus-visible:ring-2 ring-ring ring-offset-2`。曾按此实现，后被否：浅色下 2px 近黑描边环在表单里视觉过重（用户实测反馈"之前没有黑框更好"），属于为对齐而牺牲观感；`Button` 那套本就是给行内小控件用的。
 
-*备选二*：删掉 `outline-none` 让各引擎画默认焦点环。否决——macOS/GTK/Windows 三种 WebView 外观不一致，且与设计系统脱节。
+*备选二*：删掉 `outline-none` 让各引擎画默认焦点环。否决。macOS/GTK/Windows 三种 WebView 外观不一致，且与设计系统脱节。
 
-*备选三*：`border-ring/60`（先按浅色对比度选的）。否决——深色的 `--ring` 本身是半透明的 `0 0% 100% / .5`，再乘 60% 后只剩 2.73:1，反而低于旧值。两处主题都取满值才同时达标。
+*备选三*：`border-ring/60`（先按浅色对比度选的）。否决。深色的 `--ring` 本身是半透明的 `0 0% 100% / .5`，再乘 60% 后只剩 2.73:1，反而低于旧值。两处主题都取满值才同时达标。
 
 ### D7. IME 保护同时判 `isComposing` 与 `keyCode === 229`
 

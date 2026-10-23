@@ -191,7 +191,7 @@ describe("SkillContentPane collapsed sidebar focus", () => {
 
     // jsdom does not enforce inert semantics, but the attribute is the
     // browser contract (Safari 16.4 floor supports it) that removes the
-    // collapsed tree from the tab order — the review found it missing.
+    // collapsed tree from the tab order. The review found it missing.
     expect(paneContainer).toHaveAttribute("inert");
   });
 });

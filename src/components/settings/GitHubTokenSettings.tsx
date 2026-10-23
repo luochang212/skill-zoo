@@ -24,7 +24,7 @@ const EXPIRY_SOON_MS = 7 * 24 * 60 * 60 * 1000;
 // The glyph the platform actually draws for password masking: WebKit on macOS
 // swaps the disc replacement for the system font's private secure-dot glyph
 // U+F79A (RenderBlock::updateSecurityDiscCharacters, WebKit commit 69d20a8;
-// applies when the primary font is the system font — the app's default
+// applies when the primary font is the system font. The app's default
 // Tailwind stack qualifies). Measured with Playwright WebKit: both the real
 // mask and a U+F79A run render 6.0px dots / 2.7px gaps at 14px, while "•" is
 // 2.7px and "●" 11.0px. Every other engine (Windows WebView2, Linux
@@ -60,7 +60,7 @@ export function GitHubTokenSettings({
   const { t, i18n } = useTranslation();
   const statusQuery = useGitHubCredentialStatus();
   const saveToken = useSaveGitHubToken();
-  // null = untouched — the input shows the mask stand-in for the saved token.
+  // null = untouched. The input shows the mask stand-in for the saved token.
   // Any edit lands here as the replacement candidate.
   const [draft, setDraft] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -68,7 +68,7 @@ export function GitHubTokenSettings({
   const maskGlyphChar = maskGlyph(navigator.userAgent);
   const mask = maskGlyphChar.repeat(40);
   const value = draft ?? (hasToken ? mask : "");
-  // Mask characters in the draft mean no new token was entered — untouched,
+  // Mask characters in the draft mean no new token was entered. Untouched,
   // partially cleared, or pasted back are all "unchanged".
   const unchanged = draft === null || draft.includes(maskGlyphChar);
   const canSave =

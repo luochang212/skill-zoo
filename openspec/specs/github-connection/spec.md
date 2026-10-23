@@ -32,7 +32,7 @@ The desktop SHALL maintain at most one saved GitHub credential. Saving a new ver
 - **THEN** the new token and its expiry replace the previous ones in a single write
 
 #### Scenario: No new token entered
-- **WHEN** the credential dialog is submitted without a new token — an empty field or an unchanged mask — while a token is saved
+- **WHEN** the credential dialog is submitted while a token is saved and the new token field is empty or still shows the unchanged mask
 - **THEN** the saved token and its expiry remain unchanged
 
 #### Scenario: Restart with configured token
@@ -93,7 +93,7 @@ The generic settings update command SHALL reject the GitHub credential keys `git
 
 ### Requirement: Credential-bearing files are owner-only
 
-Files the desktop writes that carry credential content — `settings.json` and agent lifecycle journals — SHALL be written with owner-only file permissions (`0600`), independent of the process umask, on systems with unix file modes. Owner-only permissions SHALL apply to fresh writes and to writes that reuse a temp file left by an earlier failed write.
+The desktop writes two files that carry credential content, `settings.json` and the agent lifecycle journals. Both SHALL be written with owner-only file permissions (`0600`), independent of the process umask, on systems with unix file modes. Owner-only permissions SHALL apply to fresh writes and to writes that reuse a temp file left by an earlier failed write.
 
 #### Scenario: Token saved lands owner-only
 - **WHEN** a token is saved and settings are persisted on a unix system

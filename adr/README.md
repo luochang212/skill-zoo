@@ -16,8 +16,8 @@ rather than disappearing from the list command.
 A proposal is unshipped even when its direction has been settled. Implemented
 records describe shipped decisions and receive stable ADR numbers. A rejection
 is a durable terminal record of a declined proposal: it is removed only when
-another record owns the warning it blocks, never for appearing stale —
-rejections are unnumbered, so removing a redundant one cannot reuse a number.
+another record owns the warning it blocks, never for appearing stale.
+Rejections are unnumbered, so removing a redundant one cannot reuse a number.
 Archived records are frozen history, not current authority. They are ordinary
 Git-tracked records: adrkit validate checks them like the rest of the
 inventory, and Git history shows any later change.

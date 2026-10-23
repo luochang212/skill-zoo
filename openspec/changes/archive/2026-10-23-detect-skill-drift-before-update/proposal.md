@@ -2,7 +2,7 @@
 
 ## Why
 
-The desktop app ships a full skill editor and treats the filesystem as the source of truth, so users are encouraged to edit installed skills — yet the update flow compares only the repository-side folder SHA (`commitSha`) and never looks at local content. Updating a skill the user has modified silently discards their edits. The lock already reserves a `skillFolderHash` field (present in `docs/local-protocol.md` and `fixtures/local-protocol/lock-v3-full.json`), but the desktop never computes a real value: every write path stores `None` or an empty string.
+The desktop app ships a full skill editor and treats the filesystem as the source of truth, so users are encouraged to edit installed skills. Yet the update flow compares only the repository-side folder SHA (`commitSha`) and never looks at local content. Updating a skill the user has modified silently discards their edits. The lock already reserves a `skillFolderHash` field (present in `docs/local-protocol.md` and `fixtures/local-protocol/lock-v3-full.json`), but the desktop never computes a real value: every write path stores `None` or an empty string.
 
 ## What Changes
 
@@ -20,8 +20,8 @@ None.
 
 ### Modified Capabilities
 
-- `skill-installation`: Add the missing update-flow requirements — update compares local content against the stored baseline, protects drifted skills from silent overwrite, and records a fresh baseline whenever content is (re)written.
-- `local-protocol`: Add the `skillFolderHash` contract — how the hash is computed over the installed folder, when it is written, and how readers treat missing or empty values.
+- `skill-installation`: Add the missing update-flow requirements. Update compares local content against the stored baseline, protects drifted skills from silent overwrite, and records a fresh baseline whenever content is (re)written.
+- `local-protocol`: Add the `skillFolderHash` contract covering how the hash is computed over the installed folder, when it is written, and how readers treat missing or empty values.
 
 ## Impact
 

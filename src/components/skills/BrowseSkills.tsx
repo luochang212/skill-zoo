@@ -168,7 +168,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
         const repo = await skillsApi.searchRepo(`${owner}/${name}`);
         navigateToRepo({ ...repo, branch: branch ?? repo.branch });
       } catch {
-        // ignore — repo not found or network error
+        // ignore because the repo was not found or the network failed
       }
     },
     [repos, navigateToRepo],
@@ -274,7 +274,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
                     </div>
                   ) : (
                     <>
-                      {/* Repository section — only when exact owner/name match found */}
+                      {/* Repository section. Only shown when an exact owner/name match is found */}
                       {repoResult && (
                         <>
                           <button
@@ -297,7 +297,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
                         </>
                       )}
 
-                      {/* Skills section — skills.sh fuzzy search results */}
+                      {/* Skills section. skills.sh fuzzy search results */}
                       {skillsList.map((skill) => (
                         <button
                           key={skill.key}

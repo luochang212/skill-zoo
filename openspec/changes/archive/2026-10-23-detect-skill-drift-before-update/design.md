@@ -2,7 +2,7 @@
 
 ## Context
 
-`SkillLockEntry` already carries `skillFolderHash` (`src-tauri/src/services/lock.rs`), the field is documented in `docs/local-protocol.md`, present in `fixtures/local-protocol/lock-v3-full.json`, and parsed by the CLI (`packages/cli/src/protocol/types.ts`) — but no code path computes a real value: install/update paths store `None`, and one site writes an empty string. The update flow (`CliService::known_update_from_tree`) decides "needs update" purely from repo-side folder SHAs. See proposal.md — Why.
+`SkillLockEntry` already carries `skillFolderHash` (`src-tauri/src/services/lock.rs`), the field is documented in `docs/local-protocol.md`, present in `fixtures/local-protocol/lock-v3-full.json`, and parsed by the CLI (`packages/cli/src/protocol/types.ts`). However, no code path computes a real value: install/update paths store `None`, and one site writes an empty string. The update flow (`CliService::known_update_from_tree`) decides "needs update" purely from repo-side folder SHAs. See the Why section of proposal.md.
 
 ## Goals / Non-Goals
 
@@ -14,16 +14,16 @@ Goals:
 
 Non-Goals:
 
-- No undo/history for user edits and no three-way merge — the choice is binary: keep local edits or take the repository version.
+- No undo/history for user edits and no three-way merge. The choice is binary: keep local edits or take the repository version.
 - No CLI write commands; the CLI keeps reading and preserving the field.
-- No drift tracking for local (origin=agent) or external-import skills — they have no lock entry and remain fully user-owned.
+- No drift tracking for local (origin=agent) or external-import skills, which have no lock entry and remain fully user-owned.
 - No change to archive/remove/restore semantics.
 
 ## Decisions
 
 **Hash definition: single scalar SHA-256 over the folder's regular files.** Walk the installed folder recursively; skip symbolic links (dirs and files, never follow); sort entries by relative path bytes; feed `relative-path (UTF-8) + 0x00 + file bytes` for each regular file into SHA-256; store lowercase hex. Empty folder hashes the empty input. The same recursion depth cap as install applies.
 
-*Why not per-file manifests in the lock:* the protocol field is one string; a manifest would grow the lock linearly with skill size and demand a new schema version. *Why not mtimes:* restore, copy and cross-machine moves change mtimes without content changes; only content honesty matters here. Raw bytes are hashed — no BOM/CRLF normalization — because for "will this overwrite your edits?" a byte difference is a difference.
+*Why not per-file manifests in the lock:* the protocol field is one string; a manifest would grow the lock linearly with skill size and demand a new schema version. *Why not mtimes:* restore, copy and cross-machine moves change mtimes without content changes; only content honesty matters here. Raw bytes are hashed with no BOM/CRLF normalization, because for "will this overwrite your edits?" a byte difference is a difference.
 
 **Write points: exactly two.** (1) After a remote install finishes writing into the SSOT store; (2) after an update has swapped in new content (including a user-confirmed drift overwrite). Both go through the existing `SkillLock::update` read-modify-write, so no new locking rules. The empty-string write site is removed as part of the tasks. Baseline writes happen only after the content write is confirmed successful; the existing backup/restore failure path therefore never invalidates a baseline.
 

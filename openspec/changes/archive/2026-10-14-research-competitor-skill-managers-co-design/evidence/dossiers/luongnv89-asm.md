@@ -2,7 +2,7 @@
 
 ## 1. 定位与架构(实证)
 
-一句话定位:面向 AI agent 与自动化的技能包管理 CLI/TUI——「每个命令都可脚本化」(`--json`/`--yes`/`--machine`)是第一性设计,安装/审计/检索是第二位。
+一句话定位:面向 AI agent 与自动化的技能包管理 CLI/TUI。其第一性设计是「每个命令都可脚本化」(`--json`/`--yes`/`--machine`),安装/审计/检索是第二位。
 
 技术栈:Node 22+ / TypeScript / esbuild,TUI 用 Ink(React 渲染到终端),Vitest 测试(约与源码 1:1 的 .test.ts)。
 
@@ -34,28 +34,28 @@ SSOT/分发模型:**默认复制,SSOT 是 opt-in**。`executeInstall` 直接 `cp
 
 - 是什么:`{version:1, command, status:"ok"|"error", data|error{code,message,details}, meta{timestamp,asm_version,duration_ms}}`,错误码枚举(utils/machine.ts:21-52);human chatter 强制重定向 stderr 保证 stdout 纯净(:54-70);非 TTY 输出 compact JSON。
 - 程度:v1 冻结 key 注释明确「不得改名或双 key」;7 个稳定错误码;每个支持命令都有实现与测试。同类 npx skills 只有零散 `--json`,无信封无错误码。
-- 为何 great:这是协议设计而非输出美化——版本字段让未来 v2 可共存,错误码让 agent 可编程分支,stdout 纪律让管道可靠。
+- 为何 great:这是协议设计而非输出美化。版本字段让未来 v2 可共存,错误码让 agent 可编程分支,stdout 纪律让管道可靠。
 - 落点:packages/cli 的 Rust 输出层加 `--machine` flag + 信封 struct。additive,不触碰 npx skills 兼容语义(新 flag 不改变既有命令行为);协议属桌面自有 CLI 层,符合「桌面拥有本地协议」。代价:中(每命令包一层,但可做成统一 writer)。
 
 ### 3.2 安装前安全审计的规则分类学与「报告不拦截」哲学
 
 - 是什么:规则按类别(网络/shell 执行/动态代码/文件系统/凭证/环境变量/混淆)×严重度(critical/warning/info)×permissionType(filesystem/shell/network/code-execution/environment)三维组织(security-auditor-scan.ts:22-265);另做 GitHub 来源画像(账号年龄/是否 org/公开仓库数)。
-- 程度:4 个竞品中唯一有 install 前扫描的;有测试、有独立报告模块;publish 通道用同一扫描做强制门槛(warning 需 `--force`),安装通道只报告——双门槛设计合理。
+- 程度:4 个竞品中唯一有 install 前扫描的;有测试、有独立报告模块;publish 通道用同一扫描做强制门槛(warning 需 `--force`),安装通道只报告,是一组合理的双门槛设计。
 - 为何 great:不是规则多,而是把「技能是文本,正则必然误报」这个事实转化为报告型权限模型(告诉用户「这技能会碰什么」),而非伪杀毒。正则扫 markdown 有固有误报(curl 写在教程里也命中),但作为权限声明而非拦截器是自洽的。
 - 落点:src-tauri 安装 preflight(与现有 install conflict check 同层)加 Rust 版规则表 + Tauri 命令返回结构化 findings;UI 在安装确认对话框展示。规则清单可直接移植(category/severity/permission 三元组)。代价:中;无架构冲突(纯只读分析,文件系统为真相)。
 
 ### 3.3 Attention budget / residency 审计
 
-- 是什么:核心洞察「disk is cheap, context is not」——已装技能的 description 常驻每条消息,body 只在触发时付;分别估算并按 tool/scope 聚合,residency 报告按 demotion 阶梯(installed→library→disabled→reference)给可执行命令。
+- 是什么:核心洞察是「disk is cheap, context is not」。已装技能的 description 常驻每条消息,body 只在触发时付;分别估算并按 tool/scope 聚合,residency 报告按 demotion 阶梯(installed→library→disabled→reference)给可执行命令。
 - 程度:token 估算是字符启发式(stats-tokens.ts:26),但聚合维度(per-tool/per-scope/最重排行/中位数)完整;诚实标注不可用信号(residency.ts:361-365);零网络、纯本地。
 - 为何 great:这是同类工具中唯一回答「装这么多技能我的 context 账单是多少」的;洞察正确且可证(description 确实进系统提示词)。
-- 落点:src-tauri 新 stats 命令(Rust 估算+聚合)+ Local 页/技能详情展示 resident 成本;skill-zoo 的 symlink 模型让 demote 比 asm 更干净——asm 的 disable 要 rename SKILL.md(因 copy 模型所迫),skill-zoo 删 symlink 即可,移植后体验应优于原版。代价:中;无冲突。
+- 落点:src-tauri 新 stats 命令(Rust 估算+聚合)+ Local 页/技能详情展示 resident 成本;skill-zoo 的 symlink 模型让 demote 比 asm 更干净。asm 的 disable 要 rename SKILL.md(因 copy 模型所迫),skill-zoo 删 symlink 即可,移植后体验应优于原版。代价:中;无冲突。
 
 ## 4. 明确不借鉴(带理由)
 
 - 默认复制分发:与 SSOT+symlink 核心决策直接冲突,是 asm 历史包袱(skill-zoo 的 origin 二分已解决同一问题)。
 - library-lock/activate 双轨制:skill-zoo 的 SSOT 就是唯一的 library,无需第二套中心库+锁文件。
-- `deps` 租约系统:为 agent 运行时按需取依赖设计,恢复策略靠用户猜 cutoff、清理靠调用方 finally——复杂度远超收益,伪需求。
+- `deps` 租约系统:为 agent 运行时按需取依赖设计,恢复策略靠用户猜 cutoff、清理靠调用方 finally,这样的设计复杂度远超收益,是伪需求。
 - `eval` rubric 评分:启发式规则冒充质量评估,分数不可解释。
 - PR 式 publish registry:skill-zoo 无自有 registry,marketplace 生态不同。
 - disable=rename SKILL.md:copy 模型的 hack;skill-zoo 删 symlink 即达同理,方案本身不可移植。

@@ -8,7 +8,7 @@ PR 正文（`gh pr view 2067 --repo vercel-labs/skills`）关键引用：
 >
 > @etraut-openai (11 Mar 2026): `~/.codex/skills` is the old (legacy) name. The industry has since standardized on `~/.agents/skills`. We recommend moving to this directory, which is why the documentation reflects this.
 
-即：**OpenAI 官方**确认 `~/.agents/skills` 是 Codex 的标准位置，`~/.codex/skills` 为 legacy。改动文件：README.md、src/agents.ts。PR 还列出同方向的后续 issue（#1060、#1372、#1874、#2028）——上游在逐步把更多 agent 收敛到共享目录。
+即：**OpenAI 官方**确认 `~/.agents/skills` 是 Codex 的标准位置，`~/.codex/skills` 为 legacy。改动文件：README.md、src/agents.ts。PR 还列出同方向的后续 issue（#1060、#1372、#1874、#2028），可见上游在逐步把更多 agent 收敛到共享目录。
 
 ## 上游 agents.ts（main，2026-10-14）
 
@@ -40,7 +40,7 @@ codex: {
 `SyncOptions { agent, yes, copy, dryRun, cleanup, include, exclude, remote, recursive }`。
 过滤语法：「`<package>` matches every skill of a package, `<package>#<skill>` one of them. Both parts are globs.」
 v1.7.0...v1.7.2 共 48 个 commit、37 文件、+3136/-618；最大新增 tests/sync.test.ts（934 行）。
-README（main）检索不到任何 sync 章节——功能先于文档。
+README（main）检索不到任何 sync 章节，可见功能先于文档。
 
 ## README（main）命令面与安全叙述
 

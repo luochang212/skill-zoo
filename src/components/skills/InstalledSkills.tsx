@@ -476,8 +476,8 @@ export const InstalledSkills = memo(function InstalledSkills({
     [showNonSsot, skillsList, visibleAgentSet],
   );
   // Plugin skills live only in their own sidebar category. The category is
-  // their sole surface — read-only inspections that must not vanish when the
-  // owning coding agent is hidden — so neither coding-agent visibility nor the
+  // their sole surface for read-only inspections that must not vanish when the
+  // owning coding agent is hidden, so neither coding-agent visibility nor the
   // SSOT filter gates it; their own Settings switch governs discovery.
   const pluginSkills = useMemo(() => skillsList.filter((s) => s.origin === "plugin"), [skillsList]);
   const consistencySkills = useMemo(
@@ -855,7 +855,7 @@ export const InstalledSkills = memo(function InstalledSkills({
       {/* Main content */}
       <div className="flex flex-col flex-1 min-w-0">
         <div className="flex-1 min-h-0 p-6 pb-0 flex flex-col">
-          {/* Toolbar — hidden in consistency view since it has its own panel */}
+          {/* Toolbar. Hidden in consistency view since it has its own panel */}
           {category.type !== "consistency" && (
             <div className="flex items-center gap-3 mb-6">
               <input
@@ -931,7 +931,7 @@ export const InstalledSkills = memo(function InstalledSkills({
             </div>
           )}
 
-          {/* Consistency category — show ConsistencyPanel instead of cards */}
+          {/* Consistency category. Show ConsistencyPanel instead of cards */}
           {category.type === "consistency" ? (
             <ConsistencyPanel
               duplicateGroups={duplicateGroups}

@@ -2,7 +2,7 @@
 
 ## Completeness / Correctness / Coherence
 
-All three requirements in the delta have implementations and tests; the change stays inside the request builder, the runtime credential slot and the settings save path — no UI copy, no protocol, no dependency changes.
+All three requirements in the delta have implementations and tests; the change stays inside the request builder, the runtime credential slot and the settings save path. There are no UI copy, protocol, or dependency changes.
 
 | Requirement | Implementation evidence | Verification evidence |
 | --- | --- | --- |
@@ -25,4 +25,4 @@ All three requirements in the delta have implementations and tests; the change s
 
 ## Limits and trade-offs
 
-No real expired PAT was available; expiry behavior is verified through the request builder and settings persistence rather than a live GitHub session. No native three-engine visual check; the row copy and expiry display themselves are unchanged by this change. Clock skew ahead of real time can skip a still-valid token — visible in the amber row and recoverable by saving again. Revoked tokens without expiry metadata are still attached and keep surfacing as repository-unavailable diagnostics; that mapping is unchanged and out of scope here.
+No real expired PAT was available; expiry behavior is verified through the request builder and settings persistence rather than a live GitHub session. No native three-engine visual check; the row copy and expiry display themselves are unchanged by this change. Clock skew ahead of real time can skip a still-valid token. The skip is visible in the amber row and recoverable by saving again. Revoked tokens without expiry metadata are still attached and keep surfacing as repository-unavailable diagnostics; that mapping is unchanged and out of scope here.

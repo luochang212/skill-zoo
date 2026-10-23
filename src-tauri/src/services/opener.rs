@@ -10,7 +10,7 @@ use tauri::AppHandle;
 ///
 /// Semantics differ from opening a window: the parent directory is revealed
 /// with `dir` selected, so a newly created empty directory shows its parent.
-/// Errors are not observable on macOS — the NSWorkspace API returns void, so
+/// Errors are not observable on macOS because the NSWorkspace API returns void, so
 /// this reports `Ok(())` regardless of whether activation happened.
 pub fn open_directory(app: &AppHandle, dir: &Path) -> Result<(), String> {
     #[cfg(target_os = "macos")]

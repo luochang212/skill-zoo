@@ -11,7 +11,7 @@
 
 ## 验证边界(诚实标注)
 
-- 「超限不得向磁盘写入任何解压内容」为构造保证:`validate_archive_scale` 只读中央目录(`by_index_raw`)且先于 `extract` 执行,校验失败时解压尚未开始。纯函数测试不触及 extract 侧,故未对空解压目录做独立断言——tasks 2.3 原措辞「解压目录为空」已按此修正。
+- 「超限不得向磁盘写入任何解压内容」为构造保证:`validate_archive_scale` 只读中央目录(`by_index_raw`)且先于 `extract` 执行,校验失败时解压尚未开始。纯函数测试不触及 extract 侧,故未对空解压目录做独立断言。tasks 2.3 原措辞「解压目录为空」已按此修正。
 - install 路径端到端(真实炸弹 zip 走完整 `download_repo_zip`)未复现,需网络/下载注入点;由纯函数测试 + 接线调用点结构审查覆盖。
 - 前端 `parseFrontmatter` 不受 BOM 影响(ECMAScript WhiteSpace 含 U+FEFF)为研究 change `research-upstream-skills-cli-adoption` 的实证结论,本 change 未重复断言。
 

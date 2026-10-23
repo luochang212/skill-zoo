@@ -8,9 +8,9 @@
 
 | 命题 | 方法 | 结果 |
 |---|---|---|
-| Rust `str::trim()` 不剥离 BOM，故 `extract_frontmatter` 对 BOM 前缀 SKILL.md 失效 | rustc 编译独立程序（`~/.cargo/bin/rustc`），对 `"\u{feff}---\nname: test\n---\nbody"` 调用与生产代码相同的 `trim().starts_with("---")` 序列，并以无 BOM 内容做对照 | BOM 组 `false`，对照组 `true`——坐实。程序已删除，方法与断言留痕于此，实施修复时应以同场景翻转断言固化为回归测试 |
-| GitHub codeload 接受 commit SHA 作为 zip ref | `curl -sI https://codeload.github.com/vercel-labs/skills/zip/671e8c3…`（v1.7.2 真实 SHA） | HTTP 200，`content-disposition` 文件名含完整 SHA——坐实 |
-| **（勘误）** Codex 是否仍读取 `~/.codex/skills` | shallow clone openai/codex@main（2026-10-14），直读 `codex-rs/ext/skills/src/host_roots.rs` `roots_from_layer_stack`：User 层同时推入 `$CODEX_HOME/skills`（注释「Deprecated user skills location, kept for backward compatibility」）与 `~/.agents/skills`，同属 `SkillScope::User`；`dedupe_skill_roots_by_path` 仅对同一路径去重；`ext/skills/src/loader/host.rs:165` User/Repo/Admin 均为 `DirectorySymlinkPolicy::Follow` | **初版「新版 Codex 不读 legacy、symlink 静默失效」证伪**——两个目录都读，我方 `.codex` symlink 机制有效，A1 裁决反转为「维持现状，无需变更」。官方文档未提及 legacy 不构成「代码不读」的证据：文档 omission ≠ 行为移除，行为以源码为准 |
+| Rust `str::trim()` 不剥离 BOM，故 `extract_frontmatter` 对 BOM 前缀 SKILL.md 失效 | rustc 编译独立程序（`~/.cargo/bin/rustc`），对 `"\u{feff}---\nname: test\n---\nbody"` 调用与生产代码相同的 `trim().starts_with("---")` 序列，并以无 BOM 内容做对照 | BOM 组 `false`，对照组 `true`，命题坐实。程序已删除，方法与断言留痕于此，实施修复时应以同场景翻转断言固化为回归测试 |
+| GitHub codeload 接受 commit SHA 作为 zip ref | `curl -sI https://codeload.github.com/vercel-labs/skills/zip/671e8c3…`（v1.7.2 真实 SHA） | HTTP 200，`content-disposition` 文件名含完整 SHA，命题坐实 |
+| **（勘误）** Codex 是否仍读取 `~/.codex/skills` | shallow clone openai/codex@main（2026-10-14），直读 `codex-rs/ext/skills/src/host_roots.rs` `roots_from_layer_stack`：User 层同时推入 `$CODEX_HOME/skills`（注释「Deprecated user skills location, kept for backward compatibility」）与 `~/.agents/skills`，同属 `SkillScope::User`；`dedupe_skill_roots_by_path` 仅对同一路径去重；`ext/skills/src/loader/host.rs:165` User/Repo/Admin 均为 `DirectorySymlinkPolicy::Follow` | **初版「新版 Codex 不读 legacy、symlink 静默失效」证伪**，因为两个目录都读，我方 `.codex` symlink 机制有效，A1 裁决反转为「维持现状，无需变更」。官方文档未提及 legacy 不构成「代码不读」的证据：文档 omission ≠ 行为移除，行为以源码为准 |
 
 ### 源码直读（file:line 引用，非运行时）
 
@@ -34,5 +34,5 @@
 
 本研究过程中修正了此前口头汇报的两处偏差，按 worth-fix 记录：
 
-1. 「我方没有字节上限」——不准确：下载侧有 5 GiB 上限（`config.rs:5`）；无上限的是**解压侧**。
-2. 「SHA 钉定完全没有」——不准确：lock 已有 `ref`/`commitSha` 字段与 `update_commit_sha`，缺的是用户可见语义与边界定义，安装期 tree URL 带 SHA 可偶然工作。
+1. 「我方没有字节上限」的说法不准确：下载侧有 5 GiB 上限（`config.rs:5`）；无上限的是**解压侧**。
+2. 「SHA 钉定完全没有」的说法不准确：lock 已有 `ref`/`commitSha` 字段与 `update_commit_sha`，缺的是用户可见语义与边界定义，安装期 tree URL 带 SHA 可偶然工作。

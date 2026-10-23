@@ -5,7 +5,7 @@ import { renderHook } from "@testing-library/react";
 /**
  * Create a QueryClient configured for testing:
  * - retries disabled (fail fast)
- * - gcTime Infinity (prevent garbage collection during test —
+ * - gcTime Infinity (prevents garbage collection during the test because
  *   gcTime 0 causes data loss when a query has no active observers,
  *   which breaks optimistic update tests)
  */

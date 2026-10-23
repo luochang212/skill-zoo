@@ -136,7 +136,7 @@ body {
   inset: 0;
   pointer-events: none;
   background-image:
-/* bevel highlight — top & left tile edges */
+/* bevel highlight on the top & left tile edges */
     linear-gradient(
       to bottom,
       rgba(255, 255, 255, 0.025) 1.5px,
@@ -147,7 +147,7 @@ body {
       rgba(255, 255, 255, 0.025) 1.5px,
       transparent 1.5px
     ),
-    /* bevel shadow — bottom & right tile edges */
+    /* bevel shadow on the bottom & right tile edges */
     linear-gradient(
         to bottom,
         transparent 58.5px,
@@ -770,7 +770,7 @@ p {
   transform: translateY(0);
   transition: all 60ms ease;
 }
-/* primary — GitHub, copper solid (mirrors hero primary) */
+/* primary button. GitHub, copper solid (mirrors hero primary) */
 .gh-cta-btn:first-child {
   background: var(--copper);
   border-color: var(--copper);
@@ -785,7 +785,7 @@ p {
     0 1px 4px rgba(197, 102, 59, 0.25),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
-/* hover — only on devices with true hover (skip touch to avoid
+/* hover state. Only on devices with true hover (skip touch to avoid
    double-tap: first tap triggers :hover, second tap actually clicks) */
 @media (hover: hover) {
   .gh-cta-btn:hover {
@@ -1289,7 +1289,7 @@ footer a:hover {
    * - Hide verbose secondary content
    */
 
-/* Tablet: 860px — hero-report stacks */
+/* Tablet: 860px. The hero-report stacks */
 @media (max-width: 860px) {
   .hero-report {
     min-height: 100svh;
@@ -1330,7 +1330,7 @@ footer a:hover {
   }
 }
 
-/* Tablet: 768px — all sections adapt */
+/* Tablet: 768px. All sections adapt */
 @media (max-width: 768px) {
   /* ── Hero zoo ── */
   .hero-zoo .glowing-txt {
@@ -1548,7 +1548,7 @@ footer a:hover {
   }
 }
 
-/* Phone: 480px — compact */
+/* Phone: 480px. Compact */
 @media (max-width: 480px) {
   .hero-zoo .glowing-txt {
     letter-spacing: 0.04em;

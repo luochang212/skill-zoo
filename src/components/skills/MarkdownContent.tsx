@@ -75,7 +75,7 @@ function parseFrontmatter(raw: string): ParsedSkillMd {
       return { frontmatter: parsed as Record<string, unknown>, body };
     }
   } catch {
-    // Invalid YAML — fall through to return no frontmatter
+    // Invalid YAML. Fall through to return no frontmatter
   }
 
   return { frontmatter: null, body };
@@ -129,7 +129,7 @@ function FrontmatterCard({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-// Minimal hast shape — avoids pulling in @types/hast just for this transform.
+// Minimal hast shape. This avoids pulling in @types/hast just for this transform.
 interface HastNode {
   type: string;
   tagName?: string;

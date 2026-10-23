@@ -4,8 +4,8 @@
 
 SSOT 扫描（`scan_dir_recursive_into`，src-tauri/src/services/skill.rs:836）对目录只检查 `SKIP_DIRS`（node_modules/.git/dist/build/__pycache__，config.rs:9），**不过滤隐藏目录**。而应用的临时/备份目录全部以 `.` 开头且落在 SSOT 内：
 
-- 更新备份目录 `.name.backup.<pid>.<nanos>.<n>`（`replace_skill_dir_with_rollback`，cli.rs:1007-1013）——`remove_dir_all(&backup)` 的失败被 `let _ =` 吞掉（cli.rs:1012），Windows 上文件被杀软/索引器占用时清理失败很常见；
-- 安装临时目录 `.name.install.*`（`create_temp_dir`，cli.rs:118）——崩溃时残留。
+- 更新备份目录 `.name.backup.<pid>.<nanos>.<n>`（`replace_skill_dir_with_rollback`，cli.rs:1007-1013）。它的 `remove_dir_all(&backup)` 失败被 `let _ =` 吞掉（cli.rs:1012），Windows 上文件被杀软/索引器占用时清理失败很常见；
+- 安装临时目录 `.name.install.*`（`create_temp_dir`，cli.rs:118）。崩溃时它会残留。
 
 这些目录含完整 SKILL.md（备份/临时是技能的完整复制），扫描会把它们识别为技能，出现在 Local 页（名字如 `.demo.backup.123.0`），用户无法理解也无法正常操作（删除可能误删残留）。
 

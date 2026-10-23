@@ -250,7 +250,7 @@ pub fn classify_download_error(repo: String, error: reqwest::Error) -> AppError 
             };
         }
 
-        // TLS errors — distinct from plain "can't connect"
+        // TLS errors. These are distinct from plain "can't connect" errors.
         if msg.contains("tls")
             || msg.contains("ssl")
             || msg.contains("certificate")
@@ -284,7 +284,7 @@ pub fn classify_download_error(repo: String, error: reqwest::Error) -> AppError 
         };
     }
 
-    // Preserve HTTP status when available — it helps distinguish
+    // Preserve HTTP status when available because it helps distinguish
     // "connected but body transfer failed" from other network errors.
     if let Some(status) = error.status() {
         eprintln!("  http_status={}", status.as_u16());

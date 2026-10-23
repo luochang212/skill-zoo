@@ -13,7 +13,7 @@
 
 **Goals:** 每条上游更新给出可复核的判定（坐实/部分属实/证伪）与四维评估；对互为替代的方案论证优劣；产出后续 change 队列。
 
-**Non-Goals:** 不在本 change 实施任何修复；不因「上游有」而照抄——每项以我方架构与真实威胁面为准；不评估上游的 Agent Factory / 遥测等与我方无关的工程实践。
+**Non-Goals:** 不在本 change 实施任何修复；不因「上游有」而照抄，每项判定都以我方架构与真实威胁面为准；不评估上游的 Agent Factory / 遥测等与我方无关的工程实践。
 
 ## 逐条判定
 
@@ -32,12 +32,12 @@
 | C5 | 安全修复（ext transport / shell spawn / 凭据隔离） | 坐实但**不适用** | 无需动作；记录架构差异即可 |
 | C6 | agent 目录扩张（75+，universal 收敛） | 坐实 | 常规维护：按需增补 agent，校准 universal 分类 |
 
-### A1：Codex 路径（核心发现）——**2026-10-14 勘误：原始判定被源码证伪，无需任何变更**
+### A1：Codex 路径（核心发现）。**2026-10-14 勘误：原始判定被源码证伪，无需任何变更**
 
-初版判定依据 OpenAI 文档与上游 #2067，认为新版 Codex 不再读取 `~/.codex/skills`，我方 symlink 将静默失效。**经阅读 openai/codex 源码（main，2026-10-14）证伪**：`codex-rs/ext/skills/src/host_roots.rs` `roots_from_layer_stack` 在 User 层**同时**推入两个根——`$CODEX_HOME/skills`（默认 `~/.codex/skills`，注释原文「Deprecated user skills location, kept for backward compatibility」）与 `~/.agents/skills`，同属 `SkillScope::User`；`codex-rs/ext/skills/src/loader/host.rs:165` 对 User/Repo/Admin scope 均为 `DirectorySymlinkPolicy::Follow`。即：
+初版判定依据 OpenAI 文档与上游 #2067，认为新版 Codex 不再读取 `~/.codex/skills`，我方 symlink 将静默失效。**经阅读 openai/codex 源码（main，2026-10-14）证伪**：`codex-rs/ext/skills/src/host_roots.rs` `roots_from_layer_stack` 在 User 层**同时**推入两个根，分别是 `$CODEX_HOME/skills`（默认 `~/.codex/skills`，注释原文「Deprecated user skills location, kept for backward compatibility」）与 `~/.agents/skills`，同属 `SkillScope::User`；`codex-rs/ext/skills/src/loader/host.rs:165` 对 User/Repo/Admin scope 均为 `DirectorySymlinkPolicy::Follow`。即：
 
 - 我方 `~/.codex/skills` symlink **继续被当前 Codex 正常发现**，现有配置有效，无需任何变更；
-- 发现层无同名覆盖/合并逻辑（`skills/src/name_counts.rs` 仅计数，`host_roots.rs` 的 `dedupe_skill_roots_by_path` 只对同一路径去重），同名技能以多条目共存——与文档「both can appear」一致；
+- 发现层无同名覆盖/合并逻辑（`skills/src/name_counts.rs` 仅计数，`host_roots.rs` 的 `dedupe_skill_roots_by_path` 只对同一路径去重），同名技能以多条目共存，这与文档「both can appear」一致；
 - 唯一留存事实：legacy 读取被官方标注 deprecated，未来版本可能移除。**watch 触发条件：Codex release notes 宣布移除 `$CODEX_HOME/skills` 读取时，再按当时证据立项**；届时上游（npx skills）面对同一信号，无需预支复杂度。
 - 混用工具的同名重复（我方链接于 `.codex/skills` + 同名实体被 npx 装入 `.agents/skills`）为 npx 自身迁移路径的固有现象，现状不动。
 
@@ -59,23 +59,23 @@ rustc 实证：`"\u{feff}---…".trim()` 后不以 `---` 开头（U+FEFF 非 Whi
 
 ### B3：下载/解压上限
 
-修正上轮口头报告：我方**有**下载上限（5 GiB，`config.rs:5`），但解压侧无任何上限（`cli.rs:808` 裸 `extract()`）。上游的 10 MiB/25 MiB/1000 files 是为「任意 URL 来源」设计且按 skill 粒度生效；我方按整仓 zip 粒度、仅 GitHub 来源，照抄 10 MiB 会直接弄坏正常安装。威胁建模：攻击者需控制一个用户主动选择安装的 GitHub 仓库；5 GiB 下载上限防呆不防炸弹（高压缩比 zip 可在 5 GiB 内装下远超此量的解压内容）。结论：解压侧补「总解压量 + 文件数」上限是正解，阈值按整仓场景定（实施 change 里给推荐值并测试），且它是 C3（任意 URL 直装）的**前置**——没有它，C3 不能做。
+修正上轮口头报告：我方**有**下载上限（5 GiB，`config.rs:5`），但解压侧无任何上限（`cli.rs:808` 裸 `extract()`）。上游的 10 MiB/25 MiB/1000 files 是为「任意 URL 来源」设计且按 skill 粒度生效；我方按整仓 zip 粒度、仅 GitHub 来源，照抄 10 MiB 会直接弄坏正常安装。威胁建模：攻击者需控制一个用户主动选择安装的 GitHub 仓库；5 GiB 下载上限防呆不防炸弹（高压缩比 zip 可在 5 GiB 内装下远超此量的解压内容）。结论：解压侧补「总解压量 + 文件数」上限是正解，阈值按整仓场景定（实施 change 里给推荐值并测试），且它是 C3（任意 URL 直装）的**前置**，也就是说没有它 C3 就不能做。
 
 ### B4：lock 健壮性修复集
 
-架构差异消解了上游最密集的一类修复：上游「keep the lock entry while another agent still uses the skill」（#1786）等 per-agent 引用计数问题，在我方「锁按 SSOT 目录键、agent 链接统一视图」模型下没有同形态（删单 agent=删 symlink，锁不动；全删=删实体+锁，`commands/skill.rs:1306,1754`）。上游「锁键≠目录名」一类我方已有 leaf-name 回退。仍需逐条核查的残余项见 tasks §2（路径迁移 #2124、非 GitHub URL 保持 #1614/#1837、update/uninstall 清理已消失条目 #1357 等）——这些是「待核查」而非「已坐实缺失」，不预判结论。
+架构差异消解了上游最密集的一类修复：上游「keep the lock entry while another agent still uses the skill」（#1786）等 per-agent 引用计数问题，在我方「锁按 SSOT 目录键、agent 链接统一视图」模型下没有同形态（删单 agent=删 symlink，锁不动；全删=删实体+锁，`commands/skill.rs:1306,1754`）。上游「锁键≠目录名」一类我方已有 leaf-name 回退。仍需逐条核查的残余项见 tasks §2（路径迁移 #2124、非 GitHub URL 保持 #1614/#1837、update/uninstall 清理已消失条目 #1357 等）。这些属于「待核查」而非「已坐实缺失」，不预判结论。
 
 ### C1：sync / skills-lock.json
 
-坐实为新的上游协议面（647 行 sync.ts + byPackage 归因项目锁），但 README 尚无任何文档章节——字段与语义仍在漂移期。它管理的「项目需要哪些 skill」与我方桌面管理的「本机装了哪些」正交，不构成对我方 SSOT 的替代；但若我方 CLI 要读写 `skills-lock.json` 求兼容，按 AGENTS.md 属 protocol-impacting change（桌面+CLI+fixtures 联动）。观望理由：文档未定、采用度未知、协议成本高；等上游文档化并稳定 1–2 个 minor 再立项。记录在案即可。
+坐实为新的上游协议面（647 行 sync.ts + byPackage 归因项目锁），但 README 尚无任何文档章节，这意味着字段与语义仍在漂移期。它管理的「项目需要哪些 skill」与我方桌面管理的「本机装了哪些」正交，不构成对我方 SSOT 的替代；但若我方 CLI 要读写 `skills-lock.json` 求兼容，按 AGENTS.md 属 protocol-impacting change（桌面+CLI+fixtures 联动）。观望理由：文档未定、采用度未知、协议成本高；等上游文档化并稳定 1–2 个 minor 再立项。记录在案即可。
 
 ### C2 / C3 / C4
 
 `use` 免安装试用：与我方无冲突，桌面侧映射为「试用不落盘」入口，是差异化的产品候选，进产品池不立项。来源扩展（C3）：我方 `parse_repo_query` 硬校验 github.com host，Azure/GitLab/任意 git URL 均不支持；按需求驱动排队，做之前必须先有 B3 的解压上限。`--json`：CLI adjunct 增强，需求驱动。
 
-### C5：安全修复——不适用（架构差异，记录在案）
+### C5：安全修复不适用（架构差异，记录在案）
 
-上游的 ext transport 封禁、update 不经 shell、凭据不进进程，全部针对「跑 git / 起子进程 / 读凭据」的实现。我方安装路径不跑 git、生产代码无 `process::Command`（仅 #[test] 起 bun 验证 lease）、下载走 HTTPS codeload——同类攻击面结构性不存在。**这是「不照抄」的正面案例：上游为架构缺陷付的修复成本，我方因架构不同而无需支付。**
+上游的 ext transport 封禁、update 不经 shell、凭据不进进程，全部针对「跑 git / 起子进程 / 读凭据」的实现。我方安装路径不跑 git、生产代码无 `process::Command`（仅 #[test] 起 bun 验证 lease）、下载走 HTTPS codeload，因此同类攻击面结构性不存在。**这是「不照抄」的正面案例：上游为架构缺陷付的修复成本，我方因架构不同而无需支付。**
 
 ### C6：agent 目录
 
@@ -83,9 +83,9 @@ rustc 实证：`"\u{feff}---…".trim()` 后不以 `---` 开头（U+FEFF 非 Whi
 
 ## 替代方案评估
 
-### 1. Codex：上游 native-SSOT vs 我方 `.codex` symlink——**勘误后裁决反转**
+### 1. Codex：上游 native-SSOT vs 我方 `.codex` symlink（**勘误后裁决反转**）
 
-源码证伪后，初版「二选一」的前提消失：Codex **两个目录都读**（legacy 为 backward compat），我方 symlink 机制有效、选择性保留（不建 symlink 即对 Codex 不可见），且无任何用户受害场景。**裁决：维持现状，不做任何变更**。曾评估过的两个激进方向（Codex 转 native-SSOT、内部存储迁出 `~/.agents/skills` 以保广播组下的选择性）一并撤销——前提是「legacy 已死」，而前提为假。watch 条件见 A1 勘误。
+源码证伪后，初版「二选一」的前提消失：Codex **两个目录都读**（legacy 为 backward compat），我方 symlink 机制有效、选择性保留（不建 symlink 即对 Codex 不可见），且无任何用户受害场景。**裁决：维持现状，不做任何变更**。曾评估过的两个激进方向（Codex 转 native-SSOT、内部存储迁出 `~/.agents/skills` 以保广播组下的选择性）一并撤销，因为这些方向的前提是「legacy 已死」，而前提为假。watch 条件见 A1 勘误。
 
 ### 2. 解压上限：上游 per-skill 阈值 vs 我方整仓阈值
 
@@ -97,7 +97,7 @@ rustc 实证：`"\u{feff}---…".trim()` 后不以 `---` 开头（U+FEFF 非 Whi
 
 ## Risks / Trade-offs
 
-- A1 若拖延，随 Codex 用户升级，静默失效面逐步扩大；A1 若实施，老版本 Codex 用户的 legacy 路径需过渡策略——两难以实测当前 Codex 行为破局。
+- A1 若拖延，随 Codex 用户升级，静默失效面逐步扩大；A1 若实施，老版本 Codex 用户的 legacy 路径需过渡策略。这一两难可由实测当前 Codex 行为破局。
 - 本研究的我方事实基于工作区未提交状态（c0b0263 + 本地改动）；行号可能随后续提交漂移，判定逻辑不受影响。
 - 「不照抄」清单（C5、B3 数值、B4 引用计数类）依赖本文记录的架构差异论证；若我方未来引入 git/shell 安装路径或 per-agent 锁，需重新评估。
 

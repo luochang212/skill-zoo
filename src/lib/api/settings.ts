@@ -15,7 +15,7 @@ export interface GitHubTokenVerification {
   expiresAt?: string | null;
 }
 
-/** Saved-state view of the credential — never carries the token itself. */
+/** Saved-state view of the credential. It never carries the token itself. */
 export interface GitHubCredentialStatus {
   hasToken: boolean;
   expiresAt: string | null;
@@ -47,7 +47,7 @@ export const settingsApi = {
   verifyGitHubToken: (token: string) =>
     invoke<GitHubTokenVerification>("verify_github_token", { token }),
 
-  /** Live check of the saved token — the credential itself stays server-side. */
+  /** Live check of the saved token. The credential itself stays server-side. */
   verifySavedGitHubToken: () => invoke<GitHubTokenVerification>("verify_saved_github_token"),
 
   getSkillCompanionItems: () => invoke<SkillCompanionItem[]>("get_skill_companion_items"),

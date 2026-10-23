@@ -8,13 +8,13 @@
 
 **Reason from first principles.** Strip problems to verifiable facts, then reason upward. "That's how it's done" is not a fact.
 
-**Think before you write.** State your assumptions. Surface tradeoffs. If there are multiple interpretations, lay them all out — don't silently pick one. If something is unclear, stop and ask. Before any change, ask: Will this introduce a bug? Is this more complex than it needs to be? Do the benefits outweigh the side effects?
+**Think before you write.** State your assumptions. Surface tradeoffs. If there are multiple interpretations, lay them all out. Don't silently pick one. If something is unclear, stop and ask. Before any change, ask: Will this introduce a bug? Is this more complex than it needs to be? Do the benefits outweigh the side effects?
 
-**Solve with minimal code.** Don't add features no one asked for. Don't build abstractions for single-use paths. Don't write error handling for scenarios that can't happen. Don't add "configurability" no one requested. Every extra layer, dependency, or indirection must earn its keep — expressing more with less code is cool.
+**Solve with minimal code.** Don't add features no one asked for. Don't build abstractions for single-use paths. Don't write error handling for scenarios that can't happen. Don't add "configurability" no one requested. Every extra layer, dependency, or indirection must earn its keep. Expressing more with less code is cool.
 
 **Touch only what you must.** Don't refactor adjacent code. Don't fix formatting you didn't break. Match the existing style, even if you'd write it differently. Only remove imports that your changes made unused.
 
-**Consistency is load-bearing.** Layers that assume different realities pass local checks but fail globally. A foundation that shifts before the structure above settles doesn't enable iteration — it guarantees rot. When a design decision changes, find every place that assumed the old one — stale code is a bug that hasn't manifested yet.
+**Consistency is load-bearing.** Layers that assume different realities pass local checks but fail globally. A foundation that shifts before the structure above settles doesn't enable iteration. It guarantees rot. When a design decision changes, find every place that assumed the old one. Stale code is a bug that hasn't manifested yet.
 
 **Verify before claiming done.** Don't say you ran something if you didn't. If you can't verify, say so.
 
@@ -34,15 +34,15 @@ Core insight: a Skill is a file. This app is essentially a file manager with a p
 
 ## Project Layout
 
-- **Desktop app** — `src-tauri/`
-- **CLI** — `packages/cli/`
-- **Project website** — `site/` (independent static Astro build; see `site/README.md`)
+- **Desktop app** lives in `src-tauri/`
+- **CLI** lives in `packages/cli/`
+- **Project website** lives in `site/` (independent static Astro build; see `site/README.md`)
 
 ## Core Design Decisions
 
 ### The Filesystem Is the Source of Truth
 
-Skills exist as ordinary files on disk. The cache is not the source of truth — the filesystem is. The cache is rebuilt from the filesystem state, and stale entries are cleaned up on rebuild. User metadata (stars, "my skills") is preserved across rebuilds.
+Skills exist as ordinary files on disk. The cache is not the source of truth. The filesystem is. The cache is rebuilt from the filesystem state, and stale entries are cleaned up on rebuild. User metadata (stars, "my skills") is preserved across rebuilds.
 
 This means: if a user drops a skill folder into the right directory, the app discovers it. If they `rm` one, the app notices. The app reflects reality, not the other way around.
 
@@ -55,9 +55,9 @@ There are two origins, and the symlink target depends on origin:
 - **Remote install** (from GitHub): ZIP is downloaded → extracted to a temp dir → files are **copied** into `~/.agents/skills/<name>/` → agent dirs symlink to SSOT. Copying is necessary here because the temp dir is ephemeral; there is no stable source to link to.
 - **User's local skill** (already in an agent dir like `~/.hermes/skills/`): The skill stays where it is. **Never copy or move it.** Other agent dirs symlink directly to the original location. The app discovers these skills by scanning all agent directories and using `detect_home_path` (which skips symlinks to find the real directory).
 
-In both cases, agent directories only ever contain symlinks — never copies. The difference is where the symlink points: SSOT for remote installs, the user's original directory for local skills.
+In both cases, agent directories only ever contain symlinks and never contain copies. The difference is where the symlink points: SSOT for remote installs, the user's original directory for local skills.
 
-This design respects the user's files and avoids creating divergent copies. If a skill were copied instead of linked, the copy would silently drift from the original — the user edits one version while the other becomes stale. A single source of truth per skill, whether in SSOT or the user's own directory, prevents this.
+This design respects the user's files and avoids creating divergent copies. If a skill were copied instead of linked, the copy would silently drift from the original, which means the user edits one version while the other becomes stale. A single source of truth per skill, whether in SSOT or the user's own directory, prevents this.
 
 ### Local Visibility and Conflict Scope
 
@@ -86,7 +86,7 @@ The fixtures under `fixtures/local-protocol/` represent the desktop app's curren
 
 ### Tauri IPC Is the Only Bridge
 
-The frontend never touches the filesystem, never calls GitHub, never runs git. All external interaction goes through typed Rust Tauri commands — this is a security boundary.
+The frontend never touches the filesystem, never calls GitHub, never runs git. All external interaction goes through typed Rust Tauri commands. This is a security boundary.
 
 ### TanStack React Query Manages Server State
 
@@ -94,27 +94,27 @@ Backend data flows through hooks. Mutations invalidate dependent queries. Compon
 
 ### Browser Support Floor
 
-The frontend ships on three engines — WKWebView (macOS), WebView2 (Windows), WebKitGTK (Linux) — so "Baseline widely available" is not the bar. The bar is **Safari 16.4 / macOS 13.3**, which is what the toolchain already assumes: Vite 8's default build target is `safari16.4`, and Tailwind v4's documented baseline is Safari 16.4.
+The frontend ships on three engines (WKWebView for macOS, WebView2 for Windows, and WebKitGTK for Linux), so "Baseline widely available" is not the bar. The bar is **Safari 16.4 / macOS 13.3**, which is what the toolchain already assumes: Vite 8's default build target is `safari16.4`, and Tailwind v4's documented baseline is Safari 16.4.
 
 The floor has two machine-readable homes, one per axis: Vite 8's `build.target` (`safari16.4`) for the browser engine, and `bundle.macOS.minimumSystemVersion` in `src-tauri/tauri.conf.json` for the OS version. Prose must not contradict either.
 
-Every platform feature is one of two things. **Load-bearing** — the app is broken without it, so feature-detect it or ship a fallback. **Progressive** — absence degrades instead of breaking (the theme-switch view transition and the `::-webkit-scrollbar` color fallback are progressive). Don't add a load-bearing feature above the floor without raising the floor in the same change.
+Every platform feature is one of two things. A **load-bearing** feature is one the app is broken without, so feature-detect it or ship a fallback. A **progressive** feature is one whose absence degrades instead of breaking (the theme-switch view transition and the `::-webkit-scrollbar` color fallback are progressive). Don't add a load-bearing feature above the floor without raising the floor in the same change.
 
 ## OpenSpec Workflow
 
 The repo manages behavior-level changes through OpenSpec: open a change (proposal → specs delta → design → tasks), implement, then archive. CLI: `openspec` (v1.8+).
 
-- `openspec/specs/` is the living truth of system behavior — behavior-level changes should sync the main specs, or the specs go stale.
-- `openspec/changes/archive/` is the decision record (with verification evidence and trade-offs) — worth reading before evaluating a change.
+- `openspec/specs/` is the living truth of system behavior, so behavior-level changes should sync the main specs, or the specs go stale.
+- `openspec/changes/archive/` is the decision record (with verification evidence and trade-offs) and is worth reading before evaluating a change.
 - Project context lives in `openspec/config.yaml`; principle-level conventions are this file.
 - Gate: `openspec validate --all --strict`.
-- Typo-level or pure-tooling fixes don't need a change — match ceremony to stakes (see How We Work).
+- Typo-level or pure-tooling fixes don't need a change. Match ceremony to stakes (see How We Work).
 
 ## Reading architecture decisions
 
 `adr/` exists because agents over-focus on the current task and forget settled decisions: reading it at task start counters the drift, and recording when a choice settles counters the forgetting. At the start of a coding, design, or review task, if `adr/` exists, run `adrkit list`. The four folders are a context budget: read the relevant `implemented/` records in full with `adrkit show <N>` or their files; check the relevant `proposed/` records for intent and the relevant `rejected/` records for the bad cases they warn against (a rejection is durable: it leaves only when another record owns its warning); treat `archived/` as frozen history and read it only when a task explicitly cites it. Do not judge relevance by title alone: inspect tags, paths, relationships, and task scope; when a task targets specific files, `adrkit relevant <path>` retrieves the records whose `paths:` scopes govern them. For actual Git changes, use `adrkit relevant --base <review-base>` or `adrkit relevant --staged`; supplement scope matches with inventory reading for unscoped decisions and resolve incomplete-search diagnostics. Compare constraints with current code; explain conflicts or changed assumptions before choosing a different approach. Mention relevant ADR numbers and verify affected behavior. Re-read on a new or resumed task, or when scope changes. Read a `## Deliberation` appendix only when its decision is in play.
 
-Before creating a record, compare it with the active records covering the same choice or mechanism: extend a duplicate; when the active record's mechanism is itself unsound, weigh removing it rather than patching it; for an unshipped full replacement, link its intent and keep the old authority active, then use `adrkit supersede --by` in the same change that ships and records the replacement; link a partial overlap while the older record stays active. When shipping or reviewing, keep each active record's realization facts — paths, names, defaults — aligned with shipped code; a changed choice is a new record with an explicit relationship, not a rewrite of old rationale. Archived records are ordinary Git-tracked history, never edited silently, and not read by default.
+Before creating a record, compare it with the active records covering the same choice or mechanism: extend a duplicate; when the active record's mechanism is itself unsound, weigh removing it rather than patching it; for an unshipped full replacement, link its intent and keep the old authority active, then use `adrkit supersede --by` in the same change that ships and records the replacement; link a partial overlap while the older record stays active. When shipping or reviewing, keep each active record's realization facts (paths, names, defaults) aligned with shipped code; a changed choice is a new record with an explicit relationship, not a rewrite of old rationale. Archived records are ordinary Git-tracked history, never edited silently, and not read by default.
 
 Records cost time to write, read, and maintain, and stale records can mislead; record only when preserving the rationale is worth that cost. For example, routing all writes through one boundary to preserve validation and auditing can merit an ADR: a later direct write may look locally correct while bypassing those guarantees. Routine fixes and local renames usually need none when code and tests adequately explain them.
 
@@ -126,7 +126,7 @@ When the user wants to review or share the project's history, use the `adrkit-vi
 
 <!-- adrkit: standing-orders 449bd66b -->
 
-Project gate: `adrkit validate --all`, run by `.githooks/pre-push` — CI does not cover `adr/`.
+Project gate: `adrkit validate --all`, run by `.githooks/pre-push` because CI does not cover `adr/`.
 
 ## Testing
 
@@ -134,7 +134,7 @@ Project gate: `adrkit validate --all`, run by `.githooks/pre-push` — CI does n
 - frontend: `bun run test`
 - backend: `cargo test --features test-helpers --manifest-path src-tauri/Cargo.toml`
 
-**Test where bugs breed, skip what doesn't matter.** Only test code that would both go wrong and hurt when it does. Not thin wrappers, trivial getters, library behavior, or simple useState — these won't break, and if they do it's obvious.
+**Test where bugs breed, skip what doesn't matter.** Only test code that would both go wrong and hurt when it does. Not thin wrappers, trivial getters, library behavior, or simple useState. These won't break, and if they do it's obvious.
 
 **Use simple methods on complex code.** Prefer input → assert output over heavy infrastructure.
 
@@ -144,7 +144,7 @@ Project gate: `adrkit validate --all`, run by `.githooks/pre-push` — CI does n
 
 ## Code Quality
 
-**Lint:** `bun run lint` (oxlint — correctness, suspicious, perf rules)
+**Lint:** `bun run lint` (oxlint for correctness, suspicious, and perf rules)
 **Format:** `bun run format` (oxfmt)
 **CI gates:** Lint + format check + tests run on every PR.
 
@@ -152,11 +152,11 @@ Project gate: `adrkit validate --all`, run by `.githooks/pre-push` — CI does n
 
 The frontend dev server runs under Bun (`bun run dev` → `bunx --bun vite`). Vite caches pre-bundled dependencies in `node_modules/.vite`.
 
-When `package.json` changes — a dependency added or removed, or `bun install` / `bun remove` run — that cache can go stale. The tell-tale symptom is `[vite:import-analysis] Failed to resolve import "<dep>"` for a dependency that is clearly installed in `node_modules`. Clear the cache and restart:
+When `package.json` changes (a dependency added or removed, or `bun install` / `bun remove` run), that cache can go stale. The tell-tale symptom is `[vite:import-analysis] Failed to resolve import "<dep>"` for a dependency that is clearly installed in `node_modules`. Clear the cache and restart:
 
     rm -rf node_modules/.vite && bun run dev
 
-Or force a one-time re-bundle with `bunx --bun vite --force`. Note that `bun install` fixes `node_modules` but does not touch the Vite cache, and a running dev server holds the stale optimizer state in memory — a full restart is required.
+Or force a one-time re-bundle with `bunx --bun vite --force`. Note that `bun install` fixes `node_modules` but does not touch the Vite cache, and a running dev server holds the stale optimizer state in memory, so a full restart is required.
 
 ## Project Website
 

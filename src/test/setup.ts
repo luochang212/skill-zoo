@@ -9,7 +9,7 @@ class ResizeObserverMock {
 
 globalThis.ResizeObserver = ResizeObserverMock;
 
-// Mock Tauri IPC by default — no test should accidentally call real invoke.
+// Mock Tauri IPC by default. No test should accidentally call real invoke.
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn().mockRejectedValue(new Error("Tauri invoke not mocked")),
 }));

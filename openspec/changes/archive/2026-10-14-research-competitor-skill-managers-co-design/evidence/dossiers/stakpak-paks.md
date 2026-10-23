@@ -2,15 +2,15 @@
 
 ## 1. 定位与架构(实证)
 
-一句话定位:面向 stakpak 生态的 AgentSkills 标准包管理器——`paks install <name>` 从自家托管 registry 装,git tag 管版本,Web registry 浏览。
+一句话定位:面向 stakpak 生态的 AgentSkills 标准包管理器。`paks install <name>` 从自家托管 registry 装,git tag 管版本,Web registry 浏览。
 
 技术栈:Rust workspace(apps/cli 约 2.3k 行,packages/core 仅 config/error,packages/api 为 registry 客户端+schemars 类型,apps/web 为 Vite/TS 站点);clap + dialoguer;registry 硬编码 `https://apiv2.stakpak.dev`(apps/cli/src/commands/search.rs:15)。
 
-SSOT/分发模型:**复制到单个 agent 目录,无 SSOT 无链接无锁文件**。`copy_skill_to_target`(apps/cli/src/commands/install.rs:605-714)递归复制;agent 表内置于 `~/.paks/config.toml`(8 个内置 agent,stakpak 优先,apps/cli/src/commands/core/config.rs:225-310),一条命令只装一个 agent,无跨 agent 批量。全库无 update 命令、无 lockfile、无版本追踪——装完即忘。
+SSOT/分发模型:**复制到单个 agent 目录,无 SSOT 无链接无锁文件**。`copy_skill_to_target`(apps/cli/src/commands/install.rs:605-714)递归复制;agent 表内置于 `~/.paks/config.toml`(8 个内置 agent,stakpak 优先,apps/cli/src/commands/core/config.rs:225-310),一条命令只装一个 agent,无跨 agent 批量。全库无 update 命令、无 lockfile、无版本追踪,也就是说装完即忘。
 
 形态:brew/二进制 CLI + 托管 registry(publish 需 login,git tag 定版本);技能来源:registry / GitHub URL(浏览器 URL 直接粘贴解析,install.rs:176-211)/ 本地路径。
 
-**与任务简报的偏差必须指出:「CI/自动化向」在代码中无证据**——无 `--yes`、无非交互模式、无锁文件、无确定性保证;README 中唯一自动化接口是 `list --format json|yaml`。install 命令本身无提示,但这是简单到没有可提示的东西,不是 CI 设计。
+**与任务简报的偏差必须指出:「CI/自动化向」在代码中无证据**,因为无 `--yes`、无非交互模式、无锁文件、无确定性保证;README 中唯一自动化接口是 `list --format json|yaml`。install 命令本身无提示,但这是简单到没有可提示的东西,不是 CI 设计。
 
 ## 2. 功能清单
 
@@ -18,7 +18,7 @@ SSOT/分发模型:**复制到单个 agent 目录,无 SSOT 无链接无锁文件*
 - [完整] `validate`:按 AgentSkills 规范校验 frontmatter(name 1-64、小写字母数字连字符、禁首尾/连续连字符;description 1-1024;compatibility ≤500,core/skill.rs:115-155)+ 可选目录空目录警告;`--strict` 把警告升级为错误(validate.rs:98-100)
 - [完整] `install`:registry(`account/skill[@version]`,install.rs:46-99)/ GitHub tree/blob URL / git URL / 本地路径→复制到单 agent;`--force` 覆盖;装前比对已装版本(:416)
 - [完整] `publish`:validate→git tag 语义化版本(`--bump patch/minor/major`)→推送 registry;`--dry-run`;publish.rs:218-277
-- [完整] `search`/`login`/`list`/`remove`/`agent`:ROADMAP.md 自认 search/login 曾是 stub,现已实现但 ROADMAP 未更新——文档腐化样本
+- [完整] `search`/`login`/`list`/`remove`/`agent`:ROADMAP.md 自认 search/login 曾是 stub,现已实现但 ROADMAP 未更新,是一个文档腐化样本
 - [完整] API 客户端分包(packages/api/rust)+ **schemars 从 Rust 类型生成 JSON Schema**(packages/api/schema/src/bin/generate_schema.rs:1-13)
 - [半成品] `info`:本地 only,registry 查询缺(ROADMAP 自认)
 - [摆设] frontmatter `dependencies` 字段(name+semver range+git+path,SkillDependency,core/skill.rs:89-110):**install 全程不解析**,纯声明摆设

@@ -1,7 +1,7 @@
 # plugin-skill-visibility Specification
 
 ## Purpose
-Makes the skills that coding-agent plugins ship visible without taking ownership of them: plugin skill folders live outside the SSOT store and every agent skills directory, so they are discovered by one filesystem rule, listed read-only under a Plugins category with provenance, and protected by a backend refusal on every write path — their lifecycle belongs to the plugin system, not to Skill Zoo.
+Makes the skills that coding-agent plugins ship visible without taking ownership of them: plugin skill folders live outside the SSOT store and every agent skills directory, so they are discovered by one filesystem rule, listed read-only under a Plugins category with provenance, and protected by a backend refusal on every write path. Their lifecycle belongs to the plugin system, not to Skill Zoo.
 
 ## Requirements
 
@@ -50,7 +50,7 @@ Plugin skill discovery SHALL default to disabled and SHALL be switchable from Se
 
 ### Requirement: Duplicate names keep the newest copy
 
-When one agent's tree holds several discovered copies of the same skill name — versioned caches do this — the system SHALL keep only the newest copy per agent and name. This heuristic is imperfect by design: it may keep a stale copy whose mtime is newer, and it may collapse distinct same-named skills.
+When one agent's tree holds several discovered copies of the same skill name, as versioned caches do, the system SHALL keep only the newest copy per agent and name. This heuristic is imperfect by design: it may keep a stale copy whose mtime is newer, and it may collapse distinct same-named skills.
 
 #### Scenario: Versioned cache collapses
 

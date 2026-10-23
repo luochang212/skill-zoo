@@ -1,14 +1,14 @@
 # chrlsio/agent-skills(★300|Rust + React 19/Tauri 2|2026-04-09 push|MIT)
 
 ## 1. 定位与架构(实证)
-一句话:与 skill-zoo 同构的轻量管理器——`~/.agents/skills/` 为 canonical 位置 + agent 目录 symlink,纯扫描无技能数据库,叠加 skills.sh/ClawHub 双市场。
+一句话:与 skill-zoo 同构的轻量管理器。它以 `~/.agents/skills/` 为 canonical 位置 + agent 目录 symlink,纯扫描无技能数据库,叠加 skills.sh/ClawHub 双市场。
 
 - 技术栈:React 19 + TS + Tailwind 4 / Tauri 2 / Rust;SQLite 仅用于市场缓存(README Tech Stack;marketplace/cache.rs:16-24)。
 - SSOT 模型:install = 复制进 `~/.agents/skills/<name>/`(canonical,install.rs:38-43 注释"Canonical model")→ 对每个目标 agent 建软链;若 agent 经 `additional_readable_paths` 原生读取 `~/.agents/skills` 则**跳过软链**(install.rs:74-84)。技能状态零落库,启动时扫描所有 agent 目录 + 共享目录,canonicalize 解链后按目录名去重(engine.rs:60-75 scan_all_skills 注释)。
 - 出处追踪:共享目录下单文件 `.provenance.json`(skill_id → source/repo_url),安装写入、卸载移除,扫描时回读(install.rs:324-373)。
 - 形态:纯桌面 app,无 CLI。
 - 技能来源:本地目录、Git(git2)、skills.sh(RSC 抓取)与 ClawHub(API)。
-- 与 skill-zoo 的关键差异:安装到 canonical 前 `remove_dir_all` 已存在同名目录,无冲突检查(install.rs:139-145);symlink 失败静默降级 copy,仅 eprintln(install.rs:150-160)——两者都破坏"文件系统真相"的无损性;去重键是目录名(engine.rs:112-114 注释"Dedup key = directory name"),两个不同 agent 下同名异技能会被错误合并。已 6 个月未更新。
+- 与 skill-zoo 的关键差异:安装到 canonical 前 `remove_dir_all` 已存在同名目录,无冲突检查(install.rs:139-145);symlink 失败静默降级 copy,仅 eprintln(install.rs:150-160)。两者都破坏"文件系统真相"的无损性;去重键是目录名(engine.rs:112-114 注释"Dedup key = directory name"),两个不同 agent 下同名异技能会被错误合并。已 6 个月未更新。
 
 ## 2. 功能清单
 - 16 agent 支持,定义外置为 TOML 注册表(src-tauri/agents/*.toml:slug/name/global_paths/cli_command/install_command/install_docs_url/skill_format/additional_readable_paths/extra_config) [完整] registry/loader.rs:11-40(加载 + ~ 展开 + 按 slug 排序)。

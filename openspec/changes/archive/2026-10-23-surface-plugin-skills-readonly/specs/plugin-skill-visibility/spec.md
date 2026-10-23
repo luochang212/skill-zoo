@@ -40,7 +40,7 @@ Plugin skill discovery SHALL default to enabled and SHALL be switchable from Set
 - **THEN** the next refresh re-discovers plugin skills and the category reappears
 ### Requirement: Duplicate names keep the newest copy
 
-When one agent's tree holds several discovered copies of the same skill name — versioned caches do this — the system SHALL keep only the newest copy per agent and name. This heuristic is imperfect by design: it may keep a stale copy whose mtime is newer, and it may collapse distinct same-named skills.
+When one agent's tree holds several discovered copies of the same skill name, as versioned caches do, the system SHALL keep only the newest copy per agent and name. This heuristic is imperfect by design: it may keep a stale copy whose mtime is newer, and it may collapse distinct same-named skills.
 
 #### Scenario: Versioned cache collapses
 

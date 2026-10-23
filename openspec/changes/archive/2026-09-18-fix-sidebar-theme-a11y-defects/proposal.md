@@ -11,7 +11,7 @@
 - **系统主题不跟随 OS**：`matchMedia` 监听只存在于 `useTheme()`，而该 hook 仅被设置页的 `ThemeSettings` 调用。把监听提升到应用级挂载，并在事件触发时重新读取当前主题设置，避免覆盖用户的显式选择。
 - **主题切换的快照顺序**：`startViewTransition` 回调内只排了一次 React 状态更新，主题 class 落在后续 effect 里，新快照可能仍在旧主题下拍摄。改为在回调内同步提交 DOM。
 - **`color-scheme` 默认钉死单值**：`:root { color-scheme: light }` 与"跟随系统"语义矛盾，JS 路径失败时会出现深色画布配浅色原生控件。改为 `light dark`，并在主题为 `system` 时写入双值。
-- **焦点可见性**：共享 `Input` 用 `focus-visible:outline-none` 抹掉焦点环，替代物只有 1px/50% alpha 的边框色——实测对比度浅色 **2.67:1**、深色 **1.69:1**（后者低于 WCAG 1.4.11 的 3:1）。改为与 `Button`/`Switch`/`Checkbox` 一致的 `ring-2`。同类写法共三处：`ui/input.tsx`、`InstalledSkills` 搜索框、`SkillCompanionSettings` 的说明文本框，一并处理并补 `aria-label`。
+- **焦点可见性**：共享 `Input` 用 `focus-visible:outline-none` 抹掉焦点环，替代物只有 1px/50% alpha 的边框色。实测对比度浅色 **2.67:1**、深色 **1.69:1**（后者低于 WCAG 1.4.11 的 3:1）。改为与 `Button`/`Switch`/`Checkbox` 一致的 `ring-2`。同类写法共三处：`ui/input.tsx`、`InstalledSkills` 搜索框、`SkillCompanionSettings` 的说明文本框，一并处理并补 `aria-label`。
 - **可访问名称与展开状态**：行选择与全选复选框补 `aria-label`；文件树目录按钮补 `aria-expanded`。
 - **输入法安全**：`BrowseSkills` 的仓库搜索在 Enter 分支无合成态保护，中文用户确认候选词即触发跳转。补 `isComposing || keyCode === 229` 双判。
 
@@ -19,7 +19,7 @@
 
 ### New Capabilities
 
-- `desktop-ui`: Tauri 桌面界面（`src/`）的交互与可达性契约——折叠/展开控件必须暴露状态且不得留下不可见可聚焦内容、动画必须真正作用于被改变的属性、主题必须能跟随系统且不出现错误的原生配色、共享表单控件必须提供可见焦点指示与可访问名称、键盘提交必须对输入法合成安全。
+- `desktop-ui`: Tauri 桌面界面（`src/`）的交互与可达性契约。其要求为：折叠/展开控件必须暴露状态且不得留下不可见可聚焦内容、动画必须真正作用于被改变的属性、主题必须能跟随系统且不出现错误的原生配色、共享表单控件必须提供可见焦点指示与可访问名称、键盘提交必须对输入法合成安全。
 
 ### Modified Capabilities
 

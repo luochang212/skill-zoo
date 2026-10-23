@@ -29,9 +29,9 @@
 
 ### 决定 1：用编译器开关，而不是"review 时人工注意"
 
-- (A) 保持关闭、靠 code review 要求 —— 否决。实测存量已有 49 处，说明人工要求已经失效，且没有可执行的回归护栏。
-- (B) 只在前端开启、CLI 不动 —— 否决。CLI 的 26 处里包含 1 处生产代码（`packages/cli/src/protocol/archive.ts`），且 CLI 与前端面向同一套路径与协议语义，只开一半会让同类问题在 CLI 继续累积。
-- (C) 用 lint 规则替代 —— 未采用。会引入第二套与 `typecheck` 并行的机制；oxlint 是否有类型感知的等价规则需单独评估，不混入本次范围。
+- (A) 保持关闭、靠 code review 要求，已否决。实测存量已有 49 处，说明人工要求已经失效，且没有可执行的回归护栏。
+- (B) 只在前端开启、CLI 不动，已否决。CLI 的 26 处里包含 1 处生产代码（`packages/cli/src/protocol/archive.ts`），且 CLI 与前端面向同一套路径与协议语义，只开一半会让同类问题在 CLI 继续累积。
+- (C) 用 lint 规则替代，未采用。会引入第二套与 `typecheck` 并行的机制；oxlint 是否有类型感知的等价规则需单独评估，不混入本次范围。
 
 结论：TS 编译器是类型层面唯一的权威判断者，开关落在既有的 `typecheck` 闸门上，一处生效、一处失败。
 
@@ -39,7 +39,7 @@
 
 三个项目实测 0 错误，属于零成本收紧；它要求类型导入与值导入在写法上可区分，方向与两项目已有的 `isolatedModules` 一致。备选是本次只开 `noUncheckedIndexedAccess`，但那样以后还要再触碰同样的三个文件；合并处理成本更低。
 
-### 决定 3：修复手法——表达真实约束，而不是断言
+### 决定 3：修复手法是表达真实约束，而不是断言
 
 `AGENTS.md` 要求 "Solve with minimal code… Don't add error handling for scenarios that can't happen"。因此修复不是无脑加守卫，按优先级：
 

@@ -1,4 +1,4 @@
-# SSOT Scan — Delta
+# SSOT Scan Delta
 
 ## ADDED Requirements
 

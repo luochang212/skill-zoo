@@ -11,12 +11,12 @@
 - [x] 2.2 清理失败不再使命令报错：部分移动失败时用既有暂存回滚把已移链接放回原位，命令仍返回成功，返回结构体新增 `link_cleanup_failed: bool`（清理成功为 false）。验证：单测"清理失败 → 设置已保存 + 返回成功 + 链接回到原位 + 标志为 true"
 - [x] 2.3 清理失败详情单行 `eprintln!` 到 stderr（含 agent、错误、涉及路径；被跳过的外来/未知链接也计数输出）。验证：单测断言 stderr 内容可用 `panic::catch_unwind` 外的方式捕获或抽出格式化函数直接断言
 - [x] 2.4 删除不再需要的联合原子性代码：`commit_agent_preference_change` / `rollback_agent_preference_change` 的设置回滚职责，行为收窄后溶解或简化。验证：`cargo clippy --features test-helpers -- -D warnings` 无死代码警告
-- [x] 2.5 把实验坐实的四条失败路径固化为降级行为回归测试：跨卷 rename（EXDEV）、skills 目录只读、父目录只读（暂存建不起）、链接被外部重建——全部断言"隐藏成功 + 提示标志为 true + 目录恢复原状"；跨卷用注入 rename 失败模拟即可，不必真挂卷。验证：`cargo test --features test-helpers --manifest-path src-tauri/Cargo.toml` 全绿
+- [x] 2.5 把实验坐实的四条失败路径固化为降级行为回归测试：跨卷 rename（EXDEV）、skills 目录只读、父目录只读（暂存建不起）、链接被外部重建。每条测试都断言"隐藏成功 + 提示标志为 true + 目录恢复原状"；跨卷用注入 rename 失败模拟即可，不必真挂卷。验证：`cargo test --features test-helpers --manifest-path src-tauri/Cargo.toml` 全绿
 - [x] 2.6 上限守卫改为只挡增长（issue #10 反馈的残留死锁）：`exceeds_visible_agent_cap` 仅在「新数量超过 7 且大于旧数量」时拒绝，存量超限偏好（上限引入前保存）的收缩与等量更新被接受。验证：单测 `visible_agent_cap_only_blocks_growth` 覆盖收缩、增长、等量、上限内四类边界
 
 ## 3. 前端提示
 
-- [x] 3.1 `zh.json` / `en.json` 新增 `settings.agentPaths.hiddenWithCleanupWarning`（落地文案不带 {agent} 插值——返回值按 design 决定 3 仅携带布尔，前端无从得知具体 agent；zh「已隐藏 Coding Agent，部分技能链接未能清理」，en "Coding agent hidden, but some skill links could not be removed"）。验证：`bun run typecheck` 通过且两语言键一致
+- [x] 3.1 `zh.json` / `en.json` 新增 `settings.agentPaths.hiddenWithCleanupWarning`（落地文案不带 {agent} 插值。返回值按 design 决定 3 仅携带布尔，前端无从得知具体 agent；zh「已隐藏 Coding Agent，部分技能链接未能清理」，en "Coding agent hidden, but some skill links could not be removed"）。验证：`bun run typecheck` 通过且两语言键一致
 - [x] 3.2 `AgentPreferences` 类型与 `useAgentPreferences.save` 成功分支处理 `link_cleanup_failed`：为 true 时弹新增的单句状态提示，为 false 时保持现有静默行为；失败分支文案不变。验证：`bun run typecheck` 0 错误，新增/更新组件或 hook 测试断言两种分支的 toast 行为
 
 ## 4. 复核与验证

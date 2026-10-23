@@ -21,7 +21,7 @@ export const messages = {
   },
   "arch-lead": {
     "zh": "三层结构：React 前端通过 Tauri IPC 与 Rust 后端通信。前端零文件系统、零网络访问，所有交互走类型化 Rust 命令；后端管理文件系统与外部服务。",
-    "en": "Three-layer structure: React frontend communicates with Rust backend via Tauri IPC. Zero filesystem and network access from the frontend — all interactions go through typed Rust commands; the backend manages filesystem and external services."
+    "en": "Three-layer structure: React frontend communicates with Rust backend via Tauri IPC. Zero filesystem and network access from the frontend. All interactions go through typed Rust commands; the backend manages filesystem and external services."
   },
   "stat-platforms": {
     "zh": "桌面平台",
@@ -133,7 +133,7 @@ export const messages = {
   },
   "d3-desc": {
     "zh": "前端零文件系统访问、零 GitHub API 调用、零 git 执行。所有外部交互通过类型化 Rust Tauri 命令完成。路径遍历严格验证，拒绝绝对路径与父目录引用。",
-    "en": "Zero filesystem access, zero GitHub API calls, zero git execution from the frontend. All external interaction goes through typed Rust Tauri commands. Path traversal is strictly validated — absolute paths and parent directory references are rejected."
+    "en": "Zero filesystem access, zero GitHub API calls, zero git execution from the frontend. All external interaction goes through typed Rust Tauri commands. Path traversal is strictly validated, and absolute paths and parent directory references are rejected."
   },
   "ux-eyebrow": {
     "zh": "用户体验",
@@ -145,11 +145,11 @@ export const messages = {
   },
   "ux-lead": {
     "zh": "从乐观更新到骨架屏，从 3D 动画到错误恢复，每个细节都经过精心设计。",
-    "en": "From optimistic updates to skeleton screens, from 3D animations to error recovery — every detail is carefully crafted."
+    "en": "From optimistic updates to skeleton screens, from 3D animations to error recovery. Every detail is carefully crafted."
   },
   "ux-opt-title": {
     "zh": "乐观更新三阶段",
-    "en": "Optimistic Update — Three Stages"
+    "en": "Optimistic Update in Three Stages"
   },
   "ux-opt-desc": {
     "zh": "以收藏为例：点击星标瞬间 UI 已更新，API 在后台发出。请求失败则快照回滚，用户看到的始终是正确状态。mutation 错误由 sonner toast 短暂弹出，不打断当前操作。",
@@ -161,7 +161,7 @@ export const messages = {
   },
   "ux-cache-desc": {
     "zh": "ZIP 24h TTL、SHA-256 按 mtime 缓存、React Query staleTime/gcTime，层层减少不必要网络请求。",
-    "en": "ZIP 24h TTL, SHA-256 cache by mtime, React Query staleTime/gcTime — layers of caching to reduce unnecessary network requests."
+    "en": "ZIP 24h TTL, SHA-256 cache by mtime, and React Query staleTime/gcTime form layers of caching to reduce unnecessary network requests."
   },
   "ux-skeleton-title": {
     "zh": "精确骨架屏",
@@ -197,7 +197,7 @@ export const messages = {
   },
   "agents-lead": {
     "zh": "从 CLI 到 IDE，从终端到桌面，覆盖主流 AI 编程工具。",
-    "en": "From CLI to IDE, terminal to desktop — across the full spectrum of AI coding tools."
+    "en": "From CLI to IDE, and from terminal to desktop, we cover the full spectrum of AI coding tools."
   },
   "overview-eyebrow": {
     "zh": "产品概览 · 2026",
@@ -205,7 +205,7 @@ export const messages = {
   },
   "overview-lead": {
     "zh": "为 AI 编程助手打造的 Skill 桌面管理工具，覆盖发现、安装、编辑到维护的完整工作流。基于 Tauri v2 构建，轻量、离线、安全。",
-    "en": "Desktop skill manager for AI coding assistants, covering the full workflow from discovery and installation to editing and maintenance. Built on Tauri v2 — lightweight, offline, and secure."
+    "en": "Desktop skill manager for AI coding assistants, covering the full workflow from discovery and installation to editing and maintenance. Built on Tauri v2, which keeps it lightweight, offline, and secure."
   },
   "dl-download": {
     "zh": "下载",
@@ -277,7 +277,7 @@ export const messages = {
   },
   "install-win-alt-desc": {
     "zh": "下载便携版 .zip，解压到任意文件夹，双击 <code>skill-zoo.exe</code> 即可运行，无需安装。",
-    "en": "Download the portable .zip, extract anywhere, and run <code>skill-zoo.exe</code> — no installation needed."
+    "en": "Download the portable .zip, extract anywhere, and run <code>skill-zoo.exe</code> with no installation needed."
   },
   "install-linux-step1": {
     "zh": "下载与你 CPU 架构匹配的 <code>AppImage</code> 文件",

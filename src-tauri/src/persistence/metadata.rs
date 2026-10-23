@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
-/// User metadata for a single skill — never rebuilt, only mutated by user actions.
+/// User metadata for a single skill. It is never rebuilt, only mutated by user actions.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillMetadata {

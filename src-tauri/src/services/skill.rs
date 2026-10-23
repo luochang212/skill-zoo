@@ -316,7 +316,7 @@ impl From<SkillCacheEntry> for InstalledSkill {
 /// both, so all link-handling code treats junctions identically.
 ///
 /// Uses `junction::exists()` on Windows to check specifically for junction reparse
-/// points — not all reparse points (e.g. OneDrive placeholders, DFS links).
+/// points rather than all reparse points (e.g. OneDrive placeholders, DFS links).
 #[inline]
 pub fn is_symlink_or_junction(path: &std::path::Path) -> bool {
     if path.is_symlink() {
@@ -528,7 +528,7 @@ impl SkillService {
     /// - If the skill's homePath is under an agent directory (origin=agent),
     ///   that agent is marked as available directly.
     /// - For all other agents, only a symlink pointing to this skill's
-    ///   homePath counts — a same-named real directory is a separate skill.
+    ///   homePath counts. A same-named real directory is a separate skill.
     pub fn detect_agents(skill_dir: &str, home_path: &Option<String>) -> HashMap<String, bool> {
         let mut enabled = HashMap::new();
         let home = home_path.as_ref().map(std::path::Path::new);
@@ -877,7 +877,7 @@ impl SkillService {
     /// directory, other agents' skills directories and the SSOT store),
     /// skipping junk directories, bounded in depth; any directory directly
     /// containing a `SKILL.md` is a plugin skill. No layout or vendor format
-    /// knowledge — the same rule serves built-ins and custom registrations.
+    /// knowledge. The same rule serves built-ins and custom registrations.
     /// See the plugin-skill-visibility capability.
     fn scan_plugin_skills_into(entries: &mut Vec<SkillCacheEntry>) {
         // Honored before any filesystem work: when disabled the scan produces
@@ -1018,7 +1018,7 @@ impl SkillService {
         let mut apps = HashMap::new();
         apps.insert(agent_id.to_string(), true);
         // No content hash: it feeds duplicate, consistency and merge checks,
-        // which plugin skills are excluded from — hashing thousands of plugin
+        // which plugin skills are excluded from. Hashing thousands of plugin
         // files on every rebuild would be pure overhead.
         let content_hash = None;
         Some(SkillCacheEntry {
@@ -1044,8 +1044,8 @@ impl SkillService {
     /// Resolve timestamps for a skill cache entry.
     ///
     /// Priority:
-    /// 1. Lock file timestamps (RFC3339 strings → unix seconds) — for GitHub-installed skills
-    /// 2. Filesystem metadata (created/modified time) — for local skills without lock entries
+    /// 1. Lock file timestamps (RFC3339 strings → unix seconds), used for GitHub-installed skills
+    /// 2. Filesystem metadata (created/modified time), used for local skills without lock entries
     /// 3. Fallback to `now`
     fn resolve_timestamps(
         lock_entry: Option<&SkillLockEntry>,
@@ -1073,7 +1073,7 @@ impl SkillService {
             return (installed_at, updated_at);
         }
 
-        // No lock entry — fall back to filesystem metadata
+        // No lock entry, so fall back to filesystem metadata
         let fs_installed = std::fs::metadata(skill_home_path)
             .ok()
             .and_then(|m| m.created().ok())
@@ -1124,7 +1124,7 @@ impl SkillService {
                 }
                 // If the symlink target is an external import source, scan it
                 // here with origin = "external". Otherwise it's a symlink to
-                // SSOT which is already scanned from the SSOT root — skip it.
+                // SSOT which is already scanned from the SSOT root, so skip it.
                 if let Some(target) = directory_identity(&path) {
                     if let Some(import) = imports_by_source.get(&target) {
                         if let Ok(ext_entry) = Self::scan_external_import(import) {
@@ -1958,7 +1958,7 @@ impl SkillService {
         c.save()
     }
 
-    /// Returns (entries, failed_dirs) — caller decides how to handle failures.
+    /// Returns (entries, failed_dirs). The caller decides how to handle failures.
     pub fn scan_skills_batch(skill_dirs: &[String]) -> (Vec<SkillCacheEntry>, Vec<String>) {
         let mut entries = Vec::with_capacity(skill_dirs.len());
         let mut failed = Vec::new();
@@ -2069,7 +2069,7 @@ impl SkillService {
     pub(crate) fn safe_remove(path: &std::path::Path) -> Result<(), AppError> {
         if is_symlink_or_junction(path) {
             // On Unix: symlinks are files, remove_file works.
-            // On Windows: junctions are directories, remove_file fails — must use remove_dir.
+            // On Windows: junctions are directories, remove_file fails, so must use remove_dir.
             // Both remove_file and remove_dir only delete the link itself, never the target.
             #[cfg(unix)]
             {
@@ -2204,7 +2204,7 @@ impl SkillService {
     ///
     /// - Deletes the entity directory at `home_path` (must not be a symlink).
     /// - Removes symlinks in all agent directories that reference this skill name.
-    /// - Does NOT delete real (non-symlink) directories in agent dirs — those
+    /// - Does NOT delete real (non-symlink) directories in agent dirs. Those
     ///   are user data that requires explicit consent.
     pub fn remove_skill_dir(skill_name: &str, home_path: &str) -> Result<(), AppError> {
         let home = std::path::Path::new(home_path);
@@ -2363,7 +2363,7 @@ impl SkillService {
             )));
         }
 
-        // Filter out external imports and plugin skills — their source files
+        // Filter out external imports and plugin skills. Their source files
         // are owned by the user or by the plugin, not by Skill Zoo.
         let entries: Vec<SkillCacheEntry> = entries
             .into_iter()
@@ -2376,7 +2376,7 @@ impl SkillService {
             )));
         }
 
-        // Refuse to merge if content differs (safety check — frontend should
+        // Refuse to merge if content differs (safety check. The frontend should
         // already prevent this, but backend must enforce it too).
         if !Self::duplicates_have_verified_matching_content(&entries) {
             return Err(AppError::BadRequest(format!(
@@ -2489,7 +2489,7 @@ impl SkillService {
             }
         }
 
-        // Phase 3: Update cache — remove all old entries, then re-scan
+        // Phase 3: Update cache. Remove all old entries, then re-scan
         {
             let mut c = cache
                 .write()
@@ -3544,7 +3544,7 @@ mod tests {
             SkillService::extract_frontmatter("\u{feff}# no frontmatter"),
             None
         );
-        // Interior BOM is content, not a marker — must not be stripped.
+        // Interior BOM is content, not a marker, so it must not be stripped.
         assert_eq!(
             SkillService::extract_frontmatter("---\u{feff}\nname: demo\n---\nbody"),
             Some("\u{feff}\nname: demo".to_string())

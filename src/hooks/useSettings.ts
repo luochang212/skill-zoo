@@ -21,7 +21,7 @@ const GITHUB_TOKEN_VERIFICATION_KEY = ["settings", "githubTokenVerification"] as
 
 /**
  * Saved-state view of the GitHub credential (existence + expiry, never the
- * token itself — the backend filters credential keys out of `get_settings`).
+ * token itself, because the backend filters credential keys out of `get_settings`).
  */
 export function useGitHubCredentialStatus() {
   return useQuery({
@@ -32,8 +32,8 @@ export function useGitHubCredentialStatus() {
 }
 
 /**
- * Live check of the saved token, fired while the credential dialog is open —
- * an infrequent operation, and GitHub's /rate_limit endpoint is free. The
+ * Live check of the saved token, fired while the credential dialog is open.
+ * This is an infrequent operation, and GitHub's /rate_limit endpoint is free. The
  * saved token never crosses the bridge: the backend verifies it server-side
  * and only the result is returned.
  */

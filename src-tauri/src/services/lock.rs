@@ -62,7 +62,7 @@ impl SkillLock {
     /// Atomically read-modify-write the lock file under an exclusive guard.
     ///
     /// Runs under a process-wide mutex, so concurrent callers serialize. The
-    /// closure must be pure memory mutation — no await, no IO, no reentrant
+    /// closure must be pure memory mutation with no await, no IO, and no reentrant
     /// `read`/`write`/`update` (the mutex is non-reentrant).
     pub fn update<F, R>(f: F) -> Result<R, AppError>
     where

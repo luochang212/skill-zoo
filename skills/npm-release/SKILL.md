@@ -116,7 +116,7 @@ wui/styles.css
 
 There is deliberately no `dist/index.d.ts`. The CLI entry (`packages/cli/src/index.ts`)
 is a shebang script that calls `runCli()` and exports nothing, so the declaration file
-tsup's `--dts` emitted contained only the shebang line — a type contract with no types.
+tsup's `--dts` emitted contained only the shebang line, which means it was a type contract with no types.
 It was also unreachable: the package declares `bin` and no `main`/`exports`/`types`, so a
 consumer's `import ... from "skill-zoo"` fails with `TS2307` before the file is ever read
 (wiring up `types` instead yields `TS2306: is not a module`). Rather than keep a
@@ -133,9 +133,9 @@ bun run lint && bun run format:check && bun run typecheck && bun run test
 bun run cli:typecheck
 ```
 
-When the workflow changes, re-derive the list from it rather than trusting this skill: `grep -nE '^\s+-?\s*run:' .github/workflows/build.yml`. A step CI runs that the local list omits is a blind spot — on 2026-10-22 adr-kit's 0.24.0 passed every local check and went red on the one CI step that was not in its skill.
+When the workflow changes, re-derive the list from it rather than trusting this skill: `grep -nE '^\s+-?\s*run:' .github/workflows/build.yml`. A step CI runs that the local list omits is a blind spot. On 2026-10-22, adr-kit's 0.24.0 passed every local check and went red on the one CI step that was not in its skill.
 
-**Fifth gate: green CI on the pushed release commit.** The local checks run on one machine; CI runs on every platform the release must work on. Commit the release, push, and wait for the runs before publishing. Watch by workflow name and the pushed commit's SHA — `gh run list --limit 1` returns whichever run started last, which can be `site` (it also runs on a push that touches `site/`) or a run for another commit, and then reports green while `build` fails:
+**Fifth gate: green CI on the pushed release commit.** The local checks run on one machine; CI runs on every platform the release must work on. Commit the release, push, and wait for the runs before publishing. Watch by workflow name and the pushed commit's SHA. The command `gh run list --limit 1` returns whichever run started last, which can be `site` (it also runs on a push that touches `site/`) or a run for another commit, and then reports green while `build` fails:
 
 ```bash
 git push origin main
@@ -182,9 +182,9 @@ Do not commit generated tarballs or temporary install directories.
 
 Publish only after typecheck, tests, build, `npm publish --dry-run` pass, and the pushed release commit's CI run is green. Before the real `npm publish`, summarize the package name, version, dist tag, and tarball contents, then ask the user for explicit confirmation.
 
-**Log in first.** `--auth-type=web` authenticates `npm login`, not `npm publish` — publishing while unauthenticated fails with a 404 that masks the real cause. Ensure a valid token exists (see "Non-TTY browser authentication") before publishing, and drop `--auth-type=web` from the publish command.
+**Log in first.** `--auth-type=web` authenticates `npm login`, not `npm publish`. Publishing while unauthenticated fails with a 404 that masks the real cause. Ensure a valid token exists (see "Non-TTY browser authentication") before publishing, and drop `--auth-type=web` from the publish command.
 
-**Working directory does not persist between tool calls.** Always include `cd <path>` in the command itself — never assume a previous `cd` still applies. When publishing from a workspace sub-package, use an absolute `cd` prefix:
+**Working directory does not persist between tool calls.** Always include `cd <path>` in the command itself. Never assume a previous `cd` still applies. When publishing from a workspace sub-package, use an absolute `cd` prefix:
 
 ```bash
 cd /path/to/repo/packages/cli && npm publish --registry https://registry.npmjs.org/
@@ -197,27 +197,27 @@ cd packages/cli
 npm publish --registry https://registry.npmjs.org/
 ```
 
-If the machine's default registry is a read-only mirror (e.g. `registry.npmmirror.com`), the explicit `--registry https://registry.npmjs.org/` is required — mirrors do not accept publishes.
+If the machine's default registry is a read-only mirror (e.g. `registry.npmmirror.com`), the explicit `--registry https://registry.npmjs.org/` is required because mirrors do not accept publishes.
 
 ### Non-TTY browser authentication
 
 Two different steps need browser auth, and npm handles them differently in agent environments (Claude Code, Cowork, CI):
 
-**Capture auth URLs from raw output only.** Run both commands so their full output lands in a file (a background task's output file), then grep that file for the URL. Never pipe `npm login` or `npm publish` themselves through `grep`, `sed`, `tail`, or any other filter: npm goes quiet while it polls for the browser authorization, and a filter's block buffer then holds the URL line indefinitely — the attempt has to be killed and rerun raw.
+**Capture auth URLs from raw output only.** Run both commands so their full output lands in a file (a background task's output file), then grep that file for the URL. Never pipe `npm login` or `npm publish` themselves through `grep`, `sed`, `tail`, or any other filter: npm goes quiet while it polls for the browser authorization, and a filter's block buffer then holds the URL line indefinitely, so the attempt has to be killed and rerun raw.
 
-**Login** — `npm login --auth-type=web` prints the full `https://www.npmjs.com/login?next=/login/cli/<id>` URL even without a TTY, so no `script` wrapper is needed. Just `open` the printed "Login at:" URL:
+**Login.** `npm login --auth-type=web` prints the full `https://www.npmjs.com/login?next=/login/cli/<id>` URL even without a TTY, so no `script` wrapper is needed. Just `open` the printed "Login at:" URL:
 
 ```bash
 npm login --auth-type=web --registry https://registry.npmjs.org/
 # then open the printed "Login at:" URL in the user's browser
 ```
 
-**Publish 2FA (EOTP)** — when the account requires 2FA for publishing, `npm publish` fails with `EOTP` and prints its auth URL redacted as `***` (`https://www.npmjs.com/auth/cli/***`). Only this step needs a real TTY to reveal the URL. Use `script -q /dev/null`, and feed it a leading newline because npm's TTY prompt ("Press ENTER to open in the browser...") otherwise blocks before it polls for authentication:
+**Publish 2FA (EOTP).** When the account requires 2FA for publishing, `npm publish` fails with `EOTP` and prints its auth URL redacted as `***` (`https://www.npmjs.com/auth/cli/***`). Only this step needs a real TTY to reveal the URL. Use `script -q /dev/null`, and feed it a leading newline because npm's TTY prompt ("Press ENTER to open in the browser...") otherwise blocks before it polls for authentication:
 
 ```bash
 printf '\n' | script -q /dev/null npm publish --registry https://registry.npmjs.org/ 2>&1   # background task, RAW output
 # grep the background output FILE for the real "https://www.npmjs.com/auth/cli/<id>"
-# URL, then — never pipe the publish command itself through a filter:
+# URL. Never pipe the publish command itself through a filter:
 open "https://www.npmjs.com/auth/cli/<id>"
 ```
 
@@ -231,7 +231,7 @@ Success looks like:
 
 ## Post-Publish Verification
 
-Registry reads can lag after publish — about a minute is typical, and adr-kit saw 130 seconds on 2026-10-22 after a `PUT 202` with the notice "Your package is being processed and may take a few minutes to become available". Poll the exact version every 10 seconds for up to three minutes before concluding the publish failed, then verify both the specific version and the dist tag:
+Registry reads can lag after publish. About a minute is typical, and adr-kit saw 130 seconds on 2026-10-22 after a `PUT 202` with the notice "Your package is being processed and may take a few minutes to become available". Poll the exact version every 10 seconds for up to three minutes before concluding the publish failed, then verify both the specific version and the dist tag:
 
 ```bash
 for i in $(seq 1 18); do
@@ -259,10 +259,10 @@ Do not include private account identifiers, browser auth URLs, npm auth IDs, aut
 | Failure | Cause | Response |
 |---|---|---|
 | `You cannot publish over the previously published versions` | Local version already exists on npm | Ask the user to confirm the new version, then bump `packages/cli/package.json`, sync lockfile, and rerun checks |
-| `npm publish` returns 404 / "do not have permission" | Not logged in — `--auth-type=web` does not authenticate at publish time | Run `npm login --auth-type=web --registry https://registry.npmjs.org/` first, then publish |
+| `npm publish` returns 404 / "do not have permission" | Not logged in, because `--auth-type=web` does not authenticate at publish time | Run `npm login --auth-type=web --registry https://registry.npmjs.org/` first, then publish |
 | `npm error code EOTP` | Account requires 2FA for publishing | Either get the user's 6-digit TOTP and pass `--otp <code>`, or complete the browser web-OTP flow (see "Non-TTY browser authentication") |
 | Browser auth URL is `***` | npm redacted the publish OTP URL in non-TTY output | Wrap the publish in `script -q /dev/null` with a leading newline (see "Non-TTY browser authentication"), extract the real URL, then `open` it |
-| Auth URL never surfaces while "Authenticate your account at:" did | Publish output was piped through `grep` or another filter; npm's quiet auth polling left the URL in the filter's block buffer | Kill the attempt — nothing publishes without the browser flow — rerun with raw output, and grep the output file |
+| Auth URL never surfaces while "Authenticate your account at:" did | Publish output was piped through `grep` or another filter; npm's quiet auth polling left the URL in the filter's block buffer | Kill the attempt because nothing publishes without the browser flow, then rerun with raw output and grep the output file |
 | A platform test failure appears in CI after pushing the release commit | Code reached the release without ever passing CI | Fix, commit, push, wait for green; publish only commits whose CI run is green |
 | Every local check passed but CI failed on a step such as `lint`, `format:check`, or root `typecheck` | The skill's package-level checks do not cover `build.yml`'s workspace-root steps, which also see the bumped `package.json` and `bun.lock` | Run the root `bun run lint && bun run format:check && bun run typecheck && bun run test` after the bump; re-derive the step list from the workflow when it changes |
 | `gh run watch` reported green but `build` failed | `gh run list --limit 1` picked the `site` workflow or a run for another commit | Watch runs by workflow name and the pushed commit's SHA, as in Required Verification |
@@ -299,7 +299,7 @@ cd /path/to/repo
 bun run lint && bun run format:check && bun run typecheck && bun run test
 bun run cli:typecheck
 
-# commit the release bump, push, and wait for CI — green runs are a publish precondition
+# commit the release bump, push, and wait for CI because green runs are a publish precondition
 git push origin main
 sha="$(git rev-parse HEAD)"
 for wf in build site; do
@@ -309,7 +309,7 @@ for wf in build site; do
 done
 
 # summarize dry-run results and ask the user to confirm the real publish
-# if the account requires 2FA, the publish OTP URL is redacted as *** — wrap with script:
+# if the account requires 2FA, the publish OTP URL is redacted as ***, so wrap with script:
 printf '\n' | script -q /dev/null npm publish --registry https://registry.npmjs.org/ 2>&1   # background task, RAW output
 # grep the output file for the "Authenticate your account at:" URL, open in browser, wait for user
 

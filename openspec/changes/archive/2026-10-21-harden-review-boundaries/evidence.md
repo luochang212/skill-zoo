@@ -9,7 +9,7 @@
 ## S1 CLI 导入删除用户目录
 
 修复：`createAgentLink` 先 `assertAgentLinkAvailable`（实体目录与异目标链接拒绝、同目标幂等），导入预检所有目标 agent 目录，失败回滚本次已建链接；`doctor fix` 改走显式 `replaceAgentLink`（仅替换已验证为链接的路径）。
-回归：`packages/cli/tests/imports.test.ts` `import collision safety` —— 同名实体目录导入被拒、目录内容不变、无登记、无链接产生。`diagnostics.test.ts` `fixDoctor` 验证无效链接仍可修复。实证边界：替换路径的实体目录保护由 `replaceAgentLink` 前置 `isSymlinkOrJunction` 验证，未在真实用户目录实测破坏性场景（与原审查一致，测试均用临时目录）。
+回归：`packages/cli/tests/imports.test.ts` `import collision safety` 用例验证同名实体目录导入被拒、目录内容不变、无登记、无链接产生。`diagnostics.test.ts` `fixDoctor` 验证无效链接仍可修复。实证边界：替换路径的实体目录保护由 `replaceAgentLink` 前置 `isSymlinkOrJunction` 验证，未在真实用户目录实测破坏性场景（与原审查一致，测试均用临时目录）。
 
 ## S2/S3 合并删除原件与丢标记
 
@@ -24,22 +24,22 @@
 ## S5 保存期间输入被覆盖
 
 修复：`useEditorState` 以 `contentRef` 记录最新编辑，保存成功仅在内容仍等于提交修订时清除 dirty。
-回归：`src/lib/useEditorState.test.tsx` —— 在途输入保留（dirty 保持、内容为 B）；无新输入正常收尾。
+回归：`src/lib/useEditorState.test.tsx` 验证在途输入保留（dirty 保持、内容为 B）；无新输入正常收尾。
 
 ## S6 辅助文件切换丢草稿
 
 修复：`SkillContentPane` 草稿按文件管理（`fileDrafts`），移除切换即清空；保存成功仅清除提交修订的条目；未保存草稿经 `onUnsavedDraftsChange` 上报父级，并入切换确认（`useEditorState(externalUnsaved)`）、关闭确认（新增 pendingClose 对话框，`unsavedDialog.closeDescription`）与归档禁用。
-回归：`SkillContentPane.test.tsx` —— README 草稿在切换往返后保留并上报；保存后上报清除；`useEditorState.test.tsx` 验证外部未保存触发切换确认。实证边界：归档禁用路径由 `archiveDisabled={editor.dirty || auxDraftsDirty}` 与既有 dirtyHint 文案承接，未新增独立组件测试。
+回归：`SkillContentPane.test.tsx` 验证 README 草稿在切换往返后保留并上报；保存后上报清除；`useEditorState.test.tsx` 验证外部未保存触发切换确认。实证边界：归档禁用路径由 `archiveDisabled={editor.dirty || auxDraftsDirty}` 与既有 dirtyHint 文案承接，未新增独立组件测试。
 
 ## S7 启动检查覆盖已下载状态
 
-修复：`useAppUpdater` 引入请求代次 `requestGenRef`——启动检查、手动检查、下载各自开跑时递增，结果仅在最当代次时应用；启动检查不再旁路协调。
-回归：`useAppUpdater.test.tsx` `does not let a late startup check regress a completed download` —— 手动流程到 readyToRestart 后，迟到的启动检查返回 null 不重置状态与版本。
+修复：`useAppUpdater` 引入请求代次 `requestGenRef`。启动检查、手动检查、下载各自开跑时递增，结果仅在最当代次时应用；启动检查不再旁路协调。
+回归：`useAppUpdater.test.tsx` `does not let a late startup check regress a completed download` 用例验证手动流程到 readyToRestart 后，迟到的启动检查返回 null 不重置状态与版本。
 
 ## S8 收起侧栏仍可聚焦
 
 修复：文件侧栏容器收起时置 `inert`（Safari 15.5+/Chromium 102+，高于 Safari 16.4 下限）；经切换按钮收起且焦点在树内时，焦点移回开关。
-回归：`SkillContentPane.test.tsx` —— 收起后容器带 `inert`、展开时无。实证边界：jsdom 不执行 inert 语义，测试钉住浏览器契约属性；原生读屏未测（与原审查一致）。
+回归：`SkillContentPane.test.tsx` 验证收起后容器带 `inert`、展开时无。实证边界：jsdom 不执行 inert 语义，测试钉住浏览器契约属性；原生读屏未测（与原审查一致）。
 
 ## D1-D5 文档与契约
 

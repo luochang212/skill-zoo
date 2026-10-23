@@ -20,7 +20,7 @@ The desktop SHALL maintain at most one saved GitHub credential. Saving a new ver
 - **THEN** the new token and its expiry replace the previous ones in a single write
 
 #### Scenario: No new token entered
-- **WHEN** the credential dialog is submitted without a new token — an empty field or an unchanged mask — while a token is saved
+- **WHEN** the credential dialog is submitted without a new token (an empty field or an unchanged mask) while a token is saved
 - **THEN** the saved token and its expiry remain unchanged
 
 #### Scenario: Restart with configured token

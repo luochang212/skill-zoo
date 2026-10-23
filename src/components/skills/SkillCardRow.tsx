@@ -61,7 +61,7 @@ export function SkillCardRow({
           />
         </div>
       )}
-      {/* Name — w-48 aligned with header */}
+      {/* Name. w-48 aligned with header */}
       <div className="w-48 shrink-0 min-w-0 flex items-center gap-2">
         {onOpen ? (
           <button
@@ -85,19 +85,19 @@ export function SkillCardRow({
         <SkillBadges issues={issues} onNavigate={onNavigateConsistency} />
       </div>
 
-      {/* Repo — flex-1 aligned with header, hidden when panel takes space */}
+      {/* Repo. flex-1 aligned with header, hidden when panel takes space */}
       <span className="flex-1 min-w-0 text-[13px] text-muted-foreground/80 truncate hidden @2xl/main:inline">
         {repoLabel}
       </span>
 
-      {/* Updated At — w-28 aligned with header, hidden when very narrow */}
+      {/* Updated At. w-28 aligned with header, hidden when very narrow */}
       {installedSkill && (
         <span className="w-28 shrink-0 text-[13px] text-muted-foreground/80 hidden @md/main:inline">
           {formatRelativeDate(installedSkill.updatedAt)}
         </span>
       )}
 
-      {/* Star — w-8 aligned with header, hidden at narrow widths */}
+      {/* Star. w-8 aligned with header, hidden at narrow widths */}
       {isInstalled && onToggleStar && (
         <div className="w-8 shrink-0 flex justify-center hidden @lg/main:flex">
           <StarButton starred={starred ?? false} onToggle={onToggleStar} />

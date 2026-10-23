@@ -7,7 +7,7 @@ The product contract for the GitHub credential is "enter once, never see again".
 ## What Changes
 
 - `get_settings` SHALL stop returning the credential keys `github_token` and `github_token_expires_at` (server-side filter, not UI hiding).
-- New `get_github_credential_status` command returns only `{ hasToken, expiresAt }` — saved state without the secret.
+- A new `get_github_credential_status` command returns only `{ hasToken, expiresAt }`, so saved state is available without the secret.
 - The credential dialog never shows the saved token: the input stands in for it with a code-generated mask value (identical to a password mask), and saved state is communicated by the existing status line (state, quota, recorded expiry) which never contains the token.
 - The credential is replace-only: saving a new verified token replaces the old one in a single write and the UI offers no removal action; the retired "clear the input and save" removal only made sense with prefill and would misfire on an empty-by-default input.
 - `useGitHubToken` + `useGitHubTokenExpiresAt` merge into one `useGitHubCredentialStatus` query (one IPC roundtrip, one invalidation).
@@ -19,14 +19,14 @@ The product contract for the GitHub credential is "enter once, never see again".
 
 ### Modified Capabilities
 
-- `github-connection` — the removal requirement is renamed and rewritten as replacement-only ("Token replacement and startup", no removal affordance), and a never-redisplay requirement is added.
+- The `github-connection` removal requirement is renamed and rewritten as replacement-only ("Token replacement and startup", no removal affordance), and a never-redisplay requirement is added.
 
 ## Impact
 
-- `src-tauri/src/commands/settings.rs` — `get_settings` filter, new status command (both as testable pure helpers over the settings map).
-- `src-tauri/src/lib.rs` — register the status command.
-- `src/lib/api/settings.ts`, `src/hooks/useSettings.ts` — status query replaces the two token hooks.
-- `src/components/settings/GitHubTokenSettings.tsx` — dialog without prefill, mask stand-in for the saved token, replace-only (no removal affordance).
-- `src/components/settings/SettingsView.tsx` — the GitHub section moves below Skill Companion (presentation-only, see What Changes).
+- `src-tauri/src/commands/settings.rs` gains the `get_settings` filter and the new status command (both as testable pure helpers over the settings map).
+- `src-tauri/src/lib.rs` registers the status command.
+- In `src/lib/api/settings.ts` and `src/hooks/useSettings.ts`, the status query replaces the two token hooks.
+- The dialog in `src/components/settings/GitHubTokenSettings.tsx` has no prefill, uses a mask stand-in for the saved token, and is replace-only (no removal affordance).
+- The GitHub section moves below Skill Companion in `src/components/settings/SettingsView.tsx` (presentation-only, see What Changes).
 - `src/i18n/zh.json`, `src/i18n/en.json`, component tests.
 - Storage itself is unchanged (this is the read/display surface; at-rest permissions were hardened separately in `credential-storage-hardening`).

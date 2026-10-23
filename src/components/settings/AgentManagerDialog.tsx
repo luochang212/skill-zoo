@@ -28,7 +28,7 @@ function AgentPathDetails({
   onEdit: (info: AgentPathInfo) => void;
 }) {
   const { t } = useTranslation();
-  // The custom label is itself the edit affordance — hover underlines it —
+  // The custom label is itself the edit affordance because hover underlines it,
   // so no extra action button displaces the shared row columns.
   const editable = info.agent.startsWith("custom-");
   return (

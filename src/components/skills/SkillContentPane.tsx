@@ -191,7 +191,7 @@ export const SkillContentPane = memo(function SkillContentPane({
   const [nodes, setNodes] = useState<SkillFileNode[]>([]);
   const [loadingDirPaths, setLoadingDirPaths] = useState<Set<string>>(() => new Set());
   const [errorDirPaths, setErrorDirPaths] = useState<Set<string>>(() => new Set());
-  // Ref mirror of loadingDirPaths for synchronous dedup checks — avoids
+  // Ref mirror of loadingDirPaths for synchronous dedup checks. This avoids
   // relying on React's eager state computation, which may be skipped when
   // pending updates are queued (causing the second directory load to be
   // silently dropped).
@@ -537,7 +537,7 @@ export const SkillContentPane = memo(function SkillContentPane({
           </button>
         )}
 
-        {/* Save button — shown when dirty; hidden in overview mode for SKILL.md */}
+        {/* Save button. Shown when dirty; hidden in overview mode for SKILL.md */}
         {!readOnly &&
           !isViewOnlyFile &&
           (isSkillMdActive ? dirty && effectiveActiveTab !== "overview" : isDirty) && (
@@ -552,7 +552,7 @@ export const SkillContentPane = memo(function SkillContentPane({
             </button>
           )}
 
-        {/* Updated timestamp — shown whenever the save button is absent */}
+        {/* Updated timestamp. Shown whenever the save button is absent */}
         {updatedAt &&
           (readOnly ||
             isViewOnlyFile ||
@@ -569,7 +569,7 @@ export const SkillContentPane = memo(function SkillContentPane({
         className="flex-1 min-h-0 flex min-w-0"
         style={sidebarDragging ? { userSelect: "none" } : undefined}
       >
-        {/* Collapsible sidebar — the width transition is what makes the slide
+        {/* Collapsible sidebar. The width transition is what makes the slide
             visible: without it the container snapped to 0 in the same frame and
             clipped the outgoing translate. Disabled while dragging so resizing
             keeps up with the pointer. */}
@@ -652,7 +652,7 @@ export const SkillContentPane = memo(function SkillContentPane({
             role="tabpanel"
             style={dragging ? { userSelect: "none" } : undefined}
           >
-            {/* Left pane — editor (visible in edit & split) */}
+            {/* Left pane shows the editor (visible in edit & split) */}
             <div
               className="h-full min-w-0 overflow-hidden transition-[width] duration-300 ease-in-out motion-reduce:transition-none"
               style={{
@@ -696,7 +696,7 @@ export const SkillContentPane = memo(function SkillContentPane({
               aria-valuemax={100 - SPLIT_MIN}
             />
 
-            {/* Right pane — preview (visible in view & split) */}
+            {/* Right pane shows the preview (visible in view & split) */}
             <div
               className="h-full min-w-0 overflow-hidden transition-[width] duration-300 ease-in-out motion-reduce:transition-none"
               style={{

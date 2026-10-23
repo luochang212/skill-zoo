@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Pre-push checks. Bypass with `git push --no-verify`.
-# Mirrors the CI workflow — catches issues before they hit remote.
+# Mirrors the CI workflow and catches issues before they hit remote.
 set -e
 
 echo "=== ADR records ==="

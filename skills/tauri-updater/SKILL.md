@@ -52,7 +52,7 @@ pub fn is_portable_build() -> bool {
 Normal build: `cargo build --release`
 Portable build: `cargo build --release --features portable`
 
-In `lib.rs`, conditionally register the updater plugin — skip it when the `portable` feature is active:
+In `lib.rs`, conditionally register the updater plugin and skip it when the `portable` feature is active:
 
 ```rust
 #[cfg(all(desktop, not(feature = "portable")))]
@@ -72,10 +72,10 @@ bun tauri signer generate -w ~/.tauri/<app-name>.key
 ```
 
 Hit enter twice for empty password. Produces:
-- `~/.tauri/<app-name>.key` — private key → store as GitHub Secret `TAURI_SIGNING_PRIVATE_KEY`
-- `~/.tauri/<app-name>.key.pub` — public key → paste into `tauri.conf.json`
+- `~/.tauri/<app-name>.key` is the private key → store as GitHub Secret `TAURI_SIGNING_PRIVATE_KEY`
+- `~/.tauri/<app-name>.key.pub` is the public key → paste into `tauri.conf.json`
 
-Empty password is fine — the key lives in encrypted GitHub Secrets. Adding a password means also managing `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` in CI.
+Empty password is fine because the key lives in encrypted GitHub Secrets. Adding a password means also managing `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` in CI.
 
 ### 2. Rust Backend
 
@@ -144,7 +144,7 @@ Update CSP `connect-src` to allow GitHub release asset domains:
 connect-src 'self' ipc: http://ipc.localhost https://api.github.com https://github.com https://objects.githubusercontent.com https://github-releases.githubusercontent.com
 ```
 
-**`src-tauri/capabilities/default.json`** — add permissions:
+**`src-tauri/capabilities/default.json`**. Add these permissions:
 
 ```json
 {
@@ -188,11 +188,11 @@ Portable: always shows "GitHub Releases" link button
 **Key API details**:
 
 - `check()` returns `null` when up-to-date (not an error)
-- `check()` throws on network failure or 404 (manifest doesn't exist yet) — show friendly message, not raw error
+- `check()` throws on network failure or 404 (manifest doesn't exist yet), so show a friendly message, not the raw error
 - `downloadAndInstall()` progress callback: use `event.data.chunkLength` (not `position`/`length`). Track cumulative bytes with a state updater.
 - Store the `Update` object in a `useRef` to avoid stale closure in the progress callback.
 
-**Error handling pattern** — never expose raw errors:
+**Error handling pattern.** Never expose raw errors:
 
 ```tsx
 try {
@@ -207,7 +207,7 @@ try {
 
 ### 5. CI Pipeline
 
-**Build job** — pass signing key:
+**Build job.** Pass the signing key:
 
 ```yaml
 - name: Tauri build
@@ -298,7 +298,7 @@ The `--features portable` flag compiles a binary where `is_portable_build()` ret
 | Forgetting `createUpdaterArtifacts` | No `.app.tar.gz` or `.sig` files will be generated |
 | CSP blocking download | Add `objects.githubusercontent.com` and `github-releases.githubusercontent.com` to `connect-src` |
 | Missing `process:allow-restart` | `relaunch()` fails silently |
-| Showing raw errors to user | Catch and show friendly message. The first release won't have `latest.json` yet — that's a 404, not a bug |
+| Showing raw errors to user | Catch and show friendly message. The first release won't have `latest.json` yet. That's a 404, not a bug |
 | Wrong progress event fields | Tauri 2 uses `event.data.chunkLength`, not `position`/`length` |
 | Treating `check()` null as error | `null` = no update available, it's a success case |
 | Stale closure in download callback | Store `Update` in `useRef`, not just `useState` |
@@ -307,7 +307,7 @@ The `--features portable` flag compiles a binary where `is_portable_build()` ret
 
 ## Post-Release Notes
 
-- **First release**: Existing users won't have the updater code — they must download this release manually. After that, updates are automatic.
+- **First release**: Existing users won't have the updater code, so they must download this release manually. After that, updates are automatic.
 - **Homebrew**: The `.app.tar.gz` and `.sig` are separate from the DMG. Homebrew cask formulas are unaffected.
 - **Signature errors**: If the updater reports signature verification failure, the pubkey in `tauri.conf.json` likely doesn't match the private key used in CI. Regenerate and redeploy.
 - **Testing**: Build a newer version to test the full download-and-install flow end-to-end.

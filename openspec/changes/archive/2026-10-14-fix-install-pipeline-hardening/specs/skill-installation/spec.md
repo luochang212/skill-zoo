@@ -1,4 +1,4 @@
-# Skill Installation — Delta
+# Skill Installation Delta
 
 ## ADDED Requirements
 

@@ -330,7 +330,7 @@ function SkillUsageDialog({
       return;
     }
     // Capture the inner content wrapper (natural auto-height), not the dialog's
-    // fixed viewport — the dialog shell is overflow:hidden at 640px, so skills
+    // fixed viewport. The dialog shell is overflow:hidden at 640px, so skills
     // past the fold would otherwise be clipped. Using the inner wrapper avoids
     // flex-inflated scrollHeight when content is shorter than the dialog.
     const target =

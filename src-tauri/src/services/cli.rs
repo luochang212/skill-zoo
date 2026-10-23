@@ -602,7 +602,7 @@ impl CliService {
                 })?;
                 Ok(Some(json))
             }
-            _ => Ok(None), // repo not found, branch not found, etc. — skip
+            _ => Ok(None), // repo not found, branch not found, etc., so skip
         }
     }
 
@@ -895,7 +895,7 @@ impl CliService {
     }
 
     /// Download a GitHub repo as ZIP and extract to a temp directory.
-    /// Returns (TempDir, root_path) — TempDir must stay alive while root_path is used.
+    /// Returns (TempDir, root_path). TempDir must stay alive while root_path is used.
     async fn download_repo_zip(
         owner: &str,
         repo: &str,
@@ -1024,7 +1024,7 @@ impl CliService {
 
             if is_symlink_or_junction(&path) {
                 // Never follow directory symlinks (external dirs, loops,
-                // escapes) — they are skipped entirely. File symlinks are
+                // escapes), which are skipped entirely. File symlinks are
                 // dereferenced against the link's own directory, never the
                 // process CWD.
                 let Ok(target) = std::fs::read_link(&path) else {

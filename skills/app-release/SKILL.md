@@ -20,13 +20,13 @@ digraph when_release {
     "Homebrew 404 or artifact-not-found after a tag push?" [shape=diamond];
     "Use this skill" [shape=box];
     "Pre-release checks (code review, QA)?" [shape=diamond];
-    "Not this skill — use requesting-code-review" [shape=box];
+    "Not this skill. Use requesting-code-review" [shape=box];
 
     "User asks to release/ship/publish?" -> "Use this skill" [label="yes"];
     "User asks to release/ship/publish?" -> "Homebrew 404 or artifact-not-found after a tag push?" [label="no"];
     "Homebrew 404 or artifact-not-found after a tag push?" -> "Use this skill" [label="yes"];
     "Homebrew 404 or artifact-not-found after a tag push?" -> "Pre-release checks (code review, QA)?" [label="no"];
-    "Pre-release checks (code review, QA)?" -> "Not this skill — use requesting-code-review" [label="yes"];
+    "Pre-release checks (code review, QA)?" -> "Not this skill. Use requesting-code-review" [label="yes"];
 }
 ```
 
@@ -73,7 +73,7 @@ Add a new version section before the previous release entry:
 
 Use today's date. Group changes under **Added**, **Changed**, **Fixed** headings. Review commits since the last tag with `git log --oneline v<LAST>..HEAD` to ensure nothing is missed.
 
-Do NOT commit yet — all changes go into one commit in Step 5.
+Do NOT commit yet. All changes go into one commit in Step 5.
 
 ### 3. Protocol Impact Check
 
@@ -99,22 +99,22 @@ Update `src-tauri/Cargo.toml` and `package.json` with `apply_patch` so the instr
 cargo check --manifest-path src-tauri/Cargo.toml
 ```
 
-Do NOT update `site/public/version.json` here — CI updates it automatically after the release is published.
+Do NOT update `site/public/version.json` here. CI updates it automatically after the release is published.
 
-Do NOT commit yet — all changes go into one commit in Step 5.
+Do NOT commit yet. All changes go into one commit in Step 5.
 
 ### 5. Verify Prerequisites
 
-Run all checks in order. If any fails, fix and re-run the full sequence until clean — formatting changes can cascade into lint results. Any fixes become part of the same release commit.
+Run all checks in order. If any fails, fix and re-run the full sequence until clean because formatting changes can cascade into lint results. Any fixes become part of the same release commit.
 
-1. `cargo fmt --check --manifest-path src-tauri/Cargo.toml` — run `cargo fmt --manifest-path src-tauri/Cargo.toml` if diffs appear, then restart from here
-2. `bun run lint:rs` — fix all warnings; fmt may have introduced new ones
-3. `cargo test --manifest-path src-tauri/Cargo.toml --features test-helpers` — fix any test failures before proceeding
-4. `bun run typecheck` — fix all type errors before proceeding
-5. `bun run lint` — fix any lint errors. Note: pre-existing issues unrelated to this release should be noted separately, not silently fixed in the release commit
-6. `bun run format:check` — run `bun run format` if diffs appear. CI also enforces this, but catching it locally avoids a broken tag
-7. `RELEASE_BODY.md` uses `__VERSION__` and `__COMMITS__` placeholders — never hardcoded version numbers
-8. `git status --short` — only expected files (CHANGELOG.md, Cargo.toml, Cargo.lock, package.json, plus any fmt/clippy fixes) should appear. `site/public/version.json` should NOT appear (CI updates it post-release). Anything else is a stray change that could slip into the release commit.
+1. `cargo fmt --check --manifest-path src-tauri/Cargo.toml`. If diffs appear, run `cargo fmt --manifest-path src-tauri/Cargo.toml`, then restart from here.
+2. `bun run lint:rs`. Fix all warnings; fmt may have introduced new ones.
+3. `cargo test --manifest-path src-tauri/Cargo.toml --features test-helpers`. Fix any test failures before proceeding.
+4. `bun run typecheck`. Fix all type errors before proceeding.
+5. `bun run lint`. Fix any lint errors. Note: pre-existing issues unrelated to this release should be noted separately, not silently fixed in the release commit.
+6. `bun run format:check`. Run `bun run format` if diffs appear. CI also enforces this, but catching it locally avoids a broken tag.
+7. `RELEASE_BODY.md` must use the `__VERSION__` and `__COMMITS__` placeholders. Never hardcode version numbers.
+8. `git status --short`. Only expected files (CHANGELOG.md, Cargo.toml, Cargo.lock, package.json, plus any fmt/clippy fixes) should appear. `site/public/version.json` should NOT appear (CI updates it post-release). Anything else is a stray change that could slip into the release commit.
 
 The website is an independent Astro package. Its build does not use the desktop's
 `dist/` output or the development `package.json` version. For any app release,
@@ -152,7 +152,7 @@ git commit -m "chore: release vX.Y.Z"
 
 > **CRITICAL:** Pushing a `v*` tag triggers CI to build and publish a release. **Always tell the user explicitly that a push is about to happen and get their consent before executing.** Never push without approval.
 
-> **Note:** `git push` triggers `.githooks/pre-push`, which re-runs the full check suite and takes minutes — this is the intentional local gate that keeps a broken push from reaching CI. Run the push in the background or with a generous timeout; a foreground push can be killed mid-hook by the default command timeout, leaving `main` unpushed and no tag.
+> **Note:** `git push` triggers `.githooks/pre-push`, which re-runs the full check suite and takes minutes. This is the intentional local gate that keeps a broken push from reaching CI. Run the push in the background or with a generous timeout; a foreground push can be killed mid-hook by the default command timeout, leaving `main` unpushed and no tag.
 
 ```bash
 git push origin main
@@ -172,7 +172,7 @@ Once the tag push succeeds, the release has been triggered. Report the pushed ta
 | **update-homebrew** | Runs after the GitHub Release exists, computes the DMG SHA256, and updates the cask |
 | **Site workflow** (separate `site.yml`) | The post-release manifest push to main checks/builds/tests the Astro site and deploys `site/dist`; website PRs validate without deploying |
 
-`site/public/version.json` is updated by CI after `create-release` succeeds — never manually. This ensures the download website only points to published artifacts.
+`site/public/version.json` is updated by CI after `create-release` succeeds. Never update it manually. This ensures the download website only points to published artifacts.
 
 ## Common Mistakes
 
@@ -183,4 +183,4 @@ Once the tag push succeeds, the release has been triggered. Report the pushed ta
 | Releasing with uncommitted changes | `git status --short` must be empty. Uncommitted changes won't be included in the release. |
 | Manually advancing `site/public/version.json` | `version.json` is updated by CI's `create-release` job **after** artifacts are published. Do NOT update it manually in the release commit. |
 | Forgetting to regenerate `Cargo.lock` | After editing `Cargo.toml` version, run `cargo check --manifest-path src-tauri/Cargo.toml` to sync Cargo.lock. Editing the manifest alone does not update the lockfile. |
-| Making multiple commits | All version updates (CHANGELOG, Cargo.toml, Cargo.lock, package.json) go into a single `chore: release vX.Y.Z` commit. Do not commit after each file. `site/public/version.json` is not part of this commit — CI handles it. |
+| Making multiple commits | All version updates (CHANGELOG, Cargo.toml, Cargo.lock, package.json) go into a single `chore: release vX.Y.Z` commit. Do not commit after each file. `site/public/version.json` is not part of this commit because CI handles it. |
