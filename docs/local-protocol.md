@@ -67,6 +67,18 @@ A directory is recognized as a skill when it contains a `SKILL.md`. Scans must s
 
 ## Compatibility Rules
 
+### Non-SSOT visibility settings
+
+`settings.json` stores string preferences under `values`. For the local visibility
+switch, an existing `show_non_ssot` key wins (`"false"` hides; other values show).
+When it is absent, legacy `hide_non_ssot: "true"` hides non-SSOT skills; otherwise
+they are shown. Reads do not migrate, delete or overwrite either key. User changes
+write `show_non_ssot`, leaving legacy values intact. Lifecycle recovery preserves
+both keys verbatim; the CLI does not interpret the desktop visibility preference.
+The lifecycle fixtures cover legacy-only and conflicting current/legacy values.
+
+### General compatibility
+
 - Desktop is the source of truth for local protocol shape and semantics.
 - CLI changes must conform to the desktop-owned protocol and must not update fixtures to fit CLI implementation convenience.
 - Readers should tolerate missing optional fields.

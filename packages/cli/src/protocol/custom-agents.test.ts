@@ -166,6 +166,9 @@ describe("desktop-owned custom agents", () => {
       await fs.writeFile(path.join(dir, "settings.json"), "partial");
       await recoverAgentLifecycle(dir);
       expect(await fs.readFile(path.join(dir, "settings.json"), "utf8")).toBe(committed ? journal.after["settings.json"] : journal.before["settings.json"]);
+      const settings = JSON.parse(await fs.readFile(path.join(dir, "settings.json"), "utf8"));
+      expect(settings.values.hide_non_ssot).toBe("true");
+      expect(settings.values.show_non_ssot).toBe(committed ? "true" : undefined);
       await expect(fs.access(path.join(dir, "agent-lifecycle.json"))).rejects.toThrow();
     }
   });

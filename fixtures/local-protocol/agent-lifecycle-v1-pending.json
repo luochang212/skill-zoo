@@ -4,11 +4,11 @@
   "before": {
     "agents.json": null,
     "imports.json": null,
-    "settings.json": "{\"values\":{\"theme\":\"dark\"}}\n"
+    "settings.json": "{\"values\":{\"theme\":\"dark\",\"hide_non_ssot\":\"true\"}}\n"
   },
   "after": {
     "agents.json": "{\"version\":1,\"agents\":[]}\n",
     "imports.json": "{\"version\":1,\"imports\":{}}\n",
-    "settings.json": "{\"values\":{\"theme\":\"dark\",\"agent_order\":\"[]\"}}\n"
+    "settings.json": "{\"values\":{\"theme\":\"dark\",\"agent_order\":\"[]\",\"hide_non_ssot\":\"true\",\"show_non_ssot\":\"true\"}}\n"
   }
 }

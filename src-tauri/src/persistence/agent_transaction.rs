@@ -295,6 +295,22 @@ mod tests {
             for (name, content) in expected {
                 assert_eq!(std::fs::read_to_string(tmp.path().join(name)).ok(), content);
             }
+            let settings: crate::persistence::Settings = serde_json::from_str(
+                &std::fs::read_to_string(tmp.path().join("settings.json")).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(
+                settings.get("hide_non_ssot").map(String::as_str),
+                Some("true")
+            );
+            assert_eq!(
+                settings.get("show_non_ssot").map(String::as_str),
+                if suffix == "committed" {
+                    Some("true")
+                } else {
+                    None
+                }
+            );
         }
     }
 

@@ -2,15 +2,38 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createQueryWrapper } from "@/test/utils";
+import lifecycleFixture from "../../fixtures/local-protocol/agent-lifecycle-v1-committed.json";
 import {
   getVisibleAgentsOrDefault,
   mergeAgentOrder,
   normalizeAgentOrder,
   parseAgentOrder,
   useVisibleAgentOrder,
+  useShowNonSsot,
 } from "./useSettings";
 
 vi.mock("@tauri-apps/api/core");
+
+describe("non-SSOT visibility upgrades", () => {
+  beforeEach(() => vi.mocked(invoke).mockReset());
+
+  it.each([
+    [{}, true],
+    [{ hide_non_ssot: "true" }, false],
+    [{ hide_non_ssot: "false" }, true],
+    [{ show_non_ssot: "false", hide_non_ssot: "false" }, false],
+    [{ show_non_ssot: "true", hide_non_ssot: "true" }, true],
+    [JSON.parse(lifecycleFixture.before["settings.json"]).values, false],
+    [JSON.parse(lifecycleFixture.after["settings.json"]).values, true],
+  ])("preserves the effective visibility for %j", async (settings, expected) => {
+    vi.mocked(invoke).mockResolvedValue(settings);
+    const { wrapper } = createQueryWrapper();
+    const { result } = renderHook(useShowNonSsot, { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toBe(expected);
+    expect(invoke).not.toHaveBeenCalledWith("update_setting", expect.anything());
+  });
+});
 
 const agentConfigs = [
   { id: "claude-code", label: "Claude Code", skillsSubdir: ".claude" },

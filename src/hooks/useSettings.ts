@@ -112,7 +112,9 @@ export function useShowNonSsot() {
     queryKey: SHOW_NON_SSOT_KEY,
     queryFn: async () => {
       const settings = await settingsApi.getSettings();
-      return settings["show_non_ssot"] !== "false";
+      return settings["show_non_ssot"] !== undefined
+        ? settings["show_non_ssot"] !== "false"
+        : settings["hide_non_ssot"] !== "true";
     },
     staleTime: 0,
   });
