@@ -1,7 +1,7 @@
 # Second round: real recovery failures and repeated replay
 
 Date: 2026-10-23. Base: `4daae2c` (first study now pushed to `origin/main`).
-See the [ADR proposal](../../../adr/proposed/2026-10-23-evaluate-verus-on-isolated-transaction-logic-before-adopting-it.md)
+See the [ADR 3](../../../adr/implemented/3-keep-verus-optional-and-outside-production-builds.md)
 and [first-study/current-model overview](README.md).
 
 ## Question and result

@@ -1,6 +1,6 @@
 # Verus recovery feasibility study
 
-Date: 2026-10-23. Related [ADR proposal](../../../adr/proposed/2026-10-23-evaluate-verus-on-isolated-transaction-logic-before-adopting-it.md).
+Date: 2026-10-23. Related [ADR 3](../../../adr/implemented/3-keep-verus-optional-and-outside-production-builds.md).
 
 ## Outcome
 
