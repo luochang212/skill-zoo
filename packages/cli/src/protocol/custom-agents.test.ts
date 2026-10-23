@@ -172,4 +172,73 @@ describe("desktop-owned custom agents", () => {
       await expect(fs.access(path.join(dir, "agent-lifecycle.json"))).rejects.toThrow();
     }
   });
+
+  it("retains a failed recovery journal and retries every shared replay prefix", async () => {
+    for (const committed of [false, true]) {
+      const journal = await fixture(`agent-lifecycle-v1-${committed ? "committed" : "pending"}.json`);
+      const snapshot = (committed ? journal.after : journal.before) as Record<string, string | null>;
+      const entries = Object.entries(snapshot);
+      for (let failAt = 0; failAt < entries.length; failAt++) {
+        const home = await makeTempHome();
+        try {
+          const dir = path.join(home, ".skill-zoo");
+          await fs.mkdir(dir);
+          const journalPath = path.join(dir, "agent-lifecycle.json");
+          const bytes = JSON.stringify(journal);
+          await fs.writeFile(journalPath, bytes);
+          await fs.writeFile(path.join(dir, "unrelated.txt"), "keep");
+          for (const [index, [name]] of entries.entries()) {
+            if (index === failAt) await fs.mkdir(path.join(dir, name));
+            else await fs.writeFile(path.join(dir, name), `partial:${name}`);
+          }
+          const read = (name: string) => fs.readFile(path.join(dir, name), "utf8").catch((error: NodeJS.ErrnoException) => {
+            if (error.code === "ENOENT") return null;
+            throw error;
+          });
+          for (let attempt = 0; attempt < 2; attempt++) {
+            await expect(recoverAgentLifecycle(dir)).rejects.toThrow();
+            expect(await fs.readFile(journalPath, "utf8")).toBe(bytes);
+            for (const [index, [name, content]] of entries.entries()) {
+              if (index < failAt) expect(await read(name)).toBe(content);
+              else if (index === failAt) expect((await fs.stat(path.join(dir, name))).isDirectory()).toBe(true);
+              else expect(await read(name)).toBe(`partial:${name}`);
+            }
+          }
+          await fs.rmdir(path.join(dir, entries[failAt]![0]));
+          await recoverAgentLifecycle(dir);
+          await expect(fs.access(journalPath)).rejects.toThrow();
+          await recoverAgentLifecycle(dir);
+          for (const [name, content] of entries) expect(await read(name)).toBe(content);
+          expect(await read("unrelated.txt")).toBe("keep");
+        } finally {
+          await fs.rm(home, { recursive: true, force: true });
+        }
+      }
+    }
+  });
+
+  it("releases the CLI lease when recovery fails so recovery can be retried", async () => {
+    const home = await makeTempHome();
+    let release: (() => Promise<void>) | undefined;
+    try {
+      const dir = path.join(home, ".skill-zoo");
+      await fs.mkdir(dir);
+      const journal = await fixture("agent-lifecycle-v1-committed.json");
+      const journalPath = path.join(dir, "agent-lifecycle.json");
+      const bytes = JSON.stringify(journal);
+      await fs.writeFile(journalPath, bytes);
+      const blocked = path.join(dir, "settings.json");
+      await fs.mkdir(blocked);
+      await expect(acquireAgentLease(home).then((unlock) => { release = unlock; })).rejects.toThrow();
+      expect(await fs.readFile(journalPath, "utf8")).toBe(bytes);
+
+      await fs.rmdir(blocked);
+      release = await acquireAgentLease(home);
+      expect(await fs.readFile(blocked, "utf8")).toBe(journal.after["settings.json"]);
+      await expect(fs.access(journalPath)).rejects.toThrow();
+    } finally {
+      await release?.();
+      await fs.rm(home, { recursive: true, force: true });
+    }
+  });
 });

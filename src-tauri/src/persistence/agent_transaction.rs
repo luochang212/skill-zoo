@@ -315,6 +315,98 @@ mod tests {
     }
 
     #[test]
+    fn failed_recovery_keeps_journal_and_retries_every_replay_prefix() {
+        let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../fixtures/local-protocol");
+        for suffix in ["pending", "committed"] {
+            let bytes =
+                std::fs::read(fixtures.join(format!("agent-lifecycle-v1-{suffix}.json"))).unwrap();
+            let journal: Journal = serde_json::from_slice(&bytes).unwrap();
+            let snapshot = if journal.committed {
+                &journal.after
+            } else {
+                &journal.before
+            };
+            let entries: Vec<_> = snapshot.iter().collect();
+            for fail_at in 0..entries.len() {
+                let tmp = tempfile::tempdir().unwrap();
+                let journal_path = tmp.path().join("agent-lifecycle.json");
+                std::fs::write(&journal_path, &bytes).unwrap();
+                std::fs::write(tmp.path().join("unrelated.txt"), "keep").unwrap();
+                for (index, (name, _)) in entries.iter().enumerate() {
+                    let path = tmp.path().join(name);
+                    if index == fail_at {
+                        // A directory blocks both a file replacement and a file deletion.
+                        std::fs::create_dir(&path).unwrap();
+                    } else {
+                        std::fs::write(&path, format!("partial:{name}")).unwrap();
+                    }
+                }
+
+                for _ in 0..2 {
+                    assert!(recover(tmp.path()).is_err());
+                    assert_eq!(std::fs::read(&journal_path).unwrap(), bytes);
+                    for (index, (name, content)) in entries.iter().enumerate() {
+                        let path = tmp.path().join(name);
+                        if index < fail_at {
+                            assert_eq!(std::fs::read_to_string(path).ok(), **content);
+                        } else if index == fail_at {
+                            assert!(path.is_dir());
+                        } else {
+                            assert_eq!(
+                                std::fs::read_to_string(path).unwrap(),
+                                format!("partial:{name}")
+                            );
+                        }
+                    }
+                }
+
+                std::fs::remove_dir(tmp.path().join(entries[fail_at].0)).unwrap();
+                recover(tmp.path()).unwrap();
+                assert!(!journal_path.exists());
+                // The normal no-journal retry is idempotent too.
+                recover(tmp.path()).unwrap();
+                for (name, content) in &entries {
+                    assert_eq!(
+                        std::fs::read_to_string(tmp.path().join(name)).ok(),
+                        **content
+                    );
+                }
+                assert_eq!(
+                    std::fs::read_to_string(tmp.path().join("unrelated.txt")).unwrap(),
+                    "keep"
+                );
+                eprintln!("{suffix}: failed after {fail_at} replayed files; journal retained after two failures; retry restored snapshot");
+            }
+        }
+    }
+
+    #[test]
+    fn failed_recovery_releases_lease_before_retry() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("settings.json");
+        std::fs::create_dir(&path).unwrap();
+        let journal = Journal {
+            version: 1,
+            committed: true,
+            before: BTreeMap::from([("settings.json".into(), None)]),
+            after: BTreeMap::from([("settings.json".into(), Some("restored".into()))]),
+        };
+        let journal_path = tmp.path().join("agent-lifecycle.json");
+        std::fs::write(&journal_path, serde_json::to_vec(&journal).unwrap()).unwrap();
+
+        let error = AgentLease::acquire(tmp.path())
+            .err()
+            .expect("recovery must fail");
+        assert!(matches!(error, AppError::Io(_)));
+        assert!(journal_path.is_file());
+        std::fs::remove_dir(&path).unwrap();
+        let _lease =
+            AgentLease::acquire(tmp.path()).expect("failed recovery must release its lease");
+        assert_eq!(std::fs::read_to_string(path).unwrap(), "restored");
+        assert!(!journal_path.exists());
+    }
+
+    #[test]
     fn every_precommit_failure_restores_all_files() {
         for fail in 0..=3 {
             let tmp = tempfile::tempdir().unwrap();

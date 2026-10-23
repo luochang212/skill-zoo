@@ -82,7 +82,7 @@ ran the official Verus release.
 
 The user subsequently requested research under this proposal. The
 [isolated recovery study](../../docs/research/verus-transaction/README.md)
-verified a model (6 verification units, 0 errors); four deliberate implementation
+first verified a model (6 verification units, 0 errors); four deliberate implementation
 mutations each failed verification. Seven existing production-path transaction
 tests passed. The report records commands, measurements, storage assumptions and
 the manual mapping to runtime code.
@@ -92,3 +92,12 @@ remain unverified. The model added a quantified replay argument but exposed no
 new production defect, while wider adoption would require maintenance of a
 production/model correspondence and trusted storage boundary. This remains a
 proposal; the research does not establish production adoption or change ADR 1.
+
+The [second round](../../docs/research/verus-transaction/round2-production-recovery.md)
+adds a partial-replay idempotence proof (7 verified units, 0 errors; five negative
+mutations rejected) and real filesystem failure/retry tests in both Rust and CLI.
+Each runtime retains the journal after two failures at every shared fixture
+replay position and recovers after the blocker is removed; lease failure/retry
+is also covered. Nine transaction tests and 118 CLI tests pass. This strengthens
+the observed model/runtime correspondence without proving it formally; the
+recommendation remains continued isolation, with no production refactor.

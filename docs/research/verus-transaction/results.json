@@ -1,5 +1,5 @@
 {
-  "source_sha256": "791cd5dc673f1f06917fad63d9243ed2ea364c2699715d87992ea1b9ff89b0c6",
+  "source_sha256": "6ab7d0432db071ca539d54e4b0b5e8c99584221cce7fd0962e102b320b8ccf43",
   "verus": "Verus\n  Version: 0.2026.10.18.7d82994\n  Profile: release\n  Platform: macos_aarch64\n  Toolchain: 1.99.1-aarch64-apple-darwin (overridden by environment variable RUSTUP_TOOLCHAIN)",
   "unchecked_proof_escapes": false,
   "cases": [
@@ -8,50 +8,60 @@
       "expected": "pass",
       "accepted": true,
       "exit_code": 0,
-      "verified": 6,
+      "verified": 7,
       "errors": 0,
       "diagnostic": null,
-      "seconds": 0.817
+      "seconds": 0.869
     },
     {
       "case": "wrong_commit_branch",
       "expected": "verification failure",
       "accepted": true,
       "exit_code": 1,
-      "verified": 5,
+      "verified": 6,
       "errors": 1,
       "diagnostic": "postcondition not satisfied",
-      "seconds": 0.335
+      "seconds": 0.3
     },
     {
       "case": "delete_journal_early",
       "expected": "verification failure",
       "accepted": true,
       "exit_code": 1,
-      "verified": 5,
+      "verified": 6,
       "errors": 1,
       "diagnostic": "postcondition not satisfied",
-      "seconds": 0.328
+      "seconds": 0.307
     },
     {
       "case": "omit_snapshot_write",
       "expected": "verification failure",
       "accepted": true,
       "exit_code": 1,
-      "verified": 5,
+      "verified": 6,
       "errors": 1,
       "diagnostic": "invariant not satisfied at end of loop body",
-      "seconds": 0.32
+      "seconds": 0.284
     },
     {
       "case": "omit_retry",
       "expected": "verification failure",
       "accepted": true,
       "exit_code": 1,
-      "verified": 5,
+      "verified": 6,
       "errors": 1,
       "diagnostic": "postcondition not satisfied",
-      "seconds": 0.327
+      "seconds": 0.281
+    },
+    {
+      "case": "switch_snapshot_during_retry",
+      "expected": "verification failure",
+      "accepted": true,
+      "exit_code": 1,
+      "verified": 6,
+      "errors": 1,
+      "diagnostic": "assertion failed",
+      "seconds": 0.285
     }
   ]
 }

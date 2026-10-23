@@ -5,13 +5,14 @@ Date: 2026-10-23. Related [ADR proposal](../../../adr/proposed/2026-10-23-evalua
 ## Outcome
 
 **Continue isolation; do not add Verus to the production build or required CI.**
-An executable recovery model verifies, and four deliberate implementation errors
+An executable recovery model verifies, and five deliberate implementation errors
 fail verification without weakening its contracts. This demonstrates useful
 reasoning about snapshot selection, partial replay and retries. It does not
 formally verify Skill Zoo's production recovery implementation or filesystem.
 
-The next worthwhile step would be strengthening production-path recovery failure
-and retry tests. Extracting a shared executable transition core would be a
+The [second round](round2-production-recovery.md) adds production-path recovery
+failure and retry tests for Rust and CLI using shared fixtures, plus a proof of
+partial replay idempotence. Extracting a shared executable transition core would be a
 separate design change: the small amount of pure logic currently lives among
 storage operations, so extraction solely for Verus has not yet earned its cost.
 
@@ -45,18 +46,19 @@ Other platforms were not exercised.
 ## Measured results
 
 [`results.json`](results.json) records the source checksum, exact verifier and
-timings. The model has 106 lines including annotations/comments. Verification
+timings. The current model has 132 lines including annotations/comments. Verification
 used `--rlimit 10`; trigger-output suppression changes only diagnostics.
 
 | Case | Expected and observed result | Verified units / errors | Time |
 | --- | --- | --- | --- |
-| Original model | Pass | 6 / 0 | 0.817 s |
-| Invert the committed branch | Postcondition failure | 5 / 1 | 0.335 s |
-| Permit journal deletion during partial replay | Postcondition failure | 5 / 1 | 0.328 s |
-| Omit a snapshot write | Loop invariant failure | 5 / 1 | 0.320 s |
-| Omit recovery retry | Postcondition failure | 5 / 1 | 0.327 s |
+| Current model | Pass | 7 / 0 | 0.869 s |
+| Invert the committed branch | Postcondition failure | 6 / 1 | 0.300 s |
+| Permit journal deletion during partial replay | Postcondition failure | 6 / 1 | 0.307 s |
+| Omit a snapshot write | Loop invariant failure | 6 / 1 | 0.284 s |
+| Omit recovery retry | Postcondition failure | 6 / 1 | 0.281 s |
+| Switch snapshot during a repeated replay | Assertion failure | 6 / 1 | 0.285 s |
 
-These are verification units, not six production functions. Mutations alter only
+These are verification units, not seven production functions. Mutations alter only
 executable bodies; preconditions, postconditions and loop invariants stay fixed.
 The runner rejects explicit proof escapes, and the model was reviewed for
 unchecked assumptions. The Verus/vstd/rustc/solver trusted base still applies.
@@ -68,10 +70,11 @@ cargo test --features test-helpers --manifest-path src-tauri/Cargo.toml \
   --lib persistence::agent_transaction::tests -- --nocapture
 ```
 
-All 7 existing tests passed. They exercise journal fixture replay, injected
+The first round's 7 existing tests passed. They exercise journal fixture replay, injected
 precommit failures, interrupted cleanup, file permissions and desktop/CLI leases.
-They do not constitute a physical power-loss test. No production code or tests
-were changed for this study.
+They do not constitute a physical power-loss test. The second round retains two
+additional Rust tests and two CLI tests; runtime code remains unchanged. See the
+second-round report for their outcomes and commands.
 
 ## What the model establishes
 
@@ -89,6 +92,8 @@ For arbitrary vector lengths and supplied token values, it establishes:
 - Partial replay retains the logical journal. An arbitrary interrupted prefix
   followed by one complete retry produces the selected state and permits cleanup.
 - Completing recovery twice preserves the same selected state.
+- Repeating the same partial prefix preserves the partially recovered state and
+  the correct journal-retention decision, while leaving the unwritten suffix alone.
 
 | Production mechanism | Model correspondence | Unverified boundary |
 | --- | --- | --- |
@@ -97,6 +102,7 @@ For arbitrary vector lengths and supplied token values, it establishes:
 | `write_snapshots(...)?` precedes journal removal | `keep_journal` remains true for a partial prefix | Actual error propagation and removal behavior |
 | A later lease acquisition calls recovery again | `interrupted_then_retry` | Process restart, exclusive lease and eventual IO success |
 | Replaying the same snapshot again | `completed_recovery_is_idempotent` | Storage implementation and external modification |
+| Repeating a failed replay prefix | `partial_recovery_is_idempotent` | Identical journal/marker across retries and actual IO behavior |
 
 This is a hand-maintained correspondence, not a mechanically proved refinement
 from production code to the model. The proof does not cover the full commit
@@ -122,14 +128,14 @@ still lists direct IO and async/await as unsupported. Modeling/wrapping those
 operations adds a trusted boundary; [assumptions](https://verus-lang.github.io/verus/guide/tcb.html)
 must not be mistaken for verification of their implementation.
 
-Verifier execution is cheap for this example (about 2.1 seconds for all five runs).
+Verifier execution is cheap for this example (about 2.3 seconds for all six runs).
 The significant costs are tool setup, correct specifications, storage modeling
 and keeping the model aligned with production Rust and the separate CLI. Existing
 tests already exercise snapshot selection and recovery outcomes; this trial
 found no new production defect. The additional benefit is the quantified argument for the
 abstract replay algorithm, rather than newly demonstrated disk-level safety.
 
-## Snapshot provenance
+## First-round snapshot provenance
 
 Observed working tree based on commit
 `dcaf99c00425c2bfdd3ef4af402a502fe2219ef1`, including the preceding uncommitted

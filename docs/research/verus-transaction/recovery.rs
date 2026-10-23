@@ -81,6 +81,32 @@ fn interrupted_then_retry(
     }
 }
 
+fn partial_recovery_is_idempotent(
+    disk: &mut Vec<Option<u64>>,
+    before: &Vec<Option<u64>>,
+    after: &Vec<Option<u64>>,
+    committed: bool,
+    limit: usize,
+) -> (keep_journal: bool)
+    requires
+        old(disk).len() == before.len(),
+        before.len() == after.len(),
+        limit <= before.len(),
+    ensures
+        keep_journal == (limit < before.len()),
+        final(disk).len() == before.len(),
+        forall|j: int| 0 <= j < before.len() ==>
+            final(disk)[j] == if j < limit {
+                if committed { after[j] } else { before[j] }
+            } else { old(disk)[j] },
+{
+    recover_prefix(disk, before, after, committed, limit);
+    let ghost partially_recovered = disk@;
+    let keep_again = recover_prefix(disk, before, after, committed, limit);
+    assert(disk@ =~= partially_recovered);
+    keep_again
+}
+
 fn completed_recovery_is_idempotent(
     disk: &mut Vec<Option<u64>>,
     before: &Vec<Option<u64>>,

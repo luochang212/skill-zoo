@@ -32,6 +32,10 @@ def main():
             "        recover_prefix(disk, before, after, committed, before.len())\n",
             "        false\n",
         ),
+        "switch_snapshot_during_retry": (
+            "    let keep_again = recover_prefix(disk, before, after, committed, limit);",
+            "    let keep_again = recover_prefix(disk, before, after, !committed, limit);",
+        ),
     }
     cases = {"baseline": source}
     for name, (old, new) in mutations.items():
@@ -67,6 +71,7 @@ def main():
                     run.returncode != 0 and errors > 0 and diagnostic is not None
                     and diagnostic.group(1) in (
                         "postcondition not satisfied", "invariant not satisfied at end of loop body",
+                        "assertion failed",
                     )
                 )
             results.append({
