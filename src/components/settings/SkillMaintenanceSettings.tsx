@@ -332,7 +332,7 @@ export function SkillMaintenanceSettings({
           icon={<Puzzle className="h-4 w-4 text-violet-500" />}
           title={t("settings.pluginsDiscovery.title")}
           description={t("settings.pluginsDiscovery.desc")}
-          checked={pluginsDiscoveryEnabled ?? true}
+          checked={pluginsDiscoveryEnabled ?? false}
           onCheckedChange={(checked) =>
             updatePluginsDiscovery.mutate(checked, {
               onSuccess: async () => {

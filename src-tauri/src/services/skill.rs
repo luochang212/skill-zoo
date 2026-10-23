@@ -885,7 +885,7 @@ impl SkillService {
         // entries, so a switched-off feature has zero runtime presence.
         let enabled = Settings::load()
             .map(|settings| settings.plugins_discovery_enabled())
-            .unwrap_or(true);
+            .unwrap_or(false);
         if !enabled {
             return;
         }
@@ -3358,6 +3358,17 @@ mod tests {
         }
     }
 
+    /// Plugin discovery is off by default; scan tests opt in explicitly.
+    fn set_plugin_discovery(enabled: bool) {
+        crate::persistence::Settings {
+            values: [("plugins_discovery_enabled".to_string(), enabled.to_string())]
+                .into_iter()
+                .collect(),
+        }
+        .save()
+        .unwrap();
+    }
+
     #[test]
     fn cache_batch_commit_restores_memory_when_persistence_fails() {
         let original = test_cache_entry("ssot:original", "original", "owner", "repo");
@@ -3608,6 +3619,7 @@ mod tests {
     fn plugin_discovery_walks_agent_homes_with_one_generic_rule() {
         let tmp = tempfile::tempdir().unwrap();
         crate::config::with_test_home(tmp.path(), || {
+            set_plugin_discovery(true);
             let skills_dir = tmp.path().join("custom-tool/skills");
             let home = tmp.path().join("custom-tool");
             std::fs::create_dir_all(&skills_dir).unwrap();
@@ -3716,20 +3728,20 @@ mod tests {
             )
             .unwrap();
 
-            // Default (no setting recorded): discovery runs.
+            // Default (no setting recorded): no walk, nothing produced.
+            let mut entries = Vec::new();
+            SkillService::scan_plugin_skills_into(&mut entries);
+            assert!(entries.is_empty());
+
+            // Switched on: discovery runs.
+            set_plugin_discovery(true);
             let mut entries = Vec::new();
             SkillService::scan_plugin_skills_into(&mut entries);
             assert_eq!(entries.len(), 1);
 
-            // Switched off: no filesystem walk happens and nothing is produced,
-            // so the rebuild's replace_all purges previously discovered entries.
-            crate::persistence::Settings {
-                values: [("plugins_discovery_enabled".to_string(), "false".to_string())]
-                    .into_iter()
-                    .collect(),
-            }
-            .save()
-            .unwrap();
+            // Switched off again: no filesystem walk happens and nothing is
+            // produced, so the rebuild's replace_all purges previous entries.
+            set_plugin_discovery(false);
             let mut entries = Vec::new();
             SkillService::scan_plugin_skills_into(&mut entries);
             assert!(entries.is_empty());
@@ -3740,6 +3752,7 @@ mod tests {
     fn plugin_skills_stay_outside_conflict_scope_and_refuse_writes() {
         let tmp = tempfile::tempdir().unwrap();
         crate::config::with_test_home(tmp.path(), || {
+            set_plugin_discovery(true);
             let skill_dir = tmp
                 .path()
                 .join(".claude/plugins/marketplaces/repo/skills/beta");

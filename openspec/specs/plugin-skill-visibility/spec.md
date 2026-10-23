@@ -31,7 +31,12 @@ The system SHALL apply one discovery rule uniformly to every registered coding a
 
 ### Requirement: Plugin discovery is user-controllable and retracts fully
 
-Plugin skill discovery SHALL default to enabled and SHALL be switchable from Settings under Skill maintenance. Turning the switch off SHALL immediately retract the whole feature: the next local view refresh performs no plugin filesystem walk and removes discovered plugin skills from the Plugins category and its counts, leaving no scan cost or residual entries. Turning it back on SHALL re-discover plugin skills on the next refresh.
+Plugin skill discovery SHALL default to disabled and SHALL be switchable from Settings under Skill maintenance. Turning the switch on SHALL re-discover plugin skills on the next refresh. Turning it off SHALL immediately retract the whole feature: the next local view refresh performs no plugin filesystem walk and removes discovered plugin skills from the Plugins category and its counts, leaving no scan cost or residual entries.
+
+#### Scenario: Discovery stays off until switched on
+
+- **WHEN** no plugin discovery preference has been recorded
+- **THEN** the local view performs no plugin walk and the Plugins category stays hidden
 
 #### Scenario: Switching off retracts immediately
 

@@ -621,11 +621,11 @@ describe("SkillMaintenanceSettings", () => {
     expect(await screen.findByRole("button", { name: /^update selected$/i })).toBeDisabled();
   });
 
-  it("shows non-SSOT and plugin skills by default", async () => {
+  it("shows non-SSOT skills but leaves plugin discovery off by default", async () => {
     renderSettings();
 
     expect(await screen.findByRole("switch", { name: "Show non-SSOT skills" })).toBeChecked();
-    expect(screen.getByRole("switch", { name: "Show plugin skills" })).toBeChecked();
+    expect(screen.getByRole("switch", { name: "Show plugin skills" })).not.toBeChecked();
   });
 
   it("writes the non-SSOT preference when switched off", async () => {

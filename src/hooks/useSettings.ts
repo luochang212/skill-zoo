@@ -125,7 +125,7 @@ export function usePluginsDiscoveryEnabled() {
     queryKey: PLUGINS_DISCOVERY_KEY,
     queryFn: async () => {
       const settings = await settingsApi.getSettings();
-      return settings["plugins_discovery_enabled"] !== "false";
+      return settings["plugins_discovery_enabled"] === "true";
     },
     staleTime: 0,
   });

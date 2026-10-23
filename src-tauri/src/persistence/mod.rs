@@ -275,11 +275,11 @@ pub struct Settings {
 }
 
 impl Settings {
-    /// Plugin skill discovery, on unless explicitly switched off.
+    /// Plugin skill discovery, off unless explicitly switched on.
     pub fn plugins_discovery_enabled(&self) -> bool {
         self.get("plugins_discovery_enabled")
-            .map(|value| value != "false")
-            .unwrap_or(true)
+            .map(|value| value == "true")
+            .unwrap_or(false)
     }
 
     pub fn load() -> Result<Self, AppError> {
