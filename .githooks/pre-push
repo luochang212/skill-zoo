@@ -3,6 +3,13 @@
 # Mirrors the CI workflow — catches issues before they hit remote.
 set -e
 
+echo "=== ADR records ==="
+if command -v adrkit >/dev/null 2>&1; then
+  adrkit validate --all
+else
+  echo "adrkit not installed; skipping ADR validation"
+fi
+
 echo "=== Frontend typecheck ==="
 bun run typecheck
 

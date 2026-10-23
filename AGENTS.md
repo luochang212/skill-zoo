@@ -126,7 +126,7 @@ When the user wants to review or share the project's history, use the `adrkit-vi
 
 <!-- adrkit: standing-orders 449bd66b -->
 
-Project gate: run `adrkit validate --all` — no CI step or git hook covers `adr/`.
+Project gate: `adrkit validate --all`, run by `.githooks/pre-push` — CI does not cover `adr/`.
 
 ## Testing
 
