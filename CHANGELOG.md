@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.3.58] — 2026-10-23
+
+### Added
+- Skills installed by coding-agent plugins — Claude Code's marketplace clones and plugin caches included — now appear as read-only entries in a dedicated Plugins category on the Local page, labeled with the source path they were found at. Discovery uses one generic rule for every registered agent rather than a vendor layout: a bounded walk of the agent's home directory that skips junk directories and other skill roots, keeping the newest copy when a name repeats. Plugin skills are excluded from same-name conflict, duplicate and install-preflight checks, and the backend refuses edit, save, link, archive, removal and update writes on them. (#8)
+- A "Show plugin skills" switch under Settings → Skill maintenance controls that walk. It is off by default, and switching it off retracts every plugin entry immediately.
+- Updates now protect local edits: `skillFolderHash` stores a real content baseline — SHA-256 over the installed folder's regular files, ordered by relative path, skipping symlinks and `.DS_Store`/`Thumbs.db`. A skill that no longer matches its baseline is marked "Modified locally"; a single update asks before overwriting it, and a batch update skips it and lists it in the completion summary so it can be updated on its own. Locks with no usable baseline — including the legacy 40-character commit SHA — keep updating without a warning and gain a baseline on the next successful write.
+
+### Changed
+- The non-SSOT visibility preference is now "Show non-SSOT skills" instead of "Hide non-SSOT skills", and lives with plugin discovery under a "Skill maintenance" group. Existing users keep their effective choice: the legacy key is read as a fallback and is never rewritten or migrated.
+- The Local sidebar's "My Skills" category is now "Mine" ("我的" in Chinese), alongside the new Plugins category.
+- Recommended repositories replace `addyosmani/agent-skills` with `hugohe3/ppt-master`.
+- Desktop dependencies were refreshed to their latest stable releases, and the Rust minimum version is now 1.90.
+
+### Fixed
+- An edit saved while an update was downloading is no longer overwritten: drift is checked again immediately before the content is replaced, and unfinished updates stay available instead of showing as complete.
+- A `.DS_Store` or `Thumbs.db` written by a file browser no longer marks an installed skill as locally modified.
+- A lock whose `skillFolderHash` holds a legacy commit SHA or any other non-conforming value is treated as an unknown baseline rather than as local drift.
+- Clicking the update manager's force control no longer leaks the click into the overwrite flag.
+- Plugin skills no longer offer edit, save or link controls, no longer appear twice when one name exists in several plugin trees, no longer occupy a slot in the link matrix, and disappear at once when discovery is switched off.
+
 ## [0.3.57] — 2026-10-22
 
 ### Changed
