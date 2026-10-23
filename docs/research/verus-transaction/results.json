@@ -1,0 +1,57 @@
+{
+  "source_sha256": "791cd5dc673f1f06917fad63d9243ed2ea364c2699715d87992ea1b9ff89b0c6",
+  "verus": "Verus\n  Version: 0.2026.10.18.7d82994\n  Profile: release\n  Platform: macos_aarch64\n  Toolchain: 1.99.1-aarch64-apple-darwin (overridden by environment variable RUSTUP_TOOLCHAIN)",
+  "unchecked_proof_escapes": false,
+  "cases": [
+    {
+      "case": "baseline",
+      "expected": "pass",
+      "accepted": true,
+      "exit_code": 0,
+      "verified": 6,
+      "errors": 0,
+      "diagnostic": null,
+      "seconds": 0.817
+    },
+    {
+      "case": "wrong_commit_branch",
+      "expected": "verification failure",
+      "accepted": true,
+      "exit_code": 1,
+      "verified": 5,
+      "errors": 1,
+      "diagnostic": "postcondition not satisfied",
+      "seconds": 0.335
+    },
+    {
+      "case": "delete_journal_early",
+      "expected": "verification failure",
+      "accepted": true,
+      "exit_code": 1,
+      "verified": 5,
+      "errors": 1,
+      "diagnostic": "postcondition not satisfied",
+      "seconds": 0.328
+    },
+    {
+      "case": "omit_snapshot_write",
+      "expected": "verification failure",
+      "accepted": true,
+      "exit_code": 1,
+      "verified": 5,
+      "errors": 1,
+      "diagnostic": "invariant not satisfied at end of loop body",
+      "seconds": 0.32
+    },
+    {
+      "case": "omit_retry",
+      "expected": "verification failure",
+      "accepted": true,
+      "exit_code": 1,
+      "verified": 5,
+      "errors": 1,
+      "diagnostic": "postcondition not satisfied",
+      "seconds": 0.327
+    }
+  ]
+}
