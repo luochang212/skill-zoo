@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { toast } from "sonner";
+import i18n from "@/i18n";
 import {
   useRepoReadme,
   useRefreshRepoPanel,
@@ -210,6 +212,27 @@ describe("useRestoreArchivedSkill", () => {
 });
 
 describe("useUpdateSkill", () => {
+  it.each([
+    ["en", "Test Skill updated to the latest version"],
+    ["zh", "Test Skill 已更新到最新版本"],
+  ])("translates the update success message in %s", async (language, message) => {
+    const previousLanguage = i18n.language;
+    const success = vi.spyOn(toast, "success").mockImplementation(() => "toast-id");
+    try {
+      await i18n.changeLanguage(language);
+      vi.mocked(invoke).mockResolvedValue({ updated: true, skill: mockSkills[0] });
+      const { wrapper } = createQueryWrapper();
+      const { result } = renderHook(() => useUpdateSkill(), { wrapper });
+      await act(async () => {
+        await result.current.mutateAsync({ skillId: "skill-1" });
+      });
+      expect(success).toHaveBeenCalledWith(message);
+    } finally {
+      success.mockRestore();
+      await i18n.changeLanguage(previousLanguage);
+    }
+  });
+
   beforeEach(() => {
     vi.mocked(invoke).mockReset();
   });

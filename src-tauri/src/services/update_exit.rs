@@ -176,7 +176,10 @@ mod tests {
 
     #[test]
     fn bundled_native_dialog_labels_cover_both_languages() {
-        assert_eq!(exit_labels("en").cancel, "Keep updating");
-        assert_eq!(exit_labels("zh").message, "更新正在进行，确定退出？");
+        assert_eq!(exit_labels("en").cancel, "Keep going");
+        assert_eq!(
+            exit_labels("zh").message,
+            "安装、更新或归档操作正在进行，确定退出？"
+        );
     }
 }

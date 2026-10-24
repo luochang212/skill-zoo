@@ -116,7 +116,9 @@ export function ConfigureDialog({
                         : (enabled) => toggleSymlink.mutate({ skillId, agent, enabled })
                     }
                     disabled={isPending || isHomeAgent}
-                    aria-label={`Toggle ${getAgentLabel(agent, agentConfigs ?? [])}`}
+                    aria-label={t("configureDialog.toggleAgent", {
+                      agent: getAgentLabel(agent, agentConfigs ?? []),
+                    })}
                   />
                 </div>
               );

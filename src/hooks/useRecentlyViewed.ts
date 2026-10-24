@@ -6,10 +6,23 @@ const MAX_ITEMS = 6;
 
 export type RecentlyViewedEntry = DiscoverRepo & { viewedAt: number };
 
+function isRecentlyViewedEntry(value: unknown): value is RecentlyViewedEntry {
+  return (
+    Boolean(value) &&
+    typeof value === "object" &&
+    typeof (value as { viewedAt?: unknown }).viewedAt === "number" &&
+    typeof (value as { name?: unknown }).name === "string"
+  );
+}
+
 function load(): RecentlyViewedEntry[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return JSON.parse(stored) as RecentlyViewedEntry[];
+    if (stored) {
+      // Valid JSON with the wrong shape must not crash the Discover view.
+      const parsed: unknown = JSON.parse(stored);
+      if (Array.isArray(parsed)) return parsed.filter(isRecentlyViewedEntry);
+    }
   } catch {
     /* ignore */
   }

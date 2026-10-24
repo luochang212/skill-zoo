@@ -1,3 +1,4 @@
+import "@/i18n";
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BannerCarousel } from "./BannerCarousel";

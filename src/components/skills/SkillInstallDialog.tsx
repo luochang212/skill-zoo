@@ -103,7 +103,9 @@ export function SkillInstallDialog({
                     checked={agents.has(agent)}
                     disabled={isPending}
                     onCheckedChange={() => toggleAgent(agent)}
-                    aria-label={`Toggle ${getAgentLabel(agent, agentConfigs ?? [])}`}
+                    aria-label={t("configureDialog.toggleAgent", {
+                      agent: getAgentLabel(agent, agentConfigs ?? []),
+                    })}
                   />
                 </div>
               ))}

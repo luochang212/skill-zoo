@@ -142,7 +142,9 @@ export function useUpdateSkill() {
       );
       invalidateFor(qc, "updateSkill");
       if (result.updated) {
-        toast.success(`${result.skill.name} updated to the latest version`);
+        toast.success(
+          i18n.t("settings.maintenance.updateSingleSuccess", { name: result.skill.name }),
+        );
       }
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ["skills", "updateHistory"] }),

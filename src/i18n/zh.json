@@ -21,7 +21,9 @@
     "restoring": "恢复中...",
     "all": "全部",
     "uninstall": "卸载",
-    "collapse": "收起"
+    "collapse": "收起",
+    "renderError": "渲染错误",
+    "retry": "重试"
   },
   "nav": {
     "local": "本地",
@@ -40,7 +42,7 @@
     "mySkills": "我的",
     "consistency": "一致性",
     "repos": "仓库",
-    "unassigned": "Unassigned"
+    "unassigned": "未分类"
   },
   "repoLoadStage": {
     "downloading": "正在下载...",
@@ -73,7 +75,12 @@
     "clearHistory": "清空",
     "archiveSelected": "批量归档",
     "restoreSelected": "批量恢复",
-    "removeSelected": "批量删除"
+    "removeSelected": "批量删除",
+    "repository": "仓库",
+    "selectSkill": "选择 {{name}}",
+    "previousBanner": "上一张横幅",
+    "nextBanner": "下一张横幅",
+    "goToBanner": "跳转到第 {{index}} 张横幅"
   },
   "installed": {
     "searchPlaceholder": "搜索已安装...",
@@ -81,7 +88,9 @@
     "createSkill": "创建技能",
     "archiveLoadFailed": "归档无法加载。",
     "noMatch": "没有匹配筛选条件的已安装技能。",
-    "noVisibleAgentsMatch": "没有匹配当前显示的编程工具的技能。可在设置中显示更多编程工具。"
+    "noVisibleAgentsMatch": "没有匹配当前显示的编程工具的技能。可在设置中显示更多编程工具。",
+    "nameColumn": "名称",
+    "repoColumn": "仓库"
   },
   "skill": {
     "mine": "我的",
@@ -169,7 +178,8 @@
     "loading": "正在加载编程工具状态...",
     "linked": "已链接",
     "broken": "已损坏",
-    "missing": "未链接"
+    "missing": "未链接",
+    "toggleAgent": "切换 {{agent}}"
   },
   "removeDialog": {
     "title": "删除技能",
@@ -247,7 +257,8 @@
     "mergeAllConfirmDesc": "即将对以下 {{count}} 组重复技能执行合并操作：",
     "mergeAllGroupLabel": "{{name}}（{{count}} 个副本）",
     "merging": "合并中...",
-    "badgeVisibility": "徽章可见性"
+    "badgeVisibility": "徽章可见性",
+    "labelSettings": "标签设置"
   },
   "skillHero": {
     "updated": "已更新",
@@ -356,6 +367,7 @@
       "updateAllDesc": "从 Git 仓库拉取所有已安装技能的最新版本",
       "updating": "更新中…",
       "updateAllBtn": "更新全部",
+      "updateSingleSuccess": "{{name}} 已更新到最新版本",
       "updateAllSuccess": "{{count}} 个技能更新成功",
       "updateAllPartial": "{{success}} 个技能更新成功，{{fail}} 个失败",
       "updateAllFailed": "更新失败",
@@ -473,7 +485,7 @@
         "focusDetail": "来自 {{name}}",
         "focusEmpty": "本周期暂无调用"
       },
-      "usageFailed": "Claude 技能使用记录读取失败",
+      "usageFailed": "技能使用记录读取失败",
       "usageRanges": {
         "week": "最近一周",
         "month": "最近一月"
@@ -586,8 +598,8 @@
   },
   "updateExitDialog": {
     "title": "退出 Skill Zoo？",
-    "message": "更新正在进行，确定退出？",
+    "message": "安装、更新或归档操作正在进行，确定退出？",
     "quit": "退出",
-    "cancel": "继续更新"
+    "cancel": "继续操作"
   }
 }

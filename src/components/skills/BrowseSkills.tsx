@@ -283,7 +283,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
                           >
                             <div className="min-w-0">
                               <p className="text-[11px] text-muted-foreground/60 uppercase tracking-wider mb-0.5">
-                                Repository
+                                {t("browse.repository")}
                               </p>
                               <p className="text-[13px] font-medium truncate">
                                 {repoResult.owner}/{repoResult.name}

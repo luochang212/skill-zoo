@@ -462,7 +462,7 @@ export function ConsistencyPanel({
                 ? "bg-accent text-foreground"
                 : "text-muted-foreground hover:text-foreground hover:bg-accent"
             }`}
-            title="Label Settings"
+            title={t("consistency.labelSettings")}
           >
             <Settings className="h-3.5 w-3.5" />
           </button>

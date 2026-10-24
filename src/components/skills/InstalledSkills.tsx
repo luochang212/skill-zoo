@@ -96,7 +96,7 @@ function ListHeader({
   allSelected,
   onToggleSelectAll,
   selectable = true,
-  dateLabel = "Updated",
+  dateLabel,
   selectAllLabel,
   sortField,
   sortDirection,
@@ -108,9 +108,10 @@ function ListHeader({
   allSelected: boolean;
   onToggleSelectAll: () => void;
   selectable?: boolean;
-  dateLabel?: string;
+  dateLabel: string;
   selectAllLabel: string;
 }) {
+  const { t } = useTranslation();
   const headerBtn = (field: SortField, label: string, className: string) => (
     <button
       type="button"
@@ -133,8 +134,8 @@ function ListHeader({
           />
         )}
       </div>
-      {headerBtn("name", "Name", "w-48 shrink-0")}
-      {headerBtn("repo", "Repo", "flex-1 min-w-0 hidden @2xl/main:flex")}
+      {headerBtn("name", t("installed.nameColumn"), "w-48 shrink-0")}
+      {headerBtn("repo", t("installed.repoColumn"), "flex-1 min-w-0 hidden @2xl/main:flex")}
       {headerBtn("updatedAt", dateLabel, "w-28 shrink-0 hidden @md/main:flex")}
       <div className="w-8 shrink-0 hidden @lg/main:block" />
     </div>

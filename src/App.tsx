@@ -13,6 +13,7 @@ import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { useTranslation } from "react-i18next";
+import i18next from "@/i18n";
 import { Header } from "@/components/layout/Header";
 import { BrowseSkills } from "@/components/skills/BrowseSkills";
 import { InstalledSkills } from "@/components/skills/InstalledSkills";
@@ -66,7 +67,7 @@ class ErrorBoundary extends Component<EBProps, EBState> {
       return (
         <div className="flex items-center justify-center h-full p-8">
           <div className="text-center space-y-2">
-            <p className="text-red-500 font-bold">Render Error</p>
+            <p className="text-red-500 font-bold">{i18next.t("common.renderError")}</p>
             <ScrollArea className="max-h-60">
               <pre className="text-xs text-muted-foreground whitespace-pre-wrap">
                 {this.state.error?.message}
@@ -76,7 +77,7 @@ class ErrorBoundary extends Component<EBProps, EBState> {
               className="text-xs underline"
               onClick={() => this.setState({ hasError: false, error: null })}
             >
-              Retry
+              {i18next.t("common.retry")}
             </button>
           </div>
         </div>
@@ -122,6 +123,9 @@ export default function App() {
     setAuxDraftsDirty(hasUnsaved);
   }, []);
   const [pendingClose, setPendingClose] = useState(false);
+  // Deferred navigation from the tray, applied after the user discards
+  // unsaved editor drafts in the close confirmation dialog.
+  const pendingNavRef = useRef<(() => void) | null>(null);
   const editor = useEditorState(auxDraftsDirtyRef);
 
   const handleBackFromSkill = useCallback(() => {
@@ -162,17 +166,37 @@ export default function App() {
   }, [i18n.language]);
 
   // Listen for navigation requests from the tray menu (e.g. "设置" → settings view).
+  // Tray navigation closes any open skill detail first, otherwise the detail
+  // overlay keeps rendering and hides the requested view behind hidden tabs.
+  const handleTrayNavigateRef = useRef<(apply: () => void) => void>(() => {});
+  const handleTrayNavigate = useCallback(
+    (apply: () => void) => {
+      if (editor.open && (editor.dirty || auxDraftsDirtyRef.current)) {
+        pendingNavRef.current = apply;
+        setPendingClose(true);
+        return;
+      }
+      editor.closeEditor();
+      setArchivedEditor(null);
+      apply();
+    },
+    [editor],
+  );
+  handleTrayNavigateRef.current = handleTrayNavigate;
+
   useEffect(() => {
     let disposed = false;
     let unlisten: (() => void) | undefined;
     void listen<string>("navigate", (event) => {
       const target = event.payload;
       if (target === "settings") {
-        setView("settings");
+        handleTrayNavigateRef.current(() => setView("settings"));
       } else if (target === "settings:skill-companion") {
-        setView("settings");
-        skillCompanionRequestCounter.current += 1;
-        setSkillCompanionOpenRequest(skillCompanionRequestCounter.current);
+        handleTrayNavigateRef.current(() => {
+          setView("settings");
+          skillCompanionRequestCounter.current += 1;
+          setSkillCompanionOpenRequest(skillCompanionRequestCounter.current);
+        });
       }
     }).then((registeredUnlisten) => {
       if (disposed) {
@@ -376,7 +400,10 @@ export default function App() {
         <Dialog
           open
           onOpenChange={(open) => {
-            if (!open) setPendingClose(false);
+            if (!open) {
+              setPendingClose(false);
+              pendingNavRef.current = null;
+            }
           }}
         >
           <DialogContent className="sm:max-w-[380px]">
@@ -385,7 +412,14 @@ export default function App() {
               <DialogDescription>{t("unsavedDialog.closeDescription")}</DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button variant="outline" size="sm" onClick={() => setPendingClose(false)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setPendingClose(false);
+                  pendingNavRef.current = null;
+                }}
+              >
                 {t("unsavedDialog.keepEditing")}
               </Button>
               <Button
@@ -394,6 +428,9 @@ export default function App() {
                 onClick={() => {
                   setPendingClose(false);
                   editor.closeEditor();
+                  const apply = pendingNavRef.current;
+                  pendingNavRef.current = null;
+                  apply?.();
                 }}
               >
                 {t("unsavedDialog.discard")}

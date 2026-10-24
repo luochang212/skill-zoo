@@ -308,7 +308,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
                           ? t("common.installed")
                           : skill.installStatus === "conflict"
                             ? t("browse.nameConflict")
-                            : `Select ${skill.name}`
+                            : t("browse.selectSkill", { name: skill.name })
                       }
                       className="shrink-0"
                     />

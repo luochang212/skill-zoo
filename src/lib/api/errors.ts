@@ -93,6 +93,14 @@ export function formatApiError(error: unknown): string {
   ) {
     return translateError("error.downloadTls", repo);
   }
+  // Synthetic keys thrown by the GitHub token mutation; the settings panel
+  // shows the same strings inline, so the toast must not leak the raw key.
+  if (raw === "githubTokenVerificationFailed") {
+    return i18n.t("settings.github.verifyFailed");
+  }
+  if (raw === "githubTokenSaveFailed") {
+    return i18n.t("settings.github.saveFailed");
+  }
   if (lower.includes("download temporarily unavailable")) {
     return translateError("error.downloadUnavailable", repo);
   }

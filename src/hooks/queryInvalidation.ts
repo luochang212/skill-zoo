@@ -15,6 +15,7 @@ const SKILL_LIST_INVALIDATION = [
 const REMOVE_SKILL_INVALIDATION = [
   ...SKILL_LIST_INVALIDATION,
   ["skills", "externalImports"],
+  ["skills", "updateCheck"],
 ] as const;
 
 export const INVALIDATION_MAP = {
@@ -23,6 +24,7 @@ export const INVALIDATION_MAP = {
     ["repos", "skills"],
     ["skills", "symlinks"],
     ["skills.sh", "search"],
+    ["skills", "updateCheck"],
   ],
   externalImports: [
     ["skills", "externalImports"],

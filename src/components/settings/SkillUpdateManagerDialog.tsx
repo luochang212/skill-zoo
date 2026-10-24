@@ -107,6 +107,10 @@ export function SkillUpdateManagerDialog({
   const history = historyQuery.data ?? [];
   const historyBusy = deleteHistory.isPending || clearHistory.isPending;
 
+  // Re-seed the selection only when the dialog opens or the candidate set
+  // actually changes. Keying on the array identity would wipe the user's
+  // choices whenever a background refetch recreates the parent's array.
+  const updateNames = updates.map((update) => update.skillName).join("\n");
   useEffect(() => {
     if (!open) return;
     // Batch updates never silently overwrite local modifications, so drifted
@@ -114,7 +118,8 @@ export function SkillUpdateManagerDialog({
     setSelected(
       new Set(updates.filter((update) => !update.locallyModified).map((u) => u.skillName)),
     );
-  }, [open, updates]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- updateNames is the change discriminator
+  }, [open, updateNames]);
 
   const selectedUpdates = useMemo(
     () => updates.filter((update) => selected.has(update.skillName)),

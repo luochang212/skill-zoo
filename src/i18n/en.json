@@ -21,7 +21,9 @@
     "restoring": "Restoring...",
     "all": "All",
     "uninstall": "Uninstall",
-    "collapse": "Collapse"
+    "collapse": "Collapse",
+    "renderError": "Render Error",
+    "retry": "Retry"
   },
   "nav": {
     "local": "Local",
@@ -73,7 +75,12 @@
     "clearHistory": "Clear",
     "archiveSelected": "Archive selected",
     "restoreSelected": "Restore selected",
-    "removeSelected": "Remove selected"
+    "removeSelected": "Remove selected",
+    "repository": "Repository",
+    "selectSkill": "Select {{name}}",
+    "previousBanner": "Previous banner",
+    "nextBanner": "Next banner",
+    "goToBanner": "Go to banner {{index}}"
   },
   "installed": {
     "searchPlaceholder": "Search installed...",
@@ -81,7 +88,9 @@
     "createSkill": "Create Skill",
     "archiveLoadFailed": "Archive could not be loaded.",
     "noMatch": "No installed skills match your filters.",
-    "noVisibleAgentsMatch": "No skills match your visible coding agents. Show more coding agents in Settings to include them."
+    "noVisibleAgentsMatch": "No skills match your visible coding agents. Show more coding agents in Settings to include them.",
+    "nameColumn": "Name",
+    "repoColumn": "Repo"
   },
   "skill": {
     "mine": "Mine",
@@ -169,7 +178,8 @@
     "loading": "Loading coding agent status...",
     "linked": "linked",
     "broken": "broken",
-    "missing": "missing"
+    "missing": "missing",
+    "toggleAgent": "Toggle {{agent}}"
   },
   "removeDialog": {
     "title": "Remove Skill",
@@ -247,7 +257,8 @@
     "mergeAllConfirmDesc": "The following {{count}} duplicate groups will be merged:",
     "mergeAllGroupLabel": "{{name}} ({{count}} copies)",
     "merging": "Merging...",
-    "badgeVisibility": "Badge Visibility"
+    "badgeVisibility": "Badge Visibility",
+    "labelSettings": "Label Settings"
   },
   "skillHero": {
     "updated": "Updated",
@@ -356,6 +367,7 @@
       "updateAllDesc": "Pull the latest version of all installed skills from Git repositories",
       "updating": "Updating…",
       "updateAllBtn": "Update All",
+      "updateSingleSuccess": "{{name}} updated to the latest version",
       "updateAllSuccess": "{{count}} skill(s) updated successfully",
       "updateAllPartial": "{{success}} skill(s) updated, {{fail}} failed",
       "updateAllFailed": "Update failed",
@@ -473,7 +485,7 @@
         "focusDetail": "From {{name}}",
         "focusEmpty": "No calls in this period"
       },
-      "usageFailed": "Could not read Claude skill usage",
+      "usageFailed": "Could not read skill usage",
       "usageRanges": {
         "week": "Past week",
         "month": "Past month"
@@ -586,8 +598,8 @@
   },
   "updateExitDialog": {
     "title": "Quit Skill Zoo?",
-    "message": "Skill updates are in progress. Are you sure you want to quit?",
+    "message": "Skill Zoo is installing, updating, or archiving skills. Are you sure you want to quit?",
     "quit": "Quit",
-    "cancel": "Keep updating"
+    "cancel": "Keep going"
   }
 }

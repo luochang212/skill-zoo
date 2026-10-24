@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { resolveResource } from "@tauri-apps/api/path";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import type { Banner } from "@/types/skills";
 
@@ -62,6 +63,7 @@ interface BannerCarouselProps {
 }
 
 export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) {
+  const { t } = useTranslation();
   const reduceMotion = useReducedMotion();
   const [current, setCurrent] = useState(0);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
@@ -215,14 +217,14 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
           <button
             onClick={goPrev}
             className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full bg-black/35 text-white hover:bg-black/55 transition-colors z-30"
-            aria-label="Previous banner"
+            aria-label={t("browse.previousBanner")}
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
           <button
             onClick={goNext}
             className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full bg-black/35 text-white hover:bg-black/55 transition-colors z-30"
-            aria-label="Next banner"
+            aria-label={t("browse.nextBanner")}
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -239,7 +241,7 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
               className={`h-1.5 rounded-full transition-all duration-300 motion-reduce:transition-none ${
                 i === current ? "w-5 bg-white" : "w-1.5 bg-white/50 hover:bg-white/70"
               }`}
-              aria-label={`Go to banner ${i + 1}`}
+              aria-label={t("browse.goToBanner", { index: i + 1 })}
             />
           ))}
         </div>

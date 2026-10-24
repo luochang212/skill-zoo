@@ -841,6 +841,7 @@ pub async fn install_skills(
     skill_names: Vec<String>,
     agents: Vec<String>,
 ) -> Result<Vec<InstalledSkill>, CommandError> {
+    let _update_guard = state.update_exit.start_update();
     let _agent_lease = state.acquire_local_lease().map_err(CommandError::from)?;
     for agent in &agents {
         if !config::agents().iter().any(|config| config.id == *agent) {
@@ -945,6 +946,7 @@ pub async fn update_skill(
     skill_id: String,
     force: Option<bool>,
 ) -> Result<SingleSkillUpdateResult, CommandError> {
+    let _update_guard = state.update_exit.start_update();
     let _agent_lease = state.acquire_local_lease().map_err(CommandError::from)?;
     let skill = SkillService::find_in_cache(&state.skill_cache, &skill_id)
         .map_err(CommandError::from)?
@@ -1817,6 +1819,7 @@ pub fn archive_skills(
     state: State<'_, AppState>,
     skill_ids: Vec<String>,
 ) -> Result<ArchiveSkillsResult, String> {
+    let _update_guard = state.update_exit.start_update();
     let _agent_lease = state.acquire_local_lease().map_err(|e| e.to_string())?;
     let mut archived: Vec<String> = Vec::new();
     let mut failed: Vec<ArchiveSkillFailure> = Vec::new();
@@ -1836,6 +1839,7 @@ pub fn restore_archived_skills(
     state: State<'_, AppState>,
     archive_ids: Vec<String>,
 ) -> Result<RestoreArchivedSkillsResult, String> {
+    let _update_guard = state.update_exit.start_update();
     let _agent_lease = state.acquire_local_lease().map_err(|e| e.to_string())?;
     let mut restored: Vec<RestoredArchivedSkill> = Vec::new();
     let mut failed: Vec<RestoreArchivedSkillFailure> = Vec::new();
