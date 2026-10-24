@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.59] — 2026-10-25
+
+### Fixed
+- Scans no longer delete dangling symlinks the app did not create. Only links whose target lies inside the SSOT store or a known agent home directory are cleaned up; foreign dangling links (to dotfiles repos, unmounted volumes, or other tools' targets) are left in place, since scan-time deletion of a user link is irreversible. A directory planted as a symlink at the SSOT location is now reported as unattributable instead of panicking mid-command.
+- Tray navigation now closes an open skill detail first, with the unsaved-draft confirmation when drafts exist, so the requested view is no longer hidden behind the detail overlay. Discarding the drafts applies the pending navigation.
+- User-facing feedback strings are now localized in both languages: the render-error boundary, the shared dialog close button, the single-skill update toast, GitHub token failure feedback, and the native exit dialog labels (which read from the i18n files and are pinned by a test).
+- The CLI now persists protocol state the way the desktop does: state writes flush to disk before the atomic rename, lifecycle recovery journals are written 0600 because they can restore bytes holding the GitHub token, empty state files read as absent, a literal `null` state file fails with a clean error, and archive IDs use the desktop's 16-character digest so the same skill archives to the same ID under either runtime.
+- External imports dedupe by canonical path, so re-importing a registered folder through a symlinked parent reuses the original import and its import date instead of creating a duplicate.
+- The CLI's web UI queues concurrent API calls through one lease instead of letting them reject each other, and its static handler rejects only exact `..` escape segments rather than any name starting with two dots.
+- The CLI's cache content hash now matches the desktop byte-for-byte on each platform: paths sort component-wise in code-point order, and a tree deeper than 20 levels voids the whole hash instead of producing a partial digest. Both runtimes assert against a pinned fixture vector in `fixtures/local-protocol/`.
+
 ## [0.3.58] — 2026-10-23
 
 ### Added

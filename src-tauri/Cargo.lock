@@ -4233,7 +4233,7 @@ checksum = "33f4fe9184a62d842c9ef383018f3306d8ba224fd9d836f56d7288308847c256"
 
 [[package]]
 name = "skill-zoo"
-version = "0.3.58"
+version = "0.3.59"
 dependencies = [
  "arboard",
  "base64 0.23.1",
