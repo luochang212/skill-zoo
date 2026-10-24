@@ -14,7 +14,7 @@
 
 ![app-screenshot](docs/header-image.webp)
 
-本地 Agent Skills 管理工具：发现、安装、管理 Claude Code、Codex、Cursor、Hermes、Pi 等 AI 编程工具的技能。
+本地 Agent Skills 管理工具：发现、安装、管理 Claude Code、Codex、Cursor、Hermes、OpenClaw、Pi 等 AI 编程工具的技能。
 
 ## ✨ 技术栈
 
@@ -33,14 +33,14 @@
 
 ## 🚀 功能
 
-- **探索发现**：搜索 & 下载 GitHub 上的技能
+- **探索发现**：搜索并下载 GitHub 上的技能
 - **更新技能**：将技能更新到 GitHub 仓库上的最新版本
-- **创作技能**：内置 Markdown 编辑器，随时随地创造技能
+- **创作技能**：内置 Markdown 编辑器，随时随地创建技能
 - **批量操作**：批量安装、删除、合并重复技能
 - **安全审计**：展示来自 skills.sh 社区的审计评分
-- **技能审查**：主动检测三种不一致情形，提醒用户修复问题
+- **一致性检查**：主动检测三种不一致情形，提醒用户修复问题
 - **技能归档**：将技能转到归档区暂存，降低上下文负担
-- **CLI + WUI**：为 Coding Agent 和人类提供 Skill Zoo 的控制入口
+- **CLI + WUI**：为 Coding Agent 与普通用户都提供 Skill Zoo 的控制入口
 
 ## 🙌 CLI
 

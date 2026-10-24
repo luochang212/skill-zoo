@@ -65,8 +65,9 @@ The desktop app scans filesystem truth broadly, but user-facing local views and 
 
 - Always include SSOT skills in `~/.agents/skills/`.
 - Include real `origin=agent` skill directories only when their `homeAgent` is currently visible in Settings.
-- Keep `origin=external` imports visible as management objects, even when not linked to any agent.
+- Keep `origin=external` imports visible as management objects, even when not linked to any agent. In the Local page list they follow the non-SSOT visibility switch like other non-SSOT skills; the Settings import manager lists them regardless of that switch.
 - Do not include hidden-agent skills or external imports in same-name conflict/duplicate consistency checks.
+- Exclude `origin=plugin` skills from conflict/duplicate consistency checks; they are read-only discoveries and never installation/link targets.
 - Discover/repository install conflict checks must use the same scope: SSOT plus visible-agent real directories, excluding external imports.
 - Install preflight must check SSOT plus the agent directories selected for that install operation, not every visible or known agent directory.
 

@@ -96,7 +96,7 @@ export const messages = {
     "en": "Global Settings"
   },
   "feat-settings-d": {
-    "zh": "管理主题、语言、内置与自定义编程工具。更新管理器集中检查和更新技能；可选 GitHub Token 提高 API 配额，减少仓库信息读取受限。",
+    "zh": "管理主题、语言、内置与自定义编程工具。更新管理器集中检查和更新技能；可选 GitHub Token 提高 API 配额，避免仓库信息读取受限。",
     "en": "Manage themes, languages, and built-in or custom coding agents. Check and apply skill updates in one manager. An optional GitHub token raises API limits for more reliable repository information."
   },
   "design-eyebrow": {
@@ -184,8 +184,8 @@ export const messages = {
     "en": "Minimum Visible Duration"
   },
   "ux-min-desc": {
-    "zh": "即使重新扫描只需 200ms，加载状态也会持续至少 800ms，避免一闪而过，让每次操作都感觉真实可靠。",
-    "en": "Even when rescan takes only 200ms, loading state persists for at least 800ms to avoid flickers, making every operation feel tangible."
+    "zh": "重新扫描的加载状态经过稳定处理，避免一闪而过，让每次操作都有清晰的反馈。",
+    "en": "Rescan loading states are stabilized to avoid flickers, so every operation gives clear feedback."
   },
   "agents-eyebrow": {
     "zh": "生态",
@@ -204,8 +204,8 @@ export const messages = {
     "en": "Product Overview · 2026"
   },
   "overview-lead": {
-    "zh": "为 AI 编程助手打造的 Skill 桌面管理工具，覆盖发现、安装、编辑到维护的完整工作流。基于 Tauri v2 构建，轻量、离线、安全。",
-    "en": "Desktop skill manager for AI coding assistants, covering the full workflow from discovery and installation to editing and maintenance. Built on Tauri v2, which keeps it lightweight, offline, and secure."
+    "zh": "为 AI 编程助手打造的 Skill 桌面管理工具，覆盖发现、安装、编辑到维护的完整工作流。基于 Tauri v2 构建，轻量、本地优先、安全。",
+    "en": "Desktop skill manager for AI coding assistants, covering the full workflow from discovery and installation to editing and maintenance. Built on Tauri v2, which keeps it lightweight, local-first, and secure."
   },
   "dl-download": {
     "zh": "下载",
