@@ -39,6 +39,7 @@ export interface WuiServerHandle {
 interface RequestContext {
   home?: string;
   token: string;
+  withLease: <T>(run: () => Promise<T>) => Promise<T>;
 }
 
 export function parseWuiPort(value: string): number {
@@ -61,8 +62,9 @@ export async function startWuiServer(options: WuiServerOptions = {}): Promise<Wu
   }
 
   const token = options.token ?? crypto.randomBytes(18).toString("base64url");
+  const withLease = createLeaseGate(options.home);
   const server = createServer((request, response) => {
-    void handleRequest(request, response, assetDir, { home: options.home, token });
+    void handleRequest(request, response, assetDir, { home: options.home, token, withLease });
   });
   const port = options.port ?? DEFAULT_WUI_PORT;
 
@@ -138,6 +140,33 @@ function defaultAssetDir(): string {
   return candidates.find((candidate) => existsSync(path.join(candidate, "index.html"))) ?? candidates[0]!;
 }
 
+/// Every API call binds the exclusive cross-process lease, but the web UI
+/// fires concurrent requests (for example inspect + content when a skill is
+/// selected). Queue acquisitions inside this server so they take turns
+/// instead of rejecting each other; the lease still excludes the desktop and
+/// other processes.
+function createLeaseGate(home?: string) {
+  let tail: Promise<unknown> = Promise.resolve();
+  return async function withLease<T>(run: () => Promise<T>): Promise<T> {
+    const previous = tail;
+    let advance!: () => void;
+    tail = new Promise<void>((resolve) => {
+      advance = resolve;
+    });
+    try {
+      await previous;
+      const release = await acquireAgentLease(home);
+      try {
+        return await run();
+      } finally {
+        await release();
+      }
+    } finally {
+      advance();
+    }
+  };
+}
+
 async function handleRequest(
   request: IncomingMessage,
   response: ServerResponse,
@@ -151,9 +180,7 @@ async function handleRequest(
         writeJson(response, 401, { ok: false, error: "Unauthorized" });
         return;
       }
-      const release = await acquireAgentLease(context.home);
-      try { await handleApi(request, response, url, context); }
-      finally { await release(); }
+      await context.withLease(() => handleApi(request, response, url, context));
       return;
     }
 
@@ -277,7 +304,10 @@ async function handleApi(
 async function serveStatic(response: ServerResponse, assetDir: string, requestPath: string): Promise<void> {
   const relativePath = requestPath === "/" ? "index.html" : decodeURIComponent(requestPath.slice(1));
   const normalized = path.normalize(relativePath);
-  if (normalized.startsWith("..") || path.isAbsolute(normalized)) {
+  // Exact escape check: a leading ".." segment, not merely a ".." prefix of a
+  // longer name like "..hidden".
+  const escapes = normalized === ".." || normalized.startsWith(`..${path.sep}`);
+  if (escapes || path.isAbsolute(normalized)) {
     writeJson(response, 403, { ok: false, error: "Forbidden" });
     return;
   }
@@ -309,7 +339,11 @@ async function readJsonBody<T>(request: IncomingMessage): Promise<T> {
   if (!text.trim()) {
     return {} as T;
   }
-  return JSON.parse(text) as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new CliError("Request body is not valid JSON.");
+  }
 }
 
 function writeOk(response: ServerResponse, data: unknown): void {

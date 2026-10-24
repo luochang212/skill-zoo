@@ -18,8 +18,19 @@ const SUPPORTED_LOCK_VERSION = 3;
 const SUPPORTED_ARCHIVE_VERSION = 1;
 const SUPPORTED_EXTERNAL_IMPORTS_VERSION = 1;
 
+/** Read a desktop-owned state file and reject non-object documents (for
+ *  example a literal `null`) with a clean error instead of a TypeError,
+ *  matching the desktop's report-don't-swallow rule for malformed files. */
+async function readStateFile<T extends object>(filePath: string, fallback: T): Promise<T> {
+  const value = await readJson<T>(filePath, fallback);
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new CliError(`The state file at ${filePath} is not a valid document.`);
+  }
+  return value;
+}
+
 export async function readLock(home?: string): Promise<SkillLock> {
-  const lock = await readJson<SkillLock>(getPaths(home).agentLockFile, DEFAULT_LOCK);
+  const lock = await readStateFile<SkillLock>(getPaths(home).agentLockFile, DEFAULT_LOCK);
   return {
     ...DEFAULT_LOCK,
     ...lock,
@@ -33,7 +44,7 @@ export async function writeLock(home: string | undefined, lock: SkillLock): Prom
 }
 
 export async function readArchiveManifest(home?: string): Promise<ArchiveManifest> {
-  const manifest = await readJson<ArchiveManifest>(
+  const manifest = await readStateFile<ArchiveManifest>(
     getPaths(home).archiveManifestFile,
     DEFAULT_ARCHIVE_MANIFEST,
   );
@@ -53,7 +64,7 @@ export async function writeArchiveManifest(
 }
 
 export async function readExternalImports(home?: string): Promise<ExternalImports> {
-  const imports = await readJson<ExternalImports>(
+  const imports = await readStateFile<ExternalImports>(
     getPaths(home).externalImportsFile,
     DEFAULT_EXTERNAL_IMPORTS,
   );
@@ -73,7 +84,7 @@ export async function writeExternalImports(
 }
 
 export async function readMetadata(home?: string): Promise<MetadataStore> {
-  const metadata = await readJson<MetadataStore>(getPaths(home).metadataFile, DEFAULT_METADATA);
+  const metadata = await readStateFile<MetadataStore>(getPaths(home).metadataFile, DEFAULT_METADATA);
   const store: MetadataStore = {
     ...DEFAULT_METADATA,
     ...metadata,
@@ -133,7 +144,7 @@ export async function writeMetadata(home: string | undefined, metadata: Metadata
 }
 
 export async function readCache(home?: string): Promise<SkillCache> {
-  const cache = await readJson<SkillCache>(getPaths(home).skillsCacheFile, DEFAULT_CACHE);
+  const cache = await readStateFile<SkillCache>(getPaths(home).skillsCacheFile, DEFAULT_CACHE);
   return {
     ...DEFAULT_CACHE,
     ...cache,

@@ -32,7 +32,6 @@ import {
   pathExists,
   pathsEqual,
   removeAgentLink,
-  removePath,
   snapshotFile,
   restoreSnapshot,
 } from "../lib/io.js";
@@ -135,7 +134,9 @@ export async function restoreArchiveIds(
 }
 
 export function makeArchiveId(skillId: string, directory: string): string {
-  const shortHash = crypto.createHash("sha256").update(skillId).digest("hex").slice(0, 8);
+  // The desktop formats the first 8 digest bytes as hex (16 chars); match it
+  // so the same skill archives to the same ID under either runtime.
+  const shortHash = crypto.createHash("sha256").update(skillId).digest("hex").slice(0, 16);
   const safeName =
     directory
       .split(/[\\/]/)
@@ -462,7 +463,9 @@ async function rollbackRestore(
   for (const agent of restoredAgents) {
     const agentDir = getAgentSkillsDir(home, agent);
     if (agentDir) {
-      await removePath(path.join(agentDir, agentLinkName(archived.directory))).catch(() => undefined);
+      // Roll back only links we created; a real directory at that path must
+      // never be recursively deleted.
+      await removeAgentLink(path.join(agentDir, agentLinkName(archived.directory))).catch(() => undefined);
     }
   }
 

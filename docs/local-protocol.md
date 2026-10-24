@@ -57,7 +57,7 @@ The desktop writes the field when a remote install or an update finishes writing
 
 External imports are separately registered user-owned skill directories. New imports must originate outside Skill Zoo's SSOT and registered agent skill directories; existing external sources retain external ownership when a subsequently registered custom agent encloses them. The desktop app records these references in `~/.skill-zoo/imports.json`; the source directory remains the user's source of truth and must not be copied, moved, deleted, or archived by Skill Zoo-compatible tools.
 
-An import entry's `sourcePath` points to the concrete skill root containing `SKILL.md`. `directory` stores the display/link identity used for agent symlink names. Readers should include valid external imports in installed-skill scans when `sourcePath/SKILL.md` exists. Missing or invalid external imports should remain in the imports registry for management and cleanup, but should not appear as installed skills.
+An import entry's `sourcePath` points to the concrete skill root containing `SKILL.md`. `directory` stores the display/link identity used for agent symlink names. Readers must include valid external imports in installed-skill scans when `sourcePath/SKILL.md` exists. Missing or invalid external imports must remain in the imports registry for management and cleanup, but must not appear as installed skills.
 
 Removing an external import means removing the registry entry and app-managed agent links that point to `sourcePath`; it must not remove files under `sourcePath`.
 
@@ -77,6 +77,11 @@ write `show_non_ssot`, leaving legacy values intact. Lifecycle recovery preserve
 both keys verbatim; the CLI does not interpret the desktop visibility preference.
 The lifecycle fixtures cover legacy-only and conflicting current/legacy values.
 
+Plugin skill discovery is gated by `plugins_discovery_enabled` in the same
+`values` map: it is off unless the value is exactly `"true"`. When disabled, the
+plugin scan contributes nothing and a cache rebuild purges previously discovered
+plugin entries, so the switched-off feature has no runtime presence.
+
 ### General compatibility
 
 - Desktop is the source of truth for local protocol shape and semantics.
@@ -95,3 +100,5 @@ Fixtures live in `fixtures/local-protocol/` and represent the desktop app's curr
 Update fixtures only when the desktop-owned protocol intentionally changes or when a fixture is proven wrong. If a CLI test fails against these fixtures, fix the CLI first unless the desktop protocol itself changed.
 
 For a new optional field, update the relevant `*-full.json` fixture. Keep `*-minimal.json` minimal unless the field is required. For an incompatible schema change, promote the current future-version fixture into the new current-version fixture and add the next future-version fixture.
+
+The `content-hash-vector/` tree plus `content-hash-vector-expected.json` pins the derived cache `contentHash` algorithm (raw relative path + `0x00` + bytes + `0x00`, component-wise sort). Both runtimes assert against the pinned digest for their platform (Unix `/` or Windows `\` separators). Digests agree between runtimes on the same platform, not across platforms. The root is depth 0; encountering any non-skipped directory beyond depth 20 makes the whole hash absent rather than producing a partial digest, even if that directory is empty.

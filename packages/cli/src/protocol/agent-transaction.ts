@@ -36,8 +36,10 @@ export async function recoverAgentLifecycle(dir: string): Promise<void> {
       await fs.rm(target, { force: true });
     } else {
       // Preserve original snapshot bytes, not a reserialized JSON object.
+      // 0o600 matches the desktop's private writes: the journal can restore
+      // settings.json bytes that carry the saved GitHub token.
       const temporary = `${target}.tmp`;
-      const file = await fs.open(temporary, "w");
+      const file = await fs.open(temporary, "w", 0o600);
       try { await file.writeFile(content); await file.sync(); } finally { await file.close(); }
       await fs.rename(temporary, target);
     }

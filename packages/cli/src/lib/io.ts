@@ -42,6 +42,11 @@ export async function ensureDir(dir: string): Promise<void> {
 export async function readJson<T>(filePath: string, fallback: T): Promise<T> {
   try {
     const content = await fs.readFile(filePath, "utf8");
+    // The desktop tolerates empty/whitespace state files as "absent"; the CLI
+    // must be at least as tolerant as the owner of these files.
+    if (!content.trim()) {
+      return structuredClone(fallback);
+    }
     return JSON.parse(content) as T;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
@@ -59,7 +64,15 @@ export async function writeTextAtomic(filePath: string, content: string): Promis
   const parent = path.dirname(filePath);
   await ensureDir(parent);
   const tmpPath = path.join(parent, `.${path.basename(filePath)}.${process.pid}.${Date.now()}.tmp`);
-  await fs.writeFile(tmpPath, content);
+  // Match the desktop's atomic write: flush the temp file to disk before the
+  // rename so a crash cannot leave a truncated state file behind.
+  const file = await fs.open(tmpPath, "w");
+  try {
+    await file.writeFile(content);
+    await file.sync();
+  } finally {
+    await file.close();
+  }
   await fs.rename(tmpPath, filePath);
 }
 

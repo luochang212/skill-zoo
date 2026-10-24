@@ -68,6 +68,32 @@ describe("wui server", () => {
     }
   });
 
+  it("serves concurrent API requests by serializing the lease instead of rejecting", async () => {
+    const home = await makeTempHome();
+    const paths = getPaths(home);
+    await writeSkill(path.join(paths.agentsSkillsDir, "demo"), "name: Demo\ndescription: Demo skill");
+    const handle = await startWuiServer({ home, port: 0, token: "test-token" });
+    try {
+      // The web UI loads a skill detail with inspect + content in parallel;
+      // both must succeed even though each API call binds the exclusive lease.
+      const [inspect, content] = await Promise.all([
+        getJson<{ ok: boolean; data?: unknown; error?: string }>(
+          handle,
+          "/api/inspect?kind=installed&ref=ssot%3Ademo",
+        ),
+        getJson<{ ok: boolean; data?: unknown; error?: string }>(
+          handle,
+          "/api/content?kind=installed&ref=ssot%3Ademo",
+        ),
+      ]);
+
+      expect(inspect.ok).toBe(true);
+      expect(content.ok).toBe(true);
+    } finally {
+      await handle.close();
+    }
+  });
+
   it("serves installed skill markdown content", async () => {
     const home = await makeTempHome();
     const paths = getPaths(home);

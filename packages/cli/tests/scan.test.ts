@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { getPaths } from "../src/protocol/paths.js";
-import { rebuildCache, scanInstalledSkills } from "../src/protocol/scan.js";
+import { computeContentHash, rebuildCache, scanInstalledSkills } from "../src/protocol/scan.js";
 import { readCache } from "../src/protocol/store.js";
 import { normalizePath } from "../src/lib/io.js";
 import { createDirLink, makeTempHome, writeJson, writeSkill } from "./helpers.js";
@@ -198,5 +198,37 @@ describe("scanInstalledSkills", () => {
       installedAt: 100,
       updatedAt: 200,
     });
+  });
+});
+
+describe("computeContentHash", () => {
+  it("hashes depth 20 but returns no partial hash when any directory exceeds it", async () => {
+    const root = await makeTempHome();
+    try {
+      await writeSkill(root);
+      const boundary = path.join(root, ...Array<string>(20).fill("d"));
+      await fs.mkdir(boundary, { recursive: true });
+      await fs.writeFile(path.join(boundary, "file.txt"), "boundary");
+      expect(await computeContentHash(root)).toMatch(/^[a-f0-9]{64}$/);
+      await fs.mkdir(path.join(boundary, "d"));
+      expect(await computeContentHash(root)).toBeNull();
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("matches the pinned cross-runtime content hash vector", async () => {
+    const { computeContentHash } = await import("../src/protocol/scan.js");
+    const vectorDir = path.resolve(__dirname, "../../../fixtures/local-protocol/content-hash-vector");
+    const expected = JSON.parse(
+      await fs.readFile(
+        path.resolve(__dirname, "../../../fixtures/local-protocol/content-hash-vector-expected.json"),
+        "utf8",
+      ),
+    ) as { expectedDigests: { unix: string; windows: string } };
+
+    expect(await computeContentHash(vectorDir)).toBe(
+      expected.expectedDigests[process.platform === "win32" ? "windows" : "unix"],
+    );
   });
 });

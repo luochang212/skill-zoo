@@ -739,3 +739,31 @@ describe("import collision safety", () => {
     await expect(fs.lstat(path.join(home, ".claude", "skills", "demo"))).rejects.toMatchObject({ code: "ENOENT" });
   });
 });
+
+describe("external import dedupe", () => {
+  it("re-import through a symlinked spelling keeps one entry and the original import date", async () => {
+    const home = await makeTempHome();
+    const realSkill = path.join(home, "real-skills", "demo");
+    await fs.mkdir(realSkill, { recursive: true });
+    await fs.writeFile(path.join(realSkill, "SKILL.md"), "---\nname: Demo\ndescription: d\n---\n");
+
+    const first = await importExternalSkills(home, [realSkill], ["claude-code"]);
+    expect(first.added).toHaveLength(1);
+    const afterFirst = await readExternalImports(home);
+    const entry = Object.values(afterFirst.imports)[0]!;
+    const originalImportedAt = entry.importedAt;
+
+    // A second spelling of the same physical folder via a symlinked parent.
+    const linkedParent = path.join(home, "linked-parent");
+    await fs.symlink(path.join(home, "real-skills"), linkedParent);
+    const preview = await importExternalSkills(home, [path.join(linkedParent, "demo")], ["claude-code"], { dryRun: true });
+    expect(preview.added).toEqual(first.added);
+    expect(await readExternalImports(home)).toEqual(afterFirst);
+    const second = await importExternalSkills(home, [path.join(linkedParent, "demo")], ["claude-code"]);
+    expect(second.added).toHaveLength(1);
+
+    const afterSecond = await readExternalImports(home);
+    expect(Object.keys(afterSecond.imports)).toHaveLength(1);
+    expect(Object.values(afterSecond.imports)[0]!.importedAt).toBe(originalImportedAt);
+  });
+});

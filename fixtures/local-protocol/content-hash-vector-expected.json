@@ -1,0 +1,8 @@
+{
+  "algorithm": "sha256 over raw relative path + 0x00 + file bytes + 0x00 per regular file, sorted component-wise by path (Rust PathBuf ordering); file symlinks included via their target content",
+  "maxDepth": 20,
+  "expectedDigests": {
+    "unix": "79920dea3ad218944061426e9d0297aec842aea007e5f9fb499660931685eb51",
+    "windows": "2dfecf360fc626fd799cdae4ea9496f66c52ae87e6a54a8d12fce47420d53afb"
+  }
+}

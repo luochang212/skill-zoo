@@ -11,6 +11,7 @@ import {
   pathExists,
   pathsEqual,
   pathStartsWith,
+  realpathOrOriginal,
   removeAgentLink,
   restoreSnapshot,
   snapshotFile,
@@ -307,11 +308,14 @@ export async function importExternalSkills(
   const existingImports = await readExternalImports(home);
   assertWritableSchema(lock, manifest, existingImports);
 
-  // Build a map of resolved source paths to existing import IDs (for reuse on re-import)
+  // Build a map of canonical source paths to existing import IDs (for reuse
+  // on re-import). Canonical identity, not string equality, so the same
+  // folder reached through a symlinked parent resolves to one import — this
+  // is how the desktop dedupes.
   const resolvedToId = new Map<string, string>();
   for (const entry of Object.values(existingImports.imports)) {
     try {
-      resolvedToId.set(path.resolve(entry.sourcePath), entry.id);
+      resolvedToId.set(await realpathOrOriginal(entry.sourcePath), entry.id);
     } catch {
       // skip unresolvable paths
     }
@@ -323,7 +327,7 @@ export async function importExternalSkills(
       const absSource = path.resolve(sourcePath);
       try {
         await validateSourceForImport(home, absSource, sourcePath);
-        const importId = resolvedToId.get(absSource) ?? generateImportId(absSource);
+        const importId = resolvedToId.get(await realpathOrOriginal(absSource)) ?? generateImportId(absSource);
         const directory = path.basename(absSource);
         for (const { dir } of allAgentDirs) {
           await assertAgentLinkAvailable(path.join(dir, agentLinkName(directory)), absSource);
@@ -355,22 +359,26 @@ export async function importExternalSkills(
   try {
     for (const sourcePath of sourcePaths) {
       const absSource = path.resolve(sourcePath);
+      const canonicalSource = await realpathOrOriginal(absSource);
       const itemLinks: string[] = [];
       try {
         await validateSourceForImport(home, absSource, sourcePath);
 
-        const importId = resolvedToId.get(absSource) ?? generateImportId(absSource);
+        const importId = resolvedToId.get(canonicalSource) ?? generateImportId(absSource);
         const directory = path.basename(absSource);
         for (const { dir } of allAgentDirs) {
           await assertAgentLinkAvailable(path.join(dir, agentLinkName(directory)), absSource);
         }
         const now = Math.floor(Date.now() / 1000);
+        // Re-importing a registered source keeps the original import date,
+        // matching the desktop's in-place update.
+        const existingEntry = existingImports.imports[importId];
 
         const entry: ExternalImportEntry = {
           id: importId,
           sourcePath: normalizePath(absSource),
           directory,
-          importedAt: now,
+          importedAt: existingEntry?.importedAt ?? now,
           updatedAt: now,
         };
 
@@ -380,7 +388,7 @@ export async function importExternalSkills(
         }
 
         existingImports.imports[importId] = entry;
-        resolvedToId.set(absSource, importId);
+        resolvedToId.set(canonicalSource, importId);
         newImportIds.push(importId);
         createdLinks.push(...itemLinks);
         added.push(importId);

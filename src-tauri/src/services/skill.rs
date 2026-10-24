@@ -634,7 +634,9 @@ impl SkillService {
             return None;
         }
         let mut files: Vec<std::path::PathBuf> = Vec::new();
-        Self::collect_files_recursive(root, root, &mut files);
+        if !Self::collect_files_recursive(root, root, 0, &mut files) {
+            return None;
+        }
         if files.is_empty() {
             return None;
         }
@@ -644,9 +646,29 @@ impl SkillService {
             hasher.update(rel_path.to_str()?);
             hasher.update(b"\0");
             let full_path = root.join(rel_path);
-            match std::fs::read(&full_path) {
-                Ok(content) => {
-                    hasher.update(&content);
+            // Stream instead of buffering whole files: one oversized file in a
+            // skill folder must not spike memory on every cache rebuild.
+            match std::fs::File::open(&full_path) {
+                Ok(mut file) => {
+                    use std::io::Read;
+                    let mut buf = [0u8; 8192];
+                    let mut failed = false;
+                    loop {
+                        match file.read(&mut buf) {
+                            Ok(0) => break,
+                            Ok(read) => hasher.update(&buf[..read]),
+                            Err(_) => {
+                                failed = true;
+                                break;
+                            }
+                        }
+                    }
+                    if failed {
+                        // Match the historical contract: an unreadable file
+                        // contributes its path only, without content or the
+                        // trailing separator.
+                        continue;
+                    }
                 }
                 Err(_) => continue,
             }
@@ -656,13 +678,21 @@ impl SkillService {
         Some(result.iter().map(|b| format!("{:02x}", b)).collect())
     }
 
+    /// Collect regular files for the cache content hash. Returns false when
+    /// the tree exceeds the scan depth cap, mirroring the install copy and
+    /// baseline-hash caps; the caller then produces no hash at all instead of
+    /// a partial one.
     fn collect_files_recursive(
         dir: &std::path::Path,
         root: &std::path::Path,
+        depth: usize,
         files: &mut Vec<std::path::PathBuf>,
-    ) {
+    ) -> bool {
+        if depth > Self::MAX_SCAN_DEPTH {
+            return false;
+        }
         let Ok(entries) = std::fs::read_dir(dir) else {
-            return;
+            return true;
         };
         for entry in entries.flatten() {
             let path = entry.path();
@@ -678,13 +708,16 @@ impl SkillService {
                         continue;
                     }
                 }
-                Self::collect_files_recursive(&path, root, files);
+                if !Self::collect_files_recursive(&path, root, depth + 1, files) {
+                    return false;
+                }
             } else if path.is_file() {
                 if let Ok(rel) = path.strip_prefix(root) {
                     files.push(rel.to_path_buf());
                 }
             }
         }
+        true
     }
 
     // ──────────────────────────────────────────────
@@ -1117,9 +1150,15 @@ impl SkillService {
         for entry in dir_entries.flatten() {
             let path = entry.path();
             if is_symlink_or_junction(&path) {
-                // Clean up broken symlinks/junctions whose target no longer exists.
+                // Clean up broken app-owned links whose target no longer
+                // exists. Foreign and unclassifiable dangling links (user
+                // links to unmounted volumes, other tools' links) must be
+                // left in place: deleting them is irreversible data loss,
+                // while a leftover app link is only clutter.
                 if !path.exists() {
-                    let _ = Self::safe_remove(&path);
+                    if is_app_owned_link(&path, &config::get_agents_skills_dir(), &[]) {
+                        let _ = Self::safe_remove(&path);
+                    }
                     continue;
                 }
                 // If the symlink target is an external import source, scan it
@@ -1692,6 +1731,15 @@ impl SkillService {
             .as_ref()
             .and_then(|p| Self::compute_content_hash(p));
         let home_agent = Self::detect_home_agent(&home_path, origin);
+        // A directory that is neither a real SSOT directory nor attributable
+        // to an agent directory (for example a symlink planted at the SSOT
+        // location) has no stable identity. Report it so callers skip the
+        // skill instead of panicking mid-command.
+        if origin != "ssot" && home_agent.is_none() {
+            return Err(AppError::NotFound(format!(
+                "Skill directory '{skill_dir}' cannot be attributed to the SSOT store or an agent directory"
+            )));
+        }
         let now = chrono::Utc::now().timestamp();
         let (installed_at, updated_at) =
             Self::resolve_timestamps(lock_entry, home_path.as_deref().unwrap_or(skill_dir), now);
@@ -2868,6 +2916,109 @@ mod tests {
             "openai-docs"
         );
         assert_eq!(SkillService::agent_link_name("openai-docs"), "openai-docs");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn scan_keeps_foreign_dangling_links_but_cleans_app_owned_ones() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let home = root.path();
+        // A real SSOT skill so the scan has real work to do.
+        let demo = home.join(".agents").join("skills").join("demo");
+        std::fs::create_dir_all(&demo).expect("create ssot skill");
+        std::fs::write(demo.join("SKILL.md"), "# Demo").expect("write skill");
+
+        let claude = home.join(".claude").join("skills");
+        std::fs::create_dir_all(&claude).expect("create agent dir");
+        // Foreign dangling link: the app never links outside SSOT; a user may
+        // (unmounted volume, renamed target). Scans must not delete it.
+        std::os::unix::fs::symlink(home.join("elsewhere").join("notes"), claude.join("foreign"))
+            .expect("foreign link");
+        // App-owned dangling link: target is inside SSOT but was deleted.
+        std::os::unix::fs::symlink(
+            home.join(".agents").join("skills").join("deleted"),
+            claude.join("app-owned"),
+        )
+        .expect("app link");
+
+        crate::config::with_test_home(home, || {
+            let mut entries = Vec::new();
+            SkillService::scan_filesystem_into(&mut entries);
+            assert!(
+                entries.iter().any(|e| e.id == "ssot:demo"),
+                "real SSOT skill should be scanned"
+            );
+        });
+
+        assert!(
+            claude.join("foreign").symlink_metadata().is_ok(),
+            "foreign dangling link must survive the scan"
+        );
+        assert!(
+            claude.join("app-owned").symlink_metadata().is_err(),
+            "app-owned dangling link should be cleaned up"
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn scan_single_skill_fails_cleanly_for_symlinked_ssot_dir() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let home = root.path();
+        // The user replaced an SSOT entry with a symlink to a real skill dir.
+        let real = home.join("elsewhere").join("demo");
+        std::fs::create_dir_all(&real).expect("create real dir");
+        std::fs::write(real.join("SKILL.md"), "# Demo").expect("write skill");
+        std::fs::create_dir_all(home.join(".agents").join("skills")).expect("create ssot root");
+        std::os::unix::fs::symlink(&real, home.join(".agents").join("skills").join("demo"))
+            .expect("symlink ssot entry");
+
+        crate::config::with_test_home(home, || {
+            let result = SkillService::scan_single_skill("demo");
+            assert!(
+                result.is_err(),
+                "a skill unattributable to SSOT or an agent must error, not panic"
+            );
+        });
+    }
+
+    #[test]
+    fn content_hash_rejects_trees_beyond_depth_20() {
+        let root = tempfile::tempdir().expect("tempdir");
+        std::fs::write(root.path().join("SKILL.md"), "# Demo").expect("write skill");
+        let mut boundary = root.path().to_path_buf();
+        for _ in 0..20 {
+            boundary.push("d");
+        }
+        std::fs::create_dir_all(&boundary).expect("create boundary");
+        std::fs::write(boundary.join("file.txt"), "boundary").expect("write boundary");
+        let root_path = root.path().to_str().expect("utf-8 temp path");
+        assert!(SkillService::compute_content_hash(root_path).is_some());
+        std::fs::create_dir(boundary.join("d")).expect("exceed depth cap");
+        assert!(SkillService::compute_content_hash(root_path).is_none());
+    }
+
+    #[test]
+    fn content_hash_matches_the_pinned_cross_runtime_vector() {
+        let vector_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../fixtures/local-protocol/content-hash-vector");
+        let expected: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(
+                vector_dir.with_file_name("content-hash-vector-expected.json"),
+            )
+            .expect("read expected"),
+        )
+        .expect("parse expected");
+        let digest =
+            SkillService::compute_content_hash(vector_dir.to_str().expect("utf-8 fixture path"))
+                .expect("hash fixture tree");
+        assert_eq!(
+            digest,
+            expected["expectedDigests"][if cfg!(windows) { "windows" } else { "unix" }]
+                .as_str()
+                .expect("platform digest field"),
+            "the cache content hash must match the vector pinned in fixtures/local-protocol"
+        );
     }
 
     #[test]

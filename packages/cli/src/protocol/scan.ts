@@ -261,12 +261,14 @@ export async function computeContentHash(root: string): Promise<string | null> {
   }
 
   const files: string[] = [];
-  await collectFiles(root, root, files);
+  if (!(await collectFiles(root, root, 0, files))) {
+    return null;
+  }
   if (files.length === 0) {
     return null;
   }
 
-  files.sort();
+  files.sort(comparePathComponents);
   const hasher = crypto.createHash("sha256");
   for (const relativePath of files) {
     hasher.update(relativePath);
@@ -282,12 +284,52 @@ export async function computeContentHash(root: string): Promise<string | null> {
   return hasher.digest("hex");
 }
 
-async function collectFiles(dir: string, root: string, files: string[]): Promise<void> {
+/// The desktop hashes the raw OS relative path (no separator normalization)
+/// and sorts `PathBuf`s, which order component-by-component rather than by
+/// whole-string bytes ("a/file" sorts before "a-x/file"). Match both so the
+/// shared cache digest stays identical across runtimes; the pinned vector in
+/// fixtures/local-protocol/content-hash-vector asserts it.
+function comparePathComponents(left: string, right: string): number {
+  const leftParts = left.split(path.sep);
+  const rightParts = right.split(path.sep);
+  const shared = Math.min(leftParts.length, rightParts.length);
+  for (let index = 0; index < shared; index += 1) {
+    const compared = compareByCodePoints(leftParts[index]!, rightParts[index]!);
+    if (compared !== 0) {
+      return compared;
+    }
+  }
+  return leftParts.length - rightParts.length;
+}
+
+/// UTF-8 byte order equals code point order, which is what Rust's component
+/// comparison uses; JS string comparison is UTF-16 code-unit order and
+/// disagrees for astral characters.
+function compareByCodePoints(left: string, right: string): number {
+  const a = Array.from(left);
+  const b = Array.from(right);
+  const shared = Math.min(a.length, b.length);
+  for (let index = 0; index < shared; index += 1) {
+    const x = a[index]!.codePointAt(0)!;
+    const y = b[index]!.codePointAt(0)!;
+    if (x !== y) {
+      return x < y ? -1 : 1;
+    }
+  }
+  return a.length - b.length;
+}
+
+// Match the desktop: reject the whole hash beyond depth 20, never hash a
+// truncated tree that could make different skills appear identical.
+async function collectFiles(dir: string, root: string, depth: number, files: string[]): Promise<boolean> {
+  if (depth > 20) {
+    return false;
+  }
   let entries: string[];
   try {
     entries = await fs.readdir(dir);
   } catch {
-    return;
+    return true;
   }
 
   for (const entry of entries) {
@@ -300,7 +342,7 @@ async function collectFiles(dir: string, root: string, files: string[]): Promise
     if (stat.isSymbolicLink()) {
       const targetStat = await fs.stat(entryPath).catch(() => undefined);
       if (targetStat?.isFile()) {
-        files.push(normalizePath(path.relative(root, entryPath)));
+        files.push(path.relative(root, entryPath));
       }
       continue;
     }
@@ -309,11 +351,14 @@ async function collectFiles(dir: string, root: string, files: string[]): Promise
       if (SKIP_DIRS.has(entry)) {
         continue;
       }
-      await collectFiles(entryPath, root, files);
+      if (!(await collectFiles(entryPath, root, depth + 1, files))) {
+        return false;
+      }
     } else if (stat.isFile()) {
-      files.push(normalizePath(path.relative(root, entryPath)));
+      files.push(path.relative(root, entryPath));
     }
   }
+  return true;
 }
 
 export async function parseSkillMd(skillMdPath: string, fallbackName: string): Promise<ParsedSkillMd> {
