@@ -934,7 +934,7 @@ impl SkillService {
             .collect();
         // Nested homes (for example `.gemini/antigravity` inside `.gemini`):
         // the deepest home owns the skills it contains, so claim deepest-first.
-        homes.sort_by(|a, b| b.1.components().count().cmp(&a.1.components().count()));
+        homes.sort_by_key(|home| std::cmp::Reverse(home.1.components().count()));
 
         let ssot_dir = config::get_agents_skills_dir();
         let mut pruned: Vec<PathBuf> = vec![ssot_dir];
