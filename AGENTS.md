@@ -121,11 +121,11 @@ Records cost time to write, read, and maintain, and stale records can mislead; r
 
 Record an ADR when an architectural choice constrains future work and its lasting rationale or genuine trade-offs are not adequately explained by code, tests, and existing documentation. A behavior change alone does not qualify. Record genuine alternatives and trade-offs, not invented template filler. A grilling session records every choice it settles, but unshipped outcomes remain proposals. Use `adrkit propose` for unshipped work, `adrkit implement` after it ships, and `adrkit record` for an already-shipped decision. `raised-by` declares who introduced the choice; `decided-by` declares whose judgment settled it. The CLI neither infers nor verifies shipping or provenance.
 
-Records outlive the format that wrote them. When `adrkit validate` reports unknown fields, missing sections, or parse errors on records an older release wrote, treat it as format drift rather than damage: upgrade the `adr-kit` package to the latest stable release, migrate the active records to the current format where the change is mechanical, and report any record that cannot be carried over instead of forcing a rewrite; then re-run `adrkit validate --all`. Archived records are ordinary Git-tracked history: validate checks them by the current rules; a later format change is a normal migration commit.
+Records outlive the format that wrote them. The npm package is `adr-kit`; the command it installs is `adrkit`, so install and upgrade with `bun add -g adr-kit`. When `adrkit validate` reports unknown fields, missing sections, or parse errors on records an older release wrote, treat it as format drift rather than damage: upgrade the `adr-kit` package to the latest stable release, migrate the active records to the current format where the change is mechanical, and report any record that cannot be carried over instead of forcing a rewrite; then re-run `adrkit validate --all`. Archived records are ordinary Git-tracked history: validate checks them by the current rules; a later format change is a normal migration commit.
 
 When the user wants to review or share the project's history, use the `adrkit-visualize` skill; generate a browsable atlas from `adr/implemented/` and `adr/archived/` only, publish archived bodies in full, and pin the page to the commit it was built from.
 
-<!-- adrkit: standing-orders 449bd66b -->
+<!-- adrkit: standing-orders b82e4add -->
 
 Project gate: `adrkit validate --all`, run by `.githooks/pre-push` because CI does not cover `adr/`.
 

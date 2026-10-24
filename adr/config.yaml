@@ -7,7 +7,7 @@
 
 # AI tool integrations written by adrkit init --tools.
 tools: []
-installed-with: 0.25.0
+installed-with: 0.27.0
 
 # Optional per-status conventions. These are hints for writers and agents;
 # validate does not enforce them (it cannot check prose).
