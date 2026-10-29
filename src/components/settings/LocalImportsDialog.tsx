@@ -30,6 +30,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -58,6 +59,9 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
 
   const [candidates, setCandidates] = useState<ExternalImportCandidate[]>([]);
   const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
+  // Removal deletes managed links and the registry entry, so it goes through
+  // the same confirmation step as every other destructive action in the app.
+  const [pendingRemove, setPendingRemove] = useState<{ id: string; name: string } | null>(null);
   const [agents, setAgents] = useState<Set<string>>(new Set());
   const [scanning, setScanning] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -169,254 +173,293 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="flex h-[min(640px,calc(100vh-6rem))] w-[calc(100vw-2rem)] max-w-[760px] flex-col gap-0 overflow-hidden p-0 sm:rounded-xl"
-        data-selectable
-      >
-        <DialogHeader className="shrink-0 border-b border-border/50 px-4 py-4 text-left">
-          <DialogTitle>{t("settings.localImports.title")}</DialogTitle>
-          <DialogDescription>{t("settings.localImports.description")}</DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent
+          className="flex h-[min(640px,calc(100vh-6rem))] w-[calc(100vw-2rem)] max-w-[760px] flex-col gap-0 overflow-hidden p-0 sm:rounded-xl"
+          data-selectable
+        >
+          <DialogHeader className="shrink-0 border-b border-border/50 px-4 py-4 text-left">
+            <DialogTitle>{t("settings.localImports.title")}</DialogTitle>
+            <DialogDescription>{t("settings.localImports.description")}</DialogDescription>
+          </DialogHeader>
 
-        <div className="flex shrink-0 items-center gap-3 border-b border-border/40 px-4 py-3">
-          <div className="flex min-w-0 flex-1 items-center gap-1 rounded-md bg-muted/60 p-1">
-            <button
-              type="button"
-              className={cn(
-                "flex h-8 flex-1 items-center justify-center gap-1.5 rounded px-2 text-xs font-medium transition-colors",
-                tab === "import" ? "bg-background shadow-sm" : "text-muted-foreground",
-              )}
-              onClick={() => setTab("import")}
-            >
-              <FolderInput className="h-3.5 w-3.5" />
-              {t("settings.localImports.tabImport")}
-            </button>
-            <button
-              type="button"
-              className={cn(
-                "flex h-8 flex-1 items-center justify-center gap-1.5 rounded px-2 text-xs font-medium transition-colors",
-                tab === "manage" ? "bg-background shadow-sm" : "text-muted-foreground",
-              )}
-              onClick={() => setTab("manage")}
-            >
-              <LayoutList className="h-3.5 w-3.5" />
-              {t("settings.localImports.tabManage", { count: imports?.length ?? 0 })}
-            </button>
-          </div>
-        </div>
-
-        <div className="flex-1 min-h-0 flex flex-col">
-          {tab === "import" ? (
-            <div className="flex-1 min-h-0 flex flex-col gap-5 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <Button size="sm" className="gap-1.5" onClick={chooseFolder} disabled={scanning}>
-                  {scanning ? (
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <FolderInput className="h-3.5 w-3.5" />
-                  )}
-                  {t("settings.localImports.importFolder")}
-                </Button>
-                {candidates.length > 0 && (
-                  <Button
-                    size="sm"
-                    onClick={importSelected}
-                    disabled={
-                      selectedCandidates.length === 0 ||
-                      agents.size === 0 ||
-                      importMutation.isPending
-                    }
-                  >
-                    {t("settings.localImports.importSelected", {
-                      count: selectedCandidates.length,
-                    })}
-                  </Button>
+          <div className="flex shrink-0 items-center gap-3 border-b border-border/40 px-4 py-3">
+            <div className="flex min-w-0 flex-1 items-center gap-1 rounded-md bg-muted/60 p-1">
+              <button
+                type="button"
+                className={cn(
+                  "flex h-8 flex-1 items-center justify-center gap-1.5 rounded px-2 text-xs font-medium transition-colors",
+                  tab === "import" ? "bg-background shadow-sm" : "text-muted-foreground",
                 )}
-              </div>
+                onClick={() => setTab("import")}
+              >
+                <FolderInput className="h-3.5 w-3.5" />
+                {t("settings.localImports.tabImport")}
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  "flex h-8 flex-1 items-center justify-center gap-1.5 rounded px-2 text-xs font-medium transition-colors",
+                  tab === "manage" ? "bg-background shadow-sm" : "text-muted-foreground",
+                )}
+                onClick={() => setTab("manage")}
+              >
+                <LayoutList className="h-3.5 w-3.5" />
+                {t("settings.localImports.tabManage", { count: imports?.length ?? 0 })}
+              </button>
+            </div>
+          </div>
 
-              <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-border">
-                <div className="shrink-0 border-b border-border px-3 py-2">
-                  <p className="text-sm font-medium">{t("settings.localImports.candidates")}</p>
+          <div className="flex-1 min-h-0 flex flex-col">
+            {tab === "import" ? (
+              <div className="flex-1 min-h-0 flex flex-col gap-5 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <Button size="sm" className="gap-1.5" onClick={chooseFolder} disabled={scanning}>
+                    {scanning ? (
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <FolderInput className="h-3.5 w-3.5" />
+                    )}
+                    {t("settings.localImports.importFolder")}
+                  </Button>
+                  {candidates.length > 0 && (
+                    <Button
+                      size="sm"
+                      onClick={importSelected}
+                      disabled={
+                        selectedCandidates.length === 0 ||
+                        agents.size === 0 ||
+                        importMutation.isPending
+                      }
+                    >
+                      {t("settings.localImports.importSelected", {
+                        count: selectedCandidates.length,
+                      })}
+                    </Button>
+                  )}
                 </div>
-                {candidates.length === 0 ? (
-                  <div className="flex items-center justify-center flex-1 p-6 text-sm text-muted-foreground">
-                    {t("settings.localImports.scanHint")}
+
+                <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-border">
+                  <div className="shrink-0 border-b border-border px-3 py-2">
+                    <p className="text-sm font-medium">{t("settings.localImports.candidates")}</p>
                   </div>
-                ) : (
-                  <div className="grid gap-4 p-3 md:grid-cols-[1fr_220px] flex-1 min-h-0">
-                    <ScrollArea className="h-full pr-3">
-                      <label className="flex items-center gap-1.5 px-2 py-2 text-xs text-muted-foreground cursor-pointer rounded-md hover:bg-accent/50 pt-0 pb-1">
-                        <Checkbox
-                          checked={allSelectableSelected}
-                          onCheckedChange={(checked) => setAllSelectableSelected(Boolean(checked))}
-                          disabled={selectableCandidates.length === 0}
-                        />
-                        {t("browse.selectAll")}
-                      </label>
-                      <div className="space-y-1">
-                        {candidates.map((candidate) => (
-                          <label
-                            key={candidate.sourcePath}
-                            className={cn(
-                              "flex items-start gap-2 rounded-md px-2 py-2 text-sm hover:bg-accent/50",
-                              candidate.alreadyImported && "opacity-60",
-                            )}
-                          >
-                            <Checkbox
-                              checked={selectedSources.has(candidate.sourcePath)}
-                              disabled={candidate.alreadyImported}
-                              onCheckedChange={() => toggleCandidate(candidate.sourcePath)}
-                              aria-label={candidate.name}
-                            />
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate font-medium">{candidate.name}</span>
-                              <span
-                                className="block truncate text-xs text-muted-foreground"
-                                title={candidate.sourcePath}
-                              >
-                                {candidate.sourcePath}
-                              </span>
-                            </span>
-                          </label>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                    <div className="flex min-h-0 flex-col gap-3 border-l border-border pl-4">
-                      <p className="text-xs font-medium text-muted-foreground">
-                        {t("installDialog.agents")}
-                      </p>
-                      <ScrollArea className="flex-1 min-h-0">
-                        <div className="space-y-1 pr-2">
-                          {visibleAgentOrder.map((agent) => (
-                            <div
-                              key={agent}
-                              className="flex items-center justify-between rounded-md px-2 py-1.5"
+                  {candidates.length === 0 ? (
+                    <div className="flex items-center justify-center flex-1 p-6 text-sm text-muted-foreground">
+                      {t("settings.localImports.scanHint")}
+                    </div>
+                  ) : (
+                    <div className="grid gap-4 p-3 md:grid-cols-[1fr_220px] flex-1 min-h-0">
+                      <ScrollArea className="h-full pr-3">
+                        <label className="flex items-center gap-1.5 px-2 py-2 text-xs text-muted-foreground cursor-pointer rounded-md hover:bg-accent/50 pt-0 pb-1">
+                          <Checkbox
+                            checked={allSelectableSelected}
+                            onCheckedChange={(checked) =>
+                              setAllSelectableSelected(Boolean(checked))
+                            }
+                            disabled={selectableCandidates.length === 0}
+                          />
+                          {t("browse.selectAll")}
+                        </label>
+                        <div className="space-y-1">
+                          {candidates.map((candidate) => (
+                            <label
+                              key={candidate.sourcePath}
+                              className={cn(
+                                "flex items-start gap-2 rounded-md px-2 py-2 text-sm hover:bg-accent/50",
+                                candidate.alreadyImported && "opacity-60",
+                              )}
                             >
-                              <span className="text-sm">
-                                {getAgentLabel(agent, agentConfigs ?? [])}
-                              </span>
-                              <Switch
-                                checked={agents.has(agent)}
-                                onCheckedChange={() => toggleAgent(agent)}
+                              <Checkbox
+                                checked={selectedSources.has(candidate.sourcePath)}
+                                disabled={candidate.alreadyImported}
+                                onCheckedChange={() => toggleCandidate(candidate.sourcePath)}
+                                aria-label={candidate.name}
                               />
-                            </div>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate font-medium">{candidate.name}</span>
+                                <span
+                                  className="block truncate text-xs text-muted-foreground"
+                                  title={candidate.sourcePath}
+                                >
+                                  {candidate.sourcePath}
+                                </span>
+                              </span>
+                            </label>
                           ))}
                         </div>
                       </ScrollArea>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="flex-1 min-h-0 flex flex-col p-4">
-              <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-border">
-                <div className="shrink-0 flex items-center justify-between border-b border-border px-3 py-2">
-                  <p className="text-sm font-medium">{t("settings.localImports.managed")}</p>
-                  <button
-                    type="button"
-                    className="rounded p-0.5 text-muted-foreground hover:text-foreground transition-colors"
-                    onClick={handleRefresh}
-                    title={t("settings.maintenance.rescanBtn")}
-                  >
-                    <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
-                  </button>
-                </div>
-                <ScrollArea className="flex-1">
-                  {isLoading ? (
-                    <div className="p-6 text-center text-sm text-muted-foreground">
-                      {t("configureDialog.loading")}
-                    </div>
-                  ) : !imports || imports.length === 0 ? (
-                    <div className="p-6 text-center text-sm text-muted-foreground">
-                      {t("settings.localImports.empty")}
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-border">
-                      {imports.map((entry) => (
-                        <div key={entry.id} className="flex items-start justify-between gap-3 p-3">
-                          <div className="min-w-0 space-y-1">
-                            <div className="flex items-center gap-2">
-                              {entry.status === "valid" ? (
-                                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                              ) : (
-                                <AlertTriangle className="h-4 w-4 text-amber-500" />
-                              )}
-                              <p className="truncate text-sm font-medium">{entry.name}</p>
-                              <Badge
-                                variant={statusVariant(entry.status)}
-                                className="h-5 text-[10px]"
+                      <div className="flex min-h-0 flex-col gap-3 border-l border-border pl-4">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          {t("installDialog.agents")}
+                        </p>
+                        <ScrollArea className="flex-1 min-h-0">
+                          <div className="space-y-1 pr-2">
+                            {visibleAgentOrder.map((agent) => (
+                              <div
+                                key={agent}
+                                className="flex items-center justify-between rounded-md px-2 py-1.5"
                               >
-                                {t(`settings.localImports.status.${entry.status}`)}
-                              </Badge>
-                            </div>
-                            <p
-                              className="truncate text-xs text-muted-foreground"
-                              title={entry.sourcePath}
-                            >
-                              {entry.sourcePath}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {t("settings.localImports.linkedAgents", {
-                                agents:
-                                  entry.linkedAgents.length > 0
-                                    ? entry.linkedAgents
-                                        .map((agent) => getAgentLabel(agent, agentConfigs ?? []))
-                                        .join(", ")
-                                    : t("settings.localImports.none"),
-                              })}
-                            </p>
+                                <span className="text-sm">
+                                  {getAgentLabel(agent, agentConfigs ?? [])}
+                                </span>
+                                <Switch
+                                  checked={agents.has(agent)}
+                                  onCheckedChange={() => toggleAgent(agent)}
+                                />
+                              </div>
+                            ))}
                           </div>
-                          <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
-                            {entry.status !== "sourceMissing" && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2"
-                                onClick={() => skillsApi.openSkillPath(entry.id)}
-                              >
-                                <ExternalLink className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                            {entry.status !== "valid" && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2"
-                                onClick={() =>
-                                  cleanMutation.mutate(entry.id, { onSuccess: () => refetch() })
-                                }
-                              >
-                                <Link2Off className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 px-2"
-                              onClick={() =>
-                                removeMutation.mutate(entry.id, {
-                                  onSuccess: () => {
-                                    toast.success(t("settings.localImports.removeSuccess"));
-                                    refetch();
-                                  },
-                                })
-                              }
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
+                        </ScrollArea>
+                      </div>
                     </div>
                   )}
-                </ScrollArea>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+            ) : (
+              <div className="flex-1 min-h-0 flex flex-col p-4">
+                <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-border">
+                  <div className="shrink-0 flex items-center justify-between border-b border-border px-3 py-2">
+                    <p className="text-sm font-medium">{t("settings.localImports.managed")}</p>
+                    <button
+                      type="button"
+                      className="rounded p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+                      onClick={handleRefresh}
+                      title={t("settings.maintenance.rescanBtn")}
+                    >
+                      <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
+                    </button>
+                  </div>
+                  <ScrollArea className="flex-1">
+                    {isLoading ? (
+                      <div className="p-6 text-center text-sm text-muted-foreground">
+                        {t("configureDialog.loading")}
+                      </div>
+                    ) : !imports || imports.length === 0 ? (
+                      <div className="p-6 text-center text-sm text-muted-foreground">
+                        {t("settings.localImports.empty")}
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-border">
+                        {imports.map((entry) => (
+                          <div
+                            key={entry.id}
+                            className="flex items-start justify-between gap-3 p-3"
+                          >
+                            <div className="min-w-0 space-y-1">
+                              <div className="flex items-center gap-2">
+                                {entry.status === "valid" ? (
+                                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                ) : (
+                                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                                )}
+                                <p className="truncate text-sm font-medium">{entry.name}</p>
+                                <Badge
+                                  variant={statusVariant(entry.status)}
+                                  className="h-5 text-[10px]"
+                                >
+                                  {t(`settings.localImports.status.${entry.status}`)}
+                                </Badge>
+                              </div>
+                              <p
+                                className="truncate text-xs text-muted-foreground"
+                                title={entry.sourcePath}
+                              >
+                                {entry.sourcePath}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {t("settings.localImports.linkedAgents", {
+                                  agents:
+                                    entry.linkedAgents.length > 0
+                                      ? entry.linkedAgents
+                                          .map((agent) => getAgentLabel(agent, agentConfigs ?? []))
+                                          .join(", ")
+                                      : t("settings.localImports.none"),
+                                })}
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                              {entry.status !== "sourceMissing" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2"
+                                  onClick={() => skillsApi.openSkillPath(entry.id)}
+                                >
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                              {entry.status !== "valid" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2"
+                                  onClick={() =>
+                                    cleanMutation.mutate(entry.id, { onSuccess: () => refetch() })
+                                  }
+                                >
+                                  <Link2Off className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2"
+                                aria-label={t("settings.localImports.removeConfirmTitle")}
+                                onClick={() => setPendingRemove({ id: entry.id, name: entry.name })}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </ScrollArea>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={pendingRemove !== null}
+        onOpenChange={(next) => !next && setPendingRemove(null)}
+      >
+        <DialogContent className="sm:max-w-[380px]" data-selectable>
+          <DialogHeader>
+            <DialogTitle>{t("settings.localImports.removeConfirmTitle")}</DialogTitle>
+            <DialogDescription>
+              {pendingRemove?.name}
+              <br />
+              {t("settings.localImports.removeConfirmDescription")}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setPendingRemove(null)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={removeMutation.isPending}
+              onClick={() => {
+                const target = pendingRemove;
+                setPendingRemove(null);
+                if (!target) return;
+                removeMutation.mutate(target.id, {
+                  onSuccess: () => {
+                    toast.success(t("settings.localImports.removeSuccess"));
+                    refetch();
+                  },
+                });
+              }}
+            >
+              {t("settings.localImports.removeConfirmAction")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
