@@ -4,6 +4,7 @@ date: 2026-10-21
 raised-by: human
 decided-by: human
 created: 2026-10-21
+description: Read before changing the site/ landing page, its build or deploy workflows, or moving site ownership into the desktop build.
 paths:
   - site/**
   - .github/workflows/site.yml

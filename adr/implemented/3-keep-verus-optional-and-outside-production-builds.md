@@ -5,10 +5,7 @@ raised-by: human
 decided-by: human
 created: 2026-10-23
 commit: 52b4213
-tags:
-  - verification
-  - rust
-  - reliability
+description: Read before touching agent transaction verification or considering Verus as part of the production build.
 paths:
   - src-tauri/src/persistence/agent_transaction.rs
   - src-tauri/src/services/cli.rs

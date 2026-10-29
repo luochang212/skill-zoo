@@ -5,10 +5,7 @@ raised-by: agent
 decided-by: human
 created: 2026-10-24
 commit: 5cd578f
-tags:
-  - filesystem
-  - data-safety
-  - scanning
+description: Read before changing skill deletion or symlink cleanup behavior, especially anything that removes files the app does not own.
 paths:
   - src-tauri/src/services/skill.rs
   - src-tauri/src/commands/agents.rs

@@ -5,7 +5,7 @@ raised-by: human
 decided-by: human
 created: 2026-10-20
 commit: 18dcf84
-tags: [product, local-protocol, compatibility, architecture]
+description: Read before changing the local protocol (paths, metadata, locks, fixtures) or adding compatibility behavior for external skill managers.
 paths: [docs/local-protocol.md, src-tauri/src/services/lock.rs, packages/cli/src/protocol, src-tauri/src/persistence/metadata.rs]
 ---
 
