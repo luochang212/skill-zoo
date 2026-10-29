@@ -25,3 +25,25 @@ fn test_remove_skill_dir_non_existent_is_noop() {
     let result = SkillService::remove_skill_dir("does-not-exist", &nonexistent.to_string_lossy());
     assert!(result.is_ok(), "removing non-existent dir should not error");
 }
+
+#[test]
+fn test_remove_skill_dir_refuses_directory_without_skill_md() {
+    // A stale cache entry may point at a path that now holds unrelated user
+    // data. The identity check must leave that directory alone.
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let replaced = tmp.path().join("test-skill");
+    fs::create_dir(&replaced).expect("create dir");
+    fs::write(replaced.join("notes.txt"), "user data").expect("write file");
+
+    SkillService::remove_skill_dir("test-skill", &replaced.to_string_lossy())
+        .expect("remove_skill_dir should not error on a non-skill directory");
+
+    assert!(
+        replaced.exists(),
+        "directory without SKILL.md must not be deleted"
+    );
+    assert!(
+        replaced.join("notes.txt").exists(),
+        "user data inside the directory must survive"
+    );
+}

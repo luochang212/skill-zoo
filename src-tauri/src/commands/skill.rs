@@ -3799,6 +3799,10 @@ mod tests {
         let agent_home = root.path().join(".codex").join("skills").join("demo");
         std::fs::create_dir_all(&ssot_home).expect("create ssot skill");
         std::fs::create_dir_all(&agent_home).expect("create agent skill");
+        // Skill directories per the recognition rule: remove_skill_dir only
+        // deletes directories that still hold a SKILL.md.
+        std::fs::write(ssot_home.join("SKILL.md"), "# Demo").expect("write ssot skill");
+        std::fs::write(agent_home.join("SKILL.md"), "# Demo").expect("write agent skill");
 
         let skill = test_cache_entry_with_home(
             "agent:codex:demo",

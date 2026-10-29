@@ -2251,6 +2251,10 @@ impl SkillService {
     /// both the "remove skill" command and the dedup merge.
     ///
     /// - Deletes the entity directory at `home_path` (must not be a symlink).
+    ///   The directory is deleted only if it still contains `SKILL.md`; a
+    ///   real directory without it is treated as "the skill is already gone"
+    ///   and left untouched, so a stale cache path can never recurse into
+    ///   unrelated user data.
     /// - Removes symlinks in all agent directories that reference this skill name.
     /// - Does NOT delete real (non-symlink) directories in agent dirs. Those
     ///   are user data that requires explicit consent.
@@ -2272,6 +2276,14 @@ impl SkillService {
 
         // Delete the entity directory
         if home.exists() && !is_symlink_or_junction(home) {
+            // Identity check before recursing: `home_path` comes from the
+            // cache, which is an async derivative of the filesystem. Per the
+            // skill recognition rule a skill directory contains SKILL.md; if
+            // it is gone, the path no longer holds this skill and whatever
+            // replaced it must not be trusted to a recursive delete.
+            if !home.join("SKILL.md").is_file() {
+                return Ok(());
+            }
             std::fs::remove_dir_all(home).map_err(|e| crate::error::io(home, e))?;
         }
 
