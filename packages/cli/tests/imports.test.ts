@@ -741,7 +741,7 @@ describe("import collision safety", () => {
 });
 
 describe("external import dedupe", () => {
-  it("re-import through a symlinked spelling keeps one entry and the original import date", async () => {
+  it("re-import through a symlinked spelling keeps one entry and the original import date", async (ctx) => {
     const home = await makeTempHome();
     const realSkill = path.join(home, "real-skills", "demo");
     await fs.mkdir(realSkill, { recursive: true });
@@ -754,8 +754,20 @@ describe("external import dedupe", () => {
     const originalImportedAt = entry.importedAt;
 
     // A second spelling of the same physical folder via a symlinked parent.
+    // "dir" is ignored on POSIX but required on Windows for a directory target.
     const linkedParent = path.join(home, "linked-parent");
-    await fs.symlink(path.join(home, "real-skills"), linkedParent);
+    try {
+      await fs.symlink(path.join(home, "real-skills"), linkedParent, "dir");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EPERM") throw error;
+      // Windows denies symlink creation without admin rights or Developer
+      // Mode; without the privilege this scenario cannot run locally.
+      console.warn(
+        "[skip] symlink privilege unavailable (EPERM); enable Windows Developer Mode or run as admin to execute this test",
+      );
+      ctx.skip();
+      return;
+    }
     const preview = await importExternalSkills(home, [path.join(linkedParent, "demo")], ["claude-code"], { dryRun: true });
     expect(preview.added).toEqual(first.added);
     expect(await readExternalImports(home)).toEqual(afterFirst);
