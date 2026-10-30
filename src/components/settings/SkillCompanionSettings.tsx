@@ -5,6 +5,8 @@ import {
   BarChart3,
   Camera,
   Check,
+  ClipboardCopy,
+  ClipboardPaste,
   Copy,
   GripVertical,
   Loader2,
@@ -32,6 +34,11 @@ import {
   useUpdateSkillUsageAgent,
 } from "@/hooks/useSettings";
 import { settingsApi } from "@/lib/api/settings";
+import {
+  buildSkillCompanionExport,
+  normalizeSkillCompanionContent,
+  parseSkillCompanionImport,
+} from "@/lib/skill-companion-transfer";
 import { useAgentConfigs, getAgentLabel } from "@/lib/agents";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -60,10 +67,6 @@ function reorderItems(items: SkillCompanionItem[], nextOrder: string[]) {
   return nextOrder
     .map((id) => itemById.get(id))
     .filter((item): item is SkillCompanionItem => Boolean(item));
-}
-
-function normalizePreview(content: string) {
-  return content.split(/\s+/).filter(Boolean).join(" ");
 }
 
 type UsageRange = "week" | "month";
@@ -557,7 +560,8 @@ function SkillCompanionRow({
   const { t } = useTranslation();
   const dragControls = useDragControls();
   const invalid = item.content.trim().length === 0;
-  const preview = normalizePreview(item.content) || t("settings.skillCompanion.emptyPreview");
+  const preview =
+    normalizeSkillCompanionContent(item.content) || t("settings.skillCompanion.emptyPreview");
 
   return (
     <Reorder.Item
@@ -667,6 +671,7 @@ function SkillCompanionManagerDialog({
   const saveItems = useSaveSkillCompanionItems();
   const [items, setItems] = useState<SkillCompanionItem[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const itemsRef = useRef<SkillCompanionItem[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -755,6 +760,41 @@ function SkillCompanionManagerDialog({
     saveList(itemsRef.current, undefined, () => setItems(savedItems));
   };
 
+  // Buttons that mutate the list are disabled while editing, so the dialog state
+  // equals the saved state whenever exporting is possible.
+  const exportItems = async () => {
+    try {
+      await settingsApi.copyTextToClipboard(buildSkillCompanionExport(itemsRef.current));
+      toast.success(t("settings.skillCompanion.exportSuccess", { count: itemsRef.current.length }));
+    } catch {
+      toast.error(t("settings.skillCompanion.exportFailed"));
+    }
+  };
+
+  const importItems = (contents: string[], duplicates: number) => {
+    if (contents.length === 0) {
+      toast.success(t("settings.skillCompanion.importDone", { count: 0, duplicates }));
+      return;
+    }
+    const previousItems = itemsRef.current;
+    const nextItems = [
+      ...previousItems,
+      ...contents.map((content) => ({ id: createItemId(), content })),
+    ];
+    setItems(nextItems);
+    saveList(
+      nextItems,
+      () => {
+        toast.success(
+          duplicates > 0
+            ? t("settings.skillCompanion.importDone", { count: contents.length, duplicates })
+            : t("settings.skillCompanion.importDoneAllNew", { count: contents.length }),
+        );
+      },
+      () => setItems(previousItems),
+    );
+  };
+
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !busy && onOpenChange(nextOpen)}>
       <DialogContent
@@ -826,7 +866,118 @@ function SkillCompanionManagerDialog({
             <p className="text-xs text-muted-foreground">
               {t("settings.skillCompanion.editingHint")}
             </p>
-          ) : null}
+          ) : (
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                disabled={busy}
+                onClick={() => setImportOpen(true)}
+              >
+                <ClipboardPaste className="h-3.5 w-3.5" />
+                {t("settings.skillCompanion.import")}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                disabled={busy || items.length === 0}
+                onClick={exportItems}
+              >
+                <ClipboardCopy className="h-3.5 w-3.5" />
+                {t("settings.skillCompanion.export")}
+              </Button>
+            </div>
+          )}
+        </div>
+        {/* Portal-mounted nested dialog; invisible to the flex layout. */}
+        <SkillCompanionImportDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          existing={items}
+          onConfirm={importItems}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SkillCompanionImportDialog({
+  open,
+  onOpenChange,
+  existing,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  existing: SkillCompanionItem[];
+  onConfirm: (contents: string[], duplicates: number) => void;
+}) {
+  const { t } = useTranslation();
+  const [text, setText] = useState("");
+  // Blocks closing while the parent dialog is saving the merged list.
+  const [confirming, setConfirming] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setText("");
+      setConfirming(false);
+    }
+  }, [open]);
+
+  const empty = text.trim().length === 0;
+
+  const confirm = () => {
+    if (empty || confirming) return;
+    const result = parseSkillCompanionImport(text, existing);
+    if (!result.ok) {
+      toast.error(t("settings.skillCompanion.importFailed"));
+      return;
+    }
+    setConfirming(true);
+    onConfirm(result.contents, result.duplicates);
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(nextOpen) => !confirming && onOpenChange(nextOpen)}>
+      <DialogContent
+        closeDisabled={confirming}
+        onPointerDownOutside={(event) => confirming && event.preventDefault()}
+        onEscapeKeyDown={(event) => confirming && event.preventDefault()}
+        className="flex max-h-[calc(100vh-6rem)] w-[calc(100vw-2rem)] max-w-[560px] flex-col gap-0 p-0 sm:rounded-xl"
+        data-selectable
+      >
+        <DialogHeader className="shrink-0 border-b border-border/50 px-4 py-4 text-left">
+          <DialogTitle>{t("settings.skillCompanion.importTitle")}</DialogTitle>
+          <DialogDescription>{t("settings.skillCompanion.importDescription")}</DialogDescription>
+        </DialogHeader>
+        <div className="p-4">
+          <textarea
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+            placeholder={t("settings.skillCompanion.importPlaceholder")}
+            aria-label={t("settings.skillCompanion.importTextarea")}
+            rows={8}
+            className="h-40 w-full resize-none overflow-y-auto rounded-md border border-input bg-background px-3 py-2 font-mono text-sm leading-5 transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring"
+          />
+        </div>
+        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border/40 p-3">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={confirming}
+            onClick={() => onOpenChange(false)}
+          >
+            {t("common.cancel")}
+          </Button>
+          <Button type="button" size="sm" disabled={empty || confirming} onClick={confirm}>
+            {t("settings.skillCompanion.importAction")}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

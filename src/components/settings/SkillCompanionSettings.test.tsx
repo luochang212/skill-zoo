@@ -1,6 +1,6 @@
 import "@/i18n";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@tauri-apps/api/core";
 import { domToPng } from "modern-screenshot";
@@ -96,6 +96,8 @@ function mockItems(
       case "save_skill_usage_screenshot":
         if (options.rejectScreenshot) return Promise.reject(new Error("save screenshot failed"));
         return Promise.resolve("/Users/demo/Desktop/Skill Zoo Skill Preferences.png");
+      case "copy_text_to_clipboard":
+        return Promise.resolve();
       case "get_settings":
         return Promise.resolve(
           options.skillUsageAgent ? { skill_usage_agent: options.skillUsageAgent } : {},
@@ -266,6 +268,85 @@ describe("SkillCompanionSettings", () => {
     );
     expect(screen.getByDisplayValue("First prompt")).toBeInTheDocument();
     expect(screen.getByText("Second prompt")).toBeInTheDocument();
+  });
+
+  it("exports the saved commands to the clipboard as a transfer envelope", async () => {
+    const user = userEvent.setup();
+    mockItems([{ id: "a", content: "/compile all" }]);
+
+    renderSettings();
+
+    await user.click(await screen.findByRole("button", { name: "Manage" }));
+    await user.click(screen.getByRole("button", { name: "Export" }));
+
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("Exported 1 common command(s) to the clipboard"),
+    );
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith("copy_text_to_clipboard", {
+      text: JSON.stringify(
+        { kind: "skill-zoo-companion", version: 1, items: ["/compile all"] },
+        null,
+        2,
+      ),
+    });
+  });
+
+  it("imports pasted commands and skips whitespace-duplicates against the list", async () => {
+    const user = userEvent.setup();
+    mockItems([{ id: "kept", content: "run tests" }]);
+
+    renderSettings();
+
+    await user.click(await screen.findByRole("button", { name: "Manage" }));
+    await user.click(screen.getByRole("button", { name: "Import" }));
+    const textarea = await screen.findByLabelText("Paste export text");
+    fireEvent.change(textarea, {
+      target: {
+        value: JSON.stringify({
+          kind: "skill-zoo-companion",
+          version: 1,
+          items: ["run  tests", "run lint"],
+        }),
+      },
+    });
+    const importDialog = within(textarea.closest<HTMLElement>('[role="dialog"]')!);
+    await user.click(importDialog.getByRole("button", { name: "Import" }));
+
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        "Imported 1 common command(s), skipped 1 duplicate(s)",
+      ),
+    );
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith("save_skill_companion_items", {
+      items: [
+        { id: "kept", content: "run tests" },
+        { id: expect.any(String), content: "run lint" },
+      ],
+    });
+  });
+
+  it("rejects pasted text that is not a transfer envelope without touching the list", async () => {
+    const user = userEvent.setup();
+    mockItems([{ id: "kept", content: "run tests" }]);
+
+    renderSettings();
+
+    await user.click(await screen.findByRole("button", { name: "Manage" }));
+    await user.click(screen.getByRole("button", { name: "Import" }));
+    const textarea = await screen.findByLabelText("Paste export text");
+    fireEvent.change(textarea, { target: { value: "not a transfer envelope" } });
+    const importDialog = within(textarea.closest<HTMLElement>('[role="dialog"]')!);
+    await user.click(importDialog.getByRole("button", { name: "Import" }));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Import failed: the pasted text is not a Skill Zoo common-commands export",
+      ),
+    );
+    expect(vi.mocked(invoke)).not.toHaveBeenCalledWith(
+      "save_skill_companion_items",
+      expect.anything(),
+    );
   });
 
   it("shows Claude skill usage habits without historical prompt text", async () => {

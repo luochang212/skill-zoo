@@ -288,6 +288,12 @@ pub fn save_skill_companion_items(
 }
 
 #[tauri::command]
+pub fn copy_text_to_clipboard(text: String) -> Result<(), String> {
+    let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
+    clipboard.set_text(text).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn set_tray_language(app_handle: tauri::AppHandle, language: String) -> Result<(), String> {
     crate::services::tray::set_tray_language(&app_handle, &language)
 }

@@ -55,6 +55,8 @@ export const settingsApi = {
   saveSkillCompanionItems: (items: SkillCompanionItem[]) =>
     invoke<SkillCompanionItem[]>("save_skill_companion_items", { items }),
 
+  copyTextToClipboard: (text: string) => invoke<void>("copy_text_to_clipboard", { text }),
+
   setTrayLanguage: (language: string) => invoke<void>("set_tray_language", { language }),
 
   getSkillUsage: (agent: string) => invoke<SkillUsage>("get_skill_usage", { agentId: agent }),

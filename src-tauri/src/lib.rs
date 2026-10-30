@@ -183,6 +183,7 @@ pub fn run() {
             commands::settings::verify_saved_github_token,
             commands::settings::get_skill_companion_items,
             commands::settings::save_skill_companion_items,
+            commands::settings::copy_text_to_clipboard,
             commands::settings::save_skill_usage_screenshot,
             commands::settings::set_tray_language,
             commands::settings::get_skill_usage,
