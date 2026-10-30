@@ -54,8 +54,7 @@ unicode-width = "0.2"
 socket2 = { version = "0.6", features = ["all"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2 = "0.6"
-objc2-app-kit = { version = "0.3", features = ["NSColor", "NSWorkspace"] }
+objc2-app-kit = { version = "0.3", features = ["NSWorkspace"] }
 objc2-foundation = { version = "0.3", features = ["NSArray", "NSURL", "NSString"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]

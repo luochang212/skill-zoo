@@ -5,14 +5,12 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSkillAudit } from "@/hooks/useSkills";
 
-type AuditDisplay = "card" | "compact" | "icon";
+type AuditDisplay = "card" | "icon";
 
 interface SkillAuditCardProps {
   owner: string;
   repo: string;
   slug: string;
-  /** @deprecated use `display="compact"` instead */
-  compact?: boolean;
   display?: AuditDisplay;
 }
 
@@ -59,9 +57,9 @@ function AuditEmptyState({ label }: { label: string }) {
   );
 }
 
-export function SkillAuditCard({ owner, repo, slug, compact, display }: SkillAuditCardProps) {
+export function SkillAuditCard({ owner, repo, slug, display }: SkillAuditCardProps) {
   const { t } = useTranslation();
-  const mode: AuditDisplay = display ?? (compact ? "compact" : "card");
+  const mode: AuditDisplay = display ?? "card";
   const [expanded, setExpanded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -154,38 +152,6 @@ export function SkillAuditCard({ owner, repo, slug, compact, display }: SkillAud
             {auditBody}
           </div>
         )}
-      </div>
-    );
-  }
-
-  if (mode === "compact") {
-    return (
-      <div className="flex justify-end w-full">
-        <div ref={containerRef} className="relative">
-          <button
-            className="h-6 inline-flex items-center gap-1.5 rounded-lg bg-muted px-2.5 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
-            onClick={() => setExpanded(!expanded)}
-            aria-expanded={expanded}
-          >
-            <ShieldCheck className="h-3.5 w-3.5" />
-            {t("audit.title")}
-            <ChevronDown
-              className={cn(
-                "h-3.5 w-3.5 transition-transform motion-reduce:transition-none",
-                expanded && "rotate-180",
-              )}
-            />
-          </button>
-
-          {expanded && (
-            <div
-              className="popover-enter absolute right-0 top-8 z-50 rounded-lg border border-border bg-popover shadow-lg"
-              style={{ width: "min(20rem, calc(100vw - 2.5rem))" }}
-            >
-              {auditBody}
-            </div>
-          )}
-        </div>
       </div>
     );
   }
