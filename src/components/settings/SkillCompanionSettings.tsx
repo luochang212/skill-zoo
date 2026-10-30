@@ -918,36 +918,29 @@ function SkillCompanionImportDialog({
 }) {
   const { t } = useTranslation();
   const [text, setText] = useState("");
-  // Blocks closing while the parent dialog is saving the merged list.
-  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
     if (open) {
       setText("");
-      setConfirming(false);
     }
   }, [open]);
 
   const empty = text.trim().length === 0;
 
   const confirm = () => {
-    if (empty || confirming) return;
+    if (empty) return;
     const result = parseSkillCompanionImport(text, existing);
     if (!result.ok) {
       toast.error(t("settings.skillCompanion.importFailed"));
       return;
     }
-    setConfirming(true);
     onConfirm(result.contents, result.duplicates);
     onOpenChange(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !confirming && onOpenChange(nextOpen)}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        closeDisabled={confirming}
-        onPointerDownOutside={(event) => confirming && event.preventDefault()}
-        onEscapeKeyDown={(event) => confirming && event.preventDefault()}
         className="flex max-h-[calc(100vh-6rem)] w-[calc(100vw-2rem)] max-w-[560px] flex-col gap-0 p-0 sm:rounded-xl"
         data-selectable
       >
@@ -966,16 +959,10 @@ function SkillCompanionImportDialog({
           />
         </div>
         <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border/40 p-3">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={confirming}
-            onClick={() => onOpenChange(false)}
-          >
+          <Button type="button" size="sm" variant="outline" onClick={() => onOpenChange(false)}>
             {t("common.cancel")}
           </Button>
-          <Button type="button" size="sm" disabled={empty || confirming} onClick={confirm}>
+          <Button type="button" size="sm" disabled={empty} onClick={confirm}>
             {t("settings.skillCompanion.importAction")}
           </Button>
         </div>
