@@ -394,9 +394,12 @@ mod tests {
         // listener, bypassing ambient proxy settings. A non-existent domain is
         // NOT hermetic: fake-IP VPN resolvers answer every name with a local
         // proxy address, and proxy env vars reroute the request entirely.
+        // The guard must stay well above 2s: on Windows the refusal can take
+        // ~2s to reach an overlapped connect, and a shorter timeout would win
+        // the race, turning the error into a timeout instead of a connect.
         let client = reqwest::Client::builder()
             .no_proxy()
-            .timeout(std::time::Duration::from_secs(2))
+            .timeout(std::time::Duration::from_secs(10))
             .build()
             .unwrap();
         let error = client.get("http://127.0.0.1:1/").send().await.unwrap_err();
