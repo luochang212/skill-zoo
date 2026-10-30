@@ -55,8 +55,7 @@ If the target changes in the future, publish from the directory whose `package.j
 Check the repo instructions and current working tree first:
 
 ```bash
-test -f CLAUDE.md && sed -n '1,220p' CLAUDE.md
-test -f AGENTS.md && sed -n '1,220p' AGENTS.md
+sed -n '1,220p' AGENTS.md
 git status --short
 ```
 
