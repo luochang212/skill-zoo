@@ -11,6 +11,13 @@ literally, and paths plus identifiers are the joins back to the code. Titles,
 descriptions, and prose are Chinese. Do not translate a record back to English,
 and do not write a new record's prose in English.
 
+Use this as an agent notebook, not a change log. Preserve important reasons
+or constraints that code, tests, and existing documents cannot reliably explain.
+Weigh importance, impact breadth, longevity, resistance to becoming stale, and
+how hidden the context is. Routine upgrades and visual tweaks usually need no
+record. Skipping is valid; notes are candidates, not obligations. Use the
+propose/record workflows for the selection questions and examples.
+
 Records follow the lifecycle folders proposed/, implemented/, rejected/, and
 archived/. The folders are a context budget as well as a lifecycle:
 implemented/ is current authority and is read in full; proposed/ is intent and
@@ -23,22 +30,30 @@ rather than disappearing from the list command.
 A proposal is unshipped even when its direction has been settled. Implemented
 records describe shipped decisions and receive stable ADR numbers. A rejection
 is a durable terminal record of a declined proposal: it is removed only when
-another record owns the warning it blocks, never for appearing stale.
-Rejections are unnumbered, so removing a redundant one cannot reuse a number.
+another record owns the warning it blocks, never for appearing stale —
+rejections are unnumbered, so removing a redundant one cannot reuse a number.
 Archived records are frozen history, not current authority. They are ordinary
 Git-tracked records: adrkit validate checks them like the rest of the
 inventory, and Git history shows any later change.
 
 Never delete a numbered decision: its stable N may be referenced elsewhere.
-Implemented records may refresh factual paths, symbols, and defaults, but a
-changed choice needs a new record. Archive or supersede rather than erase it.
+Implemented records may refresh facts they actually claim; changes within a
+decision's implementation freedom need no update. Existing records are not
+precedent for recording similar edits. A changed recorded choice needs a new
+record. Archive or supersede rather than erase it.
+
+If a numbered record was created by mistake before anything cites it, removing
+it is a Git operation, not a lifecycle move: git rm it in a commit that also
+removes or updates anything citing the number, and say why in the commit
+message. The pre-push hook flags such a removal; treat that as the moment to
+double-check nothing references it. The record survives in Git history, as
+every archived record does.
 
 The canonical header includes status, date, and created: YYYY-MM-DD (the
 birth date, never re-stamped). Numbered records declare raised-by: human | agent
 and decided-by: human | agent; these are provenance declarations, not proof
-of approval. A required single-line description: says when to read the record;
-optional paths: [src/payments/**] scopes a record to the files it governs.
-There is no tags field.
+of approval. A required description explains when to read the record; optional
+paths: [src/payments/**] scope a record to the files it governs.
 
 Use adrkit propose for unshipped work, adrkit implement after it ships, and
 adrkit record for an already-shipped decision. Use adrkit reject with a reason
