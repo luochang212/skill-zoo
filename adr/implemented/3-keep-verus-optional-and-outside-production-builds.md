@@ -29,7 +29,7 @@ Skill Zoo 的日志恢复机制在操作只完成一部分时保护用户文件�
 - 不新增任何 Verus 生产依赖、默认构建步骤、必需的 CI 关卡，或全项目级的 Rust 工具链覆盖。
 - 不为了让 Verus 兼容而改写那点生产选择/重放逻辑。当出现足够复杂、稳定的共享核心，值得付出证明与维护成本时再重议采纳；在把证明当作生产保证之前，先明确并评审可信 IO 边界。
 
-这条边界由用户在审阅两项研究后确认。ADR [1](1-own-skill-zoo-local-protocol-borrow-capabilities-not-compatibility.md) 继续拥有本地协议语义与桌面端/CLI 的 fixture 一致性。
+这条边界由用户在审阅两项研究后确认。本地协议语义与桌面端/CLI 的 fixture 一致性仍归 ADR 1 所有（[原文](1-own-skill-zoo-local-protocol-borrow-capabilities-not-compatibility.md)）。
 
 ## Alternatives considered
 
