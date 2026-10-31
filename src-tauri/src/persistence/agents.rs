@@ -99,6 +99,9 @@ impl AgentRegistry {
         Ok(())
     }
 
+    // Test seeding helper: production writes the registry through the agent
+    // transaction, which commits agents.json together with imports and settings.
+    #[cfg(any(test, feature = "test-helpers"))]
     pub fn save_to(&self, path: &Path) -> Result<(), AppError> {
         // Never replace a corrupt or newer file with a fresh default.
         Self::load_from(path)?;

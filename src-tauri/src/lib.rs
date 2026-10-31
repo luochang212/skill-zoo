@@ -44,8 +44,9 @@ pub fn run() {
                 let _lease = persistence::agent_transaction::AgentLease::acquire(
                     &config::get_app_config_dir(),
                 )?;
-                // An unreadable registry degrades to built-in agents: saves still
-                // refuse to overwrite the broken file (AgentRegistry::save_to).
+                // An unreadable registry degrades to built-in agents: agent
+                // changes still refuse to overwrite the broken file because the
+                // change path reloads the registry before committing.
                 if let Err(e) = config::refresh_agents() {
                     eprintln!("Failed to load agent registry, using built-in agents: {e}");
                 }
