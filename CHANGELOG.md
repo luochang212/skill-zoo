@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.60] — 2026-10-31
+
+### Added
+- Skill Companion's common commands can now be transferred between devices through the clipboard. Export writes a versioned JSON envelope without local ids; import validates the envelope, skips whitespace-normalized duplicates (within the import and against the saved list), and appends new entries with fresh ids. Export is disabled for an empty list.
+
+### Changed
+- Removing a local import now asks for confirmation and states that only its managed agent links and registry entry are deleted; the original folder is untouched.
+
+### Fixed
+- Removing a skill whose cached home no longer contains `SKILL.md` no longer recursively deletes that path. A stale cache entry can therefore not destroy unrelated data that replaced the skill directory.
+
 ## [0.3.59] — 2026-10-25
 
 ### Fixed
