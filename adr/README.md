@@ -4,6 +4,13 @@ This directory is the repository's memory against two agent failure modes:
 drifting from long-term decisions while deep in a task, and forgetting settled
 choices until they resurface as inconsistencies.
 
+Records here are written in Chinese. Front matter, the four required section
+headings (Problem, Decision, Alternatives considered, Consequences), paths,
+symbols, and file names stay English: adrkit validate matches those headings
+literally, and paths plus identifiers are the joins back to the code. Titles,
+descriptions, and prose are Chinese. Do not translate a record back to English,
+and do not write a new record's prose in English.
+
 Records follow the lifecycle folders proposed/, implemented/, rejected/, and
 archived/. The folders are a context budget as well as a lifecycle:
 implemented/ is current authority and is read in full; proposed/ is intent and
@@ -29,8 +36,9 @@ changed choice needs a new record. Archive or supersede rather than erase it.
 The canonical header includes status, date, and created: YYYY-MM-DD (the
 birth date, never re-stamped). Numbered records declare raised-by: human | agent
 and decided-by: human | agent; these are provenance declarations, not proof
-of approval. Optional tags: [frontend] classify records by theme; optional
-paths: [src/payments/**] scope a record to the files it governs.
+of approval. A required single-line description: says when to read the record;
+optional paths: [src/payments/**] scopes a record to the files it governs.
+There is no tags field.
 
 Use adrkit propose for unshipped work, adrkit implement after it ships, and
 adrkit record for an already-shipped decision. Use adrkit reject with a reason

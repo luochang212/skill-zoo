@@ -5,53 +5,53 @@ raised-by: human
 decided-by: human
 created: 2026-10-20
 commit: 18dcf84
-description: Read before changing the local protocol (paths, metadata, locks, fixtures) or adding compatibility behavior for external skill managers.
+description: 在改动本地协议（路径、元数据、锁、fixture）或为外部 skill 管理器增加兼容行为之前阅读。
 paths: [docs/local-protocol.md, src-tauri/src/services/lock.rs, packages/cli/src/protocol, src-tauri/src/persistence/metadata.rs]
 ---
 
-# ADR: 1 Own Skill Zoo's local protocol; borrow capabilities, not compatibility
+# ADR: 1 自持 Skill Zoo 的本地协议：借鉴能力，而非兼容
 
 ## Problem
 
-The 0.3.56 work treated "learn from `npx skills` / `gh skill`" as a protocol-compatibility mandate. It added shared-lock preservation/refusal, physical key resolution, metadata identity migration, gh provenance refusal, and a read-retry/ADR around external writers. Those mechanisms exist to coexist with schemas we do not own. They cost our users migration and refusal friction, and they let another tool's model constrain our design.
+0.3.56 那一轮把「向 `npx skills` / `gh skill` 学习」当成了协议兼容的硬性任务。为此加入了共享锁的保留与拒绝、物理路径键解析、元数据身份迁移、gh provenance 拒写，以及围绕外部写入方的读取重试与 ADR。这些机制存在的目的只是与我们并不拥有的 schema 共存。它们让我们自己的用户承担迁移与拒写的摩擦，并让另一个工具的模型反过来约束我们的设计。
 
-Skill Zoo's storage path overlaps with other tools, but overlap is not a contract. Simultaneous use of multiple skill managers is not a supported use case. The product should borrow capabilities, not chase compatibility.
+Skill Zoo 的存储路径与其他工具重叠，但重叠不构成契约。同时使用多个 skill 管理器不是受支持的使用场景。产品应当借鉴能力，而不是追逐兼容。
 
 ## Decision
 
-- Skill Zoo owns its local protocol: the lock, desktop metadata, archive/import formats, and CLI behavior are defined by us, documented in `docs/local-protocol.md`, and covered by our fixtures.
-- We do not promise interoperability with `npx skill`, `gh skill`, or any other manager. Their readers/writers are not a supported surface; their schemas do not drive our design.
-- We borrow ideas and capabilities when they improve our product, implemented under our semantics. Upstream code is reference, not a compatibility target.
-- We do not degrade our users' experience for compatibility. A compatibility measure is considered only when it prevents a hygiene failure (data corruption/loss, unsafe write) or a real architecture problem, and only after an explicit UX/maintenance trade-off; otherwise we do the right thing for our own users.
-- If compatibility falls out cheaply and incidentally, we may keep it, but it must not become a requirement, a test matrix, a migration, or a reason to add branches.
-- Defensive hygiene remains: preserve unknown fields and refuse future schema versions so we do not corrupt data we do not understand. That is hygiene, not an interop promise; it does not require reading foreign semantics.
-- Review existing compatibility-only mechanisms under this policy. Remove or narrow those that do not earn their UX/maintenance cost; do not add new ones without a new ADR that records the UX trade-off.
+- Skill Zoo 自持本地协议：锁、桌面端元数据、归档/导入格式与 CLI 行为由我们定义，写在 `docs/local-protocol.md`，并由我们的 fixture 覆盖。
+- 我们不对 `npx skill`、`gh skill` 或任何其他管理器承诺互操作性。它们的读写实现不是受支持的接口面；它们的 schema 不驱动我们的设计。
+- 在能改进产品时，我们借鉴想法与能力，但以我们自己的语义实现。上游代码是参考，不是兼容目标。
+- 我们不为兼容而降低用户体验。只有在能避免卫生事故（数据损坏/丢失、不安全写入）或真实架构问题时，且经过明确的 UX/维护成本权衡之后，才考虑兼容措施；否则就为我们的用户做正确的事。
+- 如果兼容是廉价、顺带得到的，可以保留，但它不得变成需求、测试矩阵、迁移，或增加分支的理由。
+- 防御性卫生保持：保留未知字段、拒绝未来的 schema 版本，以免损坏我们看不懂的数据。这属于卫生，不是互操作承诺；它不要求我们理解外部语义。
+- 按本政策复审既有的、仅为兼容而存在的机制。对不抵其 UX/维护成本的，移除或收窄；新增必须另立一条 ADR 记录 UX 权衡。
 
-This supersedes the compatibility-first policy recorded on `next/curated` as ADR 1. That branch and `next/verified-baselines` are reference-only.
+本条取代 `next/curated` 分支上记录为 ADR 1 的「兼容优先」政策。该分支与 `next/verified-baselines` 仅作参考。
 
 ## Alternatives considered
 
-- **Continue compatibility-first (the 0.3.56 direction).** Rejected: external schemas become our problem; migrations and refusals land on users who never mix tools.
-- **Chase each upstream tool/version.** Rejected: unbounded coupling; every upstream change becomes our branch.
-- **Move authoritative state to a private sidecar to escape the shared file.** Rejected: it adds a parallel lifecycle across install/update/delete/archive/restore on both runtimes; owning our protocol does not require a sidecar.
-- **Read nothing from existing files and start over.** Rejected: users have existing data; we migrate/import it as our own protocol where needed, but we do not promise external interop.
-- **Keep compatibility as a product goal but hide the cost.** Rejected: the cost is real (migration, refusals, ambiguity) and belongs in the decision record.
+- **继续兼容优先（0.3.56 的方向）。** 否决：外部 schema 变成我们的问题，迁移与拒写落在从不混用工具的用户的账上。
+- **逐个追上游工具/版本。** 否决：耦合无界，上游每一次变更都变成我们的分支。
+- **把权威状态搬到私有 sidecar 以避开共享文件。** 否决：那会在两套运行时的安装/更新/删除/归档/恢复路径上再造一条并行生命周期；自持协议并不需要 sidecar。
+- **不读现有文件、推倒重来。** 否决：用户已有存量数据；必要时按我们自己的协议迁移/导入，但不承诺外部互操作。
+- **把兼容继续当产品目标，只把成本藏起来。** 否决：成本是真实的（迁移、拒写、歧义），应当写进决策记录。
 
 ## Consequences
 
-Bought:
+得到：
 
-- Product decisions are ours; external tools no longer set our roadmap or schema branches.
-- Less compatibility surface and fewer migration/refusal paths to maintain.
-- UX can be optimized for our users, including when another manager is installed.
+- 产品决定权回到我们手里；外部工具不再决定我们的路线图或 schema 分支。
+- 兼容面更小，需要维护的迁移/拒写路径更少。
+- UX 可以只为我们自己的用户优化，即便用户还装了别的管理器。
 
-Cost:
+代价：
 
-- Users who mix managers may see divergence or need to choose one; external tools may not read our files. This is documented as unsupported, not worked around.
-- Some existing compatibility-only code and tests will be removed or narrowed; the reference branches keep the history.
+- 混用多个管理器的用户可能看到分歧，或必须二选一；外部工具可能读不了我们的文件。这一点记为「不受支持」，而不是绕过处理。
+- 一部分只为兼容而存在的代码与测试将被移除或收窄；参考分支保留了这段历史。
 
-Follow-ups:
+后续：
 
-- Audit the 0.3.56 compatibility work and remove what does not serve an own-protocol product (physical key resolution, gh provenance refusal, read-retry for external writers, compatibility docs/fixtures).
-- Keep `docs/local-protocol.md` and its fixtures as our contract.
-- Any future compatibility exception gets a new ADR with an explicit UX/maintenance rationale.
+- 审计 0.3.56 的兼容工作，移除不服务于「自持协议」产品的部分（物理路径键解析、gh provenance 拒写、面向外部写入方的读取重试、兼容性文档/fixture）。
+- 把 `docs/local-protocol.md` 与其 fixture 当作我们的契约保留。
+- 将来任何兼容例外都要新开 ADR，并写明 UX/维护理由。

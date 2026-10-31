@@ -5,7 +5,7 @@ raised-by: human
 decided-by: human
 created: 2026-10-23
 commit: 52b4213
-description: Read before touching agent transaction verification or considering Verus as part of the production build.
+description: 在改动 agent 事务验证，或考虑把 Verus 纳入生产构建之前阅读。
 paths:
   - src-tauri/src/persistence/agent_transaction.rs
   - src-tauri/src/services/cli.rs
@@ -13,67 +13,38 @@ paths:
   - docs/research/verus-transaction/**
 ---
 
-# ADR: 3 Keep Verus optional and outside production builds
+# ADR: 3 让 Verus 保持可选，且不进生产构建
 
 ## Problem
 
-Skill Zoo's journal recovery protects user files across partially completed
-operations. Verus can prove Rust logic against explicit specifications, but our
-critical workflows also depend on filesystem operations, external writers and a
-separate TypeScript CLI. A proof of a detached model cannot establish correctness
-of those implementations or their storage assumptions.
+Skill Zoo 的日志恢复机制在操作只完成一部分时保护用户文件。Verus 可以针对显式规约证明 Rust 逻辑，但我们的关键流程还依赖文件系统操作、外部写入方，以及一套独立的 TypeScript CLI。对一个脱离出来的模型做证明，无法确立这些实现或它们的存储假设是正确的。
 
-Two bounded studies demonstrated abstract replay properties and produced useful
-production-path failure/retry tests. They found no new production defect. Wider
-integration would require a maintained correspondence to runtime code and a
-trusted storage boundary before claiming stronger user-facing guarantees.
+两项范围有限的研究演示了抽象的重放性质，并产出了有用的生产路径失败/重试测试。它们没有发现新的生产缺陷。要进一步扩大集成，必须先维护一条与运行时代码的对应关系，并确立可信的存储边界，才能宣称更强的面向用户的保证。
 
 ## Decision
 
-- Keep the small models, reproducible runner and evidence under
-  `docs/research/verus-transaction/` as an optional research artifact.
-- Keep the real Rust/CLI recovery failure, retry and lease-release tests in their
-  normal test suites. These directly exercise production behavior.
-- Do not vendor Verus binaries, its source distribution or Rust toolchains. Use
-  an independently installed verifier when reproducing the research.
-- Add no Verus production dependency, default build step, required CI gate or
-  project-wide Rust toolchain override.
-- Do not refactor the small production selection/replay logic solely to make it
-  Verus-compatible. Revisit adoption when a sufficiently complex, stable shared
-  core justifies proof and maintenance costs; specify and review the trusted IO
-  boundary before treating a proof as a production guarantee.
+- 把小模型、可复现运行器与证据保留在 `docs/research/verus-transaction/` 下，作为可选的研究产物。
+- 把真正的 Rust/CLI 恢复失败、重试与租约释放测试留在各自的常规测试套件里。它们直接打在生产线行为上。
+- 不 vendor Verus 二进制、其源码分发包或 Rust 工具链。复现研究时使用独立安装的验证器。
+- 不新增任何 Verus 生产依赖、默认构建步骤、必需的 CI 关卡，或全项目级的 Rust 工具链覆盖。
+- 不为了让 Verus 兼容而改写那点生产选择/重放逻辑。当出现足够复杂、稳定的共享核心，值得付出证明与维护成本时再重议采纳；在把证明当作生产保证之前，先明确并评审可信 IO 边界。
 
-This boundary was confirmed by the user after reviewing both studies. ADR
-[1](1-own-skill-zoo-local-protocol-borrow-capabilities-not-compatibility.md)
-continues to own local protocol semantics and desktop/CLI fixture parity.
+这条边界由用户在审阅两项研究后确认。ADR [1](1-own-skill-zoo-local-protocol-borrow-capabilities-not-compatibility.md) 继续拥有本地协议语义与桌面端/CLI 的 fixture 一致性。
 
 ## Alternatives considered
 
-- **Require Verus across the backend now.** Declined: IO and async integration
-  need additional modeling, while no new production safety gain was demonstrated.
-- **Discard all experiment outputs.** Declined: the small optional examples
-  preserve reproducible evidence, assumptions and negative checks at modest cost.
-- **Call the model proof end-to-end verification.** Declined: the correspondence
-  and actual filesystem effects remain unproved.
+- **现在就要求整个后端使用 Verus。** 否决：IO 与异步集成还需要额外建模，同时并未演示出新的生产安全收益。
+- **丢弃全部实验产物。** 否决：这些小型可选示例以很小的成本保留了可复现的证据、假设与负向检查。
+- **把模型证明称为端到端验证。** 否决：对应关系与真实的文件系统效果都仍未证明。
 
 ## Consequences
 
-The application retains its existing build and CI workflow. Real failure/retry
-coverage improves without adding a compiler dependency for contributors. The
-research remains available for future work and is explicitly labeled model-only.
+应用保留既有的构建与 CI 流程。真实失败/重试覆盖得到改善，同时没有给贡献者增加编译器依赖。研究保留下来供后续使用，并明确标注为「仅模型」。
 
 ### Verification
 
-[The study overview](../../docs/research/verus-transaction/README.md) and
-[second-round report](../../docs/research/verus-transaction/round2-production-recovery.md)
-own commands, pinned verifier details, results and limitations. The retained
-runner rejects deliberate implementation errors; the production-path tests
-exercise both runtimes using shared protocol fixtures. No runtime implementation
-or schema change was needed for the studies.
+[研究总览](../../docs/research/verus-transaction/README.md)与[第二轮报告](../../docs/research/verus-transaction/round2-production-recovery.md)拥有命令、锁定的验证器细节、结果与局限。保留的运行器会拒绝刻意引入的实现错误；生产路径测试用共享协议 fixture 跑两套运行时。两项研究都不需要改动运行时实现或 schema。
 
 ### Trade-offs
 
-Optional models can drift from production, so their assumptions and correspondence
-need review before reuse. Verus/vstd/rustc/solver trust and actual IO behavior
-remain outside the guarantees established here. Tests and abstract proofs do not
-establish physical power-loss correctness or close the hash-to-rename interval.
+可选模型会与生产脱节，因此复用前需要评审其假设与对应关系。Verus/vstd/rustc/solver 的可信性与真实 IO 行为不在本文确立的保证范围内。测试与抽象证明既不能确立物理断电下的正确性，也没有缩短 hash 到 rename 之间的窗口。
