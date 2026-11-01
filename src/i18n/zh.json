@@ -335,6 +335,11 @@
       "openFailed": "无法打开 GitHub Token 创建页",
       "configure": "配置 GitHub Token"
     },
+    "windowBehavior": {
+      "closeToTray": "关闭窗口时驻留菜单栏",
+      "closeToTrayDesc": "关闭主窗口后保留在菜单栏，常用指令仍可使用；退出请使用菜单栏图标的「退出」",
+      "closeToTrayEnabledToast": "已开启：关闭窗口后将驻留菜单栏"
+    },
     "appearance": "外观",
     "theme": {
       "title": "主题",

@@ -145,6 +145,35 @@ export function useUpdatePluginsDiscoveryEnabled() {
   });
 }
 
+const CLOSE_TO_TRAY_KEY = ["settings", "closeToTray"] as const;
+const CLOSE_TO_TRAY_SETTING = "close_to_tray";
+
+/**
+ * Whether closing the main window hides it into the tray instead of quitting.
+ * Off by default: closing the window exits the app, as it always has.
+ */
+export function useCloseToTray() {
+  return useQuery({
+    queryKey: CLOSE_TO_TRAY_KEY,
+    queryFn: async () => {
+      const settings = await settingsApi.getSettings();
+      return settings[CLOSE_TO_TRAY_SETTING] === "true";
+    },
+    staleTime: 0,
+  });
+}
+
+export function useUpdateCloseToTray() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (enabled: boolean) =>
+      settingsApi.updateSetting(CLOSE_TO_TRAY_SETTING, enabled ? "true" : "false"),
+    onSuccess: (_data, enabled) => {
+      qc.setQueryData(CLOSE_TO_TRAY_KEY, enabled);
+    },
+  });
+}
+
 export function useUpdateShowNonSsot() {
   const qc = useQueryClient();
   return useMutation({

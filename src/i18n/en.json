@@ -335,6 +335,11 @@
       "openFailed": "Could not open the GitHub token creation page",
       "configure": "Configure GitHub Token"
     },
+    "windowBehavior": {
+      "closeToTray": "Keep in menu bar when closed",
+      "closeToTrayDesc": "Closing the main window keeps the app in the menu bar so common commands stay available; quit from the tray menu instead",
+      "closeToTrayEnabledToast": "Enabled: the app will stay in the menu bar after you close the window"
+    },
     "appearance": "Appearance",
     "theme": {
       "title": "Theme",

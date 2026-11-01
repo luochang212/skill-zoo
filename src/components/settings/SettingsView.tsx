@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Palette } from "lucide-react";
+import { Palette, PlugZap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ThemeSettings } from "@/components/settings/ThemeSettings";
 import { LanguageSettings } from "@/components/settings/LanguageSettings";
 import { SkillMaintenanceSettings } from "@/components/settings/SkillMaintenanceSettings";
 import { GitHubTokenSettings } from "@/components/settings/GitHubTokenSettings";
+import { WindowBehaviorSettings } from "@/components/settings/WindowBehaviorSettings";
 import { SkillCompanionSettings } from "@/components/settings/SkillCompanionSettings";
 import { AgentPathsSettings } from "@/components/settings/AgentPathsSettings";
 import { AboutSection } from "@/components/settings/AboutSection";
@@ -52,8 +53,15 @@ export function SettingsView({
               onOpenManagerRequestHandled={onSkillCompanionOpenHandled}
             />
 
-            {/* GitHub Connection */}
-            <GitHubTokenSettings open={githubTokenOpen} onOpenChange={setGithubTokenOpen} />
+            {/* Advanced */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 border-b border-border/40 pb-2">
+                <PlugZap className="h-4 w-4 text-blue-500" />
+                <h3 className="text-sm font-medium">{t("settings.github.title")}</h3>
+              </div>
+              <GitHubTokenSettings open={githubTokenOpen} onOpenChange={setGithubTokenOpen} />
+              <WindowBehaviorSettings />
+            </div>
 
             {/* Agent Paths */}
             <AgentPathsSettings />

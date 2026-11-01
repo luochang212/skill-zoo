@@ -1,7 +1,17 @@
+use crate::persistence::Settings;
 use crate::store::AppState;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+
+/// Settings key: when "true", closing the main window hides it and keeps the
+/// process alive in the tray, so tray-only features (common commands, recent
+/// skills) keep working. Any other value keeps the default quit-on-close.
+pub const CLOSE_TO_TRAY_SETTING: &str = "close_to_tray";
+
+fn close_to_tray_enabled(settings: &Settings) -> bool {
+    settings.get(CLOSE_TO_TRAY_SETTING).map(String::as_str) == Some("true")
+}
 
 #[derive(Default)]
 pub struct UpdateExitState(Mutex<ExitState>);
@@ -93,11 +103,26 @@ pub fn handle_run_event(app: &AppHandle, event: RunEvent) {
         RunEvent::WindowEvent {
             event: WindowEvent::CloseRequested { api, .. },
             ..
-        } if state.update_exit.should_preserve_window() => {
-            // Keep the WebView alive until the user approves a real exit.
-            api.prevent_close();
-            app.exit(0);
+        } => {
+            let stay_in_tray = close_to_tray_enabled(&state.settings.lock().unwrap());
+            if stay_in_tray {
+                // Hide instead of quitting: the tray (common commands, recent
+                // skills) stays usable, and the window can be restored from
+                // the tray menu or the Dock icon. Updates are unaffected
+                // because the process keeps running.
+                api.prevent_close();
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.hide();
+                }
+            } else if state.update_exit.should_preserve_window() {
+                // Keep the WebView alive until the user approves a real exit.
+                api.prevent_close();
+                app.exit(0);
+            }
         }
+        // Clicking the Dock icon must restore a tray-hidden window.
+        #[cfg(target_os = "macos")]
+        RunEvent::Reopen { .. } => super::tray::show_main_window(app),
         // Tauri explicitly ignores prevent_exit for restart requests.
         RunEvent::ExitRequested { api, code, .. } if code != Some(tauri::RESTART_EXIT_CODE) => {
             match state.update_exit.request_exit() {
@@ -131,6 +156,25 @@ pub fn handle_run_event(app: &AppHandle, event: RunEvent) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn close_to_tray_setting_defaults_to_off() {
+        let empty = Settings {
+            values: HashMap::new(),
+        };
+        assert!(!close_to_tray_enabled(&empty));
+
+        let on = Settings {
+            values: HashMap::from([(CLOSE_TO_TRAY_SETTING.to_string(), "true".to_string())]),
+        };
+        assert!(close_to_tray_enabled(&on));
+
+        let off = Settings {
+            values: HashMap::from([(CLOSE_TO_TRAY_SETTING.to_string(), "false".to_string())]),
+        };
+        assert!(!close_to_tray_enabled(&off));
+    }
 
     #[test]
     fn idle_and_finished_updates_allow_exit() {
