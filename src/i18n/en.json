@@ -303,8 +303,10 @@
       "title": "Show plugin skills",
       "desc": "Show plugin skills provided by coding agents"
     },
+    "advanced": {
+      "title": "Advanced features"
+    },
     "github": {
-      "title": "Advanced features",
       "rowTitle": "GitHub API access token",
       "setUp": "Set up",
       "manage": "Manage",

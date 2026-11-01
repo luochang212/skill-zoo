@@ -303,8 +303,10 @@
       "title": "显示插件技能",
       "desc": "显示编程工具的插件技能"
     },
+    "advanced": {
+      "title": "高级功能"
+    },
     "github": {
-      "title": "高级功能",
       "rowTitle": "GitHub API 访问令牌",
       "setUp": "配置",
       "manage": "管理",

@@ -57,7 +57,7 @@ export function SettingsView({
             <div className="space-y-4">
               <div className="flex items-center gap-2 border-b border-border/40 pb-2">
                 <PlugZap className="h-4 w-4 text-blue-500" />
-                <h3 className="text-sm font-medium">{t("settings.github.title")}</h3>
+                <h3 className="text-sm font-medium">{t("settings.advanced.title")}</h3>
               </div>
               <GitHubTokenSettings open={githubTokenOpen} onOpenChange={setGithubTokenOpen} />
               <WindowBehaviorSettings />
