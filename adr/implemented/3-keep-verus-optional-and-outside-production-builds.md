@@ -4,7 +4,6 @@ date: 2026-10-23
 raised-by: human
 decided-by: human
 created: 2026-10-23
-commit: 52b4213
 description: 在改动 agent 事务验证，或考虑把 Verus 纳入生产构建之前阅读。
 paths:
   - src-tauri/src/persistence/agent_transaction.rs

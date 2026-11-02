@@ -5,7 +5,6 @@ description: 在翻译 src/i18n 下任何内容，或改动本地页侧边栏 re
 raised-by: human
 decided-by: human
 created: 2026-10-31
-commit: 596f5c8
 paths:
   - src/i18n/zh.json
   - src/i18n/en.json

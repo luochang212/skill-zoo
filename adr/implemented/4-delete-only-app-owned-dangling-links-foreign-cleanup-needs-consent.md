@@ -4,7 +4,6 @@ date: 2026-10-24
 raised-by: agent
 decided-by: human
 created: 2026-10-24
-commit: 5cd578f
 description: 在改动 skill 删除或符号链接清理行为之前阅读，尤其是任何会删除应用不拥有的文件的操作。
 paths:
   - src-tauri/src/services/skill.rs

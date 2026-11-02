@@ -4,7 +4,6 @@ date: 2026-10-20
 raised-by: human
 decided-by: human
 created: 2026-10-20
-commit: 18dcf84
 description: 在改动本地协议（路径、元数据、锁、fixture）或为外部 skill 管理器增加兼容行为之前阅读。
 paths: [docs/local-protocol.md, src-tauri/src/services/lock.rs, packages/cli/src/protocol, src-tauri/src/persistence/metadata.rs]
 ---
