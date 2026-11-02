@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.61] — 2026-11-02
+
+### Added
+- Settings → Advanced has a "Hide to menu bar when closed" switch, off by default. With it on, closing the main window hides it instead of quitting, so the tray's Common Commands and Recently Used keep working, and the window returns from the tray's "Open main window" or the macOS Dock icon. Real exits still ask for confirmation when a batch or selected update is running, and turning the switch off restores quit-on-close. The copy says hiding rather than minimizing, because a hidden window leaves no taskbar or Dock entry.
+
+### Fixed
+- The Chinese UI no longer translates the repos group's "Unassigned" row. That row sits among GitHub repository identifiers, which are never localized, so a translated word broke the column it belongs to. The English value stays in `zh.json` as an explicit key, so a translation audit can tell a deliberate value from an omission.
+
 ## [0.3.60] — 2026-10-31
 
 ### Added
