@@ -21,7 +21,8 @@
 
 ## 未处理项（有据可查，不在本 change 修）
 
-- **无单实例**：启动时 `setup` 会先取进程级写租约（`src-tauri/src/lib.rs` 的 `AgentLease::acquire`），第二个实例直接启动失败。所以关闭到托盘不会造成双写；它造成的是「窗口藏起来后，重新启动应用这条恢复路径是死的」。修复需要单实例插件并改动启动顺序，已在 `docs/reviews/2026-10-24-code-review-triage.md`（Queued 第 4 条）登记为「需要自己的设计 change，不要顺手做」。
+- **无单实例**：启动租约（`src-tauri/src/lib.rs` 的 `AgentLease::acquire`）取在内层 block 里，只覆盖 `refresh_agents()`，离开 block 即释放；应用静止时不持有它，重新启动不会被它挡住。macOS 由 LaunchServices 激活原实例并触发 `RunEvent::Reopen`，隐藏的窗口正常恢复；Windows/Linux 没有单实例约束，会再起一个进程——双窗口、双托盘、各自的内存状态，写入仍由每次变更重新获取的租约串行化。唯一的无声失败是竞态：第二实例恰在第一实例写盘中启动时 `acquire` 返回 `OperationInProgress`，`setup` 返回 `Err`，Tauri 在 `Ready` 处 `panic!("Failed to setup app")`，release 构建无控制台因而没有提示。修复需要单实例插件并先定「第二次启动」的语义（激活原窗口还是提示），已在 `docs/reviews/2026-10-24-code-review-triage.md`（Queued 第 4 条）登记为「需要自己的设计 change，不要顺手做」。
+  *（更正 2026-11-03：本条原先写作「第二个实例直接启动失败，重新启动应用这条恢复路径是死的」，把只保护写入的租约误当成单实例锁。上面的表述经核实 `lib.rs` 的租约作用域与 Tauri 2.12.5 的 setup 错误处理得出。）*
 - **Linux 无托盘宿主**：托盘图标依赖 StatusNotifier 宿主，GNOME 默认没有。本机无法在真实 Linux 桌面验证托盘创建返回值与图标可见性是否可分，因此不在此处写未经实测的兜底逻辑；作为已知恢复风险保留。
 
 ## Verification
