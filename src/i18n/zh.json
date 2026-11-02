@@ -338,9 +338,9 @@
       "configure": "配置 GitHub Token"
     },
     "windowBehavior": {
-      "closeToTray": "关闭时最小化到菜单栏",
-      "closeToTrayDesc": "配合「常用指令」使用效果最佳",
-      "closeToTrayEnabledToast": "已开启：关闭后将最小化到菜单栏"
+      "closeToTray": "关闭时隐藏到菜单栏",
+      "closeToTrayDesc": "配合「常用指令」使用效果最佳；退出请用菜单栏图标的「退出」",
+      "closeToTrayEnabledToast": "已开启：关闭后将隐藏到菜单栏，退出请用菜单栏图标的「退出」"
     },
     "appearance": "外观",
     "theme": {

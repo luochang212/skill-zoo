@@ -338,9 +338,9 @@
       "configure": "Configure GitHub Token"
     },
     "windowBehavior": {
-      "closeToTray": "Minimize to menu bar when closed",
-      "closeToTrayDesc": "Works best with Common Commands",
-      "closeToTrayEnabledToast": "Enabled: closing the window will minimize the app to the menu bar"
+      "closeToTray": "Hide to menu bar when closed",
+      "closeToTrayDesc": "Works best with Common Commands; quit from the menu bar icon",
+      "closeToTrayEnabledToast": "Enabled: closing hides the window; quit from the menu bar icon"
     },
     "appearance": "Appearance",
     "theme": {
