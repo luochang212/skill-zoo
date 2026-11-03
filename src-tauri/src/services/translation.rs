@@ -4,7 +4,27 @@ use sha2::{Digest, Sha256};
 use std::sync::LazyLock;
 
 pub const MAX_SOURCE_BYTES: usize = 51_200;
-const POLICY_VERSION: u32 = 1;
+const POLICY_VERSION: u32 = 2;
+
+/// Short per-document token suffix. Models must copy these markers verbatim,
+/// so they stay far shorter than a full source hash; when the source itself
+/// contains the shared prefix, the next deterministic candidate is taken.
+fn token_suffix(source: &str) -> String {
+    for attempt in 0u32.. {
+        let mut seeded = Vec::with_capacity(source.len() + 16);
+        seeded.extend_from_slice(b"szp-suffix:");
+        seeded.extend_from_slice(source.as_bytes());
+        seeded.extend_from_slice(&attempt.to_le_bytes());
+        let digest = Sha256::digest(&seeded);
+        let candidate: String = digest.iter().take(3).map(|b| format!("{b:02x}")).collect();
+        if !source.contains(&format!("SZP_{candidate}"))
+            && !source.contains(&format!("SZDESC_{candidate}"))
+        {
+            return candidate;
+        }
+    }
+    unreachable!("token suffix space exhausted");
+}
 
 pub fn cache_key(provider: &Provider, model: &Model, language: &str, source: &str) -> String {
     let bytes = serde_json::to_vec(&(
@@ -35,10 +55,7 @@ pub struct ProtectedMarkdown {
 
 impl ProtectedMarkdown {
     pub fn new(source: &str) -> Self {
-        let nonce = Sha256::digest(source.as_bytes())
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect::<String>();
+        let nonce = token_suffix(source);
         let mut parts = Vec::new();
         let mut description = None;
         let mut rest = source;
@@ -327,6 +344,27 @@ mod tests {
         m.max_output_tokens = Some(100);
         assert_ne!(key, cache_key(&p, &m, "en", "text"));
         assert_ne!(key, cache_key(&p, &m, "zh-CN", "text"));
+    }
+    #[test]
+    fn tokens_stay_short_and_avoid_source_collisions() {
+        let sources = [
+            "# Hello\n`echo hi` and [docs](https://test/a_(b))\n",
+            "SZP_000000 and SZDESC_000000 markers kept as prose\n`x` and https://example.com/b\n",
+        ];
+        for source in sources {
+            let p = ProtectedMarkdown::new(source);
+            assert!(!p.parts.is_empty());
+            for (token, _) in &p.parts {
+                assert!(token.len() < 24, "token too long: {token}");
+                assert!(!source.contains(&format!("SZP_{}", &token[4..10])));
+            }
+            assert_eq!(p.restore(&p.input).unwrap(), source);
+        }
+        // Same source yields the same tokens, keeping cache keys reproducible.
+        assert_eq!(
+            ProtectedMarkdown::new(sources[0]).input,
+            ProtectedMarkdown::new(sources[0]).input
+        );
     }
     #[test]
     fn nested_fences_multiline_inline_code_and_reference_targets_survive() {
