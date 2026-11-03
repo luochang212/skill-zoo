@@ -13,7 +13,15 @@ import { MarkdownContent } from "@/components/skills/MarkdownContent";
 import { SkillFileTree } from "@/components/skills/SkillFileTree";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { Eye, Pencil, Columns2, PanelLeftOpen, PanelLeftClose, FileX } from "lucide-react";
+import {
+  Eye,
+  Pencil,
+  Columns2,
+  PanelLeftOpen,
+  PanelLeftClose,
+  FileX,
+  LoaderCircle,
+} from "lucide-react";
 import {
   useSkillFileChildren,
   useSkillFileContent,
@@ -531,6 +539,8 @@ export const SkillContentPane = memo(function SkillContentPane({
   const showTranslated =
     translationAvailable && effectiveActiveTab === "overview" && translation.showTranslation;
   const renderedContent = showTranslated ? translation.text : displayContent;
+  const awaitingTranslation =
+    showTranslated && translation.status === "streaming" && !renderedContent;
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
@@ -824,9 +834,16 @@ export const SkillContentPane = memo(function SkillContentPane({
                   lang={showTranslated ? targetLanguage : undefined}
                   aria-busy={showTranslated && translation.status === "streaming"}
                 >
-                  {contentLoading ? (
-                    <div className="flex items-center justify-center py-12">
-                      <div className="h-5 w-5 border-2 border-muted-foreground/20 border-t-foreground/60 rounded-full animate-spin" />
+                  {contentLoading || awaitingTranslation ? (
+                    <div
+                      role="status"
+                      aria-label={t(awaitingTranslation ? "translation.streaming" : "loading")}
+                      className="flex items-center justify-center py-12"
+                    >
+                      <LoaderCircle
+                        aria-hidden="true"
+                        className="h-6 w-6 animate-spin text-muted-foreground motion-reduce:animate-none"
+                      />
                     </div>
                   ) : isImageActive && imageData ? (
                     <div className="flex min-h-[240px] items-center justify-center">
