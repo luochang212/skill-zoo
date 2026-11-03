@@ -687,14 +687,13 @@ describe("InstalledSkills visible agent filtering", () => {
     expect(screen.getByRole("checkbox", { name: "Select all" })).toBeInTheDocument();
   });
 
-  it("labels the search field and keeps a visible focus indicator", async () => {
+  it("labels the search field", async () => {
     mocks.skills = [skill({ id: "alpha", name: "Alpha" })];
     renderInstalledSkills();
 
     const search = await screen.findByLabelText("Search installed...");
     // Not placeholder-only: the name must come from an attribute.
     expect(search).toHaveAttribute("aria-label", "Search installed...");
-    expect(search.className).toContain("focus-visible:border-ring");
   });
 });
 

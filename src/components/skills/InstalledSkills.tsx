@@ -864,7 +864,7 @@ export const InstalledSkills = memo(function InstalledSkills({
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t("installed.searchPlaceholder")}
                 aria-label={t("installed.searchPlaceholder")}
-                className="h-9 text-[13px] max-w-xs rounded-md border border-input bg-background px-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring"
+                className="h-9 text-[13px] max-w-xs rounded-md border border-input bg-background px-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-foreground/20"
                 autoComplete="off"
                 autoCorrect="off"
                 spellCheck={false}

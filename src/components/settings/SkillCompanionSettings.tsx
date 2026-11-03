@@ -598,7 +598,7 @@ function SkillCompanionRow({
               aria-invalid={invalid || undefined}
               aria-describedby={invalid ? `skill-companion-error-${index}` : undefined}
               className={cn(
-                "h-16 max-h-16 w-full resize-none overflow-y-auto rounded-md border border-input bg-background px-3 py-2 text-sm leading-5 ring-offset-background transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring disabled:cursor-not-allowed disabled:opacity-50",
+                "h-16 max-h-16 w-full resize-none overflow-y-auto rounded-md border border-input bg-background px-3 py-2 text-sm leading-5 ring-offset-background transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-foreground/20 disabled:cursor-not-allowed disabled:opacity-50",
                 invalid && "border-destructive/60",
               )}
             />
@@ -955,7 +955,7 @@ function SkillCompanionImportDialog({
             placeholder={t("settings.skillCompanion.importPlaceholder")}
             aria-label={t("settings.skillCompanion.importTextarea")}
             rows={8}
-            className="h-40 w-full resize-none overflow-y-auto rounded-md border border-input bg-background px-3 py-2 font-mono text-sm leading-5 transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring"
+            className="h-40 w-full resize-none overflow-y-auto rounded-md border border-input bg-background px-3 py-2 font-mono text-sm leading-5 transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-foreground/20"
           />
         </div>
         <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border/40 p-3">
