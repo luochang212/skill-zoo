@@ -130,9 +130,8 @@
     "namePlaceholder": "my-skill-name",
     "nameInvalid": "Only letters, numbers, hyphens, underscores, and dots. Must start with a letter or number.",
     "descriptionPlaceholder": "Briefly describe what this skill does...",
-    "contentPlaceholder": "# My Skill\n\nWrite your skill content here...",
-    "contentAriaLabel": "Skill content",
-    "emptyHint": "Start typing to see a live preview on the right."
+    "contentPlaceholder": "Start writing your skill…",
+    "contentAriaLabel": "Skill content"
   },
   "installDialog": {
     "title": "Install Skills",

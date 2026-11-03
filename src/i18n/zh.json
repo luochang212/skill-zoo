@@ -130,9 +130,8 @@
     "namePlaceholder": "my-skill-name",
     "nameInvalid": "仅允许字母、数字、连字符、下划线和点号，且必须以字母或数字开头",
     "descriptionPlaceholder": "简要描述此技能的功能...",
-    "contentPlaceholder": "# 我的技能\n\n在此编写技能内容...",
-    "contentAriaLabel": "技能内容",
-    "emptyHint": "开始输入内容，右侧将实时预览。"
+    "contentPlaceholder": "开始编写技能正文…",
+    "contentAriaLabel": "技能内容"
   },
   "installDialog": {
     "title": "安装技能",

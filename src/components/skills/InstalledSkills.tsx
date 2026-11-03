@@ -20,6 +20,7 @@ import { SkillCard } from "@/components/skills/SkillCard";
 import { SkillCardRow } from "@/components/skills/SkillCardRow";
 import { SkillSidebar } from "@/components/skills/SkillSidebar";
 import { ConsistencyPanel } from "@/components/skills/ConsistencyPanel";
+import { LocalImportsDialog } from "@/components/settings/LocalImportsDialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -43,6 +44,7 @@ import {
   LayoutGrid,
   List,
   Link2Off,
+  FolderInput,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -417,6 +419,7 @@ export const InstalledSkills = memo(function InstalledSkills({
   const [search, setSearch] = useState("");
   const [agentFilter, setAgentFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [localImportsOpen, setLocalImportsOpen] = useState(false);
 
   const [sortField, setSortField] = useState<SortField>("updatedAt");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -920,14 +923,22 @@ export const InstalledSkills = memo(function InstalledSkills({
             </div>
           )}
 
-          {/* Create skill row (only in "mine" category) */}
-          {category.type === "mine" && (
+          {/* Matching primary actions for the mine and import categories. */}
+          {(category.type === "mine" || category.type === "import") && (
             <div className="mb-5">
               <button
-                onClick={onCreateSkill}
+                type="button"
+                onClick={category.type === "mine" ? onCreateSkill : () => setLocalImportsOpen(true)}
                 className="h-9 px-4 rounded-lg bg-primary text-primary-foreground text-[13px] flex items-center justify-center gap-1.5 hover:bg-primary/90 transition-colors"
               >
-                + {t("installed.createSkill")}
+                {category.type === "mine" ? (
+                  <>+ {t("installed.createSkill")}</>
+                ) : (
+                  <>
+                    <FolderInput className="h-3.5 w-3.5" aria-hidden="true" />
+                    {t("settings.localImports.manage")}
+                  </>
+                )}
               </button>
             </div>
           )}
@@ -943,7 +954,7 @@ export const InstalledSkills = memo(function InstalledSkills({
           ) : (
             <div className="flex-1 min-h-0 flex gap-0 relative">
               {filtered.length === 0 ? (
-                <div className="flex-1 flex items-center justify-center">
+                <div className="flex-1 flex items-start justify-center pt-24">
                   <p className="text-sm text-muted-foreground">{t("installed.noMatch")}</p>
                 </div>
               ) : (
@@ -1181,8 +1192,13 @@ export const InstalledSkills = memo(function InstalledSkills({
   );
 
   return (
-    <SkillDndLayer skills={skillsList} onDropSkill={handleSkillDrop}>
-      {({ draggedSkill }) => renderContent(draggedSkill)}
-    </SkillDndLayer>
+    <>
+      <SkillDndLayer skills={skillsList} onDropSkill={handleSkillDrop}>
+        {({ draggedSkill }) => renderContent(draggedSkill)}
+      </SkillDndLayer>
+      {localImportsOpen && (
+        <LocalImportsDialog open={localImportsOpen} onOpenChange={setLocalImportsOpen} />
+      )}
+    </>
   );
 });

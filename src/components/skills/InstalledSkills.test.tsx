@@ -7,6 +7,21 @@ import { InstalledSkills } from "./InstalledSkills";
 import type { InstalledSkill, SidebarCategory } from "@/types/skills";
 import type { ReactNode } from "react";
 
+vi.mock("@/components/settings/LocalImportsDialog", () => ({
+  LocalImportsDialog: ({
+    open,
+    onOpenChange,
+  }: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  }) =>
+    open ? (
+      <div role="dialog" aria-label="Local Imports">
+        <button onClick={() => onOpenChange(false)}>Close imports</button>
+      </div>
+    ) : null,
+}));
+
 class ResizeObserverMock {
   observe() {}
   unobserve() {}
@@ -154,6 +169,21 @@ describe("InstalledSkills visible agent filtering", () => {
   afterEach(() => {
     document.querySelectorAll("[data-dnd-dragging]").forEach((element) => element.remove());
     vi.useRealTimers();
+  });
+
+  it("keeps import management in the same primary action position and style as creation, even when empty", async () => {
+    const mine = renderInstalledSkills({ type: "mine" });
+    const create = screen.getByRole("button", { name: /Create Skill/i });
+    const actionClass = create.className;
+    mine.unmount();
+    renderInstalledSkills({ type: "import" });
+    const manage = screen.getByRole("button", { name: "Manage Imports" });
+    expect(manage.className).toBe(actionClass);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await userEvent.click(manage);
+    expect(screen.getByRole("dialog", { name: "Local Imports" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Close imports" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("shows SSOT, visible-agent entity, and external skills in All", () => {
