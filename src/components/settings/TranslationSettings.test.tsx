@@ -192,7 +192,7 @@ describe("translation settings", () => {
       modelId: "m",
     });
     expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("m connection failed:"));
-    await user.click(screen.getByRole("button", { name: "Clear" }));
+    await user.clear(screen.getByLabelText("API key"));
     await user.click(test);
     await waitFor(() => expect(translationApi.testConnection).toHaveBeenCalledTimes(2));
     expect(vi.mocked(translationApi.testConnection).mock.lastCall?.[0]).toEqual({
@@ -585,7 +585,7 @@ describe("translation settings", () => {
       ),
     );
     await screen.findByLabelText("API key");
-    await user.click(screen.getByRole("button", { name: "Clear" }));
+    await user.clear(screen.getByLabelText("API key"));
     expect(screen.getByLabelText("API key")).toHaveValue("");
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() =>

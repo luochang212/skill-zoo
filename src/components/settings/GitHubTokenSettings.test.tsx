@@ -263,7 +263,7 @@ describe("GitHubTokenSettings", () => {
     const input = await openDialog();
     const save = screen.getByRole("button", { name: /^save$/i });
     expect(save).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: "Clear token" }));
+    await user.clear(input);
     expect(input).toHaveValue("");
     expect(saved.token).toBe("previous-token");
     expect(save).toBeEnabled();
@@ -323,7 +323,7 @@ describe("GitHubTokenSettings", () => {
 
   it("warns when the verified token expires within seven days", async () => {
     const user = userEvent.setup();
-    vi.mocked(invoke).mockImplementation((command) => {
+    vi.mocked(invoke).mockImplementation((command, args) => {
       if (command === "get_github_token") return Promise.resolve(saved.token);
       if (command === "get_github_credential_status") return Promise.resolve(statusResponse());
       if (command === "verify_github_token") {
@@ -333,7 +333,10 @@ describe("GitHubTokenSettings", () => {
           expiresAt: new Date(Date.now() + 3 * 24 * 3600 * 1000).toISOString(),
         });
       }
-      if (command === "save_github_credentials") return Promise.resolve();
+      if (command === "save_github_credentials") {
+        saved = args as { token: string; expiresAt: string | null };
+        return Promise.resolve();
+      }
       return Promise.reject(new Error(`Unexpected command: ${command}`));
     });
     renderSettings();

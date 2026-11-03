@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { ExternalLink, KeyRound, Eye, EyeOff, Eraser } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ExternalLink, KeyRound, Eye, EyeOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
@@ -52,6 +52,9 @@ export function GitHubTokenSettings({
   const [draft, setDraft] = useState<string | null>(null);
   const [visible, setVisible] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (open && savedToken.isSuccess && statusQuery.isSuccess) inputRef.current?.focus();
+  }, [open, savedToken.isSuccess, statusQuery.isSuccess]);
   const hasToken = statusQuery.data?.hasToken ?? false;
   const value = draft ?? savedToken.data ?? "";
   const canSave =
@@ -219,7 +222,7 @@ export function GitHubTokenSettings({
               <div className="relative min-w-0 flex-1">
                 <Input
                   ref={inputRef}
-                  className="h-9 min-w-0 pr-20"
+                  className="h-9 min-w-0 pr-10"
                   id="github-token"
                   name="github_token"
                   type={visible ? "text" : "password"}
@@ -266,19 +269,6 @@ export function GitHubTokenSettings({
                       ) : (
                         <Eye className="h-3.5 w-3.5" aria-hidden="true" />
                       )}
-                    </button>
-                    <button
-                      type="button"
-                      className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-                      aria-label={t("settings.github.clearToken")}
-                      disabled={saveToken.isPending}
-                      onClick={() => {
-                        setDraft("");
-                        saveToken.reset();
-                        inputRef.current?.focus();
-                      }}
-                    >
-                      <Eraser className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
                   </div>
                 )}

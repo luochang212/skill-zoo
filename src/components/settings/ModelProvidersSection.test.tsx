@@ -48,7 +48,7 @@ it("loads the saved key, allows viewing and editing, and clears only on save", a
   await userEvent.type(input, "replacement");
   fireEvent.submit(container.querySelector("form")!);
   expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ apiKey: "replacement" }));
-  await userEvent.click(screen.getByRole("button", { name: "Clear" }));
+  await userEvent.clear(input);
   expect(input).toHaveValue("");
   expect(onSave).toHaveBeenCalledTimes(2);
   fireEvent.submit(container.querySelector("form")!);

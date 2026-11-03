@@ -240,6 +240,8 @@ describe("SkillMaintenanceSettings", () => {
           ]);
         case "get_settings":
           return Promise.resolve({});
+        case "get_github_token":
+          return Promise.resolve("");
         case "get_github_credential_status":
           return Promise.resolve({ hasToken: false, expiresAt: null });
         case "get_cache_size":

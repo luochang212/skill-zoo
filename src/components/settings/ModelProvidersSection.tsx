@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import {
   ArrowRight,
   Cable,
-  Eraser,
   Eye,
   EyeOff,
   Info,
@@ -451,7 +450,6 @@ export function ProviderEditor({
     retry: false,
   });
   const [keyVisible, setKeyVisible] = useState(false);
-  const keyInputRef = useRef<HTMLInputElement>(null);
   const keyValue = draft.apiKey ?? savedKey.data ?? "";
   const keyLoading = !!provider && savedKey.isPending;
   const [editingModel, setEditingModel] = useState<{
@@ -606,8 +604,7 @@ export function ProviderEditor({
         </label>
         <div className="relative">
           <Input
-            ref={keyInputRef}
-            className="h-9 pr-20 text-xs"
+            className="h-9 pr-10 text-xs"
             id={field("key")}
             type={keyVisible ? "text" : "password"}
             disabled={keyLoading || savedKey.isError}
@@ -632,21 +629,6 @@ export function ProviderEditor({
                 ) : (
                   <Eye className="h-3.5 w-3.5" aria-hidden="true" />
                 )}
-              </button>
-            )}
-            {keyValue && (
-              <button
-                type="button"
-                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label={t("llm.clearKey")}
-                title={t("llm.clearKey")}
-                onClick={() => {
-                  setDraft({ ...draft, apiKey: "" });
-                  setKeyVisible(false);
-                  keyInputRef.current?.focus();
-                }}
-              >
-                <Eraser className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             )}
           </div>

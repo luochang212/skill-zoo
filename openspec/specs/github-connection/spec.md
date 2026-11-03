@@ -45,14 +45,14 @@ The desktop SHALL maintain one saved GitHub credential. Saving a verified replac
 
 ### Requirement: Saved credential can be viewed and edited
 
-The dialog SHALL load the real saved token through a dedicated Rust IPC command when opened. The generic settings read SHALL continue to omit credential keys. The input SHALL default to password masking using the real value, with an eye button to show or hide it. Fixed-length stand-in masks SHALL NOT be used. Reading, toggling visibility, and editing SHALL NOT save credentials. The unchanged value SHALL leave saving unavailable. Loading or failed token reads SHALL disable editing and saving.
+The dialog SHALL read the real token through dedicated Rust IPC and default to password masking with an eye toggle, without fixed stand-ins or a clear icon. Generic settings reads SHALL omit credentials. Viewing and editing SHALL NOT persist changes. Unchanged values SHALL disable saving; loading or failed token reads SHALL disable editing and saving.
 
 #### Scenario: View a saved token
 - **WHEN** the dialog opens with a saved token and the user toggles the eye button
 - **THEN** the real token is shown or hidden without modifying or saving it
 
 #### Scenario: Clear a saved token
-- **WHEN** the user empties the field using text editing or the clear icon and explicitly saves
+- **WHEN** the user empties the field using normal text editing and explicitly saves
 - **THEN** the token and expiry are removed together without verification and runtime authentication returns to anonymous mode
 
 #### Scenario: Cancel editing
