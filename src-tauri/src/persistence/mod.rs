@@ -2,6 +2,7 @@ pub mod agent_transaction;
 pub mod agents;
 pub mod archive;
 pub mod external_imports;
+pub mod llm_providers;
 pub mod metadata;
 pub mod update_history;
 

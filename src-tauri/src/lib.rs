@@ -36,6 +36,7 @@ use tauri::{Emitter, Manager};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(commands::translation::TranslationState::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
@@ -176,6 +177,17 @@ pub fn run() {
             commands::skill::read_skill_text,
             commands::skill::read_skill_image,
             commands::skill::write_skill_text,
+            commands::translation::list_llm_providers,
+            commands::translation::resolve_model_configuration,
+            commands::translation::upsert_llm_provider,
+            commands::translation::delete_llm_provider,
+            commands::translation::recover_llm_providers,
+            commands::translation::get_translation_preferences,
+            commands::translation::save_translation_preferences,
+            commands::translation::start_translation_task,
+            commands::translation::cancel_translation,
+            commands::translation::clear_translation_cache,
+            commands::translation::translate_skill,
             commands::settings::get_settings,
             commands::settings::get_github_credential_status,
             commands::settings::update_setting,

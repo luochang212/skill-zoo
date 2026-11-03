@@ -37,6 +37,7 @@ dirs = "7.0"
 reqwest = { version = "0.13", features = ["rustls", "json", "query", "stream"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync", "process"] }
 futures = "0.3"
+genai = { version = "~0.7.2", default-features = false, features = ["rustls-tls"] }
 thiserror = "2.0"
 
 serde_yaml = "0.9"
