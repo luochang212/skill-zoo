@@ -49,7 +49,7 @@ export function SettingsSelect({
             disabled={disabled}
             aria-invalid={invalid}
             aria-labelledby={`${id}-label ${id}-value`}
-            className="flex h-9 w-full items-center justify-between gap-3 rounded-md border border-input bg-background px-3 text-left text-xs transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:border-ring disabled:cursor-not-allowed disabled:opacity-50 data-[state=open]:border-ring"
+            className="flex h-9 w-full items-center justify-between gap-3 rounded-md border border-input bg-background px-3 text-left text-xs transition-colors hover:bg-muted/50 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span
               id={`${id}-value`}

@@ -18,6 +18,19 @@ const EMPTY_VISIBLE_AGENTS = Object.freeze({}) as VisibleAgents;
 
 const CREDENTIAL_STATUS_KEY = ["settings", "githubCredentialStatus"] as const;
 const GITHUB_TOKEN_VERIFICATION_KEY = ["settings", "githubTokenVerification"] as const;
+const GITHUB_TOKEN_KEY = ["settings", "githubToken"] as const;
+
+export function useGitHubToken(enabled: boolean) {
+  return useQuery({
+    queryKey: GITHUB_TOKEN_KEY,
+    queryFn: settingsApi.getGitHubToken,
+    enabled,
+    gcTime: 0,
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+}
 
 /**
  * Saved-state view of the GitHub credential (existence + expiry, never the
@@ -67,6 +80,8 @@ export function useSaveGitHubToken() {
       return { token, verification };
     },
     onSuccess: async ({ token, verification }) => {
+      await qc.cancelQueries({ queryKey: GITHUB_TOKEN_KEY });
+      qc.setQueryData(GITHUB_TOKEN_KEY, token);
       qc.setQueryData(CREDENTIAL_STATUS_KEY, {
         hasToken: Boolean(token),
         expiresAt: token ? (verification?.expiresAt ?? null) : null,

@@ -1,7 +1,10 @@
-import { useId } from "react";
+import { useId, useState } from "react";
+import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import {
   useSaveTranslationPreferences,
   useSkillProviders,
@@ -15,13 +18,18 @@ import {
 } from "@/lib/translation";
 import { SettingsSelect } from "./SettingsSelect";
 
-export function TranslationSettings() {
+export function TranslationSettings({ onConfigureModels }: { onConfigureModels: () => void }) {
   const { t, i18n } = useTranslation();
   const uid = useId();
   const providers = useSkillProviders();
   const prefs = useTranslationPreferences();
   const save = useSaveTranslationPreferences();
-  const clear = useMutation({ mutationFn: translationApi.clearCache });
+  const [confirmClear, setConfirmClear] = useState(false);
+  const clear = useMutation({
+    mutationFn: translationApi.clearCache,
+    onSuccess: () => toast.success(t("translation.cacheCleared")),
+    onSettled: () => setConfirmClear(false),
+  });
   const language =
     prefs.data?.targetLanguage ?? initialTranslationLanguage(navigator.languages, i18n.language);
   const choices =
@@ -45,60 +53,92 @@ export function TranslationSettings() {
           prefs.data && save.mutate({ ...prefs.data, targetLanguage })
         }
       />
-      <SettingsSelect
-        id={`${uid}-model`}
-        label={t("translation.model")}
-        value={selected < 0 ? "" : String(selected)}
-        placeholder={t(
-          prefs.data?.providerId ? "translation.unavailableModel" : "translation.chooseModel",
-        )}
-        options={choices.map((c, index) => ({
-          value: String(index),
-          label: `${c.provider.name} · ${c.model.id}`,
-        }))}
-        disabled={
-          !prefs.data ||
-          providers.isPending ||
-          providers.isError ||
-          save.isPending ||
-          choices.length === 0
-        }
-        onValueChange={(value) => {
-          const choice = choices[Number(value)];
-          if (prefs.data && choice)
-            save.mutate({
-              ...prefs.data,
-              targetLanguage: language,
-              providerId: choice.provider.id,
-              modelId: choice.model.id,
-            });
-        }}
-      />
-      {selected >= 0 && (
-        <p className="text-xs text-muted-foreground">
-          {t("translation.sendHint", { provider: choices[selected]?.provider.name })}
-        </p>
+      {providers.isSuccess && choices.length === 0 ? (
+        <div className="space-y-2">
+          <label
+            id={`${uid}-model-label`}
+            htmlFor={`${uid}-model`}
+            className="block text-xs font-medium"
+          >
+            {t("translation.model")}
+          </label>
+          <Button
+            id={`${uid}-model`}
+            type="button"
+            className="h-9 w-full justify-between rounded-md px-3 text-xs"
+            aria-labelledby={`${uid}-model-label ${uid}-configure-label`}
+            onClick={onConfigureModels}
+          >
+            <span id={`${uid}-configure-label`}>{t("translation.configureModels")}</span>
+            <ArrowRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          </Button>
+        </div>
+      ) : (
+        <SettingsSelect
+          id={`${uid}-model`}
+          label={t("translation.model")}
+          value={selected < 0 ? "" : String(selected)}
+          placeholder={t(
+            prefs.data?.providerId ? "translation.unavailableModel" : "translation.chooseModel",
+          )}
+          options={choices.map((c, index) => ({
+            value: String(index),
+            label: `${c.provider.name} · ${c.model.id}`,
+          }))}
+          disabled={
+            !prefs.data ||
+            providers.isPending ||
+            providers.isError ||
+            save.isPending ||
+            choices.length === 0
+          }
+          onValueChange={(value) => {
+            const choice = choices[Number(value)];
+            if (prefs.data && choice)
+              save.mutate({
+                ...prefs.data,
+                targetLanguage: language,
+                providerId: choice.provider.id,
+                modelId: choice.model.id,
+              });
+          }}
+        />
       )}
+      <div className="flex items-center justify-between gap-4 border-t border-border/40 pt-4">
+        <div className="space-y-1">
+          <label htmlFor={`${uid}-prefer-cache`} className="block text-xs font-medium">
+            {t("translation.preferCached")}
+          </label>
+          <p className="text-[11px] text-muted-foreground">{t("translation.preferCachedHint")}</p>
+        </div>
+        <Switch
+          id={`${uid}-prefer-cache`}
+          checked={prefs.data?.preferCachedTranslations ?? false}
+          disabled={!prefs.data || save.isPending}
+          onCheckedChange={(preferCachedTranslations) => {
+            if (prefs.data) save.mutate({ ...prefs.data, preferCachedTranslations });
+          }}
+        />
+      </div>
       <div className="flex items-center justify-between gap-4 border-t border-border/40 pt-4">
         <div className="space-y-1">
           <p className="text-xs font-medium">{t("translation.cacheTitle")}</p>
           <p className="text-[11px] text-muted-foreground">{t("translation.cacheHint")}</p>
         </div>
         <Button
+          type="button"
           size="sm"
-          variant="outline"
-          className="h-8 shrink-0 text-xs"
+          variant={confirmClear ? "default" : "outline"}
+          className={`h-8 w-[4.5rem] shrink-0 rounded-md border text-xs ${confirmClear ? "border-primary" : "border-input"}`}
           disabled={clear.isPending}
-          onClick={() => clear.mutate()}
+          onClick={() => {
+            if (confirmClear) clear.mutate();
+            else setConfirmClear(true);
+          }}
         >
-          {t("translation.clearCache")}
+          {t(confirmClear ? "translation.confirmClearCache" : "translation.clearCache")}
         </Button>
       </div>
-      {clear.isSuccess && (
-        <p role="status" className="text-xs text-muted-foreground">
-          {t("translation.cacheCleared")}
-        </p>
-      )}
       {error && (
         <p role="status" className="text-xs text-destructive">
           {t(`translation.errors.${translationErrorCode(error)}`, {

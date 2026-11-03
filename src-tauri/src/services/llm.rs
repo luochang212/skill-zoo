@@ -17,6 +17,17 @@ pub fn adapter(protocol: Protocol) -> AdapterKind {
 
 fn classify(error: genai::Error) -> String {
     // Never stringify SDK errors: they may contain server echoes and credentials.
+    if matches!(
+        error,
+        genai::Error::ChatResponseGeneration { .. }
+            | genai::Error::WebModelCall {
+                webc_error: genai::webc::Error::ResponseFailedNotJson { .. }
+                    | genai::webc::Error::ResponseFailedInvalidJson { .. },
+                ..
+            }
+    ) {
+        return "providerResponse".into();
+    }
     let mut status = error.status();
     if let genai::Error::WebStream { error: inner, .. } = &error {
         if inner.is::<genai::webc::StreamTimeout>() {
@@ -35,17 +46,7 @@ fn classify(error: genai::Error) -> String {
     .into()
 }
 
-pub async fn stream(
-    provider: &Provider,
-    model: &Model,
-    system: &str,
-    input: &str,
-    mut preview: impl FnMut(&str) -> Result<(), String>,
-) -> Result<String, String> {
-    let client = Client::builder()
-        .with_reqwest(crate::config::http_client().clone())
-        .build()
-        .map_err(|_| "network")?;
+fn target(provider: &Provider, model_id: &str) -> Result<ServiceTarget, String> {
     let suffix = match provider.protocol {
         Protocol::AnthropicMessages => "messages",
         Protocol::OpenaiChatCompletions => "chat/completions",
@@ -70,14 +71,91 @@ pub async fn stream(
     }
     // A concrete target prevents model inference and environment credential fallbacks.
     // RequestOverride also permits genuinely anonymous local endpoints.
-    let target = ServiceTarget {
-        model: ModelIden::new(adapter(provider.protocol), model.id.clone()),
+    Ok(ServiceTarget {
+        model: ModelIden::new(adapter(provider.protocol), model_id.to_owned()),
         endpoint: Endpoint::from_owned(provider.base_url.clone()),
         auth: AuthData::RequestOverride {
             url,
             headers: headers.into(),
         },
-    };
+    })
+}
+
+/// Explicit, read-only inference probe; never include source documents or server echoes.
+pub async fn test_connection(provider: &Provider, model_id: &str) -> Result<u64, String> {
+    let started = std::time::Instant::now();
+    tokio::time::timeout(Duration::from_secs(15), async {
+        let client = Client::builder()
+            .with_reqwest(crate::config::http_client().clone())
+            .build()
+            .map_err(|_| "network")?;
+        // Responses enforces a minimum budget of 16; the other protocols accept 1.
+        let budget = if provider.protocol == Protocol::OpenaiResponses {
+            16
+        } else {
+            1
+        };
+        let options = ChatOptions::default()
+            .with_max_tokens(budget)
+            .with_capture_raw_body(true);
+        let response = client
+            .exec_chat(
+                target(provider, model_id)?,
+                ChatRequest::new(vec![ChatMessage::user("hi")]),
+                Some(&options),
+            )
+            .await
+            .map_err(classify)?;
+        let body = response.captured_raw_body.ok_or("providerResponse")?;
+        // A one-token budget can legitimately produce no text, especially with reasoning.
+        // Require a protocol response and a valid terminal state, not nonempty prose.
+        let valid = match provider.protocol {
+            Protocol::OpenaiChatCompletions => {
+                body.pointer("/choices/0/message")
+                    .is_some_and(|v| v.is_object())
+                    && matches!(
+                        body.pointer("/choices/0/finish_reason")
+                            .and_then(|v| v.as_str()),
+                        Some("stop" | "length")
+                    )
+            }
+            Protocol::AnthropicMessages => {
+                body.get("content").is_some_and(|v| v.is_array())
+                    && matches!(
+                        body.get("stop_reason").and_then(|v| v.as_str()),
+                        Some("end_turn" | "max_tokens")
+                    )
+            }
+            Protocol::OpenaiResponses => {
+                body.get("output").is_some_and(|v| v.is_array())
+                    && (body.get("status").and_then(|v| v.as_str()) == Some("completed")
+                        || (body.get("status").and_then(|v| v.as_str()) == Some("incomplete")
+                            && body
+                                .pointer("/incomplete_details/reason")
+                                .and_then(|v| v.as_str())
+                                == Some("max_output_tokens")))
+            }
+        };
+        if !valid {
+            return Err("providerResponse".into());
+        }
+        Ok(started.elapsed().as_millis() as u64)
+    })
+    .await
+    .map_err(|_| "timeout".to_owned())?
+}
+
+pub async fn stream(
+    provider: &Provider,
+    model: &Model,
+    system: &str,
+    input: &str,
+    mut preview: impl FnMut(&str) -> Result<(), String>,
+) -> Result<String, String> {
+    let client = Client::builder()
+        .with_reqwest(crate::config::http_client().clone())
+        .build()
+        .map_err(|_| "network")?;
     let mut options = ChatOptions::default()
         .with_stream_header_timeout(Duration::from_secs(30))
         .with_stream_read_timeout(Duration::from_secs(30));
@@ -86,7 +164,7 @@ pub async fn stream(
     }
     let request = ChatRequest::new(vec![ChatMessage::system(system), ChatMessage::user(input)]);
     let response = client
-        .exec_chat_stream(target, request, Some(&options))
+        .exec_chat_stream(target(provider, &model.id)?, request, Some(&options))
         .await
         .map_err(classify)?;
     let mut events = response.stream;
@@ -120,6 +198,135 @@ pub async fn stream(
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn probe_provider(base_url: String, protocol: Protocol) -> Provider {
+        Provider {
+            id: "test".into(),
+            name: "Test".into(),
+            enabled: true,
+            protocol,
+            base_url,
+            api_key: "secret-key".into(),
+            models: vec![],
+        }
+    }
+
+    #[tokio::test]
+    async fn connection_probe_uses_minimal_budget_and_accepts_empty_budget_limited_responses() {
+        for protocol in [
+            Protocol::OpenaiChatCompletions,
+            Protocol::AnthropicMessages,
+            Protocol::OpenaiResponses,
+        ] {
+            let mut server = mockito::Server::new_async().await;
+            let (path, budget_key, budget, body) = match protocol {
+                Protocol::OpenaiChatCompletions => (
+                    "chat/completions",
+                    "max_tokens",
+                    1,
+                    json!({"model":"gpt-test", "choices":[{"message":{"role":"assistant","content":null},"finish_reason":"length"}]}),
+                ),
+                Protocol::AnthropicMessages => (
+                    "messages",
+                    "max_tokens",
+                    1,
+                    json!({"id":"m1", "type":"message", "role":"assistant", "model":"gpt-test", "content":[], "stop_reason":"max_tokens", "usage":{"input_tokens":1,"output_tokens":1}}),
+                ),
+                Protocol::OpenaiResponses => (
+                    "responses",
+                    "max_output_tokens",
+                    16,
+                    json!({"id":"r1", "model":"gpt-test", "status":"incomplete", "output":[], "incomplete_details":{"reason":"max_output_tokens"}}),
+                ),
+            };
+            let mut expected = json!({"model":"gpt-test", "stream":false});
+            expected[budget_key] = json!(budget);
+            let mut mock = server
+                .mock("POST", format!("/v1/{path}").as_str())
+                .match_body(mockito::Matcher::PartialJson(expected));
+            mock = if protocol == Protocol::AnthropicMessages {
+                mock.match_header("x-api-key", "secret-key")
+                    .match_header("anthropic-version", "2023-06-01")
+            } else {
+                mock.match_header("authorization", "Bearer secret-key")
+            };
+            let mock = mock
+                .with_status(200)
+                .with_header("content-type", "application/json")
+                .with_body(body.to_string())
+                .expect(1)
+                .create_async()
+                .await;
+            let provider = probe_provider(format!("{}/v1/", server.url()), protocol);
+            assert!(
+                test_connection(&provider, "gpt-test").await.is_ok(),
+                "{protocol:?}"
+            );
+            mock.assert_async().await;
+        }
+    }
+
+    #[tokio::test]
+    async fn connection_probe_rejects_invalid_responses_and_redacts_errors_without_retry() {
+        for (status, body, expected) in [
+            (401, "echo secret-key", "authentication"),
+            (403, "echo secret-key", "authentication"),
+            (429, "echo secret-key", "rateLimit"),
+            (500, "echo secret-key", "providerResponse"),
+            (200, "echo secret-key", "providerResponse"),
+            (200, r#"{"model":"test", "choices":[]}"#, "providerResponse"),
+            (
+                200,
+                r#"{"model":"test", "choices":[{"message":{},"finish_reason":"content_filter"}]}"#,
+                "providerResponse",
+            ),
+        ] {
+            let mut server = mockito::Server::new_async().await;
+            let mock = server
+                .mock("POST", "/v1/chat/completions")
+                .with_status(status)
+                .with_header("content-type", "application/json")
+                .with_body(body)
+                .expect(1)
+                .create_async()
+                .await;
+            let provider = probe_provider(
+                format!("{}/v1/", server.url()),
+                Protocol::OpenaiChatCompletions,
+            );
+            assert_eq!(
+                test_connection(&provider, "test").await,
+                Err(expected.into()),
+                "status {status}, body {body}"
+            );
+            mock.assert_async().await;
+        }
+    }
+
+    #[tokio::test]
+    async fn connection_probe_has_a_total_deadline() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("POST", "/v1/chat/completions")
+            .with_status(200)
+            .with_chunked_body(|writer| {
+                writer.write_all(b"{")?;
+                std::thread::sleep(Duration::from_secs(16));
+                Ok(())
+            })
+            .create_async()
+            .await;
+        let provider = probe_provider(
+            format!("{}/v1/", server.url()),
+            Protocol::OpenaiChatCompletions,
+        );
+        assert_eq!(
+            test_connection(&provider, "test").await,
+            Err("timeout".into())
+        );
+        mock.assert_async().await;
+    }
+
     fn frame(event: &str, value: serde_json::Value) -> String {
         format!("event: {event}\ndata: {value}\n\n")
     }

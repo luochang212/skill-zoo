@@ -32,7 +32,7 @@ export function SettingsView({
             <div className="space-y-4">
               <div className="flex h-9 items-center justify-between gap-3 border-b border-border/40 pb-2">
                 <div className="flex min-w-0 items-center gap-2">
-                  <Palette className="h-4 w-4 text-violet-500" />
+                  <Palette className="h-4 w-4 text-[#927bad] dark:text-[#b6a2cd]" />
                   <h3 className="text-sm font-medium">{t("settings.appearance")}</h3>
                 </div>
                 <AppUpdateShortcut />

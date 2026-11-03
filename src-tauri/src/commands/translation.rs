@@ -48,6 +48,20 @@ pub async fn resolve_model_configuration(
 }
 
 #[tauri::command]
+pub fn get_llm_provider_api_key(
+    state: State<'_, TranslationState>,
+    id: String,
+) -> Result<String, String> {
+    let _lock = state.config_lock.lock().map_err(|_| "configRead")?;
+    config::load(&provider_path())?
+        .providers
+        .into_iter()
+        .find(|provider| provider.id == id)
+        .map(|provider| provider.api_key)
+        .ok_or_else(|| "providerMissing".into())
+}
+
+#[tauri::command]
 pub fn list_llm_providers(
     state: State<'_, TranslationState>,
 ) -> Result<Vec<ProviderSummary>, String> {
@@ -65,6 +79,49 @@ pub fn upsert_llm_provider(
 ) -> Result<Vec<ProviderSummary>, String> {
     let _lock = state.config_lock.lock().map_err(|_| "configWrite")?;
     config::upsert(&provider_path(), provider)
+}
+
+fn connection_draft(path: &Path, update: ProviderUpdate) -> Result<config::Provider, String> {
+    let previous = if let Some(id) = &update.id {
+        Some(
+            config::load(path)?
+                .providers
+                .into_iter()
+                .find(|p| &p.id == id)
+                .ok_or("providerMissing")?,
+        )
+    } else {
+        None
+    };
+    let mut provider = config::Provider {
+        id: update.id.unwrap_or_default(),
+        name: update.name,
+        enabled: update.enabled,
+        protocol: update.protocol,
+        base_url: update.base_url,
+        api_key: update
+            .api_key
+            .unwrap_or_else(|| previous.map(|p| p.api_key).unwrap_or_default()),
+        models: update.models,
+    };
+    config::validate(&mut provider)?;
+    Ok(provider)
+}
+
+#[tauri::command]
+pub async fn test_llm_connection(
+    state: State<'_, TranslationState>,
+    provider: ProviderUpdate,
+    model_id: String,
+) -> Result<u64, String> {
+    let provider = {
+        let _lock = state.config_lock.lock().map_err(|_| "configRead")?;
+        connection_draft(&provider_path(), provider)?
+    };
+    if !provider.models.iter().any(|m| m.id == model_id) {
+        return Err("modelMissing".into());
+    }
+    llm::test_connection(&provider, &model_id).await
 }
 #[tauri::command]
 pub fn delete_llm_provider(state: State<'_, TranslationState>, id: String) -> Result<(), String> {
@@ -231,17 +288,17 @@ pub enum TranslationEvent {
     },
 }
 
-fn read_source(state: &AppState, request: &TranslationRequest) -> Result<(), String> {
+fn read_source(state: &AppState, skill_id: &str, path: &str, source: &str) -> Result<(), String> {
     use crate::services::skill::ManagedSkill;
-    if !request.path.to_ascii_lowercase().ends_with(".md") {
+    if !path.to_ascii_lowercase().ends_with(".md") {
         return Err("markdownOnly".into());
     }
     let cache = state.skill_cache.read().map_err(|_| "sourceRead")?;
-    let skill = match ManagedSkill::resolve(&cache, &request.skill_id, false) {
+    let skill = match ManagedSkill::resolve(&cache, skill_id, false) {
         Ok(skill) => skill,
         Err(_) => {
             let manifest = crate::persistence::ArchiveManifest::load().map_err(|_| "sourceRead")?;
-            let archived = manifest.skills.get(&request.skill_id).ok_or("sourceRead")?;
+            let archived = manifest.skills.get(skill_id).ok_or("sourceRead")?;
             let root = if archived.origin == "external" {
                 PathBuf::from(archived.home_path.as_ref().ok_or("sourceRead")?)
             } else {
@@ -268,15 +325,13 @@ fn read_source(state: &AppState, request: &TranslationRequest) -> Result<(), Str
             };
             ManagedSkill::resolve(
                 &crate::persistence::SkillCache::from_entries(vec![entry]),
-                &request.skill_id,
+                skill_id,
                 false,
             )
             .map_err(|_| "sourceRead")?
         }
     };
-    let path = skill
-        .existing_path(&request.path)
-        .map_err(|_| "sourceRead")?;
+    let path = skill.existing_path(path).map_err(|_| "sourceRead")?;
     let mut file = std::fs::File::open(path).map_err(|_| "sourceRead")?;
     let mut bytes = Vec::new();
     std::io::Read::read_to_end(
@@ -287,10 +342,69 @@ fn read_source(state: &AppState, request: &TranslationRequest) -> Result<(), Str
     if bytes.len() > translation::MAX_SOURCE_BYTES {
         return Err("sourceLimit".into());
     }
-    if bytes != request.source.as_bytes() {
+    if bytes != source.as_bytes() {
         return Err("sourceChanged".into());
     }
     Ok(())
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TranslationCacheRequest {
+    pub skill_id: String,
+    pub path: String,
+    pub source: String,
+    pub provider_id: String,
+    pub model_id: String,
+    pub target_language: String,
+}
+
+fn cached_translation(
+    app: &AppState,
+    state: &TranslationState,
+    request: &TranslationCacheRequest,
+    root: &Path,
+) -> Result<Option<String>, String> {
+    if request.source.len() > translation::MAX_SOURCE_BYTES {
+        return Err("sourceLimit".into());
+    }
+    if !config::LANGUAGES.contains(&request.target_language.as_str()) {
+        return Err("targetLanguage".into());
+    }
+    read_source(app, &request.skill_id, &request.path, &request.source)?;
+    let provider = {
+        let _lock = state.config_lock.lock().map_err(|_| "configRead")?;
+        config::load(&root.join("llm_providers.json"))?
+            .providers
+            .into_iter()
+            .find(|p| p.id == request.provider_id && p.enabled)
+            .ok_or("providerMissing")?
+    };
+    let model = provider
+        .models
+        .iter()
+        .find(|m| m.id == request.model_id && m.enabled)
+        .ok_or("modelMissing")?;
+    let path = root.join("translations").join(format!(
+        "{}.md",
+        translation::cache_key(&provider, model, &request.target_language, &request.source)
+    ));
+    // This entry point only reads disk. A miss or error must never fall through to inference.
+    match std::fs::read_to_string(path) {
+        Ok(text) if !text.trim().is_empty() => Ok(Some(text)),
+        Ok(_) => Ok(None),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(_) => Err("cacheRead".into()),
+    }
+}
+
+#[tauri::command]
+pub fn read_cached_translation(
+    app: State<'_, AppState>,
+    state: State<'_, TranslationState>,
+    request: TranslationCacheRequest,
+) -> Result<Option<String>, String> {
+    cached_translation(&app, &state, &request, &crate::config::get_app_config_dir())
 }
 
 #[tauri::command]
@@ -326,7 +440,7 @@ async fn run_translation(
             if !config::LANGUAGES.contains(&request.target_language.as_str()) {
                 return Err("targetLanguage".into());
             }
-            read_source(app, &request)?;
+            read_source(app, &request.skill_id, &request.path, &request.source)?;
             let provider = {
                 let _lock = state.config_lock.lock().map_err(|_| "configRead")?;
                 config::load(&root.join("llm_providers.json"))?
@@ -411,6 +525,42 @@ async fn run_translation(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn connection_draft_preserves_write_only_key_semantics_without_writing() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("llm_providers.json");
+        let update = || ProviderUpdate {
+            id: None,
+            name: "Test".into(),
+            enabled: true,
+            protocol: config::Protocol::OpenaiChatCompletions,
+            base_url: "http://localhost/v1".into(),
+            api_key: Some("stored-key".into()),
+            models: vec![],
+        };
+        let summaries = config::upsert(&path, update()).unwrap();
+        let before = std::fs::read(&path).unwrap();
+        for (key, expected) in [
+            (None, "stored-key"),
+            (Some("replacement".to_owned()), "replacement"),
+            (Some(String::new()), ""),
+        ] {
+            let mut draft = update();
+            draft.id = Some(summaries[0].id.clone());
+            draft.api_key = key;
+            draft.base_url = "http://localhost:1234/v1".into();
+            let provider = connection_draft(&path, draft).unwrap();
+            assert_eq!(provider.api_key, expected);
+            assert_eq!(provider.base_url, "http://localhost:1234/v1/");
+            assert_eq!(std::fs::read(&path).unwrap(), before);
+        }
+        let missing = dir.path().join("new.json");
+        assert!(connection_draft(&missing, update()).is_ok());
+        assert!(!missing.exists());
+        let mut invalid = update();
+        invalid.base_url = "https://user:secret@example.com/v1".into();
+        assert!(matches!(connection_draft(&path, invalid), Err(code) if code == "baseUrl"));
+    }
     #[tokio::test]
     async fn cancellation_before_and_after_take_prevents_commit() {
         let state = TranslationState::default();
@@ -460,6 +610,85 @@ mod tests {
                 values: Default::default(),
             },
         )
+    }
+    #[test]
+    fn cache_only_read_checks_source_language_and_effective_config_without_writing() {
+        use crate::persistence::llm_providers::{Model, Protocol, ProviderUpdate};
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("skill");
+        std::fs::create_dir_all(source.join("references")).unwrap();
+        std::fs::write(source.join("references/guide.md"), "# Hello").unwrap();
+        let app = app_for(&source);
+        let state = TranslationState::default();
+        let root = dir.path().join("app");
+        let path = root.join("llm_providers.json");
+        let summaries = config::upsert(
+            &path,
+            ProviderUpdate {
+                id: None,
+                name: "Test".into(),
+                enabled: true,
+                protocol: Protocol::OpenaiChatCompletions,
+                base_url: "http://127.0.0.1:1/v1/".into(),
+                api_key: None,
+                models: vec![Model {
+                    id: "test".into(),
+                    enabled: true,
+                    max_output_tokens: None,
+                    context_window: None,
+                }],
+            },
+        )
+        .unwrap();
+        let bytes = std::fs::read(&path).unwrap();
+        let mut request = TranslationCacheRequest {
+            skill_id: "plugin:test".into(),
+            path: "references/guide.md".into(),
+            source: "# Hello".into(),
+            provider_id: summaries[0].id.clone(),
+            model_id: "test".into(),
+            target_language: "zh-CN".into(),
+        };
+        assert_eq!(
+            cached_translation(&app, &state, &request, &root).unwrap(),
+            None
+        );
+        assert!(!root.join("translations").exists());
+        let provider = config::load(&path).unwrap().providers.remove(0);
+        let key = translation::cache_key(&provider, &provider.models[0], "zh-CN", "# Hello");
+        std::fs::create_dir_all(root.join("translations")).unwrap();
+        std::fs::write(
+            root.join("translations").join(format!("{key}.md")),
+            "# 你好",
+        )
+        .unwrap();
+        assert_eq!(
+            cached_translation(&app, &state, &request, &root).unwrap(),
+            Some("# 你好".into())
+        );
+        request.target_language = "en".into();
+        assert_eq!(
+            cached_translation(&app, &state, &request, &root).unwrap(),
+            None
+        );
+        request.source = "unsaved draft".into();
+        assert_eq!(
+            cached_translation(&app, &state, &request, &root),
+            Err("sourceChanged".into())
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        request.source = "# Hello".into();
+        request.target_language = "zh-CN".into();
+        let mut changed = config::load(&path).unwrap();
+        changed.providers[0].base_url = "http://127.0.0.1:2/v1/".into();
+        config::save(&path, &changed).unwrap();
+        let changed_bytes = std::fs::read(&path).unwrap();
+        assert_eq!(
+            cached_translation(&app, &state, &request, &root).unwrap(),
+            None
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), changed_bytes);
+        assert!(state.runtime.lock().unwrap().tasks.is_empty());
     }
     fn request(id: &str, provider: &str) -> TranslationRequest {
         TranslationRequest {

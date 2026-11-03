@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { translationApi, type TranslationRequest } from "@/lib/api/translation";
 import { translationErrorCode } from "@/lib/translation";
 
@@ -19,11 +19,18 @@ const empty = (identity: string): View => ({
   error: null,
 });
 
-export function useSkillTranslation(input: Input) {
-  const identity = JSON.stringify(input);
+export function useSkillTranslation(
+  input: Input,
+  {
+    preferCached = false,
+    configurationKey = "",
+  }: { preferCached?: boolean; configurationKey?: string } = {},
+) {
+  const identity = JSON.stringify([input, configurationKey]);
   const currentIdentity = useRef(identity);
   currentIdentity.current = identity;
   const task = useRef<{ id: string; identity: string; previous: string } | null>(null);
+  const cacheVersion = useRef(0);
   const [view, setView] = useState<View>(() => empty(identity));
   const viewRef = useRef(view);
   viewRef.current = view;
@@ -40,6 +47,34 @@ export function useSkillTranslation(input: Input) {
     };
   }, [identity, cancelTask]);
 
+  useEffect(() => {
+    if (!preferCached) return;
+    let active = true;
+    const version = cacheVersion.current;
+    const [request] = JSON.parse(identity) as [Input, string];
+    void translationApi
+      .cached(request)
+      .then((text) => {
+        if (
+          !active ||
+          !text ||
+          currentIdentity.current !== identity ||
+          cacheVersion.current !== version ||
+          task.current
+        )
+          return;
+        setView((current) =>
+          current.identity === identity && current.status === "idle"
+            ? { identity, status: "completed", text, showTranslation: true, error: null }
+            : current,
+        );
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [identity, preferCached]);
+
   const cancel = useCallback(() => {
     const current = cancelTask();
     if (current)
@@ -54,6 +89,7 @@ export function useSkillTranslation(input: Input) {
 
   const translate = useCallback(
     async (force = false) => {
+      cacheVersion.current += 1;
       cancelTask();
       const id = crypto.randomUUID();
       const previous =
@@ -120,6 +156,9 @@ export function useSkillTranslation(input: Input) {
     ...(view.identity === identity ? view : empty(identity)),
     translate,
     cancel,
-    toggle: () => setView((v) => ({ ...v, showTranslation: !v.showTranslation })),
+    toggle: () => {
+      cacheVersion.current += 1;
+      setView((v) => ({ ...v, showTranslation: !v.showTranslation }));
+    },
   };
 }

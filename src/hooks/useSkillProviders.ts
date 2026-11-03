@@ -37,7 +37,14 @@ export function useSaveSkillProvider() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (provider: ProviderUpdate) => translationApi.saveProvider(provider),
-    onSuccess: (providers) => qc.setQueryData(PROVIDERS_KEY, providers),
+    onSuccess: async (providers, update) => {
+      if (update.id && update.apiKey !== null) {
+        const queryKey = ["llmProviderApiKey", update.id];
+        await qc.cancelQueries({ queryKey });
+        qc.setQueryData(queryKey, update.apiKey);
+      }
+      qc.setQueryData(PROVIDERS_KEY, providers);
+    },
   });
 }
 export function useDeleteSkillProvider() {

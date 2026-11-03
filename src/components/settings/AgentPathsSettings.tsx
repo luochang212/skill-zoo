@@ -160,7 +160,7 @@ export function AgentPathsSettings() {
   return (
     <section className="space-y-3">
       <div className="flex items-center gap-2 border-b border-border/40 pb-2">
-        <FolderOpen className="h-4 w-4 text-indigo-500" />
+        <FolderOpen className="h-4 w-4 text-[#a68252] dark:text-[#c7aa7c]" />
         <h3 className="text-sm font-medium">{t("settings.agentPaths.title")}</h3>
       </div>
       <p className="text-xs text-muted-foreground">{t("settings.agentPaths.summaryDescription")}</p>

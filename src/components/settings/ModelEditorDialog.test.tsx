@@ -45,25 +45,23 @@ describe("model configuration editor", () => {
     const config = props();
     render(<ModelEditorDialog {...config} />);
     expect(translationApi.resolveModel).not.toHaveBeenCalled();
+    await input.keyboard("{Enter}");
+    expect(config.onConfirm).not.toHaveBeenCalled();
     await tick();
     expect(translationApi.resolveModel).toHaveBeenCalledWith(config.baseUrl, "model-a");
-    await input.type(screen.getByLabelText("Maximum output"), "300");
+    await input.type(screen.getByLabelText("Maximum output tokens"), "300");
     await act(async () => {
       request.resolve({ contextWindow: 1000, maxOutputTokens: 200 });
     });
-    expect(screen.getByLabelText("Context window")).toHaveValue("1000");
-    expect(screen.getByLabelText("Maximum output")).toHaveValue("300");
-    expect(toast.success).toHaveBeenCalledWith(
-      "Model configuration matched",
-      expect.objectContaining({ id: expect.any(String) }),
-    );
+    expect(screen.getByLabelText("Context window")).toHaveValue("");
+    expect(screen.getByLabelText("Maximum output tokens")).toHaveValue("300");
+    expect(toast.success).not.toHaveBeenCalled();
     expect(
       screen.queryByRole("button", { name: "Use recommended values" }),
     ).not.toBeInTheDocument();
     await input.click(screen.getByRole("button", { name: "Confirm" }));
     expect(config.onConfirm).toHaveBeenCalledWith({
       ...model,
-      contextWindow: 1000,
       maxOutputTokens: 300,
     });
   });
@@ -98,26 +96,21 @@ describe("model configuration editor", () => {
     expect(config.onConfirm).not.toHaveBeenCalled();
     expect(toast.success).not.toHaveBeenCalled();
   });
-  it("automatically matches without overwriting saved limits or offering a restore button", async () => {
+  it.each([
+    { contextWindow: 1200, maxOutputTokens: null },
+    { maxOutputTokens: 300 },
+    { contextWindow: 1200, maxOutputTokens: 300 },
+  ])("skips lookup when either saved limit exists: %j", async (limits) => {
     const input = user();
-    const config = { ...props(), model: { ...model, contextWindow: 1200, maxOutputTokens: 300 } };
-    vi.mocked(translationApi.resolveModel).mockResolvedValue({
-      contextWindow: 2000,
-      maxOutputTokens: 500,
-    });
+    const config = { ...props(), model: { ...model, ...limits } };
     render(<ModelEditorDialog {...config} />);
     await tick();
-    expect(screen.getByLabelText("Context window")).toHaveValue("1200");
-    expect(screen.getByLabelText("Maximum output")).toHaveValue("300");
-    expect(toast.success).toHaveBeenCalledTimes(1);
-    expect(
-      screen.queryByRole("button", { name: "Use recommended values" }),
-    ).not.toBeInTheDocument();
+    expect(translationApi.resolveModel).not.toHaveBeenCalled();
     await input.clear(screen.getByLabelText("Model ID"));
     await input.type(screen.getByLabelText("Model ID"), "model-b");
     await tick();
-    expect(screen.getByLabelText("Context window")).toHaveValue("1200");
-    expect(screen.getByLabelText("Maximum output")).toHaveValue("300");
+    expect(translationApi.resolveModel).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
   });
   it.each(["missing", "offline"] as const)(
     "silently allows manual editing on %s and still validates user input",
@@ -142,7 +135,7 @@ describe("model configuration editor", () => {
       await input.clear(screen.getByLabelText("Model ID"));
       await input.type(screen.getByLabelText("Model ID"), "custom");
       await input.type(screen.getByLabelText("Context window"), "100");
-      await input.type(screen.getByLabelText("Maximum output"), "200");
+      await input.type(screen.getByLabelText("Maximum output tokens"), "200");
       await input.click(screen.getByRole("button", { name: "Confirm" }));
       expect(config.onConfirm).not.toHaveBeenCalled();
       await input.click(screen.getByRole("button", { name: "Cancel" }));

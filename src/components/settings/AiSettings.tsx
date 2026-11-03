@@ -70,12 +70,17 @@ export function AiSettingsRows() {
     <>
       {(
         [
-          { page: "providers", title: t("llm.title"), summary: providerSummary, Icon: Cpu },
           {
             page: "translation",
             title: t("translation.settings"),
             summary: translationSummary,
             Icon: Languages,
+          },
+          {
+            page: "providers",
+            title: t("llm.title"),
+            summary: providerSummary,
+            Icon: Cpu,
           },
         ] as const
       ).map(({ page: targetPage, title, summary, Icon }) => (
@@ -196,6 +201,7 @@ function AiSettingsDetail({
 }) {
   const { t } = useTranslation();
   const [page, setPage] = useState<DetailPage>({ kind: initialPage });
+  const [fromTranslation, setFromTranslation] = useState(false);
   const save = useSaveSkillProvider();
   const providers = useSkillProviders();
   const formId = useId();
@@ -212,7 +218,13 @@ function AiSettingsDetail({
     headingRef.current?.focus();
   }, [page]);
   const back =
-    page.kind === "editor" ? page.returnTo : page.kind === "templates" ? "providers" : null;
+    page.kind === "editor"
+      ? page.returnTo
+      : page.kind === "templates"
+        ? "providers"
+        : page.kind === "providers" && fromTranslation
+          ? "translation"
+          : null;
   const title =
     page.kind === "editor"
       ? page.provider
@@ -247,7 +259,11 @@ function AiSettingsDetail({
         }}
         className={cn(
           "flex w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:rounded-xl",
-          managingServices ? "max-w-[860px]" : "max-w-[640px]",
+          page.kind === "translation"
+            ? "max-w-[480px]"
+            : managingServices
+              ? "max-w-[684px]"
+              : "max-w-[640px]",
           "max-h-[calc(100vh-6rem)]",
         )}
         data-selectable
@@ -266,9 +282,11 @@ function AiSettingsDetail({
                 disabled={save.isPending}
                 className="-my-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                 aria-label={t(
-                  back === "templates" || (page.kind === "editor" && !page.provider)
-                    ? "llm.backToServices"
-                    : "aiSettings.backToProviders",
+                  back === "translation"
+                    ? "aiSettings.backToTranslation"
+                    : back === "templates" || (page.kind === "editor" && !page.provider)
+                      ? "llm.backToServices"
+                      : "aiSettings.backToProviders",
                 )}
                 onClick={cancelEdit}
               >
@@ -288,7 +306,14 @@ function AiSettingsDetail({
           className={cn("min-h-0", managingServices ? "overflow-hidden" : "overflow-y-auto")}
         >
           <div className={managingServices ? undefined : "space-y-4 p-4"}>
-            {page.kind === "translation" && <TranslationSettings />}
+            {page.kind === "translation" && (
+              <TranslationSettings
+                onConfigureModels={() => {
+                  setFromTranslation(true);
+                  setPage({ kind: "providers" });
+                }}
+              />
+            )}
             {(page.kind === "templates" || choosingFirstService) && (
               <ProviderTemplatePicker
                 onSelect={(template) => {

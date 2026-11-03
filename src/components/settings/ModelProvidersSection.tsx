@@ -1,7 +1,20 @@
-import { useContext, useEffect, useId, useRef, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, Eye, EyeOff, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  ArrowRight,
+  Cable,
+  Eraser,
+  Eye,
+  EyeOff,
+  Info,
+  Loader2,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
+import { toast } from "sonner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -239,28 +252,6 @@ export function ModelProvidersSection({
             <div className="flex min-h-0 min-w-0 flex-col">
               <div className="min-h-0 flex-1 overflow-y-auto">
                 <div className="space-y-5 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <h3 className="min-w-0 truncate text-sm font-semibold">{selected.name}</h3>
-                    <DropdownMenu onOpenChange={onPickerOpenChange}>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8"
-                          aria-label={t("llm.moreNamed", { name: selected.name })}
-                          disabled={save.isPending}
-                        >
-                          <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onSelect={() => setDeleting(selected)}>
-                          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                          {t("llm.deleteNamed", { name: selected.name })}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
                   <ProviderEditor
                     key={`${selected.id}-${revision}`}
                     provider={selected}
@@ -268,10 +259,32 @@ export function ModelProvidersSection({
                     error={save.error}
                     onDirty={() => setDirty(true)}
                     onSave={(update) => save.mutate(update, { onSuccess: resetDraft })}
+                    headerActions={
+                      <DropdownMenu onOpenChange={onPickerOpenChange}>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8"
+                            aria-label={t("llm.moreNamed", { name: selected.name })}
+                            disabled={save.isPending}
+                          >
+                            <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onSelect={() => setDeleting(selected)}>
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                            {t("llm.deleteNamed", { name: selected.name })}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    }
                   />
                 </div>
               </div>
-              <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border/40 p-3">
+              <div className="flex shrink-0 items-center justify-end gap-2 p-3">
                 <Button
                   type="button"
                   size="sm"
@@ -383,16 +396,20 @@ export function ProviderEditor({
   template,
   formId,
   onDirty,
+  headerActions,
 }: {
   provider: LlmProvider | null;
   template?: ProviderTemplate;
   formId: string;
   onDirty?: () => void;
+  headerActions?: ReactNode;
   error: unknown;
   onSave: (p: ProviderUpdate) => void;
 }) {
   const { t } = useTranslation();
   const uid = useId();
+  const draftRevision = useRef(0);
+  const connection = useMutation({ mutationFn: translationApi.testConnection, retry: false });
   const [draft, updateDraft] = useState<ProviderUpdate>(() => ({
     id: provider?.id ?? null,
     name:
@@ -404,21 +421,45 @@ export function ProviderEditor({
     models: provider?.models ?? [],
   }));
   const setDraft = (next: ProviderUpdate) => {
+    draftRevision.current += 1;
     updateDraft(next);
     onDirty?.();
   };
-  const [keyMode, updateKeyMode] = useState(provider?.hasApiKey ? "unchanged" : "replace");
-  const setKeyMode = (next: string) => {
-    updateKeyMode(next);
-    onDirty?.();
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
+  const renaming = nameDraft !== null;
+  const renameTrigger = useRef<HTMLButtonElement>(null);
+  const restoreNameFocus = useRef(false);
+  const nameComposing = useRef(false);
+  useEffect(() => {
+    if (!renaming && restoreNameFocus.current) {
+      renameTrigger.current?.focus();
+      restoreNameFocus.current = false;
+    }
+  }, [renaming]);
+  const confirmName = () => {
+    const name = nameDraft?.trim();
+    if (name && name !== draft.name) setDraft({ ...draft, name });
+    setNameDraft(null);
   };
+  const savedKey = useQuery({
+    queryKey: ["llmProviderApiKey", provider?.id],
+    queryFn: () => translationApi.providerApiKey(provider!.id),
+    enabled: !!provider,
+    gcTime: 0,
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
   const [keyVisible, setKeyVisible] = useState(false);
+  const keyInputRef = useRef<HTMLInputElement>(null);
+  const keyValue = draft.apiKey ?? savedKey.data ?? "";
+  const keyLoading = !!provider && savedKey.isPending;
   const [editingModel, setEditingModel] = useState<{
     index: number | null;
     model: LlmModel;
   } | null>(null);
   const modelTriggerRef = useRef<HTMLButtonElement>(null);
-  const fieldError = error ? translationErrorCode(error) : null;
+  const fieldError = savedKey.error ? "configRead" : error ? translationErrorCode(error) : null;
   const field = (name: string) => `${uid}-${name}`;
   const addModel = (trigger: HTMLButtonElement) => {
     modelTriggerRef.current = trigger;
@@ -430,34 +471,100 @@ export function ProviderEditor({
       className="@container space-y-5"
       onSubmit={(e) => {
         e.preventDefault();
-        onSave({
-          ...draft,
-          apiKey: keyMode === "clear" ? "" : keyMode === "replace" ? (draft.apiKey ?? "") : null,
-        });
+        if (keyLoading || savedKey.isError) return;
+        onSave(draft);
       }}
     >
-      <div className="flex items-end gap-4">
-        <div className="min-w-0 flex-1 space-y-2">
-          <label className="block text-xs font-medium" htmlFor={field("name")}>
-            {t("llm.name")}
-          </label>
-          <Input
-            className="h-9 text-xs"
-            id={field("name")}
-            name="name"
-            required
-            value={draft.name}
-            aria-invalid={fieldError === "name"}
-            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+      {headerActions && (
+        <div className="flex items-center justify-between gap-3">
+          <h3 aria-label={draft.name} className="min-w-0 flex-1 text-sm font-semibold">
+            {renaming ? (
+              <Input
+                aria-label={t("llm.name")}
+                autoFocus
+                className="h-8 max-w-xs text-sm font-semibold"
+                value={nameDraft}
+                onChange={(event) => setNameDraft(event.target.value)}
+                onBlur={confirmName}
+                onCompositionStart={() => {
+                  nameComposing.current = true;
+                }}
+                onCompositionEnd={() => {
+                  nameComposing.current = false;
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    if (
+                      nameComposing.current ||
+                      event.nativeEvent.isComposing ||
+                      event.nativeEvent.keyCode === 229
+                    )
+                      return;
+                    restoreNameFocus.current = true;
+                    confirmName();
+                  } else if (event.key === "Escape") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    restoreNameFocus.current = true;
+                    setNameDraft(null);
+                  }
+                }}
+              />
+            ) : (
+              <button
+                ref={renameTrigger}
+                type="button"
+                aria-label={t("llm.renameProvider")}
+                title={t("llm.renameProvider")}
+                className="group flex max-w-full items-center gap-1.5 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => {
+                  nameComposing.current = false;
+                  setNameDraft(draft.name);
+                }}
+              >
+                <span className="truncate">{draft.name}</span>
+                <Pencil
+                  className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                  aria-hidden="true"
+                />
+              </button>
+            )}
+          </h3>
+          <div className="flex shrink-0 items-center gap-2">
+            <Switch
+              aria-label={t("llm.enabled")}
+              checked={draft.enabled}
+              onCheckedChange={(enabled) => setDraft({ ...draft, enabled })}
+            />
+            {headerActions}
+          </div>
+        </div>
+      )}
+      {!headerActions && (
+        <div className="flex items-end gap-4">
+          <div className="min-w-0 flex-1 space-y-2">
+            <label className="block text-xs font-medium" htmlFor={field("name")}>
+              {t("llm.name")}
+            </label>
+            <Input
+              className="h-9 text-xs"
+              id={field("name")}
+              name="name"
+              required
+              value={draft.name}
+              aria-invalid={fieldError === "name"}
+              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+            />
+          </div>
+          <Switch
+            className="mb-1.5"
+            aria-label={t("llm.enabled")}
+            checked={draft.enabled}
+            onCheckedChange={(enabled) => setDraft({ ...draft, enabled })}
           />
         </div>
-        <Switch
-          className="mb-1.5"
-          aria-label={t("llm.enabled")}
-          checked={draft.enabled}
-          onCheckedChange={(enabled) => setDraft({ ...draft, enabled })}
-        />
-      </div>
+      )}
       <div className="grid gap-5 @min-[480px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <SettingsSelect
           id={field("protocol")}
@@ -494,62 +601,56 @@ export function ProviderEditor({
         </div>
       </div>
       <div className="space-y-2">
-        <label
-          className="block text-xs font-medium"
-          htmlFor={keyMode === "replace" ? field("key") : undefined}
-        >
-          {t(provider?.hasApiKey && keyMode === "replace" ? "llm.newKey" : "llm.apiKey")}
+        <label className="block text-xs font-medium" htmlFor={field("key")}>
+          {t("llm.apiKey")}
         </label>
-        {keyMode === "replace" ? (
-          <div className="relative">
-            <Input
-              className="h-9 pr-10 text-xs"
-              id={field("key")}
-              type={keyVisible ? "text" : "password"}
-              autoComplete="new-password"
-              spellCheck={false}
-              value={draft.apiKey ?? ""}
-              placeholder={t("llm.keyPlaceholder")}
-              onChange={(e) => setDraft({ ...draft, apiKey: e.target.value })}
-            />
-            <button
-              type="button"
-              className="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label={t(keyVisible ? "llm.hideKey" : "llm.showKey")}
-              onClick={() => setKeyVisible(!keyVisible)}
-            >
-              {keyVisible ? (
-                <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
-              ) : (
-                <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-              )}
-            </button>
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            {t(keyMode === "clear" ? "llm.keyWillClear" : "llm.keyConfigured")}
-          </p>
-        )}
-        {provider?.hasApiKey && (
-          <div className="flex gap-3">
-            <button
-              type="button"
-              className="text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => setKeyMode(keyMode === "unchanged" ? "replace" : "unchanged")}
-            >
-              {t(keyMode === "unchanged" ? "llm.replaceKey" : "common.cancel")}
-            </button>
-            {keyMode !== "clear" && (
+        <div className="relative">
+          <Input
+            ref={keyInputRef}
+            className="h-9 pr-20 text-xs"
+            id={field("key")}
+            type={keyVisible ? "text" : "password"}
+            disabled={keyLoading || savedKey.isError}
+            autoComplete="new-password"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            value={keyValue}
+            placeholder={t("llm.keyPlaceholder")}
+            onChange={(event) => setDraft({ ...draft, apiKey: event.target.value })}
+          />
+          <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-1">
+            {keyValue && (
               <button
                 type="button"
-                className="text-xs text-muted-foreground hover:text-destructive"
-                onClick={() => setKeyMode("clear")}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label={t(keyVisible ? "llm.hideKey" : "llm.showKey")}
+                onClick={() => setKeyVisible(!keyVisible)}
               >
-                {t("llm.clearKey")}
+                {keyVisible ? (
+                  <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
+                ) : (
+                  <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                )}
+              </button>
+            )}
+            {keyValue && (
+              <button
+                type="button"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label={t("llm.clearKey")}
+                title={t("llm.clearKey")}
+                onClick={() => {
+                  setDraft({ ...draft, apiKey: "" });
+                  setKeyVisible(false);
+                  keyInputRef.current?.focus();
+                }}
+              >
+                <Eraser className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             )}
           </div>
-        )}
+        </div>
       </div>
       <div
         role="group"
@@ -571,6 +672,12 @@ export function ProviderEditor({
             {t("llm.addModel")}
           </Button>
         </div>
+        {draft.models.length === 0 && (
+          <div className="flex min-h-12 items-center gap-2 rounded-lg border border-dashed border-border px-4 py-3 text-xs text-muted-foreground">
+            <Info className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <p>{t("llm.modelsEmpty")}</p>
+          </div>
+        )}
         {draft.models.map((model, i) => (
           <div
             key={i}
@@ -578,18 +685,53 @@ export function ProviderEditor({
           >
             <div className="min-w-0 flex-1">
               <p className="truncate font-mono text-xs">{model.id}</p>
-              {(model.contextWindow || model.maxOutputTokens) && (
-                <p className="mt-1 truncate text-xs text-muted-foreground">
-                  {[
-                    model.contextWindow && t("llm.contextSummary", { count: model.contextWindow }),
-                    model.maxOutputTokens &&
-                      t("llm.outputSummary", { count: model.maxOutputTokens }),
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
-              )}
             </div>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+              aria-label={t("llm.testNamed", { name: model.id })}
+              aria-busy={connection.isPending && connection.variables?.modelId === model.id}
+              title={
+                connection.isPending && connection.variables?.modelId === model.id
+                  ? t("llm.testing")
+                  : t("llm.testHint", { tokens: draft.protocol === "openai-responses" ? 16 : 1 })
+              }
+              disabled={connection.isPending || keyLoading || savedKey.isError}
+              onClick={() => {
+                const revision = draftRevision.current;
+                connection.mutate(
+                  {
+                    provider: draft,
+                    modelId: model.id,
+                  },
+                  {
+                    onSuccess: (ms) => {
+                      if (revision === draftRevision.current)
+                        toast.success(t("llm.testSuccess", { name: model.id, ms }));
+                    },
+                    onError: (testError) => {
+                      if (revision === draftRevision.current)
+                        toast.error(
+                          t("llm.testFailed", {
+                            name: model.id,
+                            reason: t(`translation.errors.${translationErrorCode(testError)}`, {
+                              defaultValue: t("translation.errors.providerResponse"),
+                            }),
+                          }),
+                        );
+                    },
+                  },
+                );
+              }}
+            >
+              {connection.isPending && connection.variables?.modelId === model.id ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              ) : (
+                <Cable className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
+            </Button>
             <button
               type="button"
               className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

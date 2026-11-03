@@ -43,7 +43,6 @@ export function ModelEditorDialog({
   const { t } = useTranslation();
   const id = useId();
   const [modelId, setModelId] = useState(model.id);
-  const composing = useRef(false);
   const [context, setContext] = useState(model.contextWindow?.toString() ?? "");
   const [output, setOutput] = useState(model.maxOutputTokens?.toString() ?? "");
   const manual = useRef({
@@ -56,7 +55,7 @@ export function ModelEditorDialog({
   activeIdentity.current = identity;
   useEffect(() => {
     let current = true;
-    if (!modelId.trim()) return;
+    if (!modelId.trim() || context.trim() || output.trim()) return;
     const timer = setTimeout(() => {
       void translationApi
         .resolveModel(baseUrl, modelId.trim())
@@ -77,7 +76,31 @@ export function ModelEditorDialog({
       current = false;
       clearTimeout(timer);
     };
-  }, [baseUrl, modelId, identity, id, t]);
+  }, [baseUrl, modelId, context, output, identity, id, t]);
+  const confirmModel = () => {
+    const nextId = modelId.trim();
+    const nextContext = parseLimit(context);
+    const nextOutput = parseLimit(output);
+    if (!nextId || otherModelIds.includes(nextId)) {
+      setError("modelId");
+      return;
+    }
+    if (nextContext === undefined) {
+      setError("contextWindow");
+      return;
+    }
+    if (
+      nextOutput === undefined ||
+      (nextOutput != null && nextContext != null && nextOutput > nextContext)
+    ) {
+      setError("maxOutputTokens");
+      return;
+    }
+    const next = { ...model, id: nextId, maxOutputTokens: nextOutput };
+    if (nextContext != null) next.contextWindow = nextContext;
+    else delete next.contextWindow;
+    onConfirm(next);
+  };
   return (
     <Dialog
       open
@@ -102,47 +125,10 @@ export function ModelEditorDialog({
         </DialogHeader>
         <form
           className="flex min-h-0 flex-col"
-          onCompositionStartCapture={() => {
-            composing.current = true;
-          }}
-          onCompositionEndCapture={() => {
-            composing.current = false;
-          }}
-          onKeyDownCapture={(event) => {
-            // 候选确认只完成输入，不提交参数；兼容 WebKit 提前派发 compositionend。
-            if (
-              event.key === "Enter" &&
-              (composing.current ||
-                event.nativeEvent.isComposing ||
-                event.nativeEvent.keyCode === 229)
-            )
-              event.preventDefault();
-          }}
           onSubmit={(event) => {
+            // 回车不确认参数，避免输入法选字或快速输入提前关闭弹窗并取消自动匹配。
             event.preventDefault();
             event.stopPropagation();
-            const nextId = modelId.trim();
-            const nextContext = parseLimit(context);
-            const nextOutput = parseLimit(output);
-            if (!nextId || otherModelIds.includes(nextId)) {
-              setError("modelId");
-              return;
-            }
-            if (nextContext === undefined) {
-              setError("contextWindow");
-              return;
-            }
-            if (
-              nextOutput === undefined ||
-              (nextOutput != null && nextContext != null && nextOutput > nextContext)
-            ) {
-              setError("maxOutputTokens");
-              return;
-            }
-            const next = { ...model, id: nextId, maxOutputTokens: nextOutput };
-            if (nextContext != null) next.contextWindow = nextContext;
-            else delete next.contextWindow;
-            onConfirm(next);
           }}
         >
           <div className="min-h-0 space-y-5 overflow-y-auto p-4">
@@ -167,7 +153,7 @@ export function ModelEditorDialog({
                 }}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-5">
               {(
                 [
                   { field: "contextWindow", value: context, set: setContext, manualKey: "context" },
@@ -186,7 +172,7 @@ export function ModelEditorDialog({
                     placeholder={t("llm.unsetLimit")}
                     aria-invalid={error === field}
                     onChange={(event) => {
-                      manual.current[manualKey] = true;
+                      manual.current[manualKey] = Boolean(event.target.value.trim());
                       set(event.target.value);
                       setError(null);
                     }}
@@ -210,7 +196,13 @@ export function ModelEditorDialog({
             >
               {t("common.cancel")}
             </Button>
-            <Button type="submit" size="sm" className="h-8 text-xs" disabled={!modelId.trim()}>
+            <Button
+              type="button"
+              onClick={confirmModel}
+              size="sm"
+              className="h-8 text-xs"
+              disabled={!modelId.trim()}
+            >
               {t("llm.confirmModel")}
             </Button>
           </div>

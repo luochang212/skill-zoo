@@ -25,14 +25,14 @@ The desktop SHALL accept a trimmed personal access token, verify it against GitH
 
 ### Requirement: Token replacement and startup
 
-The desktop SHALL maintain at most one saved GitHub credential. Saving a new verified token SHALL replace the previous credential and its expiry in a single write, and the desktop SHALL NOT offer a credential removal action. Submitting an empty input SHALL NOT change the saved credential. A saved token SHALL supply authentication at startup while its recorded expiry has not passed and SHALL NOT be presented as freshly verified merely because it exists on disk.
+The desktop SHALL maintain one saved GitHub credential. Saving a verified replacement SHALL update token and expiry atomically. Explicitly saving an empty field SHALL remove both and restore anonymous runtime authentication; closing without saving SHALL preserve them. A saved token SHALL authenticate requests at startup until its recorded expiry, without being presented as freshly verified merely because it exists on disk.
 
 #### Scenario: New token replaces the old
 - **WHEN** a new token is verified and saved while a previous credential exists
 - **THEN** the new token and its expiry replace the previous ones in a single write
 
 #### Scenario: No new token entered
-- **WHEN** the credential dialog is submitted while a token is saved and the new token field is empty or still shows the unchanged mask
+- **WHEN** the credential dialog is submitted while a token is saved and the token field is unchanged
 - **THEN** the saved token and its expiry remain unchanged
 
 #### Scenario: Restart with configured token
@@ -43,25 +43,25 @@ The desktop SHALL maintain at most one saved GitHub credential. Saving a new ver
 - **WHEN** persisting a token and its expiry fails
 - **THEN** persisted settings and runtime authentication both remain unchanged
 
-### Requirement: Saved credential is never redisplayed
+### Requirement: Saved credential can be viewed and edited
 
-The settings UI SHALL NOT display the saved token or any part of it, and the generic settings read SHALL NOT include the credential keys. The dialog SHALL stand in for the saved token with a mask value carrying no information about the secret; while mask characters remain, the credential counts as unchanged and saving stays unavailable.
+The dialog SHALL load the real saved token through a dedicated Rust IPC command when opened. The generic settings read SHALL continue to omit credential keys. The input SHALL default to password masking using the real value, with an eye button to show or hide it. Fixed-length stand-in masks SHALL NOT be used. Reading, toggling visibility, and editing SHALL NOT save credentials. The unchanged value SHALL leave saving unavailable. Loading or failed token reads SHALL disable editing and saving.
 
-#### Scenario: Dialog with a saved token
-- **WHEN** the credential dialog opens while a token is saved
-- **THEN** the input holds the mask, never the token, and saving stays unavailable until the field actually changes
+#### Scenario: View a saved token
+- **WHEN** the dialog opens with a saved token and the user toggles the eye button
+- **THEN** the real token is shown or hidden without modifying or saving it
 
-#### Scenario: Generic settings read omits credentials
-- **WHEN** the generic settings read is invoked
-- **THEN** the response contains neither `github_token` nor `github_token_expires_at`
+#### Scenario: Clear a saved token
+- **WHEN** the user empties the field using text editing or the clear icon and explicitly saves
+- **THEN** the token and expiry are removed together without verification and runtime authentication returns to anonymous mode
 
-#### Scenario: Mask behaves like content
-- **WHEN** the user focuses, selects, deletes, or replaces the mask
-- **THEN** the field behaves like ordinary text editing, with no automatic selection
+#### Scenario: Cancel editing
+- **WHEN** the user edits or clears the token and closes the dialog without saving
+- **THEN** the saved credential remains unchanged and reopening shows the saved value hidden
 
-#### Scenario: After a successful save
-- **WHEN** a token is verified and saved
-- **THEN** the input reverts to the mask and the status line shows the verified quota and recorded expiry
+#### Scenario: Save replacement
+- **WHEN** a changed nonempty token is verified and saved
+- **THEN** the real saved value remains in the password input and the status shows the verified quota and expiry
 
 ### Requirement: Dialog verifies the saved credential
 

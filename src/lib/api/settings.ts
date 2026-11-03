@@ -38,6 +38,7 @@ export const settingsApi = {
   getSettings: () => invoke<Record<string, string>>("get_settings"),
 
   getGitHubCredentialStatus: () => invoke<GitHubCredentialStatus>("get_github_credential_status"),
+  getGitHubToken: () => invoke<string>("get_github_token"),
 
   updateSetting: (key: string, value: string) => invoke<void>("update_setting", { key, value }),
 

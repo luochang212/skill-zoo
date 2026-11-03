@@ -489,14 +489,32 @@ export const SkillContentPane = memo(function SkillContentPane({
     initialTranslationLanguage(navigator.languages, i18n.language);
   const provider = providers.data?.find((p) => p.id === preferences.data?.providerId && p.enabled);
   const model = provider?.models.find((m) => m.id === preferences.data?.modelId && m.enabled);
-  const translation = useSkillTranslation({
-    skillId: skillId ?? "",
-    path: isSkillMdActive ? (selectedFilePath ?? "SKILL.md") : (selectedFilePath ?? ""),
-    source: displayContent,
-    providerId: provider?.id ?? "",
-    modelId: model?.id ?? "",
-    targetLanguage,
-  });
+  const translation = useSkillTranslation(
+    {
+      skillId: skillId ?? "",
+      path: isSkillMdActive ? (selectedFilePath ?? "SKILL.md") : (selectedFilePath ?? ""),
+      source: displayContent,
+      providerId: provider?.id ?? "",
+      modelId: model?.id ?? "",
+      targetLanguage,
+    },
+    {
+      preferCached:
+        preferences.data?.preferCachedTranslations === true &&
+        translationAvailable &&
+        effectiveActiveTab === "overview" &&
+        !contentLoading &&
+        !!displayContent &&
+        !!provider &&
+        !!model &&
+        !(isSkillMdActive ? dirty || savePending : isDirty || saveFileMutation.isPending),
+      configurationKey: JSON.stringify([
+        provider?.protocol,
+        provider?.baseUrl,
+        model?.maxOutputTokens,
+      ]),
+    },
+  );
   const translationDisabledReason =
     effectiveActiveTab !== "overview"
       ? t("translation.viewOnly")

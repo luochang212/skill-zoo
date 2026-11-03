@@ -29,6 +29,7 @@ export interface TranslationPreferences {
   targetLanguage: string | null;
   providerId: string | null;
   modelId: string | null;
+  preferCachedTranslations?: boolean;
 }
 export interface TranslationRequest {
   taskId: string;
@@ -45,6 +46,11 @@ export type TranslationEvent =
   | { type: "failed"; taskId: string; code: string };
 
 export const translationApi = {
+  providerApiKey: (id: string) => invoke<string>("get_llm_provider_api_key", { id }),
+  cached: (request: Omit<TranslationRequest, "taskId" | "force">) =>
+    invoke<string | null>("read_cached_translation", { request }),
+  testConnection: (request: { provider: ProviderUpdate; modelId: string }) =>
+    invoke<number>("test_llm_connection", request),
   resolveModel: (baseUrl: string, modelId: string) =>
     invoke<{ contextWindow: number | null; maxOutputTokens: number | null } | null>(
       "resolve_model_configuration",

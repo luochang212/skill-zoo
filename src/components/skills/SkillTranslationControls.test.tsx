@@ -18,7 +18,7 @@ const translation = () => ({
   toggle: vi.fn(),
 });
 describe("translation toolbar menu", () => {
-  it("requires an explicit menu action and exposes target language before generation", async () => {
+  it("separates direct translation from the language menu", async () => {
     await i18n.changeLanguage("en");
     const user = userEvent.setup();
     const state = translation();
@@ -34,10 +34,14 @@ describe("translation toolbar menu", () => {
       </QueryClientProvider>,
     );
     expect(state.translate).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: "Translate" }));
+    await user.click(screen.getByRole("button", { name: "Translation settings" }));
     expect(state.translate).not.toHaveBeenCalled();
     await user.click(screen.getByRole("menuitem", { name: "Translate to 简体中文" }));
     expect(state.translate).toHaveBeenCalledWith(false);
+    state.translate.mockClear();
+    await user.click(screen.getByRole("button", { name: "Translate" }));
+    expect(state.translate).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
   it("keeps a disabled control available in edit mode", async () => {
     await i18n.changeLanguage("en");
@@ -74,10 +78,10 @@ describe("translation toolbar menu", () => {
         />
       </QueryClientProvider>,
     );
-    const trigger = screen.getByRole("button", { name: "Translate" });
+    const trigger = screen.getByRole("button", { name: "Translation settings" });
     await user.click(trigger);
     await user.click(screen.getByRole("menuitem", { name: "Configure translation model…" }));
-    expect(screen.getByRole("dialog", { name: "Translation options" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Translation settings" })).toBeInTheDocument();
     expect(screen.getByLabelText("Target language")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add service" })).not.toBeInTheDocument();
     await user.keyboard("{Escape}");

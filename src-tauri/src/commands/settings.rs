@@ -115,8 +115,7 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<HashMap<String, String
     Ok(visible_settings(&settings.values))
 }
 
-/// Saved-state view of the credential: existence and recorded expiry, never
-/// the token itself (the write-only contract).
+/// Credential summary for settings rows; the editor reads the token separately.
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitHubCredentialStatus {
@@ -134,6 +133,16 @@ fn credential_status(values: &HashMap<String, String>) -> GitHubCredentialStatus
             .filter(|value| !value.trim().is_empty())
             .cloned(),
     }
+}
+
+#[tauri::command]
+pub fn get_github_token(state: State<'_, AppState>) -> Result<String, String> {
+    let settings = state.settings.lock().map_err(|e| e.to_string())?;
+    Ok(settings
+        .values
+        .get("github_token")
+        .cloned()
+        .unwrap_or_default())
 }
 
 #[tauri::command]

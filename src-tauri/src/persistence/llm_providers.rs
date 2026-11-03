@@ -22,7 +22,7 @@ pub struct Model {
     pub context_window: Option<u32>,
 }
 
-// Intentionally no Debug: this structure holds write-only credentials.
+// Intentionally no Debug: this structure holds credentials.
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Provider {
@@ -98,6 +98,8 @@ pub struct TranslationPreferences {
     pub target_language: Option<String>,
     pub provider_id: Option<String>,
     pub model_id: Option<String>,
+    #[serde(default)]
+    pub prefer_cached_translations: bool,
 }
 
 impl TranslationPreferences {
@@ -237,6 +239,19 @@ pub fn recover(path: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn cached_translation_preference_defaults_off_and_round_trips() {
+        let mut prefs: TranslationPreferences = serde_json::from_value(serde_json::json!({
+            "targetLanguage":"zh-CN", "providerId":"p", "modelId":"m"
+        }))
+        .unwrap();
+        assert!(!prefs.prefer_cached_translations);
+        prefs.prefer_cached_translations = true;
+        let restored: TranslationPreferences =
+            serde_json::from_slice(&serde_json::to_vec(&prefs).unwrap()).unwrap();
+        assert!(restored.prefer_cached_translations);
+        assert_eq!(restored.model_id.as_deref(), Some("m"));
+    }
     fn update(id: Option<String>) -> ProviderUpdate {
         ProviderUpdate {
             id,
@@ -254,7 +269,7 @@ mod tests {
         }
     }
     #[test]
-    fn secrets_are_write_only_and_unchanged_updates_preserve_them() {
+    fn summaries_omit_secrets_and_unchanged_updates_preserve_them() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("providers.json");
         let result = upsert(&path, update(None)).unwrap();
