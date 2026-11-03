@@ -539,8 +539,11 @@ export const SkillContentPane = memo(function SkillContentPane({
   const showTranslated =
     translationAvailable && effectiveActiveTab === "overview" && translation.showTranslation;
   const renderedContent = showTranslated ? translation.text : displayContent;
+  // A pending cache lookup holds the loading state so a hit renders the
+  // translation on the first paint instead of flashing the original.
   const awaitingTranslation =
-    showTranslated && translation.status === "streaming" && !renderedContent;
+    translation.cachePending ||
+    (showTranslated && translation.status === "streaming" && !renderedContent);
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
@@ -832,12 +835,20 @@ export const SkillContentPane = memo(function SkillContentPane({
                 <div
                   className="px-5 py-4 pr-5"
                   lang={showTranslated ? targetLanguage : undefined}
-                  aria-busy={showTranslated && translation.status === "streaming"}
+                  aria-busy={
+                    contentLoading ||
+                    awaitingTranslation ||
+                    (showTranslated && translation.status === "streaming")
+                  }
                 >
                   {contentLoading || awaitingTranslation ? (
                     <div
                       role="status"
-                      aria-label={t(awaitingTranslation ? "translation.streaming" : "loading")}
+                      aria-label={t(
+                        awaitingTranslation && !translation.cachePending
+                          ? "translation.streaming"
+                          : "loading",
+                      )}
                       className="flex items-center justify-center py-12"
                     >
                       <LoaderCircle

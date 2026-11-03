@@ -95,6 +95,52 @@ describe("manual translation lifecycle", () => {
     expect(hook.result.current.error).toBeNull();
     expect(translationApi.translate).not.toHaveBeenCalled();
   });
+  it("holds the loading gate while the cache lookup is pending and releases it on a hit", async () => {
+    let complete!: (text: string) => void;
+    vi.mocked(translationApi.cached).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const hook = renderHook(() => useSkillTranslation(input, { preferCached: true }));
+    expect(hook.result.current.cachePending).toBe(true);
+    await act(async () => {
+      complete("# 你好");
+    });
+    expect(hook.result.current.cachePending).toBe(false);
+    expect(hook.result.current.text).toBe("# 你好");
+    expect(hook.result.current.showTranslation).toBe(true);
+  });
+  it("releases the loading gate on a cache miss or failure so the original renders", async () => {
+    vi.mocked(translationApi.cached).mockRejectedValue("cacheRead");
+    const hook = renderHook(() => useSkillTranslation(input, { preferCached: true }));
+    expect(hook.result.current.cachePending).toBe(true);
+    await waitFor(() => expect(hook.result.current.cachePending).toBe(false));
+    expect(hook.result.current.status).toBe("idle");
+    expect(hook.result.current.showTranslation).toBe(false);
+    expect(hook.result.current.text).toBe("");
+  });
+  it("drops the loading gate as soon as a manual translation starts", async () => {
+    let complete!: (text: string) => void;
+    vi.mocked(translationApi.cached).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const hook = renderHook(() => useSkillTranslation(input, { preferCached: true }));
+    expect(hook.result.current.cachePending).toBe(true);
+    act(() => {
+      void hook.result.current.translate();
+    });
+    expect(hook.result.current.cachePending).toBe(false);
+    await act(async () => {
+      complete("stale cached text");
+    });
+    expect(hook.result.current.status).toBe("streaming");
+    expect(hook.result.current.text).toBe("");
+  });
   it("does not let a cached read overwrite a manually started translation", async () => {
     let complete!: (text: string) => void;
     vi.mocked(translationApi.cached).mockImplementation(

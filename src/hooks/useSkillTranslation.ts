@@ -32,6 +32,8 @@ export function useSkillTranslation(
   const task = useRef<{ id: string; identity: string; previous: string } | null>(null);
   const cacheVersion = useRef(0);
   const [view, setView] = useState<View>(() => empty(identity));
+  // Identity whose initial cache lookup has settled; null while one is in flight.
+  const [cacheSettled, setCacheSettled] = useState<string | null>(null);
   const viewRef = useRef(view);
   viewRef.current = view;
   const cancelTask = useCallback(() => {
@@ -42,6 +44,7 @@ export function useSkillTranslation(
   }, []);
   useLayoutEffect(() => {
     setView(empty(identity));
+    setCacheSettled(null);
     return () => {
       cancelTask();
     };
@@ -69,7 +72,10 @@ export function useSkillTranslation(
             : current,
         );
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (currentIdentity.current === identity) setCacheSettled(identity);
+      });
     return () => {
       active = false;
     };
@@ -152,13 +158,17 @@ export function useSkillTranslation(
     [identity, input, cancelTask],
   );
 
+  const current = view.identity === identity ? view : empty(identity);
   return {
-    ...(view.identity === identity ? view : empty(identity)),
+    ...current,
     translate,
     cancel,
     toggle: () => {
       cacheVersion.current += 1;
       setView((v) => ({ ...v, showTranslation: !v.showTranslation }));
     },
+    // While the initial cache lookup is unresolved, the pane holds its loading
+    // state so a hit renders the translation directly without an original flash.
+    cachePending: preferCached && cacheSettled !== identity && current.status === "idle",
   };
 }

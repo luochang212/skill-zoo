@@ -13,6 +13,7 @@ const translation = () => ({
   text: "",
   showTranslation: false,
   error: null,
+  cachePending: false,
   translate: vi.fn(),
   cancel: vi.fn(),
   toggle: vi.fn(),
