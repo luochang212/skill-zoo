@@ -11,7 +11,7 @@ export function WindowBehaviorSettings() {
 
   return (
     <ToggleRow
-      icon={<PanelTopClose className="h-4 w-4 text-blue-500" />}
+      icon={<PanelTopClose className="h-4 w-4 text-[#a66f82] dark:text-[#c49aaa]" />}
       title={t("settings.windowBehavior.closeToTray")}
       description={t("settings.windowBehavior.closeToTrayDesc")}
       checked={closeToTray ?? false}

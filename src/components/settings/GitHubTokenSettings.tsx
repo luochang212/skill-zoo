@@ -156,7 +156,7 @@ export function GitHubTokenSettings({
       <div className="group flex items-center justify-between gap-4 rounded-xl border border-border bg-card/50 p-4 transition-colors hover:bg-muted/50">
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-background ring-1 ring-border">
-            <KeyRound className="h-4 w-4 text-blue-500" />
+            <KeyRound className="h-4 w-4 text-[#a66f82] dark:text-[#c49aaa]" />
           </div>
           <div className="space-y-1">
             <p className="text-sm font-medium leading-none">{t("settings.github.rowTitle")}</p>

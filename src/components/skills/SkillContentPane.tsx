@@ -1,6 +1,14 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, memo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { useSkillTranslation } from "@/hooks/useSkillTranslation";
+import {
+  useSkillProviders,
+  useTranslationPreferences,
+  useSaveTranslationPreferences,
+} from "@/hooks/useSkillProviders";
+import { initialTranslationLanguage, translationErrorCode } from "@/lib/translation";
+import { SkillTranslationControls } from "./SkillTranslationControls";
 import { MarkdownContent } from "@/components/skills/MarkdownContent";
 import { SkillFileTree } from "@/components/skills/SkillFileTree";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -163,7 +171,7 @@ export const SkillContentPane = memo(function SkillContentPane({
   hideFileTree = false,
   onUnsavedDraftsChange,
 }: SkillContentPaneProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const fileTreeDisabled = hideFileTree || (readOnly && !enableReadOnlyFileTree);
 
@@ -468,12 +476,51 @@ export const SkillContentPane = memo(function SkillContentPane({
     selectedNode?.name.toLowerCase().endsWith(".mdx");
   const contentLoading = fileLoading || imageLoading || isLoading;
 
+  const translationAvailable =
+    !!skillId &&
+    !hideFileTree &&
+    (isSkillMdActive || selectedNode?.name.toLowerCase().endsWith(".md")) &&
+    !isViewOnlyFile;
+  const providers = useSkillProviders(!!skillId && !hideFileTree);
+  const preferences = useTranslationPreferences(!!skillId && !hideFileTree);
+  const savePreferences = useSaveTranslationPreferences();
+  const targetLanguage =
+    preferences.data?.targetLanguage ??
+    initialTranslationLanguage(navigator.languages, i18n.language);
+  const provider = providers.data?.find((p) => p.id === preferences.data?.providerId && p.enabled);
+  const model = provider?.models.find((m) => m.id === preferences.data?.modelId && m.enabled);
+  const translation = useSkillTranslation({
+    skillId: skillId ?? "",
+    path: isSkillMdActive ? (selectedFilePath ?? "SKILL.md") : (selectedFilePath ?? ""),
+    source: displayContent,
+    providerId: provider?.id ?? "",
+    modelId: model?.id ?? "",
+    targetLanguage,
+  });
+  const translationDisabledReason =
+    effectiveActiveTab !== "overview"
+      ? t("translation.viewOnly")
+      : (isSkillMdActive ? dirty || savePending : isDirty || saveFileMutation.isPending)
+        ? t("translation.saveFirst")
+        : contentLoading
+          ? t("loading")
+          : !displayContent
+            ? t("skill.noContent")
+            : new TextEncoder().encode(displayContent).length > 51200
+              ? t("translation.errors.sourceLimit")
+              : undefined;
+  const configError = preferences.error ?? providers.error ?? savePreferences.error;
+  const showTranslated =
+    translationAvailable && effectiveActiveTab === "overview" && translation.showTranslation;
+  const renderedContent = showTranslated ? translation.text : displayContent;
+
   return (
     <div className="flex-1 min-h-0 flex flex-col">
       {/* ── Tab toggle bar (full width) ── */}
       <div
         className="px-3 py-2 shrink-0 border-b border-border flex items-center gap-2"
-        role="tablist"
+        role="group"
+        aria-label={t("skill.view")}
       >
         {/* Sidebar toggle */}
         {!fileTreeDisabled && (
@@ -537,6 +584,25 @@ export const SkillContentPane = memo(function SkillContentPane({
           </button>
         )}
 
+        {translationAvailable && (
+          <SkillTranslationControls
+            translation={translation}
+            language={targetLanguage}
+            setLanguage={(language) =>
+              preferences.data &&
+              savePreferences.mutate({ ...preferences.data, targetLanguage: language })
+            }
+            unavailable={!provider || !model}
+            preferencePending={
+              !preferences.data ||
+              savePreferences.isPending ||
+              providers.isPending ||
+              providers.isError
+            }
+            disabledReason={translationDisabledReason}
+          />
+        )}
+
         {/* Save button. Shown when dirty; hidden in overview mode for SKILL.md */}
         {!readOnly &&
           !isViewOnlyFile &&
@@ -562,6 +628,28 @@ export const SkillContentPane = memo(function SkillContentPane({
             </span>
           )}
       </div>
+
+      {translationAvailable && (translation.error || configError) && (
+        <div
+          role="status"
+          className="flex items-center gap-2 border-b border-border px-3 py-2 text-xs text-muted-foreground"
+        >
+          <span>
+            {t(`translation.errors.${translation.error ?? translationErrorCode(configError)}`, {
+              defaultValue: t("translation.errors.network"),
+            })}
+          </span>
+          {translation.error && !translationDisabledReason && (
+            <button
+              type="button"
+              className="underline"
+              onClick={() => void translation.translate(!!translation.text)}
+            >
+              {t("translation.retry")}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ── Below tab bar: sidebar + content side by side ── */}
       <div
@@ -713,7 +801,11 @@ export const SkillContentPane = memo(function SkillContentPane({
                 viewportRef={previewViewportRef}
                 onScroll={onPreviewScroll}
               >
-                <div className="px-5 py-4 pr-5">
+                <div
+                  className="px-5 py-4 pr-5"
+                  lang={showTranslated ? targetLanguage : undefined}
+                  aria-busy={showTranslated && translation.status === "streaming"}
+                >
                   {contentLoading ? (
                     <div className="flex items-center justify-center py-12">
                       <div className="h-5 w-5 border-2 border-muted-foreground/20 border-t-foreground/60 rounded-full animate-spin" />
@@ -726,9 +818,9 @@ export const SkillContentPane = memo(function SkillContentPane({
                         className="max-h-[calc(100vh-220px)] max-w-full rounded-md object-contain"
                       />
                     </div>
-                  ) : displayContent ? (
+                  ) : renderedContent ? (
                     isSkillMdActive || isMd ? (
-                      <MarkdownContent content={displayContent} />
+                      <MarkdownContent content={renderedContent} />
                     ) : (
                       <pre className="text-[13px] font-mono leading-relaxed whitespace-pre-wrap break-all text-foreground">
                         {displayContent}

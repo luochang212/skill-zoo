@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Palette, PlugZap } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { AiSettingsRows } from "./AiSettings";
 import { ThemeSettings } from "@/components/settings/ThemeSettings";
 import { LanguageSettings } from "@/components/settings/LanguageSettings";
 import { SkillMaintenanceSettings } from "@/components/settings/SkillMaintenanceSettings";
@@ -53,18 +54,19 @@ export function SettingsView({
               onOpenManagerRequestHandled={onSkillCompanionOpenHandled}
             />
 
+            {/* Agent Paths */}
+            <AgentPathsSettings />
+
             {/* Advanced */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 border-b border-border/40 pb-2">
-                <PlugZap className="h-4 w-4 text-blue-500" />
+                <PlugZap className="h-4 w-4 text-[#a66f82] dark:text-[#c49aaa]" />
                 <h3 className="text-sm font-medium">{t("settings.advanced.title")}</h3>
               </div>
+              <AiSettingsRows />
               <GitHubTokenSettings open={githubTokenOpen} onOpenChange={setGithubTokenOpen} />
               <WindowBehaviorSettings />
             </div>
-
-            {/* Agent Paths */}
-            <AgentPathsSettings />
 
             {/* About & Feedback */}
             <AboutSection />
