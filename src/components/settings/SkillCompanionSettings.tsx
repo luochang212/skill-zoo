@@ -40,6 +40,7 @@ import {
   parseSkillCompanionImport,
 } from "@/lib/skill-companion-transfer";
 import { useAgentConfigs, getAgentLabel } from "@/lib/agents";
+import { GithubIcon } from "@/components/ui/github-icon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
@@ -271,13 +272,14 @@ function SkillUsageDialog({
   const { data: persistedAgent } = useSkillUsageAgent();
   const updateAgent = useUpdateSkillUsageAgent();
   const { data: agentConfigs } = useAgentConfigs();
-  const usageAgents = useMemo(
-    () => (agentConfigs ?? []).filter((a) => a.hasUsageTracking),
-    [agentConfigs],
-  );
+  const usageAgents = useMemo(() => {
+    const tracked = (agentConfigs ?? []).filter((a) => a.hasUsageTracking);
+    // Codex leads the usage sources and is the default; Claude Code follows it.
+    return [...tracked.filter((a) => a.id === "codex"), ...tracked.filter((a) => a.id !== "codex")];
+  }, [agentConfigs]);
   const agent = useMemo(() => {
     const match = usageAgents.find((a) => a.id === persistedAgent);
-    return match?.id ?? usageAgents[0]?.id ?? "claude-code";
+    return match?.id ?? usageAgents[0]?.id ?? "codex";
   }, [persistedAgent, usageAgents]);
   const agentDisplayName = getAgentLabel(agent, usageAgents);
   const { data: usage, isLoading } = useSkillUsage(agent, { enabled: open });
@@ -487,9 +489,13 @@ function SkillUsageDialog({
                   </>
                 )}
                 <SkillUsageBars period={period} agentDisplayName={agentDisplayName} />
-                <p className="border-t border-border/30 pt-3 text-[11px] leading-5 text-muted-foreground">
+                <p className="flex items-center justify-between gap-3 border-t border-border/30 pt-3 text-[11px] leading-5 text-muted-foreground">
                   {/* Intentional non-i18n metadata label for a compact product signature. */}
-                  {`▸ Skill preferences · ${activeSkillCount} skills · ${dateRange.start} ~ ${dateRange.end}`}
+                  <span>{`▸ Skill preferences · ${activeSkillCount} skills · ${dateRange.start} ~ ${dateRange.end}`}</span>
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    <GithubIcon className="h-3 w-3" />
+                    luochang212/skill-zoo
+                  </span>
                 </p>
               </>
             )}

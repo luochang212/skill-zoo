@@ -377,6 +377,8 @@ describe("SkillCompanionSettings", () => {
         ),
       ),
     ).toBeInTheDocument();
+    // The signature row echoes the repo badge on its right edge
+    expect(screen.getByText("luochang212/skill-zoo")).toBeInTheDocument();
     expect(screen.getAllByText("code-review").length).toBeGreaterThan(0);
   });
 
@@ -435,7 +437,7 @@ describe("SkillCompanionSettings", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Could not save screenshot"));
   });
 
-  it("persists the selected agent when switching from Claude Code to Codex", async () => {
+  it("persists the selected agent when switching from Codex to Claude Code", async () => {
     const user = userEvent.setup();
     mockItems([]);
 
@@ -443,19 +445,22 @@ describe("SkillCompanionSettings", () => {
 
     await user.click(await screen.findByRole("button", { name: "View" }));
 
-    // Default agent is Claude Code, so the usage description mentions it
-    expect(
-      await screen.findByText("Statistics on skill usage from Claude Code"),
-    ).toBeInTheDocument();
+    // Default agent is Codex, so the usage description mentions it
+    expect(await screen.findByText("Statistics on skill usage from Codex")).toBeInTheDocument();
 
-    // Open the agent dropdown and select Codex
+    // Codex leads the agent menu, Claude Code follows it
     await user.click(screen.getByRole("button", { name: "Select agent" }));
-    await user.click(screen.getByRole("menuitem", { name: /Codex/ }));
+    expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
+      "Codex",
+      "Claude Code",
+      "OpenCode",
+    ]);
+    await user.click(screen.getByRole("menuitem", { name: /Claude Code/ }));
 
     await waitFor(() =>
       expect(invoke).toHaveBeenCalledWith("update_setting", {
         key: "skill_usage_agent",
-        value: "codex",
+        value: "claude-code",
       }),
     );
   });

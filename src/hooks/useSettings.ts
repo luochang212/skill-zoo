@@ -206,7 +206,7 @@ export function useSkillUsageAgent() {
     queryKey: SKILL_USAGE_AGENT_KEY,
     queryFn: async () => {
       const settings = await settingsApi.getSettings();
-      return settings[SKILL_USAGE_AGENT_SETTING] || "claude-code";
+      return settings[SKILL_USAGE_AGENT_SETTING] || "codex";
     },
     staleTime: 0,
   });
