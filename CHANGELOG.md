@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.4.0] — 2026-11-04
+
+### Added
+- Skill content translation. Settings → AI configures reusable model services (OpenAI, Anthropic, DeepSeek, Moonshot, ZCode, or a custom endpoint over one of three protocols), and the skill document toolbar translates Markdown files into nine supported languages. Translations stream into the reading view, are cached per document/configuration pair, and a "Prefer translations" switch shows an existing cached translation automatically when a document is opened. Each model row offers a connection test that sends one minimal request with the current draft credentials and reports latency or a safe failure reason; a "去配置" entry routes an empty model list into configuration without leaving the dialog.
+- Damaged translations are now repaired instead of discarded. Intact protection markers anchor the damaged regions, only the affected source fragments are re-translated in one targeted request, and the spliced result is re-validated as a whole before caching. A visible toast announces the repair round; fragments larger than 4 KB are subdivided at paragraph boundaries so the re-translation stays focused. Protection markers themselves were shortened from a 64-character source hash to a short deterministic suffix, which already lets long, code-heavy documents pass the fidelity check far more often.
+- GitHub tokens and model API keys are now viewable and editable in place. The dialogs load the real saved value through dedicated commands, present it in a password field with an eye toggle, and emptying the field and saving removes the credential; unchanged values keep saving disabled, and loading failures keep editing disabled.
+- Skill creation is a single document-style page: name, description and body flow in one continuous writing area with auto-growing fields, uniform page width and no per-field boxes; multiline descriptions serialize into valid frontmatter, and creation keeps the existing validation and IPC. The Imports category gains a matching primary "Manage imports" entry that reuses the existing import dialog.
+
+### Changed
+- The app icon adopts the macOS 824-icon grid and fills in the missing icns sizes.
+- Text inputs, search fields and settings dropdowns keep a static border on focus instead of tinting or ringing it.
+
+### Fixed
+- Translation shows a spinner in the content area until the first translated section arrives, instead of flashing the skill's "no content" empty state.
+- With "Prefer translations" enabled, opening a document no longer flashes the original before swapping to the cached translation: the cache lookup holds the loading state and a hit renders the translation as the first frame.
+- Credential inputs become focusable and editable once their asynchronous load completes, instead of staying disabled behind a race with the dialog's autofocus.
+
 ## [0.3.61] — 2026-11-02
 
 ### Added
