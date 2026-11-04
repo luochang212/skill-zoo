@@ -11,3 +11,5 @@ Modern Web Guidance: `forms` and `validate-input-after-interaction` informed nat
 Validation: frontend suite, focused settings regressions, TypeScript, oxlint, oxfmt, production build, OpenSpec strict validation and ADR validation. No Rust changes in this autosave change; prior protocol work remains separate in the working tree.
 
 Limitations: no live Tauri desktop or real-provider UI session was exercised; UI behavior was verified through jsdom component interactions. No credentials or network inference were used by the tests.
+
+Follow-up note (2026-11-04): the main spec's save-feedback wording is the final decision and is authoritative — the UI shows saving, unsaved and save-failed states, and after a successful save MUST NOT show a persistent saved hint. This change's delta wording ("distinguish saving, saved, unsaved and save-failed") was superseded during spec finalization before commit; the shipped implementation matches the main spec (no persistent saved indicator in the provider management UI). Recorded as a note rather than a rewrite of the archived delta.
