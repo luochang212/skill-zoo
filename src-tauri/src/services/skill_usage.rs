@@ -165,8 +165,8 @@ static USAGE_COLLECTORS: &[UsageCollectorEntry] = &[
         collect: collect_codex_events,
     },
     UsageCollectorEntry {
-        agent_id: "opencode",
-        collect: collect_opencode_events,
+        agent_id: "zcode",
+        collect: collect_zcode_events,
     },
 ];
 
@@ -183,7 +183,8 @@ fn collect_claude_events(
         effective_whitelist(home, "claude-code", whitelist, installed_skill_count);
     let mut files = Vec::new();
     collect_jsonl_files(&home.join(".claude").join("projects"), &mut files);
-    let events = aggregate_events(&files, parse_claude_skill_line, &whitelist);
+    let (events, _skill_file_mentions) =
+        aggregate_events(&files, parse_claude_skill_line, &whitelist);
     (events, count)
 }
 
@@ -195,23 +196,51 @@ fn collect_codex_events(
     let (whitelist, count) = effective_whitelist(home, "codex", whitelist, installed_skill_count);
     let mut files = Vec::new();
     collect_jsonl_files(&home.join(".codex").join("sessions"), &mut files);
-    let events = aggregate_events(&files, parse_codex_skill_line, &whitelist);
+    let (events, skill_file_mentions) =
+        aggregate_events(&files, parse_codex_skill_line, &whitelist);
+    report_codex_drift(&skill_file_mentions, &events);
     (events, count)
 }
 
-fn collect_opencode_events(
+/// Format-drift sentinel: session files that reference SKILL.md without
+/// yielding a single attributed event mean the rollout format moved under us
+/// again. Returns the files to report, or None when attribution is healthy.
+fn codex_drift_warning(
+    skill_file_mentions: &[PathBuf],
+    events: &[SkillUsageEvent],
+) -> Option<String> {
+    if !events.is_empty() || skill_file_mentions.is_empty() {
+        return None;
+    }
+    let mut names: Vec<String> = skill_file_mentions
+        .iter()
+        .take(3)
+        .map(|path| path.display().to_string())
+        .collect();
+    if skill_file_mentions.len() > 3 {
+        names.push(format!("and {} more", skill_file_mentions.len() - 3));
+    }
+    Some(names.join(", "))
+}
+
+/// The app has no logging subscriber today (no `log`/`tracing` dependency),
+/// so stderr — visible in the dev console and test output — is the channel.
+fn report_codex_drift(skill_file_mentions: &[PathBuf], events: &[SkillUsageEvent]) {
+    if let Some(files) = codex_drift_warning(skill_file_mentions, events) {
+        eprintln!(
+            "[skill_usage] warning: Codex session files reference SKILL.md but no usage was attributed (format drift?): {files}"
+        );
+    }
+}
+
+fn collect_zcode_events(
     home: &Path,
     whitelist: HashSet<String>,
     installed_skill_count: usize,
 ) -> (Vec<SkillUsageEvent>, usize) {
-    let (whitelist, count) =
-        effective_whitelist(home, "opencode", whitelist, installed_skill_count);
-    let db_path = home
-        .join(".local")
-        .join("share")
-        .join("opencode")
-        .join("opencode.db");
-    let events = query_opencode_skill_events(&db_path, &whitelist);
+    let (whitelist, count) = effective_whitelist(home, "zcode", whitelist, installed_skill_count);
+    let db_path = home.join(".zcode").join("cli").join("db").join("db.sqlite");
+    let events = query_zcode_skill_events(&db_path, &whitelist);
     (events, count)
 }
 
@@ -234,14 +263,17 @@ fn effective_whitelist(
 
 /// Walk the collected session files, parse each line, and keep one
 /// `SkillUsageEvent` per (dedup id, normalized skill name) that survives the
-/// whitelist. Agent-agnostic: the caller supplies the line parser.
+/// whitelist. Agent-agnostic: the caller supplies the line parser. Also
+/// reports which files mention SKILL.md at all, feeding the Codex drift
+/// sentinel.
 fn aggregate_events(
     files: &[PathBuf],
     parse_line: impl Fn(&str) -> Option<ParsedSkillLine>,
     whitelist: &HashSet<String>,
-) -> Vec<SkillUsageEvent> {
+) -> (Vec<SkillUsageEvent>, Vec<PathBuf>) {
     let mut events = Vec::new();
     let mut seen = HashSet::new();
+    let mut skill_file_mentions = Vec::new();
     for path in files {
         // Stream each session log line by line rather than buffering the
         // whole file into a `String`. A heavy Claude Code user can have
@@ -254,10 +286,14 @@ fn aggregate_events(
         let Ok(file) = std::fs::File::open(path) else {
             continue;
         };
+        let mut mentions_skill_file = false;
         for line in std::io::BufReader::new(file).lines() {
             let Ok(line) = line else {
                 continue;
             };
+            if line.contains("SKILL.md") {
+                mentions_skill_file = true;
+            }
             let Some(parsed) = parse_line(&line) else {
                 continue;
             };
@@ -280,8 +316,11 @@ fn aggregate_events(
                 });
             }
         }
+        if mentions_skill_file {
+            skill_file_mentions.push(path.clone());
+        }
     }
-    events
+    (events, skill_file_mentions)
 }
 
 fn build_usage(
@@ -457,22 +496,35 @@ fn parse_claude_skill_line(line: &str) -> Option<ParsedSkillLine> {
 }
 
 /// Codex records skill usage in two ways:
-/// 1. AI-initiated: `exec_command` reading `skills/<name>/SKILL.md` (legacy).
-/// 2. User-initiated: `$skill-name` prefix in user messages.
+/// 1. AI-initiated: a tool call reading `skills/<name>/SKILL.md`, carried as
+///    a legacy `function_call` or a current `custom_tool_call`.
+/// 2. User-initiated: `$skill-name` prefix in user messages, carried as a
+///    legacy `event_msg` or a current user-role `response_item`.
 fn parse_codex_skill_line(line: &str) -> Option<ParsedSkillLine> {
     let value: serde_json::Value = serde_json::from_str(line).ok()?;
     match value.get("type")?.as_str()? {
-        "response_item" => parse_codex_exec_command(&value),
+        "response_item" => parse_codex_response_item(&value),
         "event_msg" => parse_codex_user_message(&value),
         _ => None,
     }
 }
 
-fn parse_codex_exec_command(value: &serde_json::Value) -> Option<ParsedSkillLine> {
+/// `response_item` records carry both tool calls and — since the rollout
+/// format retired the mirrored `event_msg` user message — user messages.
+fn parse_codex_response_item(value: &serde_json::Value) -> Option<ParsedSkillLine> {
     let payload = value.get("payload")?;
-    if payload.get("type").and_then(|t| t.as_str()) != Some("function_call") {
-        return None;
+    match payload.get("type").and_then(|t| t.as_str())? {
+        "function_call" => parse_codex_exec_command(value, payload),
+        "custom_tool_call" => parse_codex_custom_tool_call(value, payload),
+        "message" => parse_codex_user_role_message(value, payload),
+        _ => None,
     }
+}
+
+fn parse_codex_exec_command(
+    value: &serde_json::Value,
+    payload: &serde_json::Value,
+) -> Option<ParsedSkillLine> {
     if payload.get("name").and_then(|n| n.as_str()) != Some("exec_command") {
         return None;
     }
@@ -481,31 +533,95 @@ fn parse_codex_exec_command(value: &serde_json::Value) -> Option<ParsedSkillLine
     let arguments_str = payload.get("arguments").and_then(|a| a.as_str())?;
     let args_value: serde_json::Value = serde_json::from_str(arguments_str).ok()?;
     let cmd = args_value.get("cmd").and_then(|c| c.as_str())?;
-    let name = extract_skill_name_from_cmd(cmd)?;
+    let skills = extract_skill_names_from_cmd(cmd);
+    if skills.is_empty() {
+        return None;
+    }
     let ts_ms = timestamp_ms(value)?;
     Some(ParsedSkillLine {
         id: None,
         ts_ms,
         source: SkillUsageSource::Agent,
-        skills: vec![name],
+        skills,
     })
 }
 
-/// Detect `$skill-name` prefix in user messages.
-/// Example: `"$github-research-assistant 介绍一下当前路径下的仓库"`
+/// Current rollouts carry shell usage as `custom_tool_call` records named
+/// `exec`, whose `input` is a raw string embedding the command, for example
+/// `text(await tools.exec_command({cmd:"cat …/skills/<name>/SKILL.md"}))`.
+/// The name check keeps patch-style custom calls — which may legitimately
+/// mention a SKILL.md path inside a diff — from counting as usage.
+fn parse_codex_custom_tool_call(
+    value: &serde_json::Value,
+    payload: &serde_json::Value,
+) -> Option<ParsedSkillLine> {
+    if payload.get("name").and_then(|n| n.as_str()) != Some("exec") {
+        return None;
+    }
+    let input = payload.get("input").and_then(|i| i.as_str())?;
+    let skills = extract_skill_names_from_cmd(input);
+    if skills.is_empty() {
+        return None;
+    }
+    let ts_ms = timestamp_ms(value)?;
+    Some(ParsedSkillLine {
+        id: None,
+        ts_ms,
+        source: SkillUsageSource::Agent,
+        skills,
+    })
+}
+
+/// Current user messages: `response_item` records with `role: "user"` whose
+/// content is a list of `{type: "input_text", text: …}` blocks.
+fn parse_codex_user_role_message(
+    value: &serde_json::Value,
+    payload: &serde_json::Value,
+) -> Option<ParsedSkillLine> {
+    if payload.get("role").and_then(|r| r.as_str()) != Some("user") {
+        return None;
+    }
+    let text = match payload.get("content") {
+        Some(serde_json::Value::Array(blocks)) => blocks
+            .iter()
+            .filter_map(|block| block.get("text").and_then(|t| t.as_str()))
+            .collect::<Vec<_>>()
+            .join("\n"),
+        Some(serde_json::Value::String(text)) => text.clone(),
+        _ => return None,
+    };
+    finish_codex_user_message(value, payload, &text)
+}
+
+/// Legacy user messages: `event_msg` records with a `user_message` payload.
+/// Detect `$skill-name` prefix. Example:
+/// `"$github-research-assistant 介绍一下当前路径下的仓库"`
 fn parse_codex_user_message(value: &serde_json::Value) -> Option<ParsedSkillLine> {
     let payload = value.get("payload")?;
     if payload.get("type").and_then(|t| t.as_str()) != Some("user_message") {
         return None;
     }
     let text = payload.get("message").and_then(|m| m.as_str())?;
+    finish_codex_user_message(value, payload, text)
+}
+
+/// Shared tail for both user-message carriers: the `$skill` extraction plus
+/// the dedup id. Rollouts may deliver one user message through both carriers
+/// (mirrored duplicates), and neither current shape carries a session id, so
+/// the id falls back to a text fingerprint that collapses the mirror pair.
+fn finish_codex_user_message(
+    value: &serde_json::Value,
+    payload: &serde_json::Value,
+    text: &str,
+) -> Option<ParsedSkillLine> {
     let name = extract_dollar_skill(text)?;
     let ts_ms = timestamp_ms(value)?;
     let id = value
         .get("session_id")
         .or_else(|| payload.get("session_id"))
         .and_then(|id| id.as_str())
-        .map(str::to_string);
+        .map(str::to_string)
+        .or_else(|| Some(text.chars().take(80).collect()));
     Some(ParsedSkillLine {
         id,
         ts_ms,
@@ -527,28 +643,39 @@ fn extract_dollar_skill(text: &str) -> Option<String> {
     Some(name)
 }
 
-/// Pull the skill name out of a command path like `…/skills/<name>/SKILL.md`,
-/// regardless of prefix (absolute, relative, or `~`). Each read is a distinct
-/// event, so no dedup id is needed.
 static SKILL_FILE_RE: std::sync::LazyLock<regex::Regex> =
     std::sync::LazyLock::new(|| regex::Regex::new(r"(?i)skills/([^/]+)/SKILL\.md").unwrap());
 
-fn extract_skill_name_from_cmd(text: &str) -> Option<String> {
-    SKILL_FILE_RE
-        .captures(text)
-        .and_then(|c| c.get(1))
-        .map(|m| m.as_str().to_string())
+/// Pull skill names out of command text like `…/skills/<name>/SKILL.md`,
+/// regardless of prefix (absolute, relative, or `~`). One command may read
+/// several skill files at once; each contributes its own event.
+fn extract_skill_names_from_cmd(text: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut seen = HashSet::new();
+    for capture in SKILL_FILE_RE.captures_iter(text) {
+        let Some(m) = capture.get(1) else {
+            continue;
+        };
+        if seen.insert(m.as_str().to_string()) {
+            names.push(m.as_str().to_string());
+        }
+    }
+    names
 }
 
 // ---------------------------------------------------------------------------
-// OpenCode collector. It queries SQLite directly
+// ZCode collector. It queries SQLite directly. The database mirrors
+// OpenCode's table family, but tool names are Claude-Code-style PascalCase.
 // ---------------------------------------------------------------------------
 
-fn query_opencode_skill_events(
-    db_path: &Path,
-    whitelist: &HashSet<String>,
-) -> Vec<SkillUsageEvent> {
-    let conn = match rusqlite::Connection::open(db_path) {
+fn query_zcode_skill_events(db_path: &Path, whitelist: &HashSet<String>) -> Vec<SkillUsageEvent> {
+    // ZCode may be running and the db is WAL-mode, so open read-only: the
+    // collector must never take write locks. Any failure degrades to empty
+    // usage.
+    let conn = match rusqlite::Connection::open_with_flags(
+        db_path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    ) {
         Ok(c) => c,
         Err(_) => return Vec::new(),
     };
@@ -556,13 +683,13 @@ fn query_opencode_skill_events(
     let mut events = Vec::new();
     let mut seen: HashSet<(String, String)> = HashSet::new();
 
-    // 1. Explicit `skill` tool calls (AI-initiated).
+    // 1. Explicit `Skill` tool calls (AI-initiated).
     if let Ok(mut stmt) = conn.prepare(
-        "SELECT json_extract(data, '$.state.input.name'),
-                json_extract(data, '$.state.time.start'),
+        "SELECT json_extract(data, '$.state.input.skill'),
+                COALESCE(json_extract(data, '$.state.time.start'), time_created),
                 json_extract(data, '$.callID')
          FROM part
-         WHERE json_extract(data, '$.tool') = 'skill'
+         WHERE json_extract(data, '$.tool') = 'Skill'
            AND json_extract(data, '$.state.status') = 'completed'",
     ) {
         let rows = stmt.query_map([], |row| {
@@ -596,17 +723,18 @@ fn query_opencode_skill_events(
         }
     }
 
-    // 2. Slash-command skill injections: SKILL.md content injected as
-    //    a text part in a user message (starts with "# <skill title>").
+    // 2. Slash-command skill invocations typed by the user (ZCode writes no
+    //    command-name markers): user-message text parts starting with
+    //    `/skill-name`.
     if let Ok(mut stmt) = conn.prepare(
         "SELECT m.session_id,
                 json_extract(p.data, '$.text'),
-                p.time_created
+                COALESCE(json_extract(p.data, '$.time.end'), json_extract(p.data, '$.time.start'), p.time_created)
          FROM part p
          JOIN message m ON p.message_id = m.id
          WHERE json_extract(p.data, '$.type') = 'text'
            AND json_extract(m.data, '$.role') = 'user'
-           AND json_extract(p.data, '$.text') LIKE '# %'",
+           AND json_extract(p.data, '$.text') LIKE '/%'",
     ) {
         let rows = stmt.query_map([], |row| {
             let session_id: Option<String> = row.get(0)?;
@@ -619,17 +747,20 @@ fn query_opencode_skill_events(
                 let (Some(session_id), Some(text), Some(ts_ms)) = row else {
                     continue;
                 };
-                let Some(heading) = extract_heading(&text) else {
+                let Some(name) = extract_slash_skill(&text) else {
                     continue;
                 };
-                let Some(name) = match_heading_to_whitelist(&heading, whitelist) else {
+                let Some(normalized) = normalize_skill_name(&name) else {
                     continue;
                 };
-                if !seen.insert((session_id, name.clone())) {
+                if !whitelist.contains(&normalized) {
+                    continue;
+                }
+                if !seen.insert((session_id, normalized.clone())) {
                     continue;
                 }
                 events.push(SkillUsageEvent {
-                    name,
+                    name: normalized,
                     ts_ms,
                     source: SkillUsageSource::User,
                 });
@@ -640,41 +771,18 @@ fn query_opencode_skill_events(
     events
 }
 
-/// Extract the first `# <title>` heading line from SKILL.md content.
-fn extract_heading(text: &str) -> Option<String> {
-    let line = text.lines().next()?;
-    let stripped = line.strip_prefix("# ")?.trim();
-    if stripped.is_empty() {
+/// Extract skill name from a `/skill-name …` first line in a user message.
+fn extract_slash_skill(text: &str) -> Option<String> {
+    let first_line = text.lines().next()?;
+    let rest = first_line.strip_prefix('/')?;
+    let name = rest
+        .chars()
+        .take_while(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
+        .collect::<String>();
+    if name.is_empty() {
         return None;
     }
-    Some(stripped.to_string())
-}
-
-/// Try to match a heading (e.g. "GitHub Research Assistant") to a whitelist
-/// entry (e.g. "github-research-assistant"). Uses kebab-case normalisation.
-fn match_heading_to_whitelist(heading: &str, whitelist: &HashSet<String>) -> Option<String> {
-    let kebab = heading_to_kebab(heading);
-    if whitelist.contains(&kebab) {
-        return Some(kebab);
-    }
-    // Also try without conversion because the heading might already be kebab-case
-    // (e.g. "code-audit" matches directory name exactly).
-    if whitelist.contains(heading) {
-        return Some(heading.to_string());
-    }
-    None
-}
-
-fn heading_to_kebab(heading: &str) -> String {
-    heading
-        .to_lowercase()
-        .chars()
-        .map(|c| if c.is_alphanumeric() { c } else { '-' })
-        .collect::<String>()
-        .split('-')
-        .filter(|s| !s.is_empty())
-        .collect::<Vec<_>>()
-        .join("-")
+    Some(name)
 }
 
 fn parse_assistant_skill_line(value: &serde_json::Value) -> Option<ParsedSkillLine> {
@@ -824,12 +932,13 @@ fn collect_jsonl_files(dir: &Path, files: &mut Vec<PathBuf>) {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_usage, discover_skill_usage_from_home, extract_dollar_skill, extract_heading,
-        heading_to_kebab, match_heading_to_whitelist, normalize_skill_name,
-        parse_claude_skill_line, parse_codex_skill_line, SkillUsageEvent, SkillUsageSource,
+        build_usage, codex_drift_warning, discover_skill_usage_from_home, extract_dollar_skill,
+        extract_slash_skill, normalize_skill_name, parse_claude_skill_line, parse_codex_skill_line,
+        SkillUsageEvent, SkillUsageSource,
     };
     use chrono::{Local, TimeZone};
     use std::collections::HashSet;
+    use std::path::PathBuf;
 
     #[test]
     fn parses_assistant_skill_tool_use() {
@@ -1091,6 +1200,107 @@ mod tests {
     }
 
     #[test]
+    fn parses_codex_custom_tool_call_skill_reads() {
+        // Current rollouts carry shell usage as a custom tool call named
+        // `exec` whose input embeds the command; one command may read
+        // several skill files.
+        let input = "text(ALL_TOOLS.filter(x=>/exec_command/.test(x.name)));\n\
+                     text(await tools.exec_command({cmd:\"cat /Users/alex/.codex/skills/diagnosing-bugs/SKILL.md \
+                     /Users/alex/.codex/skills/coding-philosophy-cce/SKILL.md\"}))";
+        let line = serde_json::json!({
+            "timestamp": "2026-11-04T03:52:29.204Z",
+            "type": "response_item",
+            "payload": {
+                "type": "custom_tool_call",
+                "name": "exec",
+                "call_id": "call_00_31Rr",
+                "input": input
+            }
+        })
+        .to_string();
+        let parsed = parse_codex_skill_line(&line).unwrap();
+        assert_eq!(
+            parsed.skills,
+            vec!["diagnosing-bugs", "coding-philosophy-cce"]
+        );
+        assert_eq!(parsed.source, SkillUsageSource::Agent);
+        assert_eq!(parsed.id, None);
+    }
+
+    #[test]
+    fn codex_parser_ignores_patch_call_mentioning_skill_file() {
+        // A patch-style custom call may legitimately mention a SKILL.md path
+        // inside a diff; it is not usage.
+        let patch = serde_json::json!({
+            "timestamp": "2026-11-04T03:52:29.204Z",
+            "type": "response_item",
+            "payload": {
+                "type": "custom_tool_call",
+                "name": "apply_patch",
+                "input": "*** Begin Patch\n*** Update File: /repo/skills/foo/SKILL.md\n+edited"
+            }
+        })
+        .to_string();
+        assert!(parse_codex_skill_line(&patch).is_none());
+    }
+
+    #[test]
+    fn parses_codex_user_role_message_skill() {
+        let line = serde_json::json!({
+            "timestamp": "2026-11-04T03:52:23.824Z",
+            "type": "response_item",
+            "payload": {
+                "type": "message",
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": "$github-research-assistant 介绍一下当前路径下的仓库"}
+                ]
+            }
+        })
+        .to_string();
+        let parsed = parse_codex_skill_line(&line).unwrap();
+        assert_eq!(parsed.skills, vec!["github-research-assistant"]);
+        assert_eq!(parsed.source, SkillUsageSource::User);
+    }
+
+    #[test]
+    fn codex_mirrored_user_message_counted_once() {
+        // Current rollouts can deliver one user message through both carriers
+        // (legacy event + user-role record); the text fingerprint collapses
+        // the mirror pair.
+        let temp = tempfile::tempdir().unwrap();
+        let session_dir = temp.path().join(".codex/sessions/2026/11/04");
+        std::fs::create_dir_all(&session_dir).unwrap();
+        let legacy = serde_json::json!({
+            "timestamp": "2026-11-04T03:52:23.824Z",
+            "type": "event_msg",
+            "payload": {"type": "user_message", "message": "$code-review 检查最近的提交"}
+        });
+        let mirror = serde_json::json!({
+            "timestamp": "2026-11-04T03:52:23.848Z",
+            "type": "response_item",
+            "payload": {
+                "type": "message",
+                "role": "user",
+                "content": [{"type": "input_text", "text": "$code-review 检查最近的提交"}]
+            }
+        });
+        std::fs::write(
+            session_dir.join("rollout-mirror.jsonl"),
+            format!("{}\n{}", legacy, mirror),
+        )
+        .unwrap();
+        let whitelist = HashSet::from(["code-review".to_string()]);
+        let now = Local.with_ymd_and_hms(2026, 11, 4, 12, 0, 0).unwrap();
+        let usage = discover_skill_usage_from_home("codex", temp.path(), whitelist, 1, now);
+        assert_eq!(
+            usage.total_calls, 1,
+            "a user message mirrored across carriers must count once"
+        );
+        assert_eq!(usage.source_counts.user, 1);
+    }
+
+    #[test]
     fn discovers_codex_dollar_skill_with_whitelist() {
         let temp = tempfile::tempdir().unwrap();
         let session_dir = temp.path().join(".codex/sessions/2026/07/08");
@@ -1137,19 +1347,55 @@ mod tests {
     }
 
     #[test]
-    fn opencode_extracts_skill_events_from_sqlite() {
+    fn codex_drift_warning_fires_only_without_events() {
+        let mentioned = vec![PathBuf::from("/tmp/rollout-a.jsonl")];
+        assert!(codex_drift_warning(&mentioned, &[]).is_some());
+        let events = [SkillUsageEvent {
+            name: "code-review".to_string(),
+            ts_ms: 0,
+            source: SkillUsageSource::Agent,
+        }];
+        assert!(codex_drift_warning(&mentioned, &events).is_none());
+        assert!(codex_drift_warning(&[], &[]).is_none());
+    }
+
+    #[test]
+    fn discovers_codex_prose_mention_without_events() {
+        // A file that mentions SKILL.md in prose but yields no attributable
+        // event exercises the drift-sentinel wiring; the warning itself shows
+        // on stderr under --nocapture.
+        let temp = tempfile::tempdir().unwrap();
+        let session_dir = temp.path().join(".codex/sessions/2026/11/04");
+        std::fs::create_dir_all(&session_dir).unwrap();
+        let prose = serde_json::json!({
+            "timestamp": "2026-11-04T10:00:00Z",
+            "type": "event_msg",
+            "payload": {"type": "user_message", "message": "帮忙看一下 skills/demo/SKILL.md 的写法"}
+        });
+        std::fs::write(session_dir.join("rollout-prose.jsonl"), prose.to_string()).unwrap();
+        let whitelist = HashSet::from(["demo".to_string()]);
+        let now = Local.with_ymd_and_hms(2026, 11, 4, 12, 0, 0).unwrap();
+        let usage = discover_skill_usage_from_home("codex", temp.path(), whitelist, 1, now);
+        assert_eq!(
+            usage.total_calls, 0,
+            "prose mention must not count as usage"
+        );
+    }
+
+    #[test]
+    fn zcode_extracts_skill_events_from_sqlite() {
         let temp = tempfile::tempdir().unwrap();
         let db_path = temp.path().join("test.db");
         let conn = rusqlite::Connection::open(&db_path).unwrap();
         conn.execute_batch(
-            "CREATE TABLE part (data TEXT);
-             INSERT INTO part VALUES ('{\"type\":\"tool\",\"tool\":\"skill\",\"callID\":\"call_1\",\"state\":{\"status\":\"completed\",\"input\":{\"name\":\"code-audit\"},\"time\":{\"start\":1779562587114}}}');
-             INSERT INTO part VALUES ('{\"type\":\"tool\",\"tool\":\"skill\",\"callID\":\"call_2\",\"state\":{\"status\":\"completed\",\"input\":{\"name\":\"code-reviewer\"},\"time\":{\"start\":1779563158835}}}');",
+            "CREATE TABLE part (id INTEGER PRIMARY KEY, message_id TEXT, session_id TEXT, data TEXT, time_created INTEGER);
+             INSERT INTO part (data, time_created) VALUES ('{\"type\":\"tool\",\"tool\":\"Skill\",\"callID\":\"call_1\",\"state\":{\"status\":\"completed\",\"input\":{\"skill\":\"code-audit\"},\"time\":{\"start\":1779562587114}}}', 1779562587000);
+             INSERT INTO part (data, time_created) VALUES ('{\"type\":\"tool\",\"tool\":\"Skill\",\"callID\":\"call_2\",\"state\":{\"status\":\"completed\",\"input\":{\"skill\":\"code-reviewer\"},\"time\":{\"start\":1779563158835}}}', 1779563158000);",
         )
         .unwrap();
 
         let whitelist = HashSet::from(["code-audit".to_string(), "code-reviewer".to_string()]);
-        let events = super::query_opencode_skill_events(&db_path, &whitelist);
+        let events = super::query_zcode_skill_events(&db_path, &whitelist);
         assert_eq!(events.len(), 2);
         assert_eq!(events[0].name, "code-audit");
         assert_eq!(events[0].ts_ms, 1779562587114);
@@ -1157,48 +1403,122 @@ mod tests {
     }
 
     #[test]
-    fn opencode_deduplicates_by_call_id() {
+    fn zcode_falls_back_to_row_time_created() {
         let temp = tempfile::tempdir().unwrap();
         let db_path = temp.path().join("test.db");
         let conn = rusqlite::Connection::open(&db_path).unwrap();
         conn.execute_batch(
-            "CREATE TABLE part (data TEXT);
-             INSERT INTO part VALUES ('{\"type\":\"tool\",\"tool\":\"skill\",\"callID\":\"call_1\",\"state\":{\"status\":\"completed\",\"input\":{\"name\":\"code-audit\"},\"time\":{\"start\":1}}}');
-             INSERT INTO part VALUES ('{\"type\":\"tool\",\"tool\":\"skill\",\"callID\":\"call_1\",\"state\":{\"status\":\"completed\",\"input\":{\"name\":\"code-audit\"},\"time\":{\"start\":2}}}');",
+            "CREATE TABLE part (id INTEGER PRIMARY KEY, message_id TEXT, session_id TEXT, data TEXT, time_created INTEGER);
+             INSERT INTO part (data, time_created) VALUES ('{\"type\":\"tool\",\"tool\":\"Skill\",\"callID\":\"call_1\",\"state\":{\"status\":\"completed\",\"input\":{\"skill\":\"code-audit\"}}}', 1779562587114);",
         )
         .unwrap();
 
         let whitelist = HashSet::from(["code-audit".to_string()]);
-        let events = super::query_opencode_skill_events(&db_path, &whitelist);
+        let events = super::query_zcode_skill_events(&db_path, &whitelist);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].ts_ms, 1779562587114);
+    }
+
+    #[test]
+    fn zcode_deduplicates_by_call_id() {
+        let temp = tempfile::tempdir().unwrap();
+        let db_path = temp.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE part (id INTEGER PRIMARY KEY, message_id TEXT, session_id TEXT, data TEXT, time_created INTEGER);
+             INSERT INTO part (data) VALUES ('{\"type\":\"tool\",\"tool\":\"Skill\",\"callID\":\"call_1\",\"state\":{\"status\":\"completed\",\"input\":{\"skill\":\"code-audit\"},\"time\":{\"start\":1}}}');
+             INSERT INTO part (data) VALUES ('{\"type\":\"tool\",\"tool\":\"Skill\",\"callID\":\"call_1\",\"state\":{\"status\":\"completed\",\"input\":{\"skill\":\"code-audit\"},\"time\":{\"start\":2}}}');",
+        )
+        .unwrap();
+
+        let whitelist = HashSet::from(["code-audit".to_string()]);
+        let events = super::query_zcode_skill_events(&db_path, &whitelist);
         assert_eq!(events.len(), 1, "duplicate callID should be deduped");
     }
 
     #[test]
-    fn opencode_filters_by_whitelist() {
+    fn zcode_filters_by_whitelist() {
         let temp = tempfile::tempdir().unwrap();
         let db_path = temp.path().join("test.db");
         let conn = rusqlite::Connection::open(&db_path).unwrap();
         conn.execute_batch(
-            "CREATE TABLE part (data TEXT);
-             INSERT INTO part VALUES ('{\"type\":\"tool\",\"tool\":\"skill\",\"callID\":\"call_1\",\"state\":{\"status\":\"completed\",\"input\":{\"name\":\"code-audit\"},\"time\":{\"start\":1}}}');
-             INSERT INTO part VALUES ('{\"type\":\"tool\",\"tool\":\"skill\",\"callID\":\"call_2\",\"state\":{\"status\":\"completed\",\"input\":{\"name\":\"other-skill\"},\"time\":{\"start\":2}}}');",
+            "CREATE TABLE part (id INTEGER PRIMARY KEY, message_id TEXT, session_id TEXT, data TEXT, time_created INTEGER);
+             INSERT INTO part (data) VALUES ('{\"type\":\"tool\",\"tool\":\"Skill\",\"callID\":\"call_1\",\"state\":{\"status\":\"completed\",\"input\":{\"skill\":\"code-audit\"},\"time\":{\"start\":1}}}');
+             INSERT INTO part (data) VALUES ('{\"type\":\"tool\",\"tool\":\"Skill\",\"callID\":\"call_2\",\"state\":{\"status\":\"completed\",\"input\":{\"skill\":\"other-skill\"},\"time\":{\"start\":2}}}');",
         )
         .unwrap();
 
         let whitelist = HashSet::from(["code-audit".to_string()]);
-        let events = super::query_opencode_skill_events(&db_path, &whitelist);
+        let events = super::query_zcode_skill_events(&db_path, &whitelist);
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].name, "code-audit");
     }
 
     #[test]
-    fn opencode_handles_missing_db() {
+    fn zcode_handles_missing_db() {
         let whitelist = HashSet::from(["code-audit".to_string()]);
-        let events = super::query_opencode_skill_events(
+        let events = super::query_zcode_skill_events(
             &std::path::PathBuf::from("/nonexistent/db.sqlite"),
             &whitelist,
         );
         assert!(events.is_empty());
+    }
+
+    #[test]
+    fn zcode_records_user_slash_command() {
+        let temp = tempfile::tempdir().unwrap();
+        let db_path = temp.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE part (id INTEGER PRIMARY KEY, message_id TEXT, session_id TEXT, data TEXT, time_created INTEGER);
+             CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT, data TEXT, time_created INTEGER);
+             INSERT INTO message VALUES ('msg_u1', 'ses_a', '{\"role\":\"user\"}', 1000000);
+             INSERT INTO part (id, message_id, session_id, data, time_created) VALUES (1, 'msg_u1', 'ses_a', '{\"type\":\"text\",\"text\":\"/code-review 检查最近的提交\"}', 1000000);",
+        )
+        .unwrap();
+
+        let whitelist = HashSet::from(["code-review".to_string()]);
+        let events = super::query_zcode_skill_events(&db_path, &whitelist);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].name, "code-review");
+        assert_eq!(events[0].source, SkillUsageSource::User);
+    }
+
+    #[test]
+    fn zcode_slash_commands_filter_by_whitelist() {
+        let temp = tempfile::tempdir().unwrap();
+        let db_path = temp.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE part (id INTEGER PRIMARY KEY, message_id TEXT, session_id TEXT, data TEXT, time_created INTEGER);
+             CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT, data TEXT, time_created INTEGER);
+             INSERT INTO message VALUES ('msg_u1', 'ses_a', '{\"role\":\"user\"}', 1000000);
+             INSERT INTO message VALUES ('msg_u2', 'ses_a', '{\"role\":\"user\"}', 1000001);
+             INSERT INTO part (id, message_id, session_id, data, time_created) VALUES (1, 'msg_u1', 'ses_a', '{\"type\":\"text\",\"text\":\"/code-review 检查\"}', 1000000);
+             INSERT INTO part (id, message_id, session_id, data, time_created) VALUES (2, 'msg_u2', 'ses_a', '{\"type\":\"text\",\"text\":\"/nope 不存在的技能\"}', 1000001);",
+        )
+        .unwrap();
+
+        let whitelist = HashSet::from(["code-review".to_string()]);
+        let events = super::query_zcode_skill_events(&db_path, &whitelist);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].name, "code-review");
+    }
+
+    #[test]
+    fn extract_slash_skill_from_first_line() {
+        assert_eq!(
+            extract_slash_skill("/code-review 检查提交"),
+            Some("code-review".to_string())
+        );
+        assert_eq!(
+            extract_slash_skill("/translate\n\n后续内容"),
+            Some("translate".to_string())
+        );
+        assert_eq!(extract_slash_skill("no slash"), None);
+        assert_eq!(extract_slash_skill("/"), None);
+        // Only the first line counts.
+        assert_eq!(extract_slash_skill("先说点别的\n/code-review"), None);
     }
 
     #[test]
@@ -1214,140 +1534,5 @@ mod tests {
         );
         assert_eq!(usage.total_calls, 0);
         assert_eq!(usage.installed_skill_count, 3);
-    }
-
-    #[test]
-    fn extract_heading_from_skill_md_text() {
-        assert_eq!(
-            extract_heading("# GitHub Research Assistant\n\nYou are a professional..."),
-            Some("GitHub Research Assistant".to_string())
-        );
-        assert_eq!(extract_heading("plain text"), None);
-        assert_eq!(extract_heading("# "), None);
-    }
-
-    #[test]
-    fn heading_to_kebab_normalizes_titles() {
-        assert_eq!(
-            heading_to_kebab("GitHub Research Assistant"),
-            "github-research-assistant"
-        );
-        assert_eq!(heading_to_kebab("code-audit"), "code-audit");
-        assert_eq!(
-            heading_to_kebab("Coding Philosophy  (CCE)"),
-            "coding-philosophy-cce"
-        );
-    }
-
-    #[test]
-    fn match_heading_finds_whitelist_entry() {
-        let whitelist: HashSet<String> = ["github-research-assistant", "code-audit"]
-            .into_iter()
-            .map(String::from)
-            .collect();
-        assert_eq!(
-            match_heading_to_whitelist("GitHub Research Assistant", &whitelist),
-            Some("github-research-assistant".to_string())
-        );
-        assert_eq!(
-            match_heading_to_whitelist("code-audit", &whitelist),
-            Some("code-audit".to_string())
-        );
-        assert_eq!(
-            match_heading_to_whitelist("Unknown Skill", &whitelist),
-            None
-        );
-    }
-
-    #[test]
-    fn opencode_detects_injected_skill_from_text_part() {
-        let temp = tempfile::tempdir().unwrap();
-        let db_path = temp.path().join("test.db");
-        let conn = rusqlite::Connection::open(&db_path).unwrap();
-        // Simulate a session with an injected SKILL.md in the user message
-        // plus an explicit skill tool call for a different skill.
-        conn.execute_batch(
-            "CREATE TABLE part (
-                id INTEGER PRIMARY KEY,
-                message_id TEXT,
-                session_id TEXT,
-                data TEXT,
-                time_created INTEGER
-             );
-             CREATE TABLE message (
-                id TEXT PRIMARY KEY,
-                session_id TEXT,
-                data TEXT,
-                time_created INTEGER
-             );
-             CREATE TABLE session (id TEXT PRIMARY KEY);
-             INSERT INTO session VALUES ('ses_a');
-             INSERT INTO message VALUES ('msg_u1', 'ses_a', '{\"role\":\"user\"}', 1000000);
-             INSERT INTO message VALUES ('msg_a1', 'ses_a', '{\"role\":\"assistant\"}', 2000000);
-             -- Injected SKILL.md content in user message
-             INSERT INTO part VALUES (1, 'msg_u1', 'ses_a', '{\"type\":\"text\",\"text\":\"# GitHub Research Assistant\\n\\nYou are a professional GitHub research assistant...\"}', 1000000);
-             -- Explicit skill tool call for code-audit
-             INSERT INTO part VALUES (2, 'msg_a1', 'ses_a', '{\"type\":\"tool\",\"tool\":\"skill\",\"callID\":\"call_1\",\"state\":{\"status\":\"completed\",\"input\":{\"name\":\"code-audit\"},\"time\":{\"start\":2000000}}}', 2000000);",
-        )
-        .unwrap();
-
-        let whitelist: HashSet<String> = ["github-research-assistant", "code-audit"]
-            .into_iter()
-            .map(String::from)
-            .collect();
-        let events = super::query_opencode_skill_events(&db_path, &whitelist);
-        assert_eq!(events.len(), 2);
-        let user_event = events
-            .iter()
-            .find(|event| event.name == "github-research-assistant")
-            .unwrap();
-        let agent_event = events
-            .iter()
-            .find(|event| event.name == "code-audit")
-            .unwrap();
-        assert_eq!(user_event.source, SkillUsageSource::User);
-        assert_eq!(agent_event.source, SkillUsageSource::Agent);
-    }
-
-    #[test]
-    fn opencode_injected_skill_dedup_with_tool_call() {
-        let temp = tempfile::tempdir().unwrap();
-        let db_path = temp.path().join("test.db");
-        let conn = rusqlite::Connection::open(&db_path).unwrap();
-        // Same skill appears as both injected text AND explicit tool call, so it
-        // should be deduplicated.
-        conn.execute_batch(
-            "CREATE TABLE part (
-                id INTEGER PRIMARY KEY,
-                message_id TEXT,
-                session_id TEXT,
-                data TEXT,
-                time_created INTEGER
-             );
-             CREATE TABLE message (
-                id TEXT PRIMARY KEY,
-                session_id TEXT,
-                data TEXT,
-                time_created INTEGER
-             );
-             CREATE TABLE session (id TEXT PRIMARY KEY);
-             INSERT INTO session VALUES ('ses_a');
-             INSERT INTO message VALUES ('msg_u1', 'ses_a', '{\"role\":\"user\"}', 1000000);
-             INSERT INTO message VALUES ('msg_a1', 'ses_a', '{\"role\":\"assistant\"}', 2000000);
-             INSERT INTO part VALUES (1, 'msg_u1', 'ses_a', '{\"type\":\"text\",\"text\":\"# GitHub Research Assistant\\n\\nYou are a professional...\"}', 1000000);
-             INSERT INTO part VALUES (2, 'msg_a1', 'ses_a', '{\"type\":\"tool\",\"tool\":\"skill\",\"callID\":\"call_1\",\"state\":{\"status\":\"completed\",\"input\":{\"name\":\"GitHub Research Assistant\"},\"time\":{\"start\":2000000}}}', 2000000);",
-        )
-        .unwrap();
-
-        let whitelist: HashSet<String> = ["github-research-assistant"]
-            .into_iter()
-            .map(String::from)
-            .collect();
-        let events = super::query_opencode_skill_events(&db_path, &whitelist);
-        assert_eq!(
-            events.len(),
-            1,
-            "same skill in same session should be deduped"
-        );
     }
 }
