@@ -46,3 +46,9 @@ python3 docs/research/translation-corruption/repro.py
 对同一份已捕获的 continue-change 失败首轮响应，新规划只有 1 个修复片段。真实 DeepSeek 单次修复成功，用时约 1.71 秒、411 tokens，无思考内容；原计划 2 片段、708 tokens 却失败。此为同一失败响应的后续修复对照，不是大样本失败率估计。
 
 另重新请求两篇完整文档，update-change 与 continue-change 均首轮正常完成并还原，分别 6,192 和 6,052 tokens，未用修复。记录分别保存在 `fixed-repair.json`、`fixed-live.json`；原始失败响应和错误拼接保留在原同名文件中，没有覆盖历史证据。
+
+## openspec-archive-change 追加调查
+
+提交 `bd9fb76` 后，用户明确报告该 skill 翻译失败。使用 `~/.agents/skills/openspec-archive-change/SKILL.md`（16,570 UTF-8 bytes，113 个保护片段）与精确 `zh-CN` 提示词进行两轮官方 DeepSeek 请求，均首轮正常结束并通过还原，无需修复；耗时约 17.00 和 16.86 秒。随后通过临时 Rust 探针直接调用生产 `llm::stream`、生产保护及还原代码，使用应用当前供应商/模型配置和同样的 HTTP client 设置；首段约 1.20 秒，总计 17.37 秒，首轮还原成功。证据见 `openspec-archive-change.json` 的 `production_sdk`。凭据仅通过内存及子进程标准输入传递，没有存入证据。
+
+这三次成功不能解释用户那次失败，也不能证明不存在间歇错误。目前没有捕获该次失败响应或具体错误码；未据此新增生产修复或放宽校验。运行进程加载的二进制 inode 与磁盘最新版不同，但启动时间不能证明它缺少修复，因此不把旧进程当作已确认根因。
