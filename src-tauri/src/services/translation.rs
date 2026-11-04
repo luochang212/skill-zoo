@@ -107,8 +107,14 @@ struct RepairGap<'a> {
     /// Byte range in the flawed output (kept when not damaged).
     output: (usize, usize),
     damaged: bool,
-    /// Marker ending this gap; the final gap has none.
+    /// Healthy output group ending this gap; the final gap has none.
     anchor: Option<&'a str>,
+}
+
+struct MarkerGroup {
+    input: (usize, usize),
+    output: Option<(usize, usize)>,
+    complete: bool,
 }
 
 /// Re-translation fragments never grow past this size; larger damaged gaps
@@ -230,23 +236,12 @@ impl ProtectedMarkdown {
     pub fn restore(&self, output: &str) -> Result<String, String> {
         let mut output = output.to_string();
         // A source line may change word order, but markers cannot cross other lines or blocks.
-        let mut groups: Vec<(usize, usize)> = Vec::new();
-        let mut previous_source_end = 0;
-        for (token, from, to) in self.markers() {
-            if output.matches(token).count() != 1 {
-                return Err("fidelity".into());
-            }
-            let offset = output.find(token).unwrap();
-            if groups.is_empty() || self.input[previous_source_end..from].contains('\n') {
-                groups.push((offset, offset + token.len()));
-            } else {
-                let group = groups.last_mut().unwrap();
-                group.0 = group.0.min(offset);
-                group.1 = group.1.max(offset + token.len());
-            }
-            previous_source_end = to;
-        }
-        if groups.windows(2).any(|pair| pair[0].1 > pair[1].0) {
+        let groups = self.marker_groups(&output);
+        if groups.iter().any(|group| !group.complete)
+            || groups
+                .windows(2)
+                .any(|pair| pair[0].output.unwrap().1 > pair[1].output.unwrap().0)
+        {
             return Err("fidelity".into());
         }
         let mut translated_fm = None;
@@ -307,48 +302,69 @@ impl ProtectedMarkdown {
         marks
     }
 
-    /// Split the document into gaps bounded by intact markers. A marker is an
-    /// intact anchor when it occurs exactly once and keeps the original order;
-    /// gaps whose source region contains any damaged marker need re-translation.
-    fn repair_gaps<'a>(&'a self, output: &'a str) -> Vec<RepairGap<'a>> {
-        let marks = self.markers();
-        let mut anchors = Vec::new();
-        let mut last_output = 0usize;
-        for (i, (marker, _, _)) in marks.iter().enumerate() {
-            if output.matches(marker).count() == 1 {
-                let pos = output.find(marker).unwrap();
-                if pos >= last_output {
-                    anchors.push(i);
-                    last_output = pos;
-                }
+    /// Include every occurrence so displaced duplicates cannot hide inside a healthy region.
+    fn marker_groups(&self, output: &str) -> Vec<MarkerGroup> {
+        let mut groups: Vec<MarkerGroup> = Vec::new();
+        let mut previous_source_end = 0;
+        for (marker, from, to) in self.markers() {
+            let positions: Vec<_> = output.match_indices(marker).map(|(pos, _)| pos).collect();
+            let range = positions
+                .first()
+                .map(|&first| (first, positions.last().unwrap() + marker.len()));
+            if groups.is_empty() || self.input[previous_source_end..from].contains('\n') {
+                groups.push(MarkerGroup {
+                    input: (from, to),
+                    output: range,
+                    complete: positions.len() == 1,
+                });
+            } else {
+                let group = groups.last_mut().unwrap();
+                group.input.1 = to;
+                group.complete &= positions.len() == 1;
+                group.output = match (group.output, range) {
+                    (Some((a, b)), Some((c, d))) => Some((a.min(c), b.max(d))),
+                    (existing, None) => existing,
+                    (None, current) => current,
+                };
             }
+            previous_source_end = to;
         }
-        let intact = anchors
-            .iter()
-            .copied()
-            .collect::<std::collections::HashSet<_>>();
+        groups
+    }
+
+    /// Repair between whole healthy groups, preserving their translated word order.
+    fn repair_gaps<'a>(&'a self, output: &'a str) -> Vec<RepairGap<'a>> {
+        let groups = self.marker_groups(output);
         let mut gaps = Vec::new();
         let mut in_start = 0usize;
         let mut out_start = 0usize;
-        for &i in &anchors {
-            let (marker, in_from, in_to) = marks[i];
-            let out_from = output.find(marker).unwrap();
-            let damaged = marks.iter().enumerate().any(|(j, (_, from, to))| {
-                !intact.contains(&j) && *from >= in_start && *to <= in_from
-            });
+        for (i, group) in groups.iter().enumerate() {
+            if !group.complete {
+                continue;
+            }
+            let (out_from, out_to) = group.output.unwrap();
+            let crossed = groups[..i]
+                .iter()
+                .any(|g| g.output.is_some_and(|(_, end)| end > out_from))
+                || groups[i + 1..]
+                    .iter()
+                    .any(|g| g.output.is_some_and(|(start, _)| start < out_to));
+            if crossed {
+                continue;
+            }
+            let damaged = groups
+                .iter()
+                .any(|g| g.input.0 >= in_start && g.input.1 <= group.input.0);
             gaps.push(RepairGap {
-                input: (in_start, in_from),
+                input: (in_start, group.input.0),
                 output: (out_start, out_from),
                 damaged,
-                anchor: Some(marker),
+                anchor: Some(&output[out_from..out_to]),
             });
-            in_start = in_to;
-            out_start = out_from + marker.len();
+            in_start = group.input.1;
+            out_start = out_to;
         }
-        let damaged = marks
-            .iter()
-            .enumerate()
-            .any(|(j, (_, from, _))| !intact.contains(&j) && *from >= in_start);
+        let damaged = groups.iter().any(|g| g.input.0 >= in_start);
         gaps.push(RepairGap {
             input: (in_start, self.input.len()),
             output: (out_start, output.len()),
@@ -573,6 +589,69 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn repair_preserves_an_intact_reordered_group_when_frontmatter_is_missing() {
+        let p = ProtectedMarkdown::new(
+            "---\nname: example\ndescription: Example description\n---\nUse `a` with `b` on `c`, then `d`.",
+        );
+        let body = format!(
+            "使用 {}，在 {} 上应用 {}，然后 {}。",
+            p.parts[1].0, p.parts[3].0, p.parts[2].0, p.parts[4].0
+        );
+        let prefix = &p.input[..p.input.find(&p.parts[1].0).unwrap()];
+        let healthy = format!("{prefix}{body}");
+        assert!(p.restore(&healthy).is_ok());
+        assert!(p.repair_plan(&healthy).fragments.is_empty());
+
+        let plan = p.repair_plan(&body);
+        assert_eq!(plan.fragments.len(), 1);
+        // Identity translations isolate our planning/splicing from model randomness.
+        let spliced = p.splice(&body, &plan, &plan.fragments).unwrap();
+        let anchored_body = &body[body.find(&p.parts[1].0).unwrap()..];
+        assert!(
+            spliced.ends_with(anchored_body),
+            "healthy group text changed"
+        );
+        for (token, _) in &p.parts {
+            assert_eq!(spliced.matches(token).count(), 1, "duplicated {token}");
+        }
+        assert!(p.restore(&spliced).is_ok());
+    }
+
+    #[test]
+    fn repair_covers_missing_duplicate_and_displaced_markers() {
+        let p = ProtectedMarkdown::new("First `a` and `b`.\nSecond `c`.\nThird `d`.");
+        let tokens: Vec<_> = p.parts.iter().map(|(token, _)| token).collect();
+        // All four-slot sequences of four markers or a missing marker: 5^4 cases.
+        for case in 0..625 {
+            let mut choices = case;
+            let mut damaged = String::new();
+            for _ in 0..4 {
+                if let Some(token) = tokens.get(choices % 5) {
+                    damaged.push_str(token);
+                }
+                damaged.push_str(" 中文 ");
+                choices /= 5;
+            }
+            let plan = p.repair_plan(&damaged);
+            if p.restore(&damaged).is_ok() {
+                assert!(
+                    plan.fragments.is_empty(),
+                    "healthy sequence {case} was marked damaged"
+                );
+            }
+            let spliced = p.splice(&damaged, &plan, &plan.fragments).unwrap();
+            assert!(
+                p.restore(&spliced).is_ok(),
+                "repair left displaced markers in case {case}"
+            );
+            for token in &tokens {
+                assert_eq!(spliced.matches(token.as_str()).count(), 1, "case {case}");
+            }
+        }
+    }
+
     #[test]
     fn cache_covers_effective_parameters_but_not_identity_or_key() {
         let mut p = Provider {
