@@ -303,6 +303,9 @@ impl ProtectedMarkdown {
     }
 
     /// Include every occurrence so displaced duplicates cannot hide inside a healthy region.
+    /// Accepted blind spot: two tokens swapped within one source line are
+    /// indistinguishable from legitimate reordering and pass through — the
+    /// protected spans then restore in each other's positions.
     fn marker_groups(&self, output: &str) -> Vec<MarkerGroup> {
         let mut groups: Vec<MarkerGroup> = Vec::new();
         let mut previous_source_end = 0;
