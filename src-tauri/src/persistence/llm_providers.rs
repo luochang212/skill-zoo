@@ -17,6 +17,8 @@ pub enum Protocol {
 pub struct Model {
     pub id: String,
     pub enabled: bool,
+    #[serde(default)]
+    pub thinking: bool,
     pub max_output_tokens: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context_window: Option<u32>,
@@ -261,6 +263,7 @@ mod tests {
             base_url: "http://localhost:11434/v1".into(),
             api_key: Some("secret-key".into()),
             models: vec![Model {
+                thinking: false,
                 id: "test".into(),
                 enabled: true,
                 max_output_tokens: None,
@@ -346,6 +349,22 @@ mod tests {
             assert!(upsert(&path, invalid).is_err());
             assert_eq!(std::fs::read(&path).unwrap(), before);
         }
+    }
+
+    #[test]
+    fn thinking_defaults_off_for_old_models_and_persists_an_explicit_choice() {
+        let model: Model = serde_json::from_value(serde_json::json!({
+            "id":"deepseek-flash", "enabled":true, "maxOutputTokens":null
+        }))
+        .unwrap();
+        assert!(!model.thinking);
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("providers.json");
+        let mut draft = update(None);
+        draft.models[0].thinking = true;
+        let summaries = upsert(&path, draft).unwrap();
+        assert!(summaries[0].models[0].thinking);
+        assert!(load(&path).unwrap().providers[0].models[0].thinking);
     }
     #[test]
     fn legacy_headers_are_ignored_and_not_exposed_or_persisted_again() {

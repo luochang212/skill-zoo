@@ -4,6 +4,7 @@ export type LlmProtocol = "anthropic-messages" | "openai-chat-completions" | "op
 export interface LlmModel {
   id: string;
   enabled: boolean;
+  thinking?: boolean;
   maxOutputTokens: number | null;
   contextWindow?: number | null;
 }
@@ -47,6 +48,8 @@ export type TranslationEvent =
   | { type: "repairing"; taskId: string };
 
 export const translationApi = {
+  canToggleThinking: (baseUrl: string, protocol: LlmProtocol, modelId: string) =>
+    invoke<boolean>("can_toggle_model_thinking", { baseUrl, protocol, modelId }),
   providerApiKey: (id: string) => invoke<string>("get_llm_provider_api_key", { id }),
   cached: (request: Omit<TranslationRequest, "taskId" | "force">) =>
     invoke<string | null>("read_cached_translation", { request }),

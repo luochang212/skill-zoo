@@ -834,6 +834,7 @@ export function ProviderEditor({
             mode={editingModel.index === null ? "add" : "edit"}
             model={editingModel.model}
             baseUrl={draft.baseUrl}
+            protocol={draft.protocol}
             otherModelIds={draft.models
               .filter((_, index) => index !== editingModel.index)
               .map((model) => model.id)}

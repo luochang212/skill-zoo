@@ -1,14 +1,26 @@
 import "@/i18n";
-import { act, render, screen } from "@testing-library/react";
+import { act, render as renderUI, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "@/i18n";
 import { toast } from "sonner";
 import { translationApi } from "@/lib/api/translation";
 import { ModelEditorDialog } from "./ModelEditorDialog";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+const render = (element: Parameters<typeof renderUI>[0]) => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return renderUI(element, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
+};
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("@/lib/api/translation", () => ({ translationApi: { resolveModel: vi.fn() } }));
+vi.mock("@/lib/api/translation", () => ({
+  translationApi: { resolveModel: vi.fn(), canToggleThinking: vi.fn() },
+}));
 const deferred = <T,>() => {
   let resolve!: (value: T) => void;
   let reject!: (reason: Error) => void;
@@ -18,9 +30,10 @@ const deferred = <T,>() => {
   });
   return { promise, resolve, reject };
 };
-const model = { id: "model-a", enabled: true, maxOutputTokens: null };
+const model = { id: "model-a", enabled: true, maxOutputTokens: null, thinking: false };
 const props = () => ({
   model,
+  protocol: "openai-chat-completions" as const,
   baseUrl: "https://api.example.test/v1/",
   otherModelIds: ["duplicate"],
   returnFocusRef: { current: null },
@@ -31,6 +44,7 @@ beforeEach(async () => {
   vi.resetAllMocks();
   await i18n.changeLanguage("en");
   vi.mocked(translationApi.resolveModel).mockResolvedValue(null);
+  vi.mocked(translationApi.canToggleThinking).mockResolvedValue(false);
 });
 const user = () => userEvent.setup();
 const tick = () =>
@@ -38,6 +52,59 @@ const tick = () =>
     await new Promise((resolve) => setTimeout(resolve, 420));
   });
 describe("model configuration editor", () => {
+  it("places thinking first, defaults it off and commits only on confirmation", async () => {
+    vi.mocked(translationApi.canToggleThinking).mockResolvedValue(true);
+    const config = props();
+    const input = user();
+    const view = render(<ModelEditorDialog {...config} />);
+    const toggle = screen.getByRole("switch", { name: "Deep thinking" });
+    await waitFor(() => expect(toggle).toBeEnabled());
+    expect(toggle).not.toBeChecked();
+    expect(
+      toggle.compareDocumentPosition(screen.getByLabelText("Model ID")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    await input.click(toggle);
+    expect(config.onConfirm).not.toHaveBeenCalled();
+    await input.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(config.onClose).toHaveBeenCalled();
+    expect(config.onConfirm).not.toHaveBeenCalled();
+    view.unmount();
+
+    render(<ModelEditorDialog {...config} />);
+    await waitFor(() => expect(screen.getByRole("switch")).toBeEnabled());
+    expect(screen.getByRole("switch")).not.toBeChecked();
+    await input.click(screen.getByRole("switch"));
+    await input.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(config.onConfirm).toHaveBeenCalledWith({ ...model, thinking: true });
+  });
+
+  it("keeps unknown and pending models disabled without exposing capability status", async () => {
+    const pending = deferred<boolean>();
+    vi.mocked(translationApi.canToggleThinking).mockReturnValue(pending.promise);
+    const config = props();
+    const view = render(<ModelEditorDialog {...config} />);
+    expect(screen.getByRole("switch")).toBeDisabled();
+    view.rerender(<ModelEditorDialog {...config} baseUrl="https://other.test/v1" />);
+    vi.mocked(translationApi.canToggleThinking).mockResolvedValue(false);
+    await user().type(screen.getByLabelText("Model ID"), "-other");
+    await act(async () => pending.resolve(true));
+    expect(screen.getByRole("switch")).toBeDisabled();
+    expect(screen.getByRole("switch")).not.toBeChecked();
+    expect(screen.queryByText(/unsupported|unknown|checking|capability/i)).not.toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("preserves a saved preference when confirming before capability lookup finishes", async () => {
+    vi.mocked(translationApi.canToggleThinking).mockReturnValue(new Promise(() => {}));
+    const config = props();
+    render(<ModelEditorDialog {...config} model={{ ...model, thinking: true }} />);
+    expect(screen.getByRole("switch")).toBeDisabled();
+    expect(screen.getByRole("switch")).toBeChecked();
+    await user().click(screen.getByRole("button", { name: "Confirm" }));
+    expect(config.onConfirm).toHaveBeenCalledWith({ ...model, thinking: true });
+  });
+
   it("opens with the caret at the end of the model ID without selecting it", async () => {
     render(<ModelEditorDialog {...props()} />);
     const input = screen.getByLabelText("Model ID") as HTMLInputElement;

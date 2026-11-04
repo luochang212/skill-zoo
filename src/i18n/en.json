@@ -688,6 +688,7 @@
     "cacheHint": "Cleared translations will need to be generated again."
   },
   "llm": {
+    "thinking": "Deep thinking",
     "title": "Model management",
     "description": "Connect the model services you use.",
     "add": "Add service",

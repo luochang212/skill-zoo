@@ -8,7 +8,11 @@ import { translationApi, type LlmProvider } from "@/lib/api/translation";
 import { ProviderEditor } from "./ModelProvidersSection";
 
 vi.mock("@/lib/api/translation", () => ({
-  translationApi: { providerApiKey: vi.fn(), testConnection: vi.fn() },
+  translationApi: {
+    canToggleThinking: vi.fn().mockResolvedValue(false),
+    providerApiKey: vi.fn(),
+    testConnection: vi.fn(),
+  },
 }));
 const provider: LlmProvider = {
   id: "provider-a",
@@ -21,6 +25,7 @@ const provider: LlmProvider = {
 };
 beforeEach(async () => {
   vi.resetAllMocks();
+  vi.mocked(translationApi.canToggleThinking).mockResolvedValue(false);
   await i18n.changeLanguage("en");
   vi.mocked(translationApi.providerApiKey).mockResolvedValue("saved-key-16char");
 });

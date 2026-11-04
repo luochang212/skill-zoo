@@ -12,6 +12,7 @@ import { translationApi } from "@/lib/api/translation";
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/api/translation", () => ({
   translationApi: {
+    canToggleThinking: vi.fn().mockResolvedValue(false),
     providers: vi.fn(),
     providerApiKey: vi.fn(),
     preferences: vi.fn(),
@@ -646,7 +647,10 @@ describe("translation settings", () => {
       expect(translationApi.saveProvider).toHaveBeenCalledWith(
         expect.objectContaining({
           apiKey: "new-key",
-          models: [provider.models[0], { id: "new-model", enabled: true, maxOutputTokens: 4096 }],
+          models: [
+            provider.models[0],
+            { id: "new-model", enabled: true, maxOutputTokens: 4096, thinking: false },
+          ],
         }),
       ),
     );
