@@ -20,6 +20,12 @@ fn classify(error: genai::Error) -> String {
     if matches!(
         error,
         genai::Error::ChatResponseGeneration { .. }
+            | genai::Error::ChatResponse { .. }
+            | genai::Error::StreamParse { .. }
+            | genai::Error::NoChatResponse { .. }
+            | genai::Error::InvalidJsonResponseElement { .. }
+            | genai::Error::JsonValueExt(_)
+            | genai::Error::SerdeJson(_)
             | genai::Error::WebModelCall {
                 webc_error: genai::webc::Error::ResponseFailedNotJson { .. }
                     | genai::webc::Error::ResponseFailedInvalidJson { .. },
@@ -28,13 +34,13 @@ fn classify(error: genai::Error) -> String {
     ) {
         return "providerResponse".into();
     }
-    let mut status = error.status();
-    if let genai::Error::WebStream { error: inner, .. } = &error {
+    let status = error.status();
+    if let genai::Error::WebStream { error: inner, .. } = error {
         if inner.is::<genai::webc::StreamTimeout>() {
             return "timeout".into();
         }
-        if let Some(error) = inner.downcast_ref::<genai::Error>() {
-            status = error.status();
+        if let Ok(error) = inner.downcast::<genai::Error>() {
+            return classify(*error);
         }
     }
     match status.map(|s| s.as_u16()) {
@@ -52,18 +58,26 @@ fn target(provider: &Provider, model_id: &str) -> Result<ServiceTarget, String> 
         Protocol::OpenaiChatCompletions => "chat/completions",
         Protocol::OpenaiResponses => "responses",
     };
-    let url = url::Url::parse(&provider.base_url)
-        .map_err(|_| "baseUrl")?
-        .join(suffix)
-        .map_err(|_| "baseUrl")?
-        .to_string();
+    let mut base_url = url::Url::parse(&provider.base_url).map_err(|_| "baseUrl")?;
+    if provider.protocol == Protocol::AnthropicMessages {
+        let path = base_url.path().trim_end_matches('/');
+        // Anthropic-compatible gateways expose Messages below their v1 API root.
+        let path = if path.to_ascii_lowercase().ends_with("/v1") {
+            format!("{path}/")
+        } else {
+            format!("{path}/v1/")
+        };
+        base_url.set_path(&path);
+    }
+    let url = base_url.join(suffix).map_err(|_| "baseUrl")?.to_string();
     let mut headers: Vec<(String, String)> = Vec::new();
     if provider.protocol == Protocol::AnthropicMessages {
         headers.push(("anthropic-version".into(), "2023-06-01".into()));
         if !provider.api_key.is_empty() {
             headers.push(("x-api-key".into(), provider.api_key.clone()));
         }
-    } else if !provider.api_key.is_empty() {
+    }
+    if !provider.api_key.is_empty() {
         headers.push((
             "authorization".into(),
             format!("Bearer {}", provider.api_key),
@@ -73,7 +87,7 @@ fn target(provider: &Provider, model_id: &str) -> Result<ServiceTarget, String> 
     // RequestOverride also permits genuinely anonymous local endpoints.
     Ok(ServiceTarget {
         model: ModelIden::new(adapter(provider.protocol), model_id.to_owned()),
-        endpoint: Endpoint::from_owned(provider.base_url.clone()),
+        endpoint: Endpoint::from_owned(base_url.to_string()),
         auth: AuthData::RequestOverride {
             url,
             headers: headers.into(),
@@ -246,6 +260,7 @@ mod tests {
                 .match_body(mockito::Matcher::PartialJson(expected));
             mock = if protocol == Protocol::AnthropicMessages {
                 mock.match_header("x-api-key", "secret-key")
+                    .match_header("authorization", "Bearer secret-key")
                     .match_header("anthropic-version", "2023-06-01")
             } else {
                 mock.match_header("authorization", "Bearer secret-key")
@@ -260,6 +275,86 @@ mod tests {
             let provider = probe_provider(format!("{}/v1/", server.url()), protocol);
             assert!(
                 test_connection(&provider, "gpt-test").await.is_ok(),
+                "{protocol:?}"
+            );
+            mock.assert_async().await;
+        }
+    }
+
+    #[tokio::test]
+    async fn anthropic_probe_normalizes_gateway_roots_without_changing_config() {
+        for (root, path) in [
+            ("/", "/v1/messages"),
+            ("/anthropic/", "/anthropic/v1/messages"),
+            ("/anthropic/v1/", "/anthropic/v1/messages"),
+            ("/anthropic/v1///", "/anthropic/v1/messages"),
+            ("/anthropic/V1/", "/anthropic/V1/messages"),
+        ] {
+            for key in ["secret-key", ""] {
+                let mut server = mockito::Server::new_async().await;
+                let mut mock = server
+                    .mock("POST", path)
+                    .match_header("anthropic-version", "2023-06-01");
+                mock = if key.is_empty() {
+                    mock.match_header("x-api-key", mockito::Matcher::Missing)
+                        .match_header("authorization", mockito::Matcher::Missing)
+                } else {
+                    mock.match_header("x-api-key", key)
+                        .match_header("authorization", format!("Bearer {key}").as_str())
+                };
+                let mock = mock
+                    .with_status(200)
+                    .with_header("content-type", "application/json")
+                    .with_body(json!({"id":"m1","type":"message","role":"assistant","model":"test","content":[],"stop_reason":"max_tokens","usage":{"input_tokens":1,"output_tokens":1}}).to_string())
+                    .expect(1)
+                    .create_async()
+                    .await;
+                let base_url = format!("{}{root}", server.url());
+                let mut provider = probe_provider(base_url.clone(), Protocol::AnthropicMessages);
+                provider.api_key = key.into();
+                assert!(
+                    test_connection(&provider, "test").await.is_ok(),
+                    "root {root}, anonymous {}",
+                    key.is_empty()
+                );
+                assert_eq!(provider.base_url, base_url);
+                mock.assert_async().await;
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn openai_probes_preserve_custom_roots_and_accept_compact_responses() {
+        for protocol in [Protocol::OpenaiChatCompletions, Protocol::OpenaiResponses] {
+            let mut server = mockito::Server::new_async().await;
+            let (suffix, expected, body) = if protocol == Protocol::OpenaiChatCompletions {
+                (
+                    "chat/completions",
+                    json!({"model":"gpt-5-alias","stream":false,"max_completion_tokens":1}),
+                    json!({"model":"gpt-5-alias","choices":[{"message":{"role":"assistant","content":null,"reasoning_content":"thinking"},"finish_reason":"length"}]}),
+                )
+            } else {
+                (
+                    "responses",
+                    json!({"model":"gpt-5-alias","stream":false,"max_output_tokens":16,"store":false}),
+                    // Compatible backends can omit message.id and text.annotations.
+                    json!({"id":"r1","model":"gpt-5-alias","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"hi"}]}]}),
+                )
+            };
+            let mock = server
+                .mock("POST", format!("/api/custom/v4/{suffix}").as_str())
+                .match_header("authorization", "Bearer secret-key")
+                .match_header("x-api-key", mockito::Matcher::Missing)
+                .match_body(mockito::Matcher::PartialJson(expected))
+                .with_status(200)
+                .with_header("content-type", "application/json")
+                .with_body(body.to_string())
+                .expect(1)
+                .create_async()
+                .await;
+            let provider = probe_provider(format!("{}/api/custom/v4/", server.url()), protocol);
+            assert!(
+                test_connection(&provider, "gpt-5-alias").await.is_ok(),
                 "{protocol:?}"
             );
             mock.assert_async().await;
@@ -330,14 +425,16 @@ mod tests {
     fn frame(event: &str, value: serde_json::Value) -> String {
         format!("event: {event}\ndata: {value}\n\n")
     }
-    async fn check(protocol: Protocol, truncated: bool) {
+    async fn check(protocol: Protocol, truncated: bool, root: &str) {
         let mut server = mockito::Server::new_async().await;
         let (path, body) = match protocol {
             Protocol::OpenaiChatCompletions => (
                 "/v1/chat/completions",
                 format!(
-                    "data: {}\n\ndata: [DONE]\n\n",
-                    json!({"choices":[{"delta":{"content":"译文"},"finish_reason":if truncated {"length"} else {"stop"}}]})
+                    "data: {}\n\ndata: {}\n\ndata: {}\n\ndata: [DONE]\n\n",
+                    json!({"choices":[{"delta":{"reasoning_content":"private reasoning"},"finish_reason":null}]}),
+                    json!({"choices":[{"delta":{"content":"译文"},"finish_reason":if truncated {"length"} else {"stop"}}]}),
+                    json!({"choices":[],"usage":{"prompt_tokens":1,"completion_tokens":2,"total_tokens":3}})
                 ),
             ),
             Protocol::AnthropicMessages => (
@@ -378,11 +475,25 @@ mod tests {
                 ),
             ),
         };
+        let wire_root = if protocol == Protocol::AnthropicMessages && root == "/api/custom/v4" {
+            "/api/custom/v4/v1"
+        } else {
+            root
+        };
+        let path = format!("{wire_root}{}", path.strip_prefix("/v1").unwrap());
         let mut mock = server
-            .mock("POST", path)
+            .mock("POST", path.as_str())
+            .match_body(mockito::Matcher::PartialJson(
+                if protocol == Protocol::OpenaiResponses {
+                    json!({"model":"gpt-test","stream":true,"max_output_tokens":100,"store":false})
+                } else {
+                    json!({"model":"gpt-test","stream":true,"max_tokens":100})
+                },
+            ))
             .match_header("x-custom", mockito::Matcher::Missing);
         mock = if protocol == Protocol::AnthropicMessages {
             mock.match_header("x-api-key", "secret-key")
+                .match_header("authorization", "Bearer secret-key")
                 .match_header("anthropic-version", "2023-06-01")
         } else {
             mock.match_header("authorization", "Bearer secret-key")
@@ -398,7 +509,7 @@ mod tests {
             name: "Test".into(),
             enabled: true,
             protocol,
-            base_url: format!("{}/v1/", server.url()),
+            base_url: format!("{}{root}/", server.url()),
             api_key: "secret-key".into(),
             models: vec![],
         };
@@ -424,41 +535,117 @@ mod tests {
             Protocol::AnthropicMessages,
             Protocol::OpenaiResponses,
         ] {
-            check(protocol, false).await;
-            check(protocol, true).await;
+            for root in ["/v1", "/api/custom/v4"] {
+                check(protocol, false, root).await;
+                check(protocol, true, root).await;
+            }
         }
     }
     #[tokio::test]
     async fn anonymous_auth_and_failures_do_not_expose_server_echoes() {
-        let mut server = mockito::Server::new_async().await;
-        let mock = server
-            .mock("POST", "/v1/chat/completions")
-            .match_header("authorization", mockito::Matcher::Missing)
-            .with_status(401)
-            .with_body("echo secret-key secret-header")
-            .create_async()
-            .await;
-        let provider = Provider {
-            id: "local".into(),
-            name: "Local".into(),
-            enabled: true,
-            protocol: Protocol::OpenaiChatCompletions,
-            base_url: format!("{}/v1/", server.url()),
-            api_key: String::new(),
-            models: vec![],
-        };
-        let model = Model {
-            id: "local".into(),
-            enabled: true,
-            max_output_tokens: None,
-            context_window: None,
-        };
-        assert_eq!(
-            stream(&provider, &model, "Translate", "Hello", |_| Ok(())).await,
-            Err("authentication".into())
-        );
-        mock.assert_async().await;
+        for (protocol, suffix) in [
+            (Protocol::OpenaiChatCompletions, "chat/completions"),
+            (Protocol::AnthropicMessages, "messages"),
+            (Protocol::OpenaiResponses, "responses"),
+        ] {
+            for (status, expected) in [
+                (401, "authentication"),
+                (403, "authentication"),
+                (429, "rateLimit"),
+                (500, "providerResponse"),
+            ] {
+                let mut server = mockito::Server::new_async().await;
+                let mock = server
+                    .mock("POST", format!("/v1/{suffix}").as_str())
+                    .match_header("authorization", mockito::Matcher::Missing)
+                    .match_header("x-api-key", mockito::Matcher::Missing)
+                    .with_status(status)
+                    .with_body("echo secret-key secret-header")
+                    .expect(2)
+                    .create_async()
+                    .await;
+                let mut provider = probe_provider(format!("{}/v1/", server.url()), protocol);
+                provider.api_key.clear();
+                let model = Model {
+                    id: "local".into(),
+                    enabled: true,
+                    max_output_tokens: None,
+                    context_window: None,
+                };
+                assert_eq!(
+                    test_connection(&provider, "local").await,
+                    Err(expected.into())
+                );
+                assert_eq!(
+                    stream(&provider, &model, "Translate", "Hello", |_| Ok(())).await,
+                    Err(expected.into()),
+                    "{protocol:?}, status {status}"
+                );
+                mock.assert_async().await;
+            }
+        }
     }
+    #[tokio::test]
+    async fn provider_stream_errors_are_safe_response_errors_without_retry() {
+        let echo = "echo secret-key private-input";
+        for (protocol, path, body) in [
+            (
+                Protocol::OpenaiChatCompletions,
+                "chat/completions",
+                format!("data: {}\n\n", json!({"error":{"message":echo}})),
+            ),
+            (
+                Protocol::AnthropicMessages,
+                "messages",
+                frame(
+                    "error",
+                    json!({"type":"error","error":{"type":"overloaded_error","message":echo}}),
+                ),
+            ),
+            (
+                Protocol::OpenaiResponses,
+                "responses",
+                frame(
+                    "response.failed",
+                    json!({"type":"response.failed","response":{"id":"r1","model":"test","status":"failed","error":{"message":echo},"output":[]}}),
+                ),
+            ),
+            (
+                Protocol::OpenaiChatCompletions,
+                "chat/completions",
+                format!("data: {echo}\n\n"),
+            ),
+            (
+                Protocol::AnthropicMessages,
+                "messages",
+                format!("event: content_block_start\ndata: {echo}\n\n"),
+            ),
+        ] {
+            let mut server = mockito::Server::new_async().await;
+            let mock = server
+                .mock("POST", format!("/v1/{path}").as_str())
+                .with_status(200)
+                .with_header("content-type", "text/event-stream")
+                .with_body(body)
+                .expect(1)
+                .create_async()
+                .await;
+            let provider = probe_provider(format!("{}/v1/", server.url()), protocol);
+            let model = Model {
+                id: "test".into(),
+                enabled: true,
+                max_output_tokens: Some(100),
+                context_window: None,
+            };
+            assert_eq!(
+                stream(&provider, &model, "Translate", "private-input", |_| Ok(())).await,
+                Err("providerResponse".into()),
+                "{protocol:?}"
+            );
+            mock.assert_async().await;
+        }
+    }
+
     #[tokio::test]
     async fn missing_finish_reason_is_not_a_success() {
         let mut server = mockito::Server::new_async().await;
