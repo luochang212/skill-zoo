@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@tauri-apps/api/core";
-import { domToPng } from "modern-screenshot";
+import { domToPng, type Options } from "modern-screenshot";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import i18n from "@/i18n";
@@ -377,8 +377,8 @@ describe("SkillCompanionSettings", () => {
         ),
       ),
     ).toBeInTheDocument();
-    // The signature row echoes the repo badge on its right edge
-    expect(screen.getByText("luochang212/skill-zoo")).toBeInTheDocument();
+    // Repository branding belongs only in the exported screenshot.
+    expect(screen.getByText("luochang212/skill-zoo")).not.toBeVisible();
     expect(screen.getAllByText("code-review").length).toBeGreaterThan(0);
   });
 
@@ -414,6 +414,15 @@ describe("SkillCompanionSettings", () => {
         filter: expect.any(Function),
       }),
     );
+
+    const cloned = (screenshotTarget as unknown as HTMLElement).cloneNode(true) as HTMLElement;
+    const branding = cloned.querySelector<HTMLElement>("[data-screenshot-only]");
+    expect(branding).not.toBeNull();
+    const [, options] = vi.mocked(domToPng).mock.calls[0] as unknown as [HTMLElement, Options];
+    await options?.onCloneNode?.(cloned);
+    expect(branding?.style.opacity).toBe("1");
+    expect(screen.getByText("luochang212/skill-zoo")).not.toBeVisible();
+    expect(branding?.previousElementSibling).toHaveClass("whitespace-nowrap", "shrink-0");
 
     resolveCapture("data:image/png;base64,abc123");
 

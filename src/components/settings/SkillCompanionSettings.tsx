@@ -349,6 +349,11 @@ function SkillUsageDialog({
         backgroundColor: getComputedStyle(dialog).backgroundColor,
         width: target.scrollWidth,
         height: target.scrollHeight,
+        onCloneNode: (cloned) => {
+          if (!(cloned instanceof HTMLElement)) return;
+          const branding = cloned.querySelector<HTMLElement>("[data-screenshot-only]");
+          if (branding) branding.style.opacity = "1";
+        },
         filter: (node) =>
           !(node instanceof HTMLElement && node.closest("[data-screenshot-exclude]")),
       });
@@ -491,8 +496,13 @@ function SkillUsageDialog({
                 <SkillUsageBars period={period} agentDisplayName={agentDisplayName} />
                 <p className="flex items-center justify-between gap-3 border-t border-border/30 pt-3 text-[11px] leading-5 text-muted-foreground">
                   {/* Intentional non-i18n metadata label for a compact product signature. */}
-                  <span>{`▸ Skill preferences · ${activeSkillCount} skills · ${dateRange.start} ~ ${dateRange.end}`}</span>
-                  <span className="flex shrink-0 items-center gap-1.5">
+                  <span className="shrink-0 whitespace-nowrap">{`▸ Skill preferences · ${activeSkillCount} skills · ${dateRange.start} ~ ${dateRange.end}`}</span>
+                  <span
+                    data-screenshot-only
+                    aria-hidden="true"
+                    style={{ opacity: 0 }}
+                    className="flex shrink-0 items-center gap-1.5 whitespace-nowrap"
+                  >
                     <GithubIcon className="h-3 w-3" />
                     luochang212/skill-zoo
                   </span>
