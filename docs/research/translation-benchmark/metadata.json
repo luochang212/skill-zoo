@@ -1,0 +1,19 @@
+{
+  "date_utc": "2026-11-04T15:18:06.336921+00:00",
+  "commit": "fb397fe384593b1a564b7e978099ed6702630e39",
+  "endpoint": "https://api.deepseek.com/chat/completions",
+  "model": "deepseek-flash",
+  "translation_source_sha256": "425e844eb7c9ed2cc2b4bdedc7fb6ce4874b608ea536af0a97dc82445b6ff671",
+  "language": "Simplified Chinese",
+  "repeats": 2,
+  "thinking_default_budget": 8192,
+  "thinking_full_budget": 32768,
+  "global_concurrency_limit": 3,
+  "chunk_target_characters": 2200,
+  "fixture_bytes": {
+    "short": 605,
+    "medium": 1773,
+    "long": 6913,
+    "code": 6483
+  }
+}

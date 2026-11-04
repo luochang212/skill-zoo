@@ -1,0 +1,8 @@
+{
+  "source": "Put criteria into `### Verification` and risks into `### Trade-offs` under `## Consequences`.",
+  "protected_input": "Put criteria into SZP_15394f_0_END and risks into SZP_15394f_1_END under SZP_15394f_2_END.",
+  "translated_with_intact_markers": "在 SZP_15394f_2_END 下，将验收标准放入 SZP_15394f_0_END，风险放入 SZP_15394f_1_END。",
+  "all_markers_exact_once": true,
+  "production_restore": null,
+  "production_repair_input": "=== FRAGMENT 1 ===\n under SZP_15394f_2_END.\n\n"
+}

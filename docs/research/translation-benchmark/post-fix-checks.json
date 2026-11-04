@@ -1,0 +1,67 @@
+{
+  "translation_source_sha256": "dd6e96ba09aa2ffc6b9b671bd4d1e01755519cb281d59c0f13b6b1ecd1a67c8f",
+  "historical_first_responses_replayed": [
+    {
+      "repeat": 0,
+      "restore_ok": true,
+      "needs_repair": false
+    },
+    {
+      "repeat": 1,
+      "restore_ok": true,
+      "needs_repair": false
+    }
+  ],
+  "new_prompt_non_thinking_live": [
+    {
+      "call": {
+        "text": "SZP_5b1ac7_0_END\nSZDESC_5b1ac7_START\n当提案已经交付并应成为编号的、活跃的决策时使用。\nSZDESC_5b1ac7_END\n\n# ADR Kit 实施\n\n晋升正是让 SZP_5b1ac7_1_END 成为可信权威的原因——它是已交付的指导而非意图——因此后续任务可以依赖它们完整阅读到的内容。\n\n在晋升之前，重新检查 propose 工作流中的记录判断：提案的存在并不证明其价值。如果只剩常规事实，请说明这一点并建议适当的处置方式，而不是自动晋升。尊重用户的明确意图；不要静默删除或拒绝该提案。\n\n确认提案的工作已经交付，而不仅仅是已接受审查。将记录中声称的路径、名称、默认值和机制与当前代码和测试进行比对，并检查活跃记录是否与此选择重叠：完全替代的情况会被晋升，然后在同一变更中用 SZP_5b1ac7_2_END 解决，而部分替代则保留较旧的记录为活跃状态并链接两者。运行 SZP_5b1ac7_3_END 和 SZP_5b1ac7_4_END；解决错误。然后运行 SZP_5b1ac7_5_END。该命令会分配下一个稳定的 ADR 编号，将提案各节改写为已交付的决策，把记录从 SZP_5b1ac7_6_END 移动到 SZP_5b1ac7_7_END，并保留 SZP_5b1ac7_8_END 和 SZP_5b1ac7_9_END。它会把验收标准并入 SZP_5b1ac7_10_END，把风险并入 SZP_5b1ac7_12_END 下的 SZP_5b1ac7_11_END；它会发出警告，因为 CLI 无法改写正文。将这些子节改写为现在时的已交付事实，检查生成的 Decision 和 Consequences 中是否有提案时期的措辞，然后验证编号记录。不要从命令运行器推断这两个来源声明。",
+        "first_text_s": 1.4696762500025216,
+        "readable20_s": 1.606171125000401,
+        "first_reasoning_s": null,
+        "elapsed_s": 3.394270625001809,
+        "usage": {
+          "prompt_tokens": 601,
+          "completion_tokens": 472,
+          "total_tokens": 1073,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "prompt_cache_hit_tokens": 0,
+          "prompt_cache_miss_tokens": 601
+        },
+        "finish": "stop",
+        "reasoning_chars": 0,
+        "first_json_item_s": null,
+        "model": "deepseek-flash"
+      },
+      "restore_ok": true,
+      "needs_repair": false
+    },
+    {
+      "call": {
+        "text": "SZP_5b1ac7_0_END\nSZDESC_5b1ac7_START\n当提案已经交付，并应成为带编号的生效决策时使用。\nSZDESC_5b1ac7_END\n\n# ADR Kit 实施\n\n晋升正是让 SZP_5b1ac7_1_END 成为可信权威的关键——它是已交付的指导，而非意图——因此后续任务可以信赖它们完整读到的内容。\n\n在晋升之前，重新检查 propose 工作流中的记录判断：提案的存在并不证明其价值。如果只剩下常规事实，请说明这一点并建议适当的处置方式，而不是自动晋升。尊重用户的明确意图；不要静默删除或拒绝该提案。\n\n确认提案的工作已经交付，而不仅仅是已接受评审。将记录中声称的路径、名称、默认值和机制与当前代码和测试进行比对，并检查生效记录是否与此选择重叠：完全替换会先晋升，然后在同一变更中用 SZP_5b1ac7_2_END 解决；部分替换则保留较旧记录生效，并链接两者。运行 SZP_5b1ac7_3_END 和 SZP_5b1ac7_4_END；解决错误。然后运行 SZP_5b1ac7_5_END。该命令会分配下一个稳定的 ADR 编号，将提案各节改写为已交付决策，把记录从 SZP_5b1ac7_6_END 移动到 SZP_5b1ac7_7_END，并保留 SZP_5b1ac7_8_END 和 SZP_5b1ac7_9_END。它会把验收标准并入 SZP_5b1ac7_10_END，把风险并入 SZP_5b1ac7_11_END 下的 SZP_5b1ac7_12_END；由于 CLI 无法改写散文，它会发出警告。将这些子节改写为现在时的已交付事实，检查生成的 Decision 和 Consequences 中是否残留提案时期的措辞，然后验证带编号的记录。不要从命令运行器推断这两个来源声明。",
+        "first_text_s": 0.869894415998715,
+        "readable20_s": 1.155423125001107,
+        "first_reasoning_s": null,
+        "elapsed_s": 2.9781466659987927,
+        "usage": {
+          "prompt_tokens": 601,
+          "completion_tokens": 472,
+          "total_tokens": 1073,
+          "prompt_tokens_details": {
+            "cached_tokens": 384
+          },
+          "prompt_cache_hit_tokens": 384,
+          "prompt_cache_miss_tokens": 217
+        },
+        "finish": "stop",
+        "reasoning_chars": 0,
+        "first_json_item_s": null,
+        "model": "deepseek-flash"
+      },
+      "restore_ok": true,
+      "needs_repair": false
+    }
+  ]
+}
