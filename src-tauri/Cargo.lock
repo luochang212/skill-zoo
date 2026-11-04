@@ -4368,6 +4368,7 @@ dependencies = [
  "url",
  "urlencoding",
  "zip 9.0.5",
+ "zstd",
 ]
 
 [[package]]

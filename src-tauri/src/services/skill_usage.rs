@@ -168,6 +168,10 @@ static USAGE_COLLECTORS: &[UsageCollectorEntry] = &[
         agent_id: "zcode",
         collect: collect_zcode_events,
     },
+    UsageCollectorEntry {
+        agent_id: "dsh",
+        collect: collect_dsh_events,
+    },
 ];
 
 // ---------------------------------------------------------------------------
@@ -261,6 +265,40 @@ fn effective_whitelist(
     (effective, count)
 }
 
+/// Shared per-line aggregation: keep one event per (dedup id, normalized
+/// skill name) that survives the whitelist. Returns whether the line mentions
+/// SKILL.md at all, feeding the Codex drift sentinel.
+fn absorb_line(
+    line: &str,
+    parse_line: &impl Fn(&str) -> Option<ParsedSkillLine>,
+    whitelist: &HashSet<String>,
+    seen: &mut HashSet<(String, String)>,
+    events: &mut Vec<SkillUsageEvent>,
+) -> bool {
+    let mentions_skill_file = line.contains("SKILL.md");
+    if let Some(parsed) = parse_line(line) {
+        for raw_skill in parsed.skills {
+            let Some(name) = normalize_skill_name(&raw_skill) else {
+                continue;
+            };
+            if !whitelist.contains(&name) {
+                continue;
+            }
+            if let Some(id) = &parsed.id {
+                if !seen.insert((id.clone(), name.clone())) {
+                    continue;
+                }
+            }
+            events.push(SkillUsageEvent {
+                name,
+                ts_ms: parsed.ts_ms,
+                source: parsed.source,
+            });
+        }
+    }
+    mentions_skill_file
+}
+
 /// Walk the collected session files, parse each line, and keep one
 /// `SkillUsageEvent` per (dedup id, normalized skill name) that survives the
 /// whitelist. Agent-agnostic: the caller supplies the line parser. Also
@@ -291,29 +329,8 @@ fn aggregate_events(
             let Ok(line) = line else {
                 continue;
             };
-            if line.contains("SKILL.md") {
+            if absorb_line(&line, &parse_line, whitelist, &mut seen, &mut events) {
                 mentions_skill_file = true;
-            }
-            let Some(parsed) = parse_line(&line) else {
-                continue;
-            };
-            for raw_skill in parsed.skills {
-                let Some(name) = normalize_skill_name(&raw_skill) else {
-                    continue;
-                };
-                if !whitelist.contains(&name) {
-                    continue;
-                }
-                if let Some(id) = &parsed.id {
-                    if !seen.insert((id.clone(), name.clone())) {
-                        continue;
-                    }
-                }
-                events.push(SkillUsageEvent {
-                    name,
-                    ts_ms: parsed.ts_ms,
-                    source: parsed.source,
-                });
             }
         }
         if mentions_skill_file {
@@ -785,6 +802,119 @@ fn extract_slash_skill(text: &str) -> Option<String> {
     Some(name)
 }
 
+// ---------------------------------------------------------------------------
+// DeepSeek Harness collector. Session logs are Zstandard-compressed JSONL;
+// decompress per file and scan lines for the skill-content injection marker.
+// ---------------------------------------------------------------------------
+
+fn collect_dsh_events(
+    home: &Path,
+    whitelist: HashSet<String>,
+    installed_skill_count: usize,
+) -> (Vec<SkillUsageEvent>, usize) {
+    let (whitelist, count) = effective_whitelist(home, "dsh", whitelist, installed_skill_count);
+    let mut files = Vec::new();
+    collect_dsh_session_files(&home.join(".dsh").join("sessions"), &mut files);
+    let mut events = Vec::new();
+    let mut seen = HashSet::new();
+    // Mirrors `aggregate_events`' file loop. The line-error policy differs on
+    // purpose: decompressor errors are persistent, so this loop breaks the
+    // file where `aggregate_events` continues (recoverable UTF-8 skips).
+    for path in &files {
+        let Some(reader) = open_session_reader(path) else {
+            continue;
+        };
+        for line in reader.lines() {
+            // A stream error from a decompressor is persistent: retrying it
+            // would loop forever, so stop this file on the first failure.
+            let Ok(line) = line else {
+                break;
+            };
+            absorb_line(
+                &line,
+                &parse_dsh_skill_line,
+                &whitelist,
+                &mut seen,
+                &mut events,
+            );
+        }
+    }
+    (events, count)
+}
+
+/// DeepSeek Harness stores one log per session under
+/// `sessions/<project>/<session>/`, with the format version in the filename
+/// (`session.v4.jsonl.zstd`) and two observed nesting layouts. The version
+/// only matters to full-fidelity consumers: the line scan reads
+/// self-describing records, so any `session*.jsonl` / `session*.jsonl.zstd`
+/// is collected regardless of nesting.
+fn collect_dsh_session_files(dir: &Path, files: &mut Vec<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_dsh_session_files(&path, files);
+        } else if is_dsh_session_file(&path) {
+            files.push(path);
+        }
+    }
+}
+
+fn is_dsh_session_file(path: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+        return false;
+    };
+    name.starts_with("session") && (name.ends_with(".jsonl") || name.ends_with(".jsonl.zstd"))
+}
+
+/// Open a session file as a line stream, decompressing Zstandard files on the
+/// fly. Multiframe files (one frame per durable append batch) are read to the
+/// end. Errors surface as per-line failures, so a corrupt file simply
+/// contributes no lines.
+fn open_session_reader(path: &Path) -> Option<Box<dyn std::io::BufRead>> {
+    let file = std::fs::File::open(path).ok()?;
+    if path.extension().and_then(|ext| ext.to_str()) == Some("zstd") {
+        let decoder = zstd::stream::Decoder::new(file).ok()?;
+        Some(Box::new(std::io::BufReader::new(decoder)))
+    } else {
+        Some(Box::new(std::io::BufReader::new(file)))
+    }
+}
+
+/// A skill load is recorded as a user message whose text starts with the
+/// injected `<skill_content name="…">` block; the name is the skill. Skill
+/// catalogs (`<available_skills>`), assistant prose, and the paired
+/// `tool/ptc-dispatch` records do not match the marker or the record type and
+/// are ignored, so each load counts exactly once.
+fn parse_dsh_skill_line(line: &str) -> Option<ParsedSkillLine> {
+    let value: serde_json::Value = serde_json::from_str(line).ok()?;
+    if value.get("type")?.as_str()? != "user/message" {
+        return None;
+    }
+    let ts_ms = value.get("time")?.as_i64()?;
+    let text = value
+        .get("data")?
+        .get("content")?
+        .as_array()?
+        .iter()
+        .filter_map(|block| block.get("text").and_then(|text| text.as_str()))
+        .next()?;
+    let rest = text.trim_start().strip_prefix("<skill_content name=\"")?;
+    let end = rest.find('"')?;
+    let name = &rest[..end];
+    if name.is_empty() {
+        return None;
+    }
+    Some(ParsedSkillLine {
+        id: None,
+        ts_ms,
+        source: SkillUsageSource::Agent,
+        skills: vec![name.to_string()],
+    })
+}
+
 fn parse_assistant_skill_line(value: &serde_json::Value) -> Option<ParsedSkillLine> {
     let ts_ms = timestamp_ms(value)?;
     let message = value.get("message")?;
@@ -934,7 +1064,7 @@ mod tests {
     use super::{
         build_usage, codex_drift_warning, discover_skill_usage_from_home, extract_dollar_skill,
         extract_slash_skill, normalize_skill_name, parse_claude_skill_line, parse_codex_skill_line,
-        SkillUsageEvent, SkillUsageSource,
+        parse_dsh_skill_line, SkillUsageEvent, SkillUsageSource,
     };
     use chrono::{Local, TimeZone};
     use std::collections::HashSet;
@@ -1534,5 +1664,87 @@ mod tests {
         );
         assert_eq!(usage.total_calls, 0);
         assert_eq!(usage.installed_skill_count, 3);
+    }
+
+    #[test]
+    fn parses_dsh_skill_content_injection() {
+        let line = r#"{"type":"user/message","seq":1391,"time":1793587682323,"data":{"content":[{"type":"text","text":"<skill_content name=\"worth-fix\">\n<skill_resources>\nBase directory for this skill: /Users/alex/.dsh/skills/worth-fix\n</skill_resources>"}]}}"#;
+        let parsed = parse_dsh_skill_line(line).unwrap();
+        assert_eq!(parsed.skills, vec!["worth-fix"]);
+        assert_eq!(parsed.source, SkillUsageSource::Agent);
+        assert_eq!(parsed.id, None);
+        assert_eq!(parsed.ts_ms, 1793587682323);
+    }
+
+    #[test]
+    fn dsh_parser_ignores_catalogs_mentions_and_dispatch() {
+        let catalog = r#"{"type":"user/message","time":1793628658929,"data":{"content":[{"type":"text","text":"<system-reminder>\nA skill is a reusable set of task-specific instructions.\n\n<available_skills>\n- `worth-fix`: 评估要不要修\n</available_skills>"}]}}"#;
+        assert!(parse_dsh_skill_line(catalog).is_none());
+
+        let mention = r#"{"type":"assistant/message","time":1793628658930,"data":{"content":[{"type":"text","text":"我先看看 <skill_content name=\"worth-fix\"> 的内容"}]}}"#;
+        assert!(parse_dsh_skill_line(mention).is_none());
+
+        let dispatch = r#"{"type":"tool/ptc-dispatch","time":1793628658931,"data":{"name":"skill","arguments":{},"content":"<skill_content name=\"worth-fix\">"}}"#;
+        assert!(parse_dsh_skill_line(dispatch).is_none());
+    }
+
+    #[test]
+    fn discovers_dsh_logs_across_layouts_and_encodings() {
+        let temp = tempfile::tempdir().unwrap();
+        let injection = |name: &str, time: i64| {
+            serde_json::json!({
+                "type": "user/message",
+                "time": time,
+                "data": {"content": [{"type": "text", "text": format!("<skill_content name=\"{name}\">\nbody")}]}
+            })
+            .to_string()
+                + "\n"
+        };
+        // Layout 1: file directly in the session dir, current version.
+        let direct = temp.path().join(
+            ".dsh/sessions/--tmp-proj--/11111111-1111-1111-1111-111111111111/session.v4.jsonl.zstd",
+        );
+        std::fs::create_dir_all(direct.parent().unwrap()).unwrap();
+        std::fs::write(
+            &direct,
+            zstd::stream::encode_all(injection("worth-fix", 1).as_bytes(), 3).unwrap(),
+        )
+        .unwrap();
+        // Layout 2: nested one level deeper, older version filename, and a
+        // multiframe file (two independently compressed frames concatenated).
+        let nested = temp.path().join(
+            ".dsh/sessions/--tmp-proj--/22222222-2222-2222-2222-222222222222/session-22222222-2222-2222-2222-222222222222/session.v3.jsonl.zstd",
+        );
+        std::fs::create_dir_all(nested.parent().unwrap()).unwrap();
+        let mut multiframe =
+            zstd::stream::encode_all(injection("demo-a", 2).as_bytes(), 3).unwrap();
+        multiframe.extend(zstd::stream::encode_all(injection("demo-b", 3).as_bytes(), 3).unwrap());
+        std::fs::write(&nested, multiframe).unwrap();
+        // Uncompressed fallback still parses.
+        let plain = temp
+            .path()
+            .join(".dsh/sessions/--tmp-proj--/33333333-3333-3333-3333-333333333333/session.jsonl");
+        std::fs::create_dir_all(plain.parent().unwrap()).unwrap();
+        std::fs::write(&plain, injection("worth-fix", 4)).unwrap();
+        // A corrupt compressed file must be skipped, not fatal.
+        let corrupt = temp.path().join(
+            ".dsh/sessions/--tmp-proj--/44444444-4444-4444-4444-444444444444/session.v4.jsonl.zstd",
+        );
+        std::fs::create_dir_all(corrupt.parent().unwrap()).unwrap();
+        std::fs::write(&corrupt, b"not zstd").unwrap();
+
+        let whitelist = HashSet::from([
+            "worth-fix".to_string(),
+            "demo-a".to_string(),
+            "demo-b".to_string(),
+        ]);
+        let now = Local.with_ymd_and_hms(2026, 11, 4, 12, 0, 0).unwrap();
+        let usage = discover_skill_usage_from_home("dsh", temp.path(), whitelist, 1, now);
+        assert_eq!(
+            usage.total_calls, 4,
+            "both layouts, multiframe and uncompressed files all count"
+        );
+        assert_eq!(usage.source_counts.agent, 4);
+        assert_eq!(usage.recent[0].name, "worth-fix");
     }
 }
