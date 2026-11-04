@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.1] — 2026-11-05
+
+### Added
+- Skill usage statistics now include ZCode and DeepSeek Harness, with Codex selected by default. Exported usage screenshots include a GitHub repository signature.
+- Model editing offers a thinking switch for supported endpoint/model combinations, with thinking disabled by default for translation.
+
+### Changed
+- Existing model provider edits save automatically, and model metadata resolution handles gateway and manufacturer fallbacks.
+
+### Fixed
+- Translation accepts legitimate inline marker reordering and repairs damaged regions using intact marker groups, avoiding duplicate markers when a targeted repair is spliced into the document.
+- LLM requests follow each protocol’s endpoint conventions and classify stream failures consistently.
+- Usage collectors handle Codex format changes. Screenshot footers stay on one line, while repository branding appears only in exported screenshots.
+- Model ID editing places the caret at the end, and skill editor caret sizing is corrected.
+
 ## [0.4.0] — 2026-11-04
 
 ### Added
