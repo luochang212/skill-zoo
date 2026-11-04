@@ -208,8 +208,6 @@ export function AgentPathsSettings() {
         </div>
       </div>
 
-      <p className="text-[11px] text-muted-foreground/70">{t("settings.agentPaths.hiddenHint")}</p>
-
       <AgentManagerDialog
         open={managerOpen}
         onOpenChange={setManagerOpen}

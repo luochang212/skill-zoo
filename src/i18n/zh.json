@@ -522,7 +522,6 @@
       "openAgent": "打开 {{agent}} 技能目录",
       "created": "已创建",
       "notFound": "未创建",
-      "hiddenHint": "隐藏的编程工具不会在技能配置中显示，也不会创建符号链接。",
       "minOneWarning": "至少需要保留一个可见的编程工具。",
       "maxVisibleWarning": "最多可开启 7 个编程工具。",
       "visible": "可见",

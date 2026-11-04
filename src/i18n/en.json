@@ -522,7 +522,6 @@
       "openAgent": "Open {{agent}} skills folder",
       "created": "Created",
       "notFound": "Not found",
-      "hiddenHint": "Hidden coding agents won't appear in skill configuration or receive symlinked skills.",
       "minOneWarning": "At least one coding agent must remain visible.",
       "maxVisibleWarning": "At most 7 coding agents can be visible.",
       "visible": "Visible",

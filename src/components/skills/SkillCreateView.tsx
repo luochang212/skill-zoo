@@ -129,7 +129,7 @@ export function SkillCreateView({ onClose, onCreated }: SkillCreateViewProps) {
             onChange={(event) => setContent(event.target.value)}
             placeholder={t("createSkill.contentPlaceholder")}
             rows={12}
-            className="mt-5 block min-h-[40vh] w-full resize-none overflow-hidden border-0 bg-transparent p-0 text-sm leading-7 placeholder:text-muted-foreground/60 focus:outline-none"
+            className="mt-5 block min-h-[40vh] w-full resize-none overflow-hidden border-0 bg-transparent p-0 text-sm leading-normal placeholder:text-muted-foreground/60 focus:outline-none"
             disabled={createMutation.isPending}
           />
         </div>
