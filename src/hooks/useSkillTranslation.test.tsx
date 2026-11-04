@@ -209,6 +209,21 @@ describe("manual translation lifecycle", () => {
     expect(toast.dismiss).toHaveBeenCalledWith(`repair-${id}`);
     expect(hook.result.current.text).toBe("fixed");
   });
+  it("dismisses the repair toast when the identity changes mid-repair", async () => {
+    const hook = renderHook((value: typeof input) => useSkillTranslation(value), {
+      initialProps: input,
+    });
+    act(() => {
+      void hook.result.current.translate();
+    });
+    await waitFor(() => expect(send).toBeDefined());
+    act(() => send({ type: "repairing", taskId: id }));
+    expect(toast.info).toHaveBeenCalled();
+    // Leaving the document cancels the task; its toast must not outlive it.
+    act(() => hook.rerender({ ...input, path: "other.md" }));
+    expect(toast.dismiss).toHaveBeenCalledWith(`repair-${id}`);
+    expect(translationApi.cancel).toHaveBeenCalledWith(id);
+  });
   it("cancels registration that finishes after unmount", async () => {
     let registered!: () => void;
     vi.mocked(translationApi.start).mockImplementation(

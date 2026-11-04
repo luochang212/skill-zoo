@@ -42,7 +42,12 @@ export function useSkillTranslation(
   const cancelTask = useCallback(() => {
     const current = task.current;
     task.current = null;
-    if (current) void translationApi.cancel(current.id).catch(() => {});
+    if (current) {
+      void translationApi.cancel(current.id).catch(() => {});
+      // The repair toast belongs to the task; every cancellation path —
+      // explicit cancel, retranslate, identity change — retires it with the task.
+      toast.dismiss(`repair-${current.id}`);
+    }
     return current;
   }, []);
   useLayoutEffect(() => {
@@ -87,7 +92,6 @@ export function useSkillTranslation(
   const cancel = useCallback(() => {
     const current = cancelTask();
     if (current) {
-      toast.dismiss(`repair-${current.id}`);
       setView((v) => ({
         ...v,
         status: "cancelled",

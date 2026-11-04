@@ -494,29 +494,30 @@ async fn run_translation(
                 Err(code) if code == "fidelity" => {
                     // One diagnostic-guided repair: re-translate only the
                     // fragments that lost markers, splice between the intact
-                    // markers, and re-validate the whole document.
+                    // markers, and re-validate the whole document. Nothing is
+                    // announced when no fragment qualifies for repair.
+                    let plan = protected.repair_plan(&raw);
+                    if plan.fragments.is_empty() {
+                        return Err("fidelity".into());
+                    }
                     let _ = emit(TranslationEvent::Repairing {
                         task_id: request.task_id.clone(),
                     });
-                    let plan = protected.repair_plan(&raw);
-                    if plan.is_empty() {
-                        return Err("fidelity".into());
-                    }
                     let repaired = tokio::time::timeout(
                         std::time::Duration::from_secs(180),
                         llm::stream(
                             &provider,
                             model,
                             &translation::repair_system_prompt(&request.target_language),
-                            &translation::repair_input(&plan),
+                            &translation::repair_input(&plan.fragments),
                             |_raw| Ok(()),
                         ),
                     )
                     .await
                     .map_err(|_| "timeout")??;
-                    let pieces =
-                        translation::parse_translations(&repaired, plan.len()).ok_or("fidelity")?;
-                    let spliced = protected.splice(&raw, &pieces)?;
+                    let pieces = translation::parse_translations(&repaired, plan.fragments.len())
+                        .ok_or("fidelity")?;
+                    let spliced = protected.splice(&raw, &plan, &pieces)?;
                     protected.restore(&spliced)?
                 }
                 Err(code) => return Err(code),
@@ -660,6 +661,98 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(root.join("translations").join(format!("{key}.md"))).unwrap(),
             completed
+        );
+    }
+    #[tokio::test]
+    async fn empty_description_value_fails_fidelity_without_a_repair_round() {
+        let mut server = mockito::Server::new_async().await;
+        let dir = tempfile::tempdir().unwrap();
+        let skill = dir.path().join("skill");
+        std::fs::create_dir_all(&skill).unwrap();
+        let source = "---\nname: demo\ndescription: |\n  English description\n---\n# Hello\n\n```sh\nrm file\n```\n";
+        std::fs::write(skill.join("guide.md"), source).unwrap();
+        let app = app_for(&skill);
+        let state = TranslationState::default();
+        let root = dir.path().join("app");
+        let config_path = root.join("llm_providers.json");
+        use crate::persistence::llm_providers::{Model, Protocol, ProviderUpdate};
+        let summaries = config::upsert(
+            &config_path,
+            ProviderUpdate {
+                id: None,
+                name: "Test".into(),
+                enabled: true,
+                protocol: Protocol::OpenaiChatCompletions,
+                base_url: format!("{}/v1/", server.url()),
+                api_key: None,
+                models: vec![Model {
+                    id: "test".into(),
+                    enabled: true,
+                    max_output_tokens: None,
+                    context_window: None,
+                }],
+            },
+        )
+        .unwrap();
+        // Every marker stays intact but the description value is emptied:
+        // restore fails with an empty repair plan, so no repair may start and
+        // the Repairing announcement must not precede that check.
+        let flawed = translation::ProtectedMarkdown::new(source)
+            .input
+            .replace("English description", "")
+            .replace("# Hello", "# 你好");
+        let sse = |content: &str| {
+            format!(
+                "data: {}\n\ndata: [DONE]\n\n",
+                serde_json::json!({"choices":[{"delta":{"content":content},"finish_reason":"stop"}]})
+            )
+        };
+        // expect(1): a repair round would hit this catch-all mock a second time.
+        let translate_mock = server
+            .mock("POST", "/v1/chat/completions")
+            .with_status(200)
+            .with_header("content-type", "text/event-stream")
+            .with_body(sse(&flawed))
+            .expect(1)
+            .create_async()
+            .await;
+        let request = TranslationRequest {
+            task_id: "repair-empty-plan".into(),
+            skill_id: "plugin:test".into(),
+            path: "guide.md".into(),
+            source: source.into(),
+            provider_id: summaries[0].id.clone(),
+            model_id: "test".into(),
+            target_language: "zh-CN".into(),
+            force: false,
+        };
+        state.start(request.task_id.clone()).unwrap();
+        let events = std::sync::Mutex::new(Vec::new());
+        run_translation(&app, &state, request, &root, |event| {
+            events.lock().unwrap().push(event);
+            Ok(())
+        })
+        .await
+        .unwrap();
+        let events = events.into_inner().unwrap();
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, TranslationEvent::Repairing { .. })),
+            "no repair may be announced without a repair plan, got {events:?}"
+        );
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, TranslationEvent::Failed { code, .. } if code == "fidelity")),
+            "expected a fidelity failure, got {events:?}"
+        );
+        translate_mock.assert_async().await;
+        let provider = config::load(&config_path).unwrap().providers.remove(0);
+        let key = translation::cache_key(&provider, &provider.models[0], "zh-CN", source);
+        assert!(
+            !root.join("translations").join(format!("{key}.md")).exists(),
+            "a failed translation must not populate the cache"
         );
     }
     #[test]

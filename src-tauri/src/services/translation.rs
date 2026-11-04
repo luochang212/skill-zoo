@@ -110,6 +110,36 @@ struct RepairGap<'a> {
     anchor: Option<&'a str>,
 }
 
+/// Re-translation fragments never grow past this size; larger damaged gaps
+/// are packed at paragraph boundaries, which can never cut through a marker
+/// (markers are single-line and fences arrive as atomic tokens).
+const REPAIR_FRAGMENT_MAX: usize = 4096;
+
+/// A damaged-gap repair plan: the numbered fragments sent to the model and
+/// how many of them belong to each damaged gap, for deterministic splicing.
+pub struct RepairPlan {
+    pub fragments: Vec<String>,
+    pub pieces_per_gap: Vec<usize>,
+}
+
+fn split_fragment(region: &str) -> Vec<String> {
+    if region.len() <= REPAIR_FRAGMENT_MAX {
+        return vec![region.to_string()];
+    }
+    let mut fragments = Vec::new();
+    let mut current = String::new();
+    for paragraph in region.split_inclusive("\n\n") {
+        if !current.is_empty() && current.len() + paragraph.len() > REPAIR_FRAGMENT_MAX {
+            fragments.push(std::mem::take(&mut current));
+        }
+        current.push_str(paragraph);
+    }
+    if !current.is_empty() {
+        fragments.push(current);
+    }
+    fragments
+}
+
 impl ProtectedMarkdown {
     pub fn new(source: &str) -> Self {
         let nonce = token_suffix(source);
@@ -322,33 +352,52 @@ impl ProtectedMarkdown {
     }
 
     /// Source fragments whose re-translation is required to repair the damage.
-    pub fn repair_plan(&self, output: &str) -> Vec<String> {
-        self.repair_gaps(output)
-            .into_iter()
-            .filter(|gap| gap.damaged)
-            .map(|gap| self.input[gap.input.0..gap.input.1].to_string())
-            .collect()
+    /// Long gaps are subdivided at paragraph boundaries so the re-translation
+    /// unit is the smaller of the anchor gap and a paragraph-sized block.
+    pub fn repair_plan(&self, output: &str) -> RepairPlan {
+        let mut fragments = Vec::new();
+        let mut pieces_per_gap = Vec::new();
+        for gap in self.repair_gaps(output).into_iter().filter(|g| g.damaged) {
+            let split = split_fragment(&self.input[gap.input.0..gap.input.1]);
+            pieces_per_gap.push(split.len());
+            fragments.extend(split);
+        }
+        RepairPlan {
+            fragments,
+            pieces_per_gap,
+        }
     }
 
     /// Rebuild the translation: healthy gaps are kept byte-for-byte, damaged
-    /// gaps are replaced by their re-translated fragments in order.
-    pub fn splice(&self, output: &str, translated: &[String]) -> Result<String, String> {
-        let gaps = self.repair_gaps(output);
-        let damaged = gaps.iter().filter(|gap| gap.damaged).count();
-        if damaged != translated.len() {
+    /// gaps are replaced by their re-translated fragments, joined in order.
+    pub fn splice(
+        &self,
+        output: &str,
+        plan: &RepairPlan,
+        translated: &[String],
+    ) -> Result<String, String> {
+        if translated.len() != plan.fragments.len() {
             return Err("fidelity".into());
         }
+        let gaps = self.repair_gaps(output);
         let mut pieces = translated.iter();
+        let mut counts = plan.pieces_per_gap.iter();
         let mut result = String::new();
         for gap in &gaps {
             if gap.damaged {
-                result.push_str(pieces.next().unwrap());
+                let count = *counts.next().ok_or("fidelity")?;
+                for _ in 0..count {
+                    result.push_str(pieces.next().ok_or("fidelity")?);
+                }
             } else {
                 result.push_str(&output[gap.output.0..gap.output.1]);
             }
             if let Some(anchor) = gap.anchor {
                 result.push_str(anchor);
             }
+        }
+        if pieces.next().is_some() || counts.next().is_some() {
+            return Err("fidelity".into());
         }
         Ok(result)
     }
@@ -532,15 +581,18 @@ mod tests {
         let p = ProtectedMarkdown::new(source);
         assert!(p.parts.len() >= 3);
         let healthy = p.input.replace("# Hello", "# 你好").replace("Keep", "保留");
-        assert!(p.repair_plan(&healthy).is_empty());
+        assert!(p.repair_plan(&healthy).fragments.is_empty());
         // A missing fence token limits repair to its own region.
         let missing = healthy.replacen(&p.parts[0].0, "", 1);
         let plan = p.repair_plan(&missing);
-        assert_eq!(plan.len(), 1);
-        assert!(plan[0].contains(&p.parts[0].0));
-        assert!(!plan[0].contains(&p.parts[p.parts.len() - 1].0));
-        let piece = plan[0].replace("# Hello", "# 你好").replace("Keep", "保留");
-        let spliced = p.splice(&missing, &[piece]).unwrap();
+        assert_eq!(plan.fragments.len(), 1);
+        assert_eq!(plan.pieces_per_gap, vec![1]);
+        assert!(plan.fragments[0].contains(&p.parts[0].0));
+        assert!(!plan.fragments[0].contains(&p.parts[p.parts.len() - 1].0));
+        let piece = plan.fragments[0]
+            .replace("# Hello", "# 你好")
+            .replace("Keep", "保留");
+        let spliced = p.splice(&missing, &plan, &[piece]).unwrap();
         assert_eq!(p.restore(&spliced).unwrap(), p.restore(&healthy).unwrap());
         // A duplicated inline token is repaired the same way.
         let inline = &p
@@ -551,13 +603,53 @@ mod tests {
             .0;
         let duplicated = healthy.replacen(inline, &format!("{inline}{inline}"), 1);
         let plan = p.repair_plan(&duplicated);
-        assert_eq!(plan.len(), 1);
-        let piece = plan[0].replace("# Hello", "# 你好").replace("Keep", "保留");
-        let spliced = p.splice(&duplicated, &[piece]).unwrap();
+        assert_eq!(plan.fragments.len(), 1);
+        let piece = plan.fragments[0]
+            .replace("# Hello", "# 你好")
+            .replace("Keep", "保留");
+        let spliced = p.splice(&duplicated, &plan, &[piece]).unwrap();
         assert_eq!(p.restore(&spliced).unwrap(), p.restore(&healthy).unwrap());
         // Wrong piece counts are rejected instead of guessing.
-        assert!(p.splice(&missing, &[]).is_err());
-        assert!(p.splice(&missing, &["x".into(), "y".into()]).is_err());
+        assert!(p.splice(&missing, &plan, &[]).is_err());
+        assert!(p
+            .splice(&missing, &plan, &["x".into(), "y".into()])
+            .is_err());
+    }
+    #[test]
+    fn long_damaged_regions_split_at_paragraph_boundaries_into_bounded_fragments() {
+        let paragraph = "这段散文用于撑大损坏区间，验证按段落边界的细分逻辑。\n\n";
+        let source = format!(
+            "# Hello\n\n```sh\nrm file\n```\n\n{}done `x` end\n",
+            paragraph.repeat(60)
+        );
+        let p = ProtectedMarkdown::new(source.as_str());
+        let healthy = p.input.replace("# Hello", "# 你好");
+        let missing = healthy.replacen(&p.parts[0].0, "", 1);
+        let plan = p.repair_plan(&missing);
+        assert!(plan.fragments.len() > 1, "expected paragraph subdivision");
+        assert_eq!(plan.pieces_per_gap, vec![plan.fragments.len()]);
+        for fragment in plan.fragments.iter().rev().skip(1) {
+            assert!(
+                fragment.ends_with("\n\n"),
+                "cut mid-paragraph: {fragment:?}"
+            );
+        }
+        for fragment in &plan.fragments {
+            assert!(
+                fragment.len() <= REPAIR_FRAGMENT_MAX,
+                "fragment too long: {}",
+                fragment.len()
+            );
+            // Short segments must never be subdivided.
+            assert_eq!(split_fragment("短片段").len(), 1);
+        }
+        let pieces: Vec<String> = plan
+            .fragments
+            .iter()
+            .map(|fragment| fragment.replace("# Hello", "# 你好"))
+            .collect();
+        let spliced = p.splice(&missing, &plan, &pieces).unwrap();
+        assert_eq!(p.restore(&spliced).unwrap(), p.restore(&healthy).unwrap());
     }
     #[test]
     fn parse_translations_requires_numbered_blocks_in_order() {
