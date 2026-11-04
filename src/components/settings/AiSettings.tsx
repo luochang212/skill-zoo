@@ -22,6 +22,7 @@ import {
   ProviderEditor,
   ProviderTemplatePicker,
   type ProviderTemplate,
+  type ProviderNavigationGuard,
 } from "./ModelProvidersSection";
 import { TranslationSettings } from "./TranslationSettings";
 import { SettingsPickerContext } from "./SettingsSelect";
@@ -71,16 +72,16 @@ export function AiSettingsRows() {
       {(
         [
           {
-            page: "translation",
-            title: t("translation.settings"),
-            summary: translationSummary,
-            Icon: Languages,
-          },
-          {
             page: "providers",
             title: t("llm.title"),
             summary: providerSummary,
             Icon: Cpu,
+          },
+          {
+            page: "translation",
+            title: t("translation.settings"),
+            summary: translationSummary,
+            Icon: Languages,
           },
         ] as const
       ).map(({ page: targetPage, title, summary, Icon }) => (
@@ -144,6 +145,7 @@ export function AiSettingsDialog({
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerOpenRef = useRef(false);
   const pickerOpenAtPointerDown = useRef(false);
+  const providerNavigationRef = useRef<ProviderNavigationGuard | null>(null);
   const handlePickerOpenChange = (next: boolean) => {
     pickerOpenRef.current = next;
     setPickerOpen(next);
@@ -170,7 +172,9 @@ export function AiSettingsDialog({
           pickerOpenAtPointerDown.current = false;
           return;
         }
-        onOpenChange(next);
+        if (!next && providerNavigationRef.current) {
+          providerNavigationRef.current(() => onOpenChange(false));
+        } else onOpenChange(next);
       }}
     >
       {open && (
@@ -180,6 +184,7 @@ export function AiSettingsDialog({
           pickerOpen={pickerOpen}
           onPickerOpenChange={handlePickerOpenChange}
           pickerOpenAtPointerDown={pickerOpenAtPointerDown}
+          providerNavigationRef={providerNavigationRef}
         />
       )}
     </Dialog>
@@ -192,11 +197,13 @@ function AiSettingsDetail({
   pickerOpen,
   onPickerOpenChange,
   pickerOpenAtPointerDown,
+  providerNavigationRef,
 }: {
   initialPage: SettingsPage;
   pickerOpen: boolean;
   onPickerOpenChange: (open: boolean) => void;
   pickerOpenAtPointerDown: RefObject<boolean>;
+  providerNavigationRef: RefObject<ProviderNavigationGuard | null>;
   returnFocusRef?: RefObject<HTMLButtonElement | null>;
 }) {
   const { t } = useTranslation();
@@ -249,7 +256,12 @@ function AiSettingsDetail({
     <SettingsPickerContext.Provider value={onPickerOpenChange}>
       <DialogContent
         onEscapeKeyDown={(event) => {
-          if (pickerOpen) event.preventDefault();
+          if (
+            pickerOpen ||
+            (event.target instanceof HTMLElement &&
+              event.target.hasAttribute("data-provider-rename"))
+          )
+            event.preventDefault();
         }}
         onPointerDownOutside={(event) => {
           if (pickerOpenAtPointerDown.current) {
@@ -288,7 +300,11 @@ function AiSettingsDetail({
                       ? "llm.backToServices"
                       : "aiSettings.backToProviders",
                 )}
-                onClick={cancelEdit}
+                onClick={() => {
+                  if (managingServices && providerNavigationRef.current)
+                    providerNavigationRef.current(cancelEdit);
+                  else cancelEdit();
+                }}
               >
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -331,6 +347,7 @@ function AiSettingsDetail({
               <ModelProvidersSection
                 initialProviderId={preferredProviderId}
                 onAdd={() => setPage({ kind: "templates" })}
+                navigationGuardRef={providerNavigationRef}
               />
             )}
             {page.kind === "editor" && (

@@ -47,7 +47,14 @@ beforeEach(async () => {
     targetLanguage: "ja",
   });
   vi.mocked(translationApi.savePreferences).mockResolvedValue();
-  vi.mocked(translationApi.saveProvider).mockResolvedValue([provider]);
+  vi.mocked(translationApi.saveProvider).mockImplementation(async ({ apiKey, ...update }) => [
+    {
+      ...provider,
+      ...update,
+      id: update.id ?? "new",
+      hasApiKey: apiKey === null ? provider.hasApiKey : !!apiKey,
+    },
+  ]);
 });
 const wrap = (element: React.ReactNode) =>
   render(<QueryClientProvider client={createTestQueryClient()}>{element}</QueryClientProvider>);
@@ -70,14 +77,13 @@ describe("translation settings", () => {
     expect(translationApi.start).not.toHaveBeenCalled();
   });
   it("loads and edits the real saved key without a fixed mask", async () => {
-    const user = userEvent.setup();
     wrap(<AiSettingsDialog open initialPage="providers" onOpenChange={vi.fn()} />);
     const key = await screen.findByLabelText("API key");
     await waitFor(() => expect(key).toHaveValue("saved-key"));
     expect(key).toHaveAttribute("type", "password");
     expect(screen.queryByRole("button", { name: "Replace" })).not.toBeInTheDocument();
     fireEvent.change(key, { target: { value: "saved-key-edited" } });
-    await user.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.blur(key);
     await waitFor(() =>
       expect(translationApi.saveProvider).toHaveBeenCalledWith(
         expect.objectContaining({ apiKey: "saved-key-edited" }),
@@ -178,7 +184,7 @@ describe("translation settings", () => {
     expect(translationApi.savePreferences).not.toHaveBeenCalled();
     expect(translationApi.start).not.toHaveBeenCalled();
   });
-  it("tests replacement and cleared credentials without persisting and reports classified failure", async () => {
+  it("tests replacement and cleared credentials with independent autosave and classified failure", async () => {
     vi.mocked(translationApi.testConnection).mockRejectedValue("authentication");
     const user = userEvent.setup();
     wrap(<AiSettingsDialog open initialPage="providers" onOpenChange={vi.fn()} />);
@@ -199,7 +205,9 @@ describe("translation settings", () => {
       provider: expect.objectContaining({ apiKey: "" }),
       modelId: "m",
     });
-    expect(translationApi.saveProvider).not.toHaveBeenCalled();
+    expect(translationApi.saveProvider).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: "" }),
+    );
   });
   it("ignores test results after the draft changes or its editor unmounts", async () => {
     let complete!: (ms: number) => void;
@@ -272,7 +280,9 @@ describe("translation settings", () => {
     expect(screen.getByRole("button", { name: "Edit model new-model" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Remove model 1" }));
     expect(screen.getByText(hint)).toBeInTheDocument();
-    expect(translationApi.saveProvider).not.toHaveBeenCalled();
+    expect(translationApi.saveProvider).toHaveBeenLastCalledWith(
+      expect.objectContaining({ models: [] }),
+    );
   });
   it("keeps saved target language and only saves a user change", async () => {
     const user = userEvent.setup();
@@ -314,7 +324,7 @@ describe("translation settings", () => {
     await user.click(screen.getByRole("button", { name: "Rename provider" }));
     await user.clear(screen.getByLabelText("Provider name"));
     await user.type(screen.getByLabelText("Provider name"), "Renamed");
-    await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.tab();
     await waitFor(() =>
       expect(translationApi.saveProvider).toHaveBeenCalledWith(
         expect.objectContaining({ name: "Renamed", apiKey: null }),
@@ -347,23 +357,81 @@ describe("translation settings", () => {
     );
     expect(translationApi.saveProvider).not.toHaveBeenCalled();
   });
-  it("keeps the managed service switch beside its menu and saves it with the draft", async () => {
+  it("retains failed edits, guards close and retries explicitly", async () => {
+    vi.mocked(translationApi.saveProvider).mockRejectedValueOnce("configWrite");
+    const close = vi.fn();
     const user = userEvent.setup();
-    wrap(<AiSettingsDialog open initialPage="providers" onOpenChange={vi.fn()} />);
-    const more = await screen.findByRole("button", { name: "More actions for Private gateway" });
-    const enabled = screen.getByRole("switch", { name: "Enable" });
-    expect(more.parentElement).toContainElement(enabled);
-    await user.click(enabled);
-    expect(translationApi.saveProvider).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(screen.getByRole("switch", { name: "Enable" })).toHaveAttribute("aria-checked", "true");
-    await user.click(screen.getByRole("switch", { name: "Enable" }));
-    await user.click(screen.getByRole("button", { name: "Save" }));
+    wrap(<AiSettingsDialog open initialPage="providers" onOpenChange={close} />);
+    const url = await screen.findByLabelText("Base URL");
+    await waitFor(() => expect(url).toBeEnabled());
+    await user.clear(url);
+    await user.type(url, "https://retry.test/v1");
+    await user.tab();
+    await screen.findByText("Could not save");
+    expect(url).toHaveValue("https://retry.test/v1");
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    await screen.findByRole("dialog", { name: "Unsaved changes" });
+    expect(close).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() =>
+      expect(screen.queryByText("Saving...", { exact: true })).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Saved", { exact: true })).not.toBeInTheDocument();
+    expect(translationApi.saveProvider).toHaveBeenCalledTimes(2);
+  });
+  it("keeps newer typing when an earlier autosave resolves", async () => {
+    let finish!: (value: (typeof provider)[]) => void;
+    vi.mocked(translationApi.saveProvider).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const user = userEvent.setup();
+    wrap(<AiSettingsRows />);
+    await user.click(screen.getByRole("button", { name: "Open Model management" }));
+    const url = await screen.findByLabelText("Base URL");
+    await waitFor(() => expect(url).toBeEnabled());
+    await user.clear(url);
+    await user.type(url, "https://first.test/v1");
+    await user.tab();
+    await waitFor(() => expect(translationApi.saveProvider).toHaveBeenCalledTimes(1));
+    await user.clear(url);
+    await user.type(url, "https://second.test/v1");
+    finish([{ ...provider, baseUrl: "https://first.test/v1" }]);
+    await screen.findByText("Unsaved changes", { exact: true });
+    expect(url).toHaveValue("https://second.test/v1");
+    await user.tab();
+    await waitFor(() =>
+      expect(translationApi.saveProvider).toHaveBeenLastCalledWith(
+        expect.objectContaining({ baseUrl: "https://second.test/v1" }),
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText("Saving...", { exact: true })).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Saved", { exact: true })).not.toBeInTheDocument();
+  });
+  it("saves the managed service switch immediately without footer action buttons", async () => {
+    const user = userEvent.setup();
+    wrap(<AiSettingsRows />);
+    await user.click(screen.getByRole("button", { name: "Open Model management" }));
+    const toggle = await screen.findByRole("switch", { name: "Enable" });
+    await waitFor(() => expect(toggle).toBeEnabled());
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+    await user.click(toggle);
     await waitFor(() =>
       expect(translationApi.saveProvider).toHaveBeenCalledWith(
         expect.objectContaining({ enabled: false }),
       ),
     );
+    await waitFor(() =>
+      expect(screen.queryByText("Saving...", { exact: true })).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Saved", { exact: true })).not.toBeInTheDocument();
+    expect(toggle).toHaveAttribute("aria-checked", "false");
   });
   it("shows only entry cards until a detail dialog is opened and restores focus on close", async () => {
     const user = userEvent.setup();
@@ -509,41 +577,40 @@ describe("translation settings", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(translationApi.savePreferences).not.toHaveBeenCalled();
   });
-  it("confirms draft discard before switching services or adding, and cancel restores saved values", async () => {
-    vi.mocked(translationApi.providers).mockResolvedValue([
-      provider,
-      { ...provider, id: "second", name: "Other service" },
-    ]);
+  it("saves before switching services and guards invalid drafts before adding", async () => {
+    const other = { ...provider, id: "other", name: "Other service" };
+    vi.mocked(translationApi.providers).mockResolvedValue([provider, other]);
+    vi.mocked(translationApi.saveProvider).mockImplementation(
+      async ({ apiKey: _key, ...update }) => [{ ...provider, ...update, id: "p" }, other],
+    );
     const user = userEvent.setup();
     wrap(<AiSettingsRows />);
     await user.click(screen.getByRole("button", { name: "Open Model management" }));
-    await user.click(await screen.findByRole("button", { name: "Rename provider" }));
-    await user.clear(screen.getByLabelText("Provider name"));
-    await user.type(screen.getByLabelText("Provider name"), "Draft name");
-    await user.keyboard("{Enter}");
+    const url = await screen.findByLabelText("Base URL");
+    await waitFor(() => expect(url).toBeEnabled());
+    await user.clear(url);
+    await user.type(url, "https://changed.test/v1");
     expect(translationApi.saveProvider).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Edit Other service" }));
-    expect(screen.getByRole("dialog", { name: "Unsaved changes" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Keep editing" }));
-    expect(screen.getByRole("button", { name: "Rename provider" })).toHaveTextContent("Draft name");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Rename provider" })).toHaveTextContent(
+        "Other service",
+      ),
+    );
+    expect(translationApi.saveProvider).toHaveBeenCalledWith(
+      expect.objectContaining({ baseUrl: "https://changed.test/v1" }),
+    );
+    await waitFor(() => expect(screen.getByLabelText("Base URL")).toBeEnabled());
+    await user.clear(screen.getByLabelText("Base URL"));
+    await user.type(screen.getByLabelText("Base URL"), "incomplete");
     await user.click(screen.getByRole("button", { name: "Add service" }));
-    await user.click(screen.getByRole("button", { name: "Discard and continue" }));
-    await user.click(screen.getByRole("button", { name: "Back to model management" }));
-    expect(screen.getByRole("button", { name: "Rename provider" })).toHaveTextContent(
-      "Private gateway",
-    );
-    await user.click(screen.getByRole("button", { name: "Edit Other service" }));
-    expect(screen.getByRole("button", { name: "Rename provider" })).toHaveTextContent(
-      "Other service",
-    );
-    await user.click(screen.getByRole("button", { name: "Rename provider" }));
-    await user.clear(screen.getByLabelText("Provider name"));
-    await user.type(screen.getByLabelText("Provider name"), "Discard me");
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(screen.getByRole("button", { name: "Rename provider" })).toHaveTextContent(
-      "Other service",
-    );
-    expect(translationApi.saveProvider).not.toHaveBeenCalled();
+    await screen.findByRole("dialog", { name: "Unsaved changes" });
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(screen.getByLabelText("Base URL")).toHaveValue("incomplete");
+    expect(translationApi.saveProvider).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "Add service" }));
+    await user.click(await screen.findByRole("button", { name: "Discard and continue" }));
+    expect(screen.getByRole("dialog", { name: "Add service" })).toBeInTheDocument();
     expect(translationApi.savePreferences).not.toHaveBeenCalled();
     expect(translationApi.start).not.toHaveBeenCalled();
   });
@@ -573,9 +640,8 @@ describe("translation settings", () => {
     expect(enabled).toHaveAttribute("aria-checked", "false");
     await user.keyboard(" ");
     expect(screen.getAllByRole("switch")).toHaveLength(1);
-    expect(translationApi.saveProvider).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.blur(screen.getByLabelText("API key"));
     await waitFor(() =>
       expect(translationApi.saveProvider).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -587,7 +653,7 @@ describe("translation settings", () => {
     await screen.findByLabelText("API key");
     await user.clear(screen.getByLabelText("API key"));
     expect(screen.getByLabelText("API key")).toHaveValue("");
-    await user.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.blur(screen.getByLabelText("API key"));
     await waitFor(() =>
       expect(translationApi.saveProvider).toHaveBeenLastCalledWith(
         expect.objectContaining({ apiKey: "" }),
@@ -608,7 +674,7 @@ describe("translation settings", () => {
     expect(screen.getAllByRole("switch")).toHaveLength(1);
     expect(screen.getByText("Disabled")).toBeInTheDocument();
     expect(screen.queryByText("Enable", { exact: true })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.click(screen.getByRole("switch", { name: "Enable" }));
     await waitFor(() =>
       expect(translationApi.saveProvider).toHaveBeenCalledWith(
         expect.objectContaining({ models: [disabledModel] }),

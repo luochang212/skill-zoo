@@ -742,6 +742,8 @@
     "showKey": "显示 API Key",
     "hideKey": "隐藏 API Key",
     "keyWillClear": "保存后将清除 API Key",
+    "notSaved": "有未保存的修改",
+    "saveFailed": "保存失败",
     "unsavedTitle": "有未保存的修改",
     "unsavedHint": "放弃当前修改并继续？",
     "keepEditing": "继续编辑",

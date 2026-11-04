@@ -742,6 +742,8 @@
     "showKey": "Show API key",
     "hideKey": "Hide API key",
     "keyWillClear": "API key will be cleared when saved",
+    "notSaved": "Unsaved changes",
+    "saveFailed": "Could not save",
     "unsavedTitle": "Unsaved changes",
     "unsavedHint": "Discard these changes and continue?",
     "keepEditing": "Keep editing",
