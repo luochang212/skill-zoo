@@ -166,7 +166,10 @@ export function ModelEditorDialog({
                 id={`${id}-thinking`}
                 checked={thinking}
                 disabled={!canToggleThinking}
-                onCheckedChange={setThinking}
+                onCheckedChange={(checked) => {
+                  setThinking(checked);
+                  if (checked) toast.info(t("llm.thinkingSlowHint"));
+                }}
               />
             </div>
             <div className="space-y-2">
@@ -184,7 +187,13 @@ export function ModelEditorDialog({
                 aria-invalid={error === "modelId"}
                 onChange={(event) => {
                   setModelId(event.target.value);
-                  setThinking(false);
+                  // Editing the ID retargets the model, so thinking resets;
+                  // returning to the saved ID restores the stored choice.
+                  setThinking(
+                    event.target.value.trim() === model.id.trim()
+                      ? (model.thinking ?? false)
+                      : false,
+                  );
                   setError(null);
                   if (!manual.current.context) setContext("");
                   if (!manual.current.output) setOutput("");

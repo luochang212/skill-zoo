@@ -17,7 +17,7 @@ const render = (element: Parameters<typeof renderUI>[0]) => {
   });
 };
 
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/api/translation", () => ({
   translationApi: { resolveModel: vi.fn(), canToggleThinking: vi.fn() },
 }));
@@ -113,6 +113,32 @@ describe("model configuration editor", () => {
     expect(input.selectionEnd).toBe(model.id.length);
     await user().keyboard("-suffix");
     expect(input).toHaveValue("model-a-suffix");
+  });
+  it("restores the stored thinking choice when the edited ID returns to the saved value", async () => {
+    vi.mocked(translationApi.canToggleThinking).mockResolvedValue(true);
+    const config = props();
+    const input = user();
+    render(<ModelEditorDialog {...config} model={{ ...model, thinking: true }} />);
+    const toggle = screen.getByRole("switch", { name: "Deep thinking" });
+    await waitFor(() => expect(toggle).toBeEnabled());
+    expect(toggle).toBeChecked();
+    const idInput = screen.getByLabelText("Model ID");
+    await input.type(idInput, "-suffix");
+    expect(toggle).not.toBeChecked();
+    await input.type(idInput, "{backspace>7}");
+    expect(toggle).toBeChecked();
+    expect(config.onConfirm).not.toHaveBeenCalled();
+  });
+  it("warns that deep thinking slows down translation when enabled", async () => {
+    vi.mocked(translationApi.canToggleThinking).mockResolvedValue(true);
+    const input = user();
+    render(<ModelEditorDialog {...props()} />);
+    const toggle = screen.getByRole("switch", { name: "Deep thinking" });
+    await waitFor(() => expect(toggle).toBeEnabled());
+    await input.click(toggle);
+    expect(toast.info).toHaveBeenCalledWith("Enabling deep thinking slows down translation");
+    await input.click(toggle);
+    expect(toast.info).toHaveBeenCalledTimes(1);
   });
   it("debounces lookup and preserves manual input made while the recommendation is pending", async () => {
     const request = deferred<{ contextWindow: number; maxOutputTokens: number } | null>();

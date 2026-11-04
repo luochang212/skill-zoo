@@ -689,6 +689,7 @@
   },
   "llm": {
     "thinking": "深度思考",
+    "thinkingSlowHint": "打开深度思考会拖慢翻译速度",
     "title": "模型管理",
     "description": "添加你常用的模型服务。",
     "add": "添加服务",
