@@ -42,6 +42,7 @@ export function ModelEditorDialog({
 }) {
   const { t } = useTranslation();
   const id = useId();
+  const modelInputRef = useRef<HTMLInputElement>(null);
   const [modelId, setModelId] = useState(model.id);
   const [context, setContext] = useState(model.contextWindow?.toString() ?? "");
   const [output, setOutput] = useState(model.maxOutputTokens?.toString() ?? "");
@@ -110,6 +111,14 @@ export function ModelEditorDialog({
     >
       <DialogContent
         className="flex max-h-[calc(100vh-4rem)] w-[calc(100vw-2rem)] max-w-[440px] flex-col gap-0 overflow-hidden p-0 sm:rounded-xl"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          const input = modelInputRef.current;
+          if (input) {
+            input.focus();
+            input.setSelectionRange(input.value.length, input.value.length);
+          }
+        }}
         onCloseAutoFocus={(event) => {
           if (returnFocusRef.current) {
             event.preventDefault();
@@ -137,9 +146,9 @@ export function ModelEditorDialog({
                 {t("llm.modelIdentifier")}
               </label>
               <Input
+                ref={modelInputRef}
                 id={`${id}-model`}
                 className="h-9 font-mono text-xs"
-                autoFocus
                 autoCapitalize="none"
                 autoCorrect="off"
                 spellCheck={false}

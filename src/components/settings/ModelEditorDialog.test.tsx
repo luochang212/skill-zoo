@@ -38,6 +38,15 @@ const tick = () =>
     await new Promise((resolve) => setTimeout(resolve, 420));
   });
 describe("model configuration editor", () => {
+  it("opens with the caret at the end of the model ID without selecting it", async () => {
+    render(<ModelEditorDialog {...props()} />);
+    const input = screen.getByLabelText("Model ID") as HTMLInputElement;
+    expect(input).toHaveFocus();
+    expect(input.selectionStart).toBe(model.id.length);
+    expect(input.selectionEnd).toBe(model.id.length);
+    await user().keyboard("-suffix");
+    expect(input).toHaveValue("model-a-suffix");
+  });
   it("debounces lookup and preserves manual input made while the recommendation is pending", async () => {
     const request = deferred<{ contextWindow: number; maxOutputTokens: number } | null>();
     vi.mocked(translationApi.resolveModel).mockReturnValue(request.promise);
