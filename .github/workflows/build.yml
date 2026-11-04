@@ -60,8 +60,15 @@ jobs:
 
       - name: Check no rsplit('/') on path variables (cross-platform regression guard)
         run: |
-          if grep -r 'rsplit('\''/'\'')' src-tauri/src --include '*.rs' -l | xargs grep -n 'rsplit('\''/'\'')' | grep -v '^\s*//' | grep .; then
-            echo "ERROR: rsplit('/') found. Use std::path::Path::file_name() instead for cross-platform safety"
+          # Path variables must not be split on '/' (breaks on Windows). A
+          # full-line comment or a line carrying the model-ID marker is exempt:
+          # model IDs like "vendor/name" use '/' as a namespace separator on
+          # every platform, so splitting them is not a path bug.
+          if grep -rn 'rsplit('\''/'\'')' src-tauri/src --include '*.rs' \
+              | grep -v 'model ID namespace, not a filesystem path' \
+              | grep -v ':[[:space:]]*//' \
+              | grep .; then
+            echo "ERROR: rsplit('/') on a path. Use std::path::Path::file_name() instead for cross-platform safety. Non-path string splitting needs the marker comment 'model ID namespace, not a filesystem path'"
             exit 1
           fi
 

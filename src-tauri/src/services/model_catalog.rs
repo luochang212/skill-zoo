@@ -61,7 +61,7 @@ fn recommendation(model: &Value) -> Option<ModelRecommendation> {
 
 fn is_manufacturer(provider_id: &str, model_id: &str) -> bool {
     let name = model_id
-        .rsplit('/')
+        .rsplit('/') // model ID namespace, not a filesystem path
         .next()
         .unwrap_or(model_id)
         .to_ascii_lowercase();
@@ -137,7 +137,7 @@ pub fn lookup(catalog: &Value, base_url: &str, model_id: &str) -> Option<ModelRe
                 let matched = if matches!(tier, 0 | 1 | 3) {
                     id == model_id
                 } else {
-                    id.rsplit('/').next() == model_id.rsplit('/').next()
+                    id.rsplit('/').next() == model_id.rsplit('/').next() // model ID namespace, not a filesystem path
                 };
                 if matched {
                     candidates.push(recommendation(model));
