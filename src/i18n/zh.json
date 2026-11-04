@@ -644,6 +644,7 @@
     "preferCached": "优先显示译文",
     "preferCachedHint": "已有译文时直接显示，无译文时仍需手动翻译。",
     "cacheCleared": "翻译缓存已清空。",
+    "repairing": "检测到保护标记损坏，正在发送一次定向修复请求…",
     "showOriginal": "显示原文",
     "showTranslation": "显示译文",
     "retranslate": "重新翻译",

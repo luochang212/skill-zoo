@@ -644,6 +644,7 @@
     "preferCached": "Prefer translations",
     "preferCachedHint": "Show an existing translation when available. Otherwise, translate manually.",
     "cacheCleared": "Translation cache cleared.",
+    "repairing": "Some protection markers were damaged — sending one targeted repair request…",
     "showOriginal": "Show original",
     "showTranslation": "Show translation",
     "retranslate": "Translate again",

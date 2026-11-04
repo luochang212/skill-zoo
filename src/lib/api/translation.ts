@@ -43,7 +43,8 @@ export interface TranslationRequest {
 }
 export type TranslationEvent =
   | { type: "preview" | "completed"; taskId: string; text: string }
-  | { type: "failed"; taskId: string; code: string };
+  | { type: "failed"; taskId: string; code: string }
+  | { type: "repairing"; taskId: string };
 
 export const translationApi = {
   providerApiKey: (id: string) => invoke<string>("get_llm_provider_api_key", { id }),

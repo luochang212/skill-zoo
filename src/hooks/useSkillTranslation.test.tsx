@@ -1,10 +1,14 @@
+import "@/i18n";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
+import i18n from "@/i18n";
 import { translationApi, type TranslationEvent } from "@/lib/api/translation";
 import { useSkillTranslation } from "./useSkillTranslation";
 vi.mock("@/lib/api/translation", () => ({
   translationApi: { start: vi.fn(), cancel: vi.fn(), translate: vi.fn(), cached: vi.fn() },
 }));
+vi.mock("sonner", () => ({ toast: { info: vi.fn(), dismiss: vi.fn() } }));
 const input = {
   skillId: "demo",
   path: "SKILL.md",
@@ -18,6 +22,7 @@ let finish: () => void;
 let id: string;
 beforeEach(() => {
   vi.clearAllMocks();
+  i18n.changeLanguage("en");
   vi.mocked(translationApi.cached).mockResolvedValue(null);
   vi.mocked(translationApi.start).mockResolvedValue();
   vi.mocked(translationApi.cancel).mockResolvedValue();
@@ -185,6 +190,24 @@ describe("manual translation lifecycle", () => {
     });
     expect(hook.result.current.text).toBe("");
     expect(hook.result.current.status).toBe("idle");
+  });
+  it("announces the targeted repair round with a toast and dismisses it when the task settles", async () => {
+    const hook = renderHook(() => useSkillTranslation(input));
+    act(() => {
+      void hook.result.current.translate();
+    });
+    await waitFor(() => expect(send).toBeDefined());
+    act(() => send({ type: "repairing", taskId: id }));
+    expect(toast.info).toHaveBeenCalledWith(
+      "Some protection markers were damaged — sending one targeted repair request…",
+      { id: `repair-${id}` },
+    );
+    act(() => {
+      send({ type: "completed", taskId: id, text: "fixed" });
+      finish();
+    });
+    expect(toast.dismiss).toHaveBeenCalledWith(`repair-${id}`);
+    expect(hook.result.current.text).toBe("fixed");
   });
   it("cancels registration that finishes after unmount", async () => {
     let registered!: () => void;

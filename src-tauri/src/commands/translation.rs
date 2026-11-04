@@ -268,7 +268,7 @@ pub struct TranslationRequest {
     pub target_language: String,
     pub force: bool,
 }
-#[derive(Clone, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum TranslationEvent {
     Preview {
@@ -285,6 +285,10 @@ pub enum TranslationEvent {
         #[serde(rename = "taskId")]
         task_id: String,
         code: String,
+    },
+    Repairing {
+        #[serde(rename = "taskId")]
+        task_id: String,
     },
 }
 
@@ -485,7 +489,38 @@ async fn run_translation(
             )
             .await
             .map_err(|_| "timeout")??;
-            let text = protected.restore(&raw)?;
+            let text = match protected.restore(&raw) {
+                Ok(text) => text,
+                Err(code) if code == "fidelity" => {
+                    // One diagnostic-guided repair: re-translate only the
+                    // fragments that lost markers, splice between the intact
+                    // markers, and re-validate the whole document.
+                    let _ = emit(TranslationEvent::Repairing {
+                        task_id: request.task_id.clone(),
+                    });
+                    let plan = protected.repair_plan(&raw);
+                    if plan.is_empty() {
+                        return Err("fidelity".into());
+                    }
+                    let repaired = tokio::time::timeout(
+                        std::time::Duration::from_secs(180),
+                        llm::stream(
+                            &provider,
+                            model,
+                            &translation::repair_system_prompt(&request.target_language),
+                            &translation::repair_input(&plan),
+                            |_raw| Ok(()),
+                        ),
+                    )
+                    .await
+                    .map_err(|_| "timeout")??;
+                    let pieces =
+                        translation::parse_translations(&repaired, plan.len()).ok_or("fidelity")?;
+                    let spliced = protected.splice(&raw, &pieces)?;
+                    protected.restore(&spliced)?
+                }
+                Err(code) => return Err(code),
+            };
             Ok::<_, String>((path, text, true))
         },
         registration,
@@ -525,6 +560,108 @@ async fn run_translation(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn repair_round_repairs_damaged_markers_and_reports_the_repair_event() {
+        let mut server = mockito::Server::new_async().await;
+        let dir = tempfile::tempdir().unwrap();
+        let skill = dir.path().join("skill");
+        std::fs::create_dir_all(&skill).unwrap();
+        let source = "# Hello\n\n```sh\nrm file\n```\n";
+        std::fs::write(skill.join("guide.md"), source).unwrap();
+        let app = app_for(&skill);
+        let state = TranslationState::default();
+        let root = dir.path().join("app");
+        let config_path = root.join("llm_providers.json");
+        use crate::persistence::llm_providers::{Model, Protocol, ProviderUpdate};
+        let summaries = config::upsert(
+            &config_path,
+            ProviderUpdate {
+                id: None,
+                name: "Test".into(),
+                enabled: true,
+                protocol: Protocol::OpenaiChatCompletions,
+                base_url: format!("{}/v1/", server.url()),
+                api_key: None,
+                models: vec![Model {
+                    id: "test".into(),
+                    enabled: true,
+                    max_output_tokens: None,
+                    context_window: None,
+                }],
+            },
+        )
+        .unwrap();
+        let protected = translation::ProtectedMarkdown::new(source);
+        let token = protected.parts[0].0.clone();
+        let flawed = "# 你好\n\n";
+        let fixed = format!("=== TRANSLATION 1 ===\n# 你好\n\n{token}");
+        let sse = |content: &str| {
+            format!(
+                "data: {}\n\ndata: [DONE]\n\n",
+                serde_json::json!({"choices":[{"delta":{"content":content},"finish_reason":"stop"}]})
+            )
+        };
+        // mockito matches creation-first: the specific repair mock must come
+        // before the catch-all translate mock.
+        let repair_mock = server
+            .mock("POST", "/v1/chat/completions")
+            .match_body(mockito::Matcher::Regex("=== FRAGMENT 1 ===".to_string()))
+            .with_status(200)
+            .with_header("content-type", "text/event-stream")
+            .with_body(sse(&fixed))
+            .expect(1)
+            .create_async()
+            .await;
+        let translate_mock = server
+            .mock("POST", "/v1/chat/completions")
+            .with_status(200)
+            .with_header("content-type", "text/event-stream")
+            .with_body(sse(flawed))
+            .expect(1)
+            .create_async()
+            .await;
+        let request = TranslationRequest {
+            task_id: "repair-e2e".into(),
+            skill_id: "plugin:test".into(),
+            path: "guide.md".into(),
+            source: source.into(),
+            provider_id: summaries[0].id.clone(),
+            model_id: "test".into(),
+            target_language: "zh-CN".into(),
+            force: false,
+        };
+        state.start(request.task_id.clone()).unwrap();
+        let events = std::sync::Mutex::new(Vec::new());
+        run_translation(&app, &state, request, &root, |event| {
+            events.lock().unwrap().push(event);
+            Ok(())
+        })
+        .await
+        .unwrap();
+        let events = events.into_inner().unwrap();
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, TranslationEvent::Repairing { .. })),
+            "expected a Repairing event, got {events:?}"
+        );
+        let completed = events
+            .iter()
+            .find_map(|e| match e {
+                TranslationEvent::Completed { text, .. } => Some(text.clone()),
+                _ => None,
+            })
+            .expect("completed event");
+        assert_eq!(completed, "# 你好\n\n```sh\nrm file\n```\n");
+        translate_mock.assert_async().await;
+        repair_mock.assert_async().await;
+        let provider = config::load(&config_path).unwrap().providers.remove(0);
+        let key = translation::cache_key(&provider, &provider.models[0], "zh-CN", source);
+        assert_eq!(
+            std::fs::read_to_string(root.join("translations").join(format!("{key}.md"))).unwrap(),
+            completed
+        );
+    }
     #[test]
     fn connection_draft_preserves_write_only_key_semantics_without_writing() {
         let dir = tempfile::tempdir().unwrap();

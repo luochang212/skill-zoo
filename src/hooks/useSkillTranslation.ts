@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { translationApi, type TranslationRequest } from "@/lib/api/translation";
 import { translationErrorCode } from "@/lib/translation";
 
@@ -26,6 +28,7 @@ export function useSkillTranslation(
     configurationKey = "",
   }: { preferCached?: boolean; configurationKey?: string } = {},
 ) {
+  const { t } = useTranslation();
   const identity = JSON.stringify([input, configurationKey]);
   const currentIdentity = useRef(identity);
   currentIdentity.current = identity;
@@ -83,7 +86,8 @@ export function useSkillTranslation(
 
   const cancel = useCallback(() => {
     const current = cancelTask();
-    if (current)
+    if (current) {
+      toast.dismiss(`repair-${current.id}`);
       setView((v) => ({
         ...v,
         status: "cancelled",
@@ -91,6 +95,7 @@ export function useSkillTranslation(
         showTranslation: !!current.previous,
         error: null,
       }));
+    }
   }, [cancelTask]);
 
   const translate = useCallback(
@@ -112,9 +117,11 @@ export function useSkillTranslation(
         error: null,
       });
       const active = () => task.current === current && currentIdentity.current === identity;
+      const dismissRepair = () => toast.dismiss(`repair-${id}`);
       const fail = (code: string) => {
         if (!active()) return;
         task.current = null;
+        dismissRepair();
         setView({
           identity,
           status: "failed",
@@ -136,7 +143,13 @@ export function useSkillTranslation(
             fail(event.code);
             return;
           }
+          if (event.type === "repairing") {
+            // The targeted repair round must never run silently.
+            toast.info(t("translation.repairing"), { id: `repair-${id}` });
+            return;
+          }
           if (event.type === "completed") {
+            dismissRepair();
             task.current = null;
             setView({
               identity,
@@ -155,7 +168,7 @@ export function useSkillTranslation(
         void translationApi.cancel(id).catch(() => {});
       }
     },
-    [identity, input, cancelTask],
+    [identity, input, cancelTask, t],
   );
 
   const current = view.identity === identity ? view : empty(identity);
