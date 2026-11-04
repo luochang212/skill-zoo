@@ -125,8 +125,6 @@ Records outlive the format that wrote them. The npm package is `adr-kit`; the co
 
 When the user wants to review or share the project's history, use the `adrkit-visualize` skill; generate a browsable atlas from `adr/implemented/` and `adr/archived/` only, publish archived bodies in full, and pin the page to the commit it was built from.
 
-<!-- adrkit: standing-orders 2cce4b9b -->
-
 Project gate: `adrkit validate --all`, run by `.githooks/pre-push` because CI does not cover `adr/`.
 
 ## Testing
