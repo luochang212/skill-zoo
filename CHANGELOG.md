@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.2] — 2026-11-05
+
+### Changed
+- Manually started translations continue when navigating away. Returning to the same document and model configuration restores the session's progress, result, and original/translation selection without another request.
+- Translation reconstructs frontmatter through YAML parsing and serialization, preserving name and other field values while translating description. Translated YAML formatting may change; original Skill files remain untouched.
+
+### Fixed
+- Final translation events are no longer discarded when the Tauri command returns before streamed events arrive. Automatic repair keeps the current translation visible and its progress toast remains until the task settles.
+- Incomplete, duplicate, or out-of-order description markers no longer panic during streaming previews.
+- Code fences respect blockquote depth, and frontmatter with a UTF-8 BOM or leading whitespace remains protected. Model prefaces before frontmatter are rejected instead of cached as successful translations with missing metadata tables.
+- Document-protection fixes invalidate older translation caches; translations can be regenerated manually.
+
 ## [0.4.1] — 2026-11-05
 
 ### Added

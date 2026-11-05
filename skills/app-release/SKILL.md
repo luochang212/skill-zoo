@@ -7,7 +7,7 @@ description: Use when the user asks to release a new version, ship a build, or p
 
 ## Overview
 
-Release is done by pushing a `v*` tag. CI validates the release metadata, builds all platforms, creates a GitHub Release, and then updates the website version and Homebrew cask. Manual steps: update the changelog and version files, commit them together, then tag and push. The workflow is asynchronous: after a successful tag push, report that the release was triggered; do not wait for CI unless the user explicitly asks.
+Release is done by pushing a `v*` tag. CI validates the release metadata, builds all platforms, creates a GitHub Release, and then updates the website version and Homebrew cask. Manual steps: update the changelog and version files, commit them together, then create the tag and push main plus the tag atomically in one command. This runs pre-push once. The workflow is asynchronous: after a successful tag push, report that the release was triggered; do not wait for CI unless the user explicitly asks.
 
 **Announce at start:** "I'm using the release skill to ship a new version."
 
@@ -45,7 +45,8 @@ digraph when_release {
 | Step | Command |
 |------|---------|
 | Check existing tags | `git tag --sort=-v:refname \| head -5` |
-| Prerequisites (in order) | fmt → lint:rs → test → typecheck → lint → format:check → status |
+| Local prerequisites | Rust fmt → release metadata → website checks → commit |
+| Full local gate | `.githooks/pre-push` runs types, tests, CLI build and Rust clippy during the single push |
 | Check Rust formatting | `cargo fmt --check --manifest-path src-tauri/Cargo.toml` |
 | Check Rust lint | `bun run lint:rs` |
 | Check TypeScript types | `bun run typecheck` |
@@ -53,7 +54,7 @@ digraph when_release {
 | Check frontend formatting | `bun run format:check` |
 | Check independent website | `npm --prefix site run check && npm --prefix site run build` (browser checks below) |
 | Check uncommitted changes | `git status --short` |
-| Tag and push | `git push origin main && git tag v<VERSION> && git push origin v<VERSION>` |
+| Tag and push once | `git tag v<VERSION> && git push --atomic origin main v<VERSION>` |
 
 ## Core Pattern
 
@@ -105,16 +106,16 @@ Do NOT commit yet. All changes go into one commit in Step 5.
 
 ### 5. Verify Prerequisites
 
-Run all checks in order. If any fails, fix and re-run the full sequence until clean because formatting changes can cascade into lint results. Any fixes become part of the same release commit.
+Run only checks not already enforced by the commit and push hooks:
 
-1. `cargo fmt --check --manifest-path src-tauri/Cargo.toml`. If diffs appear, run `cargo fmt --manifest-path src-tauri/Cargo.toml`, then restart from here.
-2. `bun run lint:rs`. Fix all warnings; fmt may have introduced new ones.
-3. `cargo test --manifest-path src-tauri/Cargo.toml --features test-helpers`. Fix any test failures before proceeding.
-4. `bun run typecheck`. Fix all type errors before proceeding.
-5. `bun run lint`. Fix any lint errors. Note: pre-existing issues unrelated to this release should be noted separately, not silently fixed in the release commit.
-6. `bun run format:check`. Run `bun run format` if diffs appear. CI also enforces this, but catching it locally avoids a broken tag.
-7. `RELEASE_BODY.md` must use the `__VERSION__` and `__COMMITS__` placeholders. Never hardcode version numbers.
-8. `git status --short`. Only expected files (CHANGELOG.md, Cargo.toml, Cargo.lock, package.json, plus any fmt/clippy fixes) should appear. `site/public/version.json` should NOT appear (CI updates it post-release). Anything else is a stray change that could slip into the release commit.
+1. `cargo fmt --check --manifest-path src-tauri/Cargo.toml`. If needed, run `cargo fmt --manifest-path src-tauri/Cargo.toml` and recheck.
+2. Verify `RELEASE_BODY.md` uses `__VERSION__` and `__COMMITS__`, with no hardcoded release version.
+3. Verify package.json, Cargo.toml and the regenerated Cargo.lock agree with the chosen version, and CHANGELOG has the release entry.
+4. `git status --short` should contain only the four release files and any explicitly authorized changes, such as release-skill edits. `site/public/version.json` must not be manually modified.
+
+The commit hook already checks frontend lint and formatting. The pre-push hook runs frontend typecheck/tests, CLI typecheck/tests/build, Rust clippy and Rust tests, plus ADR validation. Inspect the current hooks as the source of truth; do not run these suites manually again before pushing unless diagnosing a failure or verifying a code fix. If a required hook is missing, run the checks it would have covered manually. Never bypass hooks to release.
+
+If a hook fails, fix the failure and retry the single atomic push. Do not lower test thresholds or silently fix unrelated existing issues in the release commit.
 
 The website is an independent Astro package. Its build does not use the desktop's
 `dist/` output or the development `package.json` version. For any app release,
@@ -150,15 +151,18 @@ git commit -m "chore: release vX.Y.Z"
 
 ### 6. Tag and Push
 
-> **CRITICAL:** Pushing a `v*` tag triggers CI to build and publish a release. **Always tell the user explicitly that a push is about to happen and get their consent before executing.** Never push without approval.
+> **CRITICAL:** A `v*` tag push publishes a release. Confirm that the user authorized publishing, and announce the tag and commit before pushing. An explicit request to publish a new version already provides that authorization; a prepare-only request does not.
 
-> **Note:** `git push` triggers `.githooks/pre-push`, which re-runs the full check suite and takes minutes. This is the intentional local gate that keeps a broken push from reaching CI. Run the push in the background or with a generous timeout; a foreground push can be killed mid-hook by the default command timeout, leaving `main` unpushed and no tag.
+Create the local tag after the release commit, then push both refs in one command:
 
 ```bash
-git push origin main
-git tag v0.1.2
-git push origin v0.1.2
+git tag v<VERSION>
+git push --atomic origin main v<VERSION>
 ```
+
+`--atomic` updates both refs together or neither. One push invokes `.githooks/pre-push` once for both refs, avoiding the duplicated suite from separate branch and tag pushes. Use a background session or generous timeout because the hook takes minutes. If atomic push is unsupported or rejected, stop and report it; do not silently fall back to two pushes or force-push. A failed push can leave the local tag in place, so inspect it before retrying rather than recreating or moving it blindly.
+
+CI still independently validates and builds the release. One Git push can still generate separate branch and tag workflow events; do not claim it deduplicates CI runs or change CI triggers without a separate request.
 
 Once the tag push succeeds, the release has been triggered. Report the pushed tag and commit, and stop without polling GitHub Actions unless the user asked to wait or monitor the release.
 
@@ -178,7 +182,7 @@ Once the tag push succeeds, the release has been triggered. Report the pushed ta
 
 | Mistake | Fix |
 |---------|-----|
-| Pushing tag before pushing main | Always `git push origin main` first. A tag on an unpushed commit won't trigger CI on the right SHA. |
+| Pushing main and the tag separately | Use one `git push --atomic origin main v<VERSION>` so both refs arrive together and pre-push runs once. |
 | Hardcoding version in RELEASE_BODY.md | Use `__VERSION__` placeholder. The CI substitutes it automatically. |
 | Releasing with uncommitted changes | `git status --short` must be empty. Uncommitted changes won't be included in the release. |
 | Manually advancing `site/public/version.json` | `version.json` is updated by CI's `create-release` job **after** artifacts are published. Do NOT update it manually in the release commit. |
