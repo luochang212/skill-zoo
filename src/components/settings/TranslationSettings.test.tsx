@@ -108,7 +108,7 @@ describe("translation settings", () => {
     const editor = screen.getByRole("dialog", { name: "Add model" });
     fireEvent.change(within(editor).getByLabelText("Model ID"), { target: { value: "new-model" } });
     await user.click(within(editor).getByRole("button", { name: "Confirm" }));
-    await user.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByRole("button", { name: "Edit OpenAI" });
     await user.click(await screen.findByRole("button", { name: "Back to translation settings" }));
     expect(screen.getByRole("dialog", { name: "Translation settings" })).toBeInTheDocument();
     expect(screen.getByLabelText("Target language")).toHaveTextContent("日本語");
@@ -401,7 +401,10 @@ describe("translation settings", () => {
     await user.clear(url);
     await user.type(url, "https://second.test/v1");
     finish([{ ...provider, baseUrl: "https://first.test/v1" }]);
-    await screen.findByText("Unsaved changes", { exact: true });
+    await waitFor(() =>
+      expect(screen.queryByText("Saving...", { exact: true })).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Unsaved changes", { exact: true })).not.toBeInTheDocument();
     expect(url).toHaveValue("https://second.test/v1");
     await user.tab();
     await waitFor(() =>
@@ -477,12 +480,16 @@ describe("translation settings", () => {
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "Add service" }));
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
-    expect(screen.getByRole("dialog", { name: "Add service" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Model management" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "OpenAI" }));
-    expect(screen.getByRole("dialog", { name: "Connect OpenAI" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Model management" })).toBeInTheDocument();
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(screen.queryByLabelText("Provider name")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Rename provider" }));
     await user.clear(screen.getByLabelText("Provider name"));
     await user.type(screen.getByLabelText("Provider name"), "New gateway");
+    await user.tab();
+    await screen.findByRole("button", { name: "Edit New gateway" });
     expect(screen.queryByRole("button", { name: /Edit model / })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Add model" }));
     await user.type(screen.getByLabelText("Model ID"), "user-chosen-model");
@@ -491,8 +498,14 @@ describe("translation settings", () => {
         name: "Confirm",
       }),
     );
-    await user.click(screen.getByRole("button", { name: "Save" }));
-    await screen.findByRole("button", { name: "Edit New gateway" });
+    await waitFor(() =>
+      expect(translationApi.saveProvider).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          id: "new",
+          models: [expect.objectContaining({ id: "user-chosen-model" })],
+        }),
+      ),
+    );
     await user.click(screen.getByRole("button", { name: "Close" }));
     await user.click(screen.getByRole("button", { name: "Open Translation settings" }));
     expect(screen.getByRole("dialog", { name: "Translation settings" })).toBeInTheDocument();
@@ -544,40 +557,176 @@ describe("translation settings", () => {
     const user = userEvent.setup();
     wrap(<AiSettingsRows />);
     await user.click(screen.getByRole("button", { name: "Open Model management" }));
-    await user.click(await screen.findByRole("button", { name: "Anthropic" }));
-    expect(screen.getByRole("dialog", { name: "Connect Anthropic" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Provider name")).toHaveValue("Anthropic");
-    expect(screen.getByLabelText("Provider name").parentElement?.parentElement).toContainElement(
-      screen.getByRole("switch", { name: "Enable" }),
+    const volcengine = await screen.findByRole("button", { name: "Volcengine" });
+    expect(screen.queryByRole("navigation", { name: "Model services" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add service" })).not.toBeInTheDocument();
+    await user.click(volcengine);
+    expect(screen.getByRole("dialog", { name: "Model management" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Provider name")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rename provider" })).toHaveTextContent("Volcengine");
+    expect(screen.getByRole("button", { name: "More actions for Volcengine" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Base URL")).toHaveValue(
+      "https://ark.cn-beijing.volces.com/api/v3/",
     );
-    expect(screen.queryByRole("button", { name: /More actions for/ })).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Base URL")).toHaveValue("https://api.anthropic.com/v1/");
-    expect(screen.getByLabelText("API type")).toHaveTextContent("Anthropic Messages");
+    expect(screen.getByLabelText("API type")).toHaveTextContent("OpenAI Chat Completions");
     expect(screen.queryByLabelText("Service")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Edit model / })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("New model ID")).not.toBeInTheDocument();
     expect(translationApi.saveProvider).not.toHaveBeenCalled();
     expect(translationApi.start).not.toHaveBeenCalled();
-    const back = screen.getByRole("button", { name: "Back to service selection" });
-    expect(back).toHaveTextContent("");
+    expect(screen.getByRole("navigation", { name: "Model services" })).toBeInTheDocument();
+    const back = screen.getByRole("button", { name: "Add service" });
     await user.click(back);
     expect(screen.getByRole("dialog", { name: "Model management" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Custom" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Ollama" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "ZCode" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "DeepSeek" })).toBeInTheDocument();
+    for (const removed of ["Anthropic", "ZCode", "Moonshot"]) {
+      expect(screen.queryByRole("button", { name: removed })).not.toBeInTheDocument();
+    }
     expect(screen.queryByRole("button", { name: "智谱" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Custom" })).toHaveLength(1);
+    expect(screen.queryByRole("navigation", { name: "Model services" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add service" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Custom" }));
+    expect(screen.getByRole("navigation", { name: "Model services" })).toBeInTheDocument();
     expect(screen.getByLabelText("Base URL")).toHaveValue("");
-    expect(screen.getByRole("dialog", { name: "Custom service" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("dialog", { name: "Model management" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Add service" }));
     expect(screen.getByRole("dialog", { name: "Model management" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "OpenAI" }));
     await user.click(screen.getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(translationApi.savePreferences).not.toHaveBeenCalled();
   });
+  it("shares the standalone template picker and restores the sidebar for new-service configuration", async () => {
+    const user = userEvent.setup();
+    wrap(<AiSettingsRows />);
+    await user.click(screen.getByRole("button", { name: "Open Model management" }));
+    await user.click(await screen.findByRole("button", { name: "Add service" }));
+    expect(screen.queryByRole("navigation", { name: "Model services" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add service" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back to model management" }));
+    expect(screen.getByRole("button", { name: "Edit Private gateway" })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    await user.click(screen.getByRole("button", { name: "Add service" }));
+    expect(screen.queryByRole("navigation", { name: "Model services" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Custom" }));
+    const existing = screen.getByRole("button", { name: "Edit Private gateway" });
+    expect(screen.getByRole("navigation", { name: "Model services" })).toContainElement(existing);
+    expect(existing).not.toHaveAttribute("aria-current");
+    expect(
+      within(screen.getByRole("navigation", { name: "Model services" })).getByText("Custom service")
+        .parentElement,
+    ).toHaveAttribute("aria-current", "true");
+    await user.type(screen.getByLabelText("API key"), "new-draft-key");
+    await user.click(existing);
+    expect(await screen.findByRole("dialog", { name: "Unsaved changes" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(screen.getByLabelText("API key")).toHaveValue("new-draft-key");
+    expect(translationApi.saveProvider).not.toHaveBeenCalled();
+    await user.click(existing);
+    await user.click(await screen.findByRole("button", { name: "Discard and continue" }));
+    expect(await screen.findByRole("button", { name: "Rename provider" })).toHaveTextContent(
+      "Private gateway",
+    );
+    expect(existing).toHaveAttribute("aria-current", "true");
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    expect(translationApi.savePreferences).not.toHaveBeenCalled();
+  });
+
+  it("retains a failed new-service save in the sidebar and retries without rebinding translation", async () => {
+    vi.mocked(translationApi.saveProvider)
+      .mockRejectedValueOnce("configWrite")
+      .mockImplementationOnce(async (update) => {
+        const configured = [provider, { ...provider, id: "new", name: update.name }];
+        vi.mocked(translationApi.providers).mockResolvedValue(configured);
+        return configured;
+      });
+    const user = userEvent.setup();
+    wrap(<AiSettingsRows />);
+    await user.click(screen.getByRole("button", { name: "Open Model management" }));
+    await user.click(await screen.findByRole("button", { name: "Add service" }));
+    await user.click(screen.getByRole("button", { name: "Volcengine" }));
+    await user.type(screen.getByLabelText("API key"), "new-key");
+    await user.tab();
+    await screen.findByText("Could not save");
+    expect(translationApi.saveProvider).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText("API key")).toHaveValue("new-key");
+    expect(screen.getByRole("navigation", { name: "Model services" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    const added = await screen.findByRole("button", { name: "Edit Volcengine" });
+    expect(added).toHaveAttribute("aria-current", "true");
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    expect(translationApi.saveProvider).toHaveBeenCalledTimes(2);
+    expect(translationApi.savePreferences).not.toHaveBeenCalled();
+    expect(translationApi.start).not.toHaveBeenCalled();
+  });
+
+  it("keeps later edits and reuses the created provider during its first autosave", async () => {
+    let finish!: (providers: (typeof provider)[]) => void;
+    vi.mocked(translationApi.saveProvider).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    vi.mocked(translationApi.saveProvider).mockImplementationOnce(async (update) => {
+      const configured = [
+        provider,
+        { ...provider, id: "new", name: "OpenAI", baseUrl: update.baseUrl },
+      ];
+      vi.mocked(translationApi.providers).mockResolvedValue(configured);
+      return configured;
+    });
+    const user = userEvent.setup();
+    wrap(<AiSettingsRows />);
+    await user.click(screen.getByRole("button", { name: "Open Model management" }));
+    await user.click(await screen.findByRole("button", { name: "Add service" }));
+    await user.click(screen.getByRole("button", { name: "OpenAI" }));
+    const key = screen.getByLabelText("API key");
+    await user.type(key, "new-key");
+    await user.tab();
+    await waitFor(() => expect(translationApi.saveProvider).toHaveBeenCalledTimes(1));
+    const url = screen.getByLabelText("Base URL");
+    await user.clear(url);
+    await user.type(url, "https://later.test/v1");
+    await user.tab();
+    expect(translationApi.saveProvider).toHaveBeenCalledTimes(1);
+    const configured = [provider, { ...provider, id: "new", name: "OpenAI" }];
+    vi.mocked(translationApi.providers).mockResolvedValue(configured);
+    finish(configured);
+    await waitFor(() => expect(translationApi.saveProvider).toHaveBeenCalledTimes(2));
+    expect(translationApi.saveProvider).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: "new", baseUrl: "https://later.test/v1", apiKey: "new-key" }),
+    );
+    expect(screen.getByLabelText("Base URL")).toHaveValue("https://later.test/v1");
+    expect(screen.getByRole("button", { name: "Edit OpenAI" })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+  });
+
+  it("deletes an unsaved custom provider through the same three-dot menu without writing", async () => {
+    const user = userEvent.setup();
+    wrap(<AiSettingsRows />);
+    await user.click(screen.getByRole("button", { name: "Open Model management" }));
+    await user.click(await screen.findByRole("button", { name: "Add service" }));
+    await user.click(screen.getByRole("button", { name: "Custom" }));
+    expect(screen.queryByLabelText("Provider name")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "More actions for Custom service" }));
+    await user.click(screen.getByRole("menuitem", { name: "Delete Custom service" }));
+    await user.click(screen.getByRole("button", { name: "Delete service" }));
+    expect(await screen.findByRole("button", { name: "Custom" })).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Model services" })).not.toBeInTheDocument();
+    expect(translationApi.deleteProvider).not.toHaveBeenCalled();
+    expect(translationApi.saveProvider).not.toHaveBeenCalled();
+  });
+
   it("saves before switching services and guards invalid drafts before adding", async () => {
     const other = { ...provider, id: "other", name: "Other service" };
     vi.mocked(translationApi.providers).mockResolvedValue([provider, other]);
@@ -604,6 +753,7 @@ describe("translation settings", () => {
     await waitFor(() => expect(screen.getByLabelText("Base URL")).toBeEnabled());
     await user.clear(screen.getByLabelText("Base URL"));
     await user.type(screen.getByLabelText("Base URL"), "incomplete");
+    expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Add service" }));
     await screen.findByRole("dialog", { name: "Unsaved changes" });
     await user.click(screen.getByRole("button", { name: "Keep editing" }));
@@ -611,7 +761,7 @@ describe("translation settings", () => {
     expect(translationApi.saveProvider).toHaveBeenCalledTimes(1);
     await user.click(screen.getByRole("button", { name: "Add service" }));
     await user.click(await screen.findByRole("button", { name: "Discard and continue" }));
-    expect(screen.getByRole("dialog", { name: "Add service" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Model management" })).toBeInTheDocument();
     expect(translationApi.savePreferences).not.toHaveBeenCalled();
     expect(translationApi.start).not.toHaveBeenCalled();
   });

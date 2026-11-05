@@ -34,7 +34,13 @@ function setup() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const view = render(
     <QueryClientProvider client={client}>
-      <ProviderEditor provider={provider} formId="provider-form" error={null} onSave={onSave} />
+      <ProviderEditor
+        provider={provider}
+        formId="provider-form"
+        headerActions={<span />}
+        error={null}
+        onSave={onSave}
+      />
     </QueryClientProvider>,
   );
   return { ...view, onSave };

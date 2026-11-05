@@ -1,5 +1,5 @@
 import "@/i18n";
-import { act, render as renderUI, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render as renderUI, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "@/i18n";
@@ -166,6 +166,33 @@ describe("model configuration editor", () => {
       ...model,
       maxOutputTokens: 300,
     });
+  });
+  it("preserves matched parameters and avoids lookup when only surrounding whitespace changes", async () => {
+    vi.mocked(translationApi.resolveModel).mockResolvedValue({
+      contextWindow: 1000,
+      maxOutputTokens: 200,
+    });
+    render(<ModelEditorDialog {...props()} />);
+    await tick();
+    expect(screen.getByLabelText("Context window")).toHaveValue("1000");
+    fireEvent.change(screen.getByLabelText("Model ID"), { target: { value: " model-a " } });
+    expect(screen.getByLabelText("Context window")).toHaveValue("1000");
+    expect(screen.getByLabelText("Maximum output tokens")).toHaveValue("200");
+    await tick();
+    expect(translationApi.resolveModel).toHaveBeenCalledTimes(1);
+  });
+  it("waits for IME composition to finish before starting the lookup debounce", async () => {
+    render(<ModelEditorDialog {...props()} model={{ ...model, id: "" }} />);
+    const field = screen.getByLabelText("Model ID");
+    fireEvent.compositionStart(field);
+    fireEvent.change(field, { target: { value: "model-a" } });
+    await tick();
+    expect(translationApi.resolveModel).not.toHaveBeenCalled();
+    fireEvent.compositionEnd(field);
+    expect(translationApi.resolveModel).not.toHaveBeenCalled();
+    await tick();
+    expect(translationApi.resolveModel).toHaveBeenCalledTimes(1);
+    expect(translationApi.resolveModel).toHaveBeenCalledWith(props().baseUrl, "model-a");
   });
   it("isolates A→B→A results and failures, and ignores a response after close", async () => {
     const old = deferred<null>();

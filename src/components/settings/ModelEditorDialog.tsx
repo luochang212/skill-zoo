@@ -48,11 +48,13 @@ export function ModelEditorDialog({
   const id = useId();
   const modelInputRef = useRef<HTMLInputElement>(null);
   const [modelId, setModelId] = useState(model.id);
+  const normalizedModelId = modelId.trim();
+  const [composing, setComposing] = useState(false);
   const [thinking, setThinking] = useState(model.thinking ?? false);
   const { data: canToggleThinking = false } = useQuery({
-    queryKey: ["llm", "canToggleThinking", baseUrl, protocol, modelId.trim()],
-    queryFn: () => translationApi.canToggleThinking(baseUrl, protocol, modelId.trim()),
-    enabled: !!modelId.trim(),
+    queryKey: ["llm", "canToggleThinking", baseUrl, protocol, normalizedModelId],
+    queryFn: () => translationApi.canToggleThinking(baseUrl, protocol, normalizedModelId),
+    enabled: !!normalizedModelId && !composing,
     retry: false,
     staleTime: Infinity,
   });
@@ -63,15 +65,15 @@ export function ModelEditorDialog({
     output: model.maxOutputTokens != null,
   });
   const [error, setError] = useState<"modelId" | "contextWindow" | "maxOutputTokens" | null>(null);
-  const identity = useMemo(() => ({}), [baseUrl, modelId]);
+  const identity = useMemo(() => ({}), [baseUrl, normalizedModelId, composing]);
   const activeIdentity = useRef(identity);
   activeIdentity.current = identity;
   useEffect(() => {
     let current = true;
-    if (!modelId.trim() || context.trim() || output.trim()) return;
+    if (composing || !normalizedModelId || context.trim() || output.trim()) return;
     const timer = setTimeout(() => {
       void translationApi
-        .resolveModel(baseUrl, modelId.trim())
+        .resolveModel(baseUrl, normalizedModelId)
         .then((result) => {
           // A→B→A and closing are different editing sessions even when the final ID is identical.
           if (!current || activeIdentity.current !== identity) return;
@@ -89,9 +91,9 @@ export function ModelEditorDialog({
       current = false;
       clearTimeout(timer);
     };
-  }, [baseUrl, modelId, context, output, identity, id, t]);
+  }, [baseUrl, normalizedModelId, composing, context, output, identity, id, t]);
   const confirmModel = () => {
-    const nextId = modelId.trim();
+    const nextId = normalizedModelId;
     const nextContext = parseLimit(context);
     const nextOutput = parseLimit(output);
     if (!nextId || otherModelIds.includes(nextId)) {
@@ -185,8 +187,11 @@ export function ModelEditorDialog({
                 spellCheck={false}
                 value={modelId}
                 aria-invalid={error === "modelId"}
+                onCompositionStart={() => setComposing(true)}
+                onCompositionEnd={() => setComposing(false)}
                 onChange={(event) => {
                   setModelId(event.target.value);
+                  if (event.target.value.trim() === normalizedModelId) return;
                   // Editing the ID retargets the model, so thinking resets;
                   // returning to the saved ID restores the stored choice.
                   setThinking(
@@ -248,7 +253,7 @@ export function ModelEditorDialog({
               onClick={confirmModel}
               size="sm"
               className="h-8 text-xs"
-              disabled={!modelId.trim()}
+              disabled={!normalizedModelId}
             >
               {t("llm.confirmModel")}
             </Button>

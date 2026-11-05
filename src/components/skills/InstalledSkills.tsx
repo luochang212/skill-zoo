@@ -236,9 +236,11 @@ function InstalledSkillsSkeleton({
           {category.type === "consistency" ? (
             <SkeletonConsistencyPanel />
           ) : (
-            <div className="flex-1 min-h-0 flex gap-0 relative">
-              <ScrollArea className="flex-1 pt-1 @container/main">
-                {viewMode === "grid" ? <SkeletonGrid /> : <SkeletonList />}
+            <div className="flex-1 min-h-0 flex gap-0 relative -mr-6">
+              <ScrollArea className="flex-1 pt-1">
+                <div className="pr-6 @container/main">
+                  {viewMode === "grid" ? <SkeletonGrid /> : <SkeletonList />}
+                </div>
               </ScrollArea>
               {category.type === "repo" && (
                 <div className="hidden @4col/main:block w-[260px] shrink-0 border-l border-border/50 ml-5 pl-5">
@@ -952,87 +954,93 @@ export const InstalledSkills = memo(function InstalledSkills({
               scrollToId={consistencyNavTarget?.targetId}
             />
           ) : (
-            <div className="flex-1 min-h-0 flex gap-0 relative">
+            <div className="flex-1 min-h-0 flex gap-0 relative -mr-6">
               {filtered.length === 0 ? (
                 <div className="flex-1 flex items-start justify-center pt-24">
                   <p className="text-sm text-muted-foreground">{t("installed.noMatch")}</p>
                 </div>
               ) : (
-                <ScrollArea className="flex-1 pt-1 @container/main">
-                  {viewMode === "grid" ? (
-                    <div className="grid grid-cols-1 max-w-[780px] @md/main:grid-cols-2 @md/main:max-w-none @3col/main:grid-cols-3 @4col/main:grid-cols-4 gap-4 pt-1 pb-3">
-                      {sorted.map((skill) => (
-                        <SkillDragSource
-                          key={skill.id}
-                          skill={skill}
-                          disabled={selectionDisabled}
-                          className="h-full"
-                        >
-                          <SkillCard
-                            skill={
-                              isArchiveView
-                                ? { ...skill, updatedAt: (skill as ArchivedSkill).archivedAt }
-                                : skill
-                            }
-                            isInstalled
-                            onOpen={() =>
-                              isArchiveView
-                                ? onViewArchivedSkill(skill.id, skill.name)
-                                : onViewSkill(skill.id, skill.directory, skill.name)
-                            }
-                            onToggleStar={
-                              selectionDisabled ? undefined : () => handleToggleStar(skill)
-                            }
-                            starred={skill.starred}
-                            issues={isArchiveView ? undefined : filteredIssuesMap.get(skill.id)}
-                            onNavigateConsistency={handleNavigateToConsistency}
-                            selectable={false}
-                          />
-                        </SkillDragSource>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex flex-col">
-                      <ListHeader
-                        sortField={sortField}
-                        sortDirection={sortDirection}
-                        onSort={handleSort}
-                        allSelected={allSelected}
-                        onToggleSelectAll={allSelected ? handleDeselectVisible : handleSelectAll}
-                        selectable={!selectionDisabled}
-                        dateLabel={isArchiveView ? t("skill.archived") : t("skill.updated")}
-                        selectAllLabel={t("browse.selectAll")}
-                      />
-                      {sorted.map((skill) => (
-                        <SkillDragSource key={skill.id} skill={skill} disabled={selectionDisabled}>
-                          <SkillCardRow
-                            skill={
-                              isArchiveView
-                                ? { ...skill, updatedAt: (skill as ArchivedSkill).archivedAt }
-                                : skill
-                            }
-                            isInstalled
-                            onOpen={() =>
-                              isArchiveView
-                                ? onViewArchivedSkill(skill.id, skill.name)
-                                : onViewSkill(skill.id, skill.directory, skill.name)
-                            }
-                            onToggleStar={
-                              selectionDisabled ? undefined : () => handleToggleStar(skill)
-                            }
-                            starred={skill.starred}
-                            issues={isArchiveView ? undefined : filteredIssuesMap.get(skill.id)}
-                            selected={selectedIds.has(skill.id) && !selectionDisabled}
-                            onToggleSelect={() =>
-                              !selectionDisabled && handleToggleSelect(skill.id)
-                            }
-                            onNavigateConsistency={handleNavigateToConsistency}
-                            selectable={false}
-                          />
-                        </SkillDragSource>
-                      ))}
-                    </div>
-                  )}
+                <ScrollArea className="flex-1 pt-1">
+                  <div className="pr-6 @container/main">
+                    {viewMode === "grid" ? (
+                      <div className="grid grid-cols-1 max-w-[780px] @md/main:grid-cols-2 @md/main:max-w-none @3col/main:grid-cols-3 @4col/main:grid-cols-4 gap-4 pt-1 pb-3">
+                        {sorted.map((skill) => (
+                          <SkillDragSource
+                            key={skill.id}
+                            skill={skill}
+                            disabled={selectionDisabled}
+                            className="h-full"
+                          >
+                            <SkillCard
+                              skill={
+                                isArchiveView
+                                  ? { ...skill, updatedAt: (skill as ArchivedSkill).archivedAt }
+                                  : skill
+                              }
+                              isInstalled
+                              onOpen={() =>
+                                isArchiveView
+                                  ? onViewArchivedSkill(skill.id, skill.name)
+                                  : onViewSkill(skill.id, skill.directory, skill.name)
+                              }
+                              onToggleStar={
+                                selectionDisabled ? undefined : () => handleToggleStar(skill)
+                              }
+                              starred={skill.starred}
+                              issues={isArchiveView ? undefined : filteredIssuesMap.get(skill.id)}
+                              onNavigateConsistency={handleNavigateToConsistency}
+                              selectable={false}
+                            />
+                          </SkillDragSource>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col">
+                        <ListHeader
+                          sortField={sortField}
+                          sortDirection={sortDirection}
+                          onSort={handleSort}
+                          allSelected={allSelected}
+                          onToggleSelectAll={allSelected ? handleDeselectVisible : handleSelectAll}
+                          selectable={!selectionDisabled}
+                          dateLabel={isArchiveView ? t("skill.archived") : t("skill.updated")}
+                          selectAllLabel={t("browse.selectAll")}
+                        />
+                        {sorted.map((skill) => (
+                          <SkillDragSource
+                            key={skill.id}
+                            skill={skill}
+                            disabled={selectionDisabled}
+                          >
+                            <SkillCardRow
+                              skill={
+                                isArchiveView
+                                  ? { ...skill, updatedAt: (skill as ArchivedSkill).archivedAt }
+                                  : skill
+                              }
+                              isInstalled
+                              onOpen={() =>
+                                isArchiveView
+                                  ? onViewArchivedSkill(skill.id, skill.name)
+                                  : onViewSkill(skill.id, skill.directory, skill.name)
+                              }
+                              onToggleStar={
+                                selectionDisabled ? undefined : () => handleToggleStar(skill)
+                              }
+                              starred={skill.starred}
+                              issues={isArchiveView ? undefined : filteredIssuesMap.get(skill.id)}
+                              selected={selectedIds.has(skill.id) && !selectionDisabled}
+                              onToggleSelect={() =>
+                                !selectionDisabled && handleToggleSelect(skill.id)
+                              }
+                              onNavigateConsistency={handleNavigateToConsistency}
+                              selectable={false}
+                            />
+                          </SkillDragSource>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </ScrollArea>
               )}
 

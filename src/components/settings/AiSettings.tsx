@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { ArrowLeft, Cpu, Languages, ListTree, Settings2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -9,34 +9,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  useSaveSkillProvider,
-  useSkillProviders,
-  useTranslationPreferences,
-} from "@/hooks/useSkillProviders";
+import { useSkillProviders, useTranslationPreferences } from "@/hooks/useSkillProviders";
 import { translationLanguages } from "@/lib/translation";
 import { cn } from "@/lib/utils";
-import type { LlmProvider } from "@/lib/api/translation";
-import {
-  ModelProvidersSection,
-  ProviderEditor,
-  ProviderTemplatePicker,
-  type ProviderTemplate,
-  type ProviderNavigationGuard,
-} from "./ModelProvidersSection";
+import { ModelProvidersSection, type ProviderNavigationGuard } from "./ModelProvidersSection";
 import { TranslationSettings } from "./TranslationSettings";
 import { SettingsPickerContext } from "./SettingsSelect";
 
 type SettingsPage = "providers" | "translation";
-type DetailPage =
-  | { kind: SettingsPage | "templates" }
-  | {
-      kind: "editor";
-      provider: LlmProvider | null;
-      template?: ProviderTemplate;
-      returnTo: "providers" | "templates";
-    };
-
 /** Two independent entry rows; configuration forms only mount inside the detail dialog. */
 export function AiSettingsRows() {
   const { t } = useTranslation();
@@ -207,51 +187,13 @@ function AiSettingsDetail({
   returnFocusRef?: RefObject<HTMLButtonElement | null>;
 }) {
   const { t } = useTranslation();
-  const [page, setPage] = useState<DetailPage>({ kind: initialPage });
-  const [fromTranslation, setFromTranslation] = useState(false);
-  const save = useSaveSkillProvider();
-  const providers = useSkillProviders();
-  const formId = useId();
-  const [preferredProviderId, setPreferredProviderId] = useState<string | null>(null);
-  const choosingFirstService =
-    page.kind === "providers" &&
-    !providers.isPending &&
-    !providers.isError &&
-    providers.data?.length === 0;
-  const managingServices =
-    page.kind === "providers" && !!providers.data?.length && !providers.isError;
+  const [page, setPage] = useState<SettingsPage>(initialPage);
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     headingRef.current?.focus();
   }, [page]);
-  const back =
-    page.kind === "editor"
-      ? page.returnTo
-      : page.kind === "templates"
-        ? "providers"
-        : page.kind === "providers" && fromTranslation
-          ? "translation"
-          : null;
-  const title =
-    page.kind === "editor"
-      ? page.provider
-        ? t("llm.edit")
-        : page.template?.name === "Custom"
-          ? t("llm.custom")
-          : t("llm.connectService", { name: page.template?.name })
-      : page.kind === "templates"
-        ? t("llm.add")
-        : t(page.kind === "providers" ? "llm.title" : "translation.settings");
-  const description =
-    page.kind === "templates" || choosingFirstService
-      ? t("llm.chooseService")
-      : page.kind === "editor"
-        ? t("llm.connectionHint")
-        : t(page.kind === "providers" ? "llm.listHint" : "translation.manualHint");
-  const cancelEdit = () => {
-    save.reset();
-    if (back) setPage({ kind: back });
-  };
+  const backToTranslation = page === "providers" && initialPage === "translation";
+  const showTranslation = () => setPage("translation");
   return (
     <SettingsPickerContext.Provider value={onPickerOpenChange}>
       <DialogContent
@@ -270,13 +212,8 @@ function AiSettingsDetail({
           }
         }}
         className={cn(
-          "flex w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:rounded-xl",
-          page.kind === "translation"
-            ? "max-w-[480px]"
-            : managingServices
-              ? "max-w-[684px]"
-              : "max-w-[640px]",
-          "max-h-[calc(100vh-6rem)]",
+          "flex w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:rounded-xl max-h-[calc(100vh-6rem)]",
+          page === "translation" ? "max-w-[480px]" : "max-w-[684px]",
         )}
         data-selectable
         onCloseAutoFocus={(event) => {
@@ -288,113 +225,39 @@ function AiSettingsDetail({
       >
         <DialogHeader className="shrink-0 border-b border-border/50 px-4 py-4 text-left">
           <div className="flex items-center gap-2 pr-6">
-            {back && (
+            {backToTranslation && (
               <button
                 type="button"
-                disabled={save.isPending}
-                className="-my-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                aria-label={t(
-                  back === "translation"
-                    ? "aiSettings.backToTranslation"
-                    : back === "templates" || (page.kind === "editor" && !page.provider)
-                      ? "llm.backToServices"
-                      : "aiSettings.backToProviders",
-                )}
+                className="-my-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label={t("aiSettings.backToTranslation")}
                 onClick={() => {
-                  if (managingServices && providerNavigationRef.current)
-                    providerNavigationRef.current(cancelEdit);
-                  else cancelEdit();
+                  if (providerNavigationRef.current) providerNavigationRef.current(showTranslation);
+                  else showTranslation();
                 }}
               >
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               </button>
             )}
             <DialogTitle ref={headingRef} tabIndex={-1} className="outline-none">
-              {title}
+              {t(page === "providers" ? "llm.title" : "translation.settings")}
             </DialogTitle>
           </div>
-          <DialogDescription className={cn("pr-5", back && "pl-10")}>
-            {description}
+          <DialogDescription className={cn("pr-5", backToTranslation && "pl-10")}>
+            {t(page === "providers" ? "llm.listHint" : "translation.manualHint")}
           </DialogDescription>
         </DialogHeader>
         <div
-          key={page.kind}
-          className={cn("min-h-0", managingServices ? "overflow-hidden" : "overflow-y-auto")}
+          key={page}
+          className={cn("min-h-0", page === "providers" ? "overflow-hidden" : "overflow-y-auto")}
         >
-          <div className={managingServices ? undefined : "space-y-4 p-4"}>
-            {page.kind === "translation" && (
-              <TranslationSettings
-                onConfigureModels={() => {
-                  setFromTranslation(true);
-                  setPage({ kind: "providers" });
-                }}
-              />
-            )}
-            {(page.kind === "templates" || choosingFirstService) && (
-              <ProviderTemplatePicker
-                onSelect={(template) => {
-                  save.reset();
-                  setPage({
-                    kind: "editor",
-                    provider: null,
-                    template,
-                    returnTo: page.kind === "templates" ? "templates" : "providers",
-                  });
-                }}
-              />
-            )}
-            {page.kind === "providers" && !choosingFirstService && (
-              <ModelProvidersSection
-                initialProviderId={preferredProviderId}
-                onAdd={() => setPage({ kind: "templates" })}
-                navigationGuardRef={providerNavigationRef}
-              />
-            )}
-            {page.kind === "editor" && (
-              <ProviderEditor
-                key={page.provider?.id ?? page.template?.name}
-                provider={page.provider}
-                template={page.template}
-                formId={formId}
-                error={save.error}
-                onSave={(provider) =>
-                  save.mutate(provider, {
-                    onSuccess: (updated) => {
-                      const added = updated.find(
-                        (item) => !providers.data?.some((old) => old.id === item.id),
-                      );
-                      setPreferredProviderId(added?.id ?? provider.id);
-                      setPage({ kind: "providers" });
-                    },
-                  })
-                }
-              />
-            )}
-          </div>
+          {page === "translation" ? (
+            <div className="space-y-4 p-4">
+              <TranslationSettings onConfigureModels={() => setPage("providers")} />
+            </div>
+          ) : (
+            <ModelProvidersSection navigationGuardRef={providerNavigationRef} />
+          )}
         </div>
-        {page.kind === "editor" && (
-          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border/40 p-3">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs"
-              disabled={save.isPending}
-              onClick={cancelEdit}
-            >
-              {t("common.cancel")}
-            </Button>
-            <Button
-              type="submit"
-              form={formId}
-              size="sm"
-              className="h-8 text-xs"
-              disabled={save.isPending}
-            >
-              {t("llm.save")}
-            </Button>
-          </div>
-        )}
       </DialogContent>
     </SettingsPickerContext.Provider>
   );
