@@ -191,6 +191,10 @@ Base URL MUST 是无用户信息、无查询/片段的 HTTP(S) API 根地址，�
 - **WHEN** 请求超时、鉴权失败、限流，或服务返回非推理响应
 - **THEN** 测试失败并显示安全的原因，不将 HTTP 200 单独视为成功
 
+#### Scenario: 兼容服务返回无签名思考
+- **WHEN** 服务返回成功的 Messages 响应，content 为数组，stop_reason 为 end_turn 或 max_tokens，但 thinking 内容缺少 signature
+- **THEN** 连接测试依据原始响应结构与结束状态判为成功，不因 SDK 的正文解码失败而报告供应商拒绝；HTTP 错误、缺失或失败结束状态、无效结构仍报告失败，不自动重试
+
 ### Requirement: 测试隔离与凭据保护
 测试调用本身 MUST 不保存连接、不改变偏好或翻译缓存、不发送技能内容。未替换的密钥 MUST 只在后端读取；替换或清除使用当前草稿。反馈 MUST 不含密钥、上游响应体或原始网络错误。测试期间 MUST 防止重复提交，配置改变、切换服务或关闭后旧结果 MUST NOT 产生误导性成功反馈。未主动测试时 MUST NOT 发起推理请求。
 
@@ -218,7 +222,7 @@ Base URL MUST 是无用户信息、无查询/片段的 HTTP(S) API 根地址，�
 - **THEN** 测试与翻译均不发送 `x-api-key` 或 Authorization，不回退到环境中的凭据
 
 ### Requirement: 模型流错误安全分类
-模型服务在 HTTP 200 流中返回显式错误，或因协议数据无法解析而失败时 MUST 报告 `providerResponse`，而非网络连接失败；HTTP 401/403、429 与超时 MUST 继续使用各自安全分类。错误反馈 MUST NOT 包含上游响应、模型输入或凭据，MUST NOT 自动重试或将部分输出当作成功。
+模型服务在 HTTP 200 流中返回显式错误，或因协议数据无法解析而失败时 MUST 报告 `providerResponse`，而非网络连接失败；HTTP 401/403 与超时 MUST 继续使用各自安全分类；HTTP 429 的结构化 error.code 明确为 AccountQuotaExceeded 时 MUST 报告 quotaExceeded，其他或无法识别的 429 MUST 保持 rateLimit，不根据自由文本推断额度状态。错误反馈 MUST NOT 包含上游响应、模型输入或凭据，MUST NOT 自动重试或将部分输出当作成功。
 
 #### Scenario: 服务端流错误
 - **WHEN** 三种协议之一在 HTTP 200 流中返回错误事件
@@ -227,6 +231,10 @@ Base URL MUST 是无用户信息、无查询/片段的 HTTP(S) API 根地址，�
 #### Scenario: 非法流数据
 - **WHEN** Chat Completions 或 Messages 返回无法解析的正文事件
 - **THEN** 报告服务响应错误，不误导用户排查网络
+
+#### Scenario: 套餐额度耗尽
+- **WHEN** 连接测试或翻译请求返回 HTTP 429，结构化错误码为 AccountQuotaExceeded，包括被流错误包装的响应
+- **THEN** 返回安全的 quotaExceeded 分类；其他 429 仍为 rateLimit，401/403 仍为 authentication，不透传上游错误正文、凭据或请求编号
 
 ### Requirement: 已有服务自动保存
 已有服务的名称确认、地址与密钥有效失焦 MUST 自动保存；协议、启用状态和模型增删改确认 MUST 立即保存。输入中间态 MUST NOT 写入；无效或失败时 MUST 保留草稿和安全错误，支持显式重试。写入 MUST 按编辑顺序串行，旧响应 MUST NOT 覆盖新输入。界面 MUST 显示保存中和保存失败，不显示常驻的未保存修改提示，正常保存完成后 MUST 不显示常驻已保存提示，不自动切换翻译偏好或调用模型。首次添加服务按同一自动保存规则持久化；模型参数弹窗 MUST 保留显式确认。

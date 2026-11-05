@@ -10,7 +10,7 @@ let wrapper: ReturnType<typeof createQueryWrapper>["wrapper"];
 vi.mock("@/lib/api/translation", () => ({
   translationApi: { start: vi.fn(), cancel: vi.fn(), translate: vi.fn(), cached: vi.fn() },
 }));
-vi.mock("sonner", () => ({ toast: { info: vi.fn(), dismiss: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { info: vi.fn(), error: vi.fn(), dismiss: vi.fn() } }));
 const input = {
   skillId: "demo",
   path: "SKILL.md",
@@ -38,6 +38,25 @@ beforeEach(() => {
   });
 });
 describe("manual translation lifecycle", () => {
+  it.each(["quotaExceeded", "rateLimit", "authentication", "timeout", "unknownFailure"])(
+    "shows a concise localized reason for %s without echoing unknown errors",
+    async (code) => {
+      await i18n.changeLanguage("zh");
+      const hook = renderHook(() => useSkillTranslation(input), { wrapper });
+      await act(() => {
+        void hook.result.current.translate();
+      });
+      await waitFor(() => expect(translationApi.translate).toHaveBeenCalledOnce());
+      await act(() => send({ type: "failed", taskId: id, code }));
+      const reason =
+        code === "unknownFailure"
+          ? i18n.t("translation.failed")
+          : i18n.t(`translation.errors.${code}`);
+      expect(toast.error).toHaveBeenCalledWith(reason, { id: `translation-error-${id}` });
+      await waitFor(() => expect(hook.result.current.error).toBe(code));
+    },
+  );
+
   it("shows cached text without registering or generating a translation and respects manual original selection", async () => {
     vi.mocked(translationApi.cached).mockResolvedValue("# 你好");
     const hook = renderHook(() => useSkillTranslation(input, { preferCached: true }), { wrapper });
@@ -208,10 +227,10 @@ describe("manual translation lifecycle", () => {
     });
     await waitFor(() => expect(send).toBeDefined());
     await act(() => send({ type: "repairing", taskId: id }));
-    expect(toast.info).toHaveBeenCalledWith(
-      "Some protection markers were damaged — sending one targeted repair request…",
-      { id: `repair-${id}`, duration: Infinity },
-    );
+    expect(toast.info).toHaveBeenCalledWith("Repairing translation…", {
+      id: `repair-${id}`,
+      duration: Infinity,
+    });
     await act(() => {
       send({ type: "completed", taskId: id, text: "fixed" });
       finish();
@@ -405,4 +424,49 @@ describe("manual translation lifecycle", () => {
     await waitFor(() => expect(hook.result.current.text).toBe("previous"));
     await waitFor(() => expect(hook.result.current.error).toBe("truncated"));
   });
+});
+
+it("identifies parallel background tasks in error and repair toasts after navigation", async () => {
+  const tasks = new Map<string, { id: string; send: (e: TranslationEvent) => void }>();
+  vi.mocked(translationApi.translate).mockImplementation((request, callback) => {
+    tasks.set(request.skillId, { id: request.taskId, send: callback });
+    return new Promise(() => {});
+  });
+  const first = renderHook(
+    () =>
+      useSkillTranslation(
+        { ...input, skillId: "skill-a", path: "references/guide.md" },
+        { skillName: "Alpha skill" },
+      ),
+    { wrapper },
+  );
+  const second = renderHook(
+    () => useSkillTranslation({ ...input, skillId: "skill-b" }, { skillName: "Beta skill" }),
+    { wrapper },
+  );
+  await act(() => {
+    void first.result.current.translate();
+    void second.result.current.translate();
+  });
+  await waitFor(() => expect(tasks.size).toBe(2));
+  first.unmount();
+  const a = tasks.get("skill-a")!;
+  const b = tasks.get("skill-b")!;
+  await act(() => {
+    a.send({ type: "repairing", taskId: a.id });
+    b.send({ type: "failed", taskId: b.id, code: "network" });
+    a.send({ type: "failed", taskId: a.id, code: "fidelity" });
+  });
+  expect(toast.info).toHaveBeenCalledWith(
+    "Alpha skill · Repairing translation…",
+    expect.objectContaining({ id: `repair-${a.id}` }),
+  );
+  expect(toast.error).toHaveBeenCalledWith(
+    `Beta skill · ${i18n.t("translation.errors.network")}`,
+    expect.objectContaining({ id: `translation-error-${b.id}` }),
+  );
+  expect(toast.error).toHaveBeenCalledWith(
+    `Alpha skill · ${i18n.t("translation.errors.fidelity")}`,
+    expect.objectContaining({ id: `translation-error-${a.id}` }),
+  );
 });

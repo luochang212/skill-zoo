@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, memo } from "react";
+import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useSkillTranslation } from "@/hooks/useSkillTranslation";
@@ -9,6 +10,7 @@ import {
 } from "@/hooks/useSkillProviders";
 import { initialTranslationLanguage, translationErrorCode } from "@/lib/translation";
 import { SkillTranslationControls } from "./SkillTranslationControls";
+import { SkillTranslationProgress } from "./SkillTranslationProgress";
 import { MarkdownContent } from "@/components/skills/MarkdownContent";
 import { SkillFileTree } from "@/components/skills/SkillFileTree";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -47,6 +49,7 @@ interface SkillContentPaneProps {
   updatedLabel?: string;
   directory?: string;
   skillId?: string;
+  skillName?: string;
   // SKILL.md save controls (passed through from parent)
   onSave?: () => void;
   savePending?: boolean;
@@ -171,6 +174,7 @@ export const SkillContentPane = memo(function SkillContentPane({
   updatedLabel,
   directory,
   skillId,
+  skillName,
   onSave,
   savePending,
   dirty,
@@ -507,6 +511,7 @@ export const SkillContentPane = memo(function SkillContentPane({
       targetLanguage,
     },
     {
+      skillName,
       preferCached:
         preferences.data?.preferCachedTranslations === true &&
         translationAvailable &&
@@ -537,23 +542,36 @@ export const SkillContentPane = memo(function SkillContentPane({
               ? t("translation.errors.sourceLimit")
               : undefined;
   const configError = preferences.error ?? providers.error ?? savePreferences.error;
+  useEffect(() => {
+    if (!translationAvailable || !configError) return;
+    toast.error(
+      t(`translation.errors.${translationErrorCode(configError)}`, {
+        defaultValue: t("translation.errors.network"),
+      }),
+      { id: "translation-config-error" },
+    );
+  }, [configError, translationAvailable, t]);
   const showTranslated =
-    translationAvailable && effectiveActiveTab === "overview" && translation.showTranslation;
+    translationAvailable &&
+    effectiveActiveTab === "overview" &&
+    translation.showTranslation &&
+    !!translation.text.trim();
   const renderedContent = showTranslated ? translation.text : displayContent;
   // A pending cache lookup holds the loading state so a hit renders the
   // translation on the first paint instead of flashing the original.
-  const awaitingTranslation =
-    translation.cachePending ||
-    (showTranslated && translation.status === "streaming" && !renderedContent);
+  const awaitingCachedTranslation = translation.cachePending;
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
       {/* ── Tab toggle bar (full width) ── */}
       <div
-        className="px-3 py-2 shrink-0 border-b border-border flex items-center gap-2"
+        className="relative px-3 py-2 shrink-0 border-b border-border flex items-center gap-2"
         role="group"
         aria-label={t("skill.view")}
       >
+        {translationAvailable && (
+          <SkillTranslationProgress key={translation.identity} status={translation.status} />
+        )}
         {/* Sidebar toggle */}
         {!fileTreeDisabled && (
           <button
@@ -660,28 +678,6 @@ export const SkillContentPane = memo(function SkillContentPane({
             </span>
           )}
       </div>
-
-      {translationAvailable && (translation.error || configError) && (
-        <div
-          role="status"
-          className="flex items-center gap-2 border-b border-border px-3 py-2 text-xs text-muted-foreground"
-        >
-          <span>
-            {t(`translation.errors.${translation.error ?? translationErrorCode(configError)}`, {
-              defaultValue: t("translation.errors.network"),
-            })}
-          </span>
-          {translation.error && !translationDisabledReason && (
-            <button
-              type="button"
-              className="underline"
-              onClick={() => void translation.translate(!!translation.text)}
-            >
-              {t("translation.retry")}
-            </button>
-          )}
-        </div>
-      )}
 
       {/* ── Below tab bar: sidebar + content side by side ── */}
       <div
@@ -836,20 +832,12 @@ export const SkillContentPane = memo(function SkillContentPane({
                 <div
                   className="px-5 py-4 pr-5"
                   lang={showTranslated ? targetLanguage : undefined}
-                  aria-busy={
-                    contentLoading ||
-                    awaitingTranslation ||
-                    (showTranslated && translation.status === "streaming")
-                  }
+                  aria-busy={contentLoading || awaitingCachedTranslation}
                 >
-                  {contentLoading || awaitingTranslation ? (
+                  {contentLoading || awaitingCachedTranslation ? (
                     <div
                       role="status"
-                      aria-label={t(
-                        awaitingTranslation && !translation.cachePending
-                          ? "translation.streaming"
-                          : "loading",
-                      )}
+                      aria-label={t("loading")}
                       className="flex items-center justify-center py-12"
                     >
                       <LoaderCircle

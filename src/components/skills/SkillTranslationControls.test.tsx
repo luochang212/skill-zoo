@@ -90,4 +90,36 @@ describe("translation toolbar menu", () => {
     expect(trigger).toHaveFocus();
     expect(state.translate).not.toHaveBeenCalled();
   });
+  it.each(["streaming", "failed"] as const)(
+    "handles the %s action safely in edit mode",
+    async (status) => {
+      await i18n.changeLanguage("en");
+      const state = { ...translation(), status, error: status === "failed" ? "network" : null };
+      render(
+        <QueryClientProvider client={createTestQueryClient()}>
+          <SkillTranslationControls
+            translation={state}
+            language="en"
+            setLanguage={vi.fn()}
+            unavailable={false}
+            preferencePending={false}
+            disabledReason="Switch to View to translate."
+          />
+        </QueryClientProvider>,
+      );
+      const button = screen.getByRole("button", {
+        name: status === "streaming" ? "Stop" : "Retry",
+      });
+      expect(button.textContent).toBe("");
+      if (status === "streaming") {
+        expect(button).toBeEnabled();
+        await userEvent.click(button);
+        expect(state.cancel).toHaveBeenCalledOnce();
+      } else {
+        expect(button).toBeDisabled();
+        expect(button).toHaveAttribute("title", "Switch to View to translate.");
+        expect(state.translate).not.toHaveBeenCalled();
+      }
+    },
+  );
 });

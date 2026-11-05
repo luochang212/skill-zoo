@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Languages, ChevronDown, LoaderCircle, Check } from "lucide-react";
+import { Languages, ChevronDown, LoaderCircle, Check, RotateCcw, Square } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -102,11 +102,7 @@ export function SkillTranslationControls({
               )}
             </DropdownMenuItem>
           )}
-          {streaming ? (
-            <DropdownMenuItem onSelect={translation.cancel}>
-              {t("translation.cancel")}
-            </DropdownMenuItem>
-          ) : (
+          {!streaming && (
             <DropdownMenuItem
               disabled={preferencePending}
               onSelect={() =>
@@ -143,6 +139,42 @@ export function SkillTranslationControls({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      {(streaming || translation.status === "failed") && (
+        <button
+          type="button"
+          disabled={!streaming && (!!disabledReason || preferencePending)}
+          aria-label={t(streaming ? "translation.stop" : "translation.retry")}
+          title={
+            (!streaming && disabledReason) ||
+            t(streaming ? "translation.stop" : "translation.retry")
+          }
+          className={cn(
+            "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-xl border border-border/60 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            translation.showTranslation && "bg-muted text-foreground",
+          )}
+          onClick={() => {
+            if (streaming) {
+              translation.cancel();
+              requestAnimationFrame(() => {
+                const trigger = triggerRef.current;
+                if (trigger?.disabled)
+                  trigger
+                    .closest('[role="group"]')
+                    ?.querySelector<HTMLButtonElement>("button:not(:disabled)")
+                    ?.focus();
+                else trigger?.focus();
+              });
+            } else if (unavailable) setSettingsOpen(true);
+            else void translation.translate(!!translation.text);
+          }}
+        >
+          {streaming ? (
+            <Square aria-hidden="true" className="h-3 w-3" />
+          ) : (
+            <RotateCcw aria-hidden="true" className="h-3 w-3" />
+          )}
+        </button>
+      )}
       <AiSettingsDialog
         open={settingsOpen}
         onOpenChange={setSettingsOpen}

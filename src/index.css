@@ -487,3 +487,50 @@ textarea,
 [data-scrollbar-autohide] {
   opacity: 0;
 }
+
+/* Intent feedback stays above the document; only successful completion reaches the end. */
+.translation-intent-progress[data-state="streaming"] {
+  animation: translation-intent-grow 8s ease-out both;
+}
+
+.translation-intent-progress[data-state="completed"] {
+  animation: translation-intent-complete 350ms ease-out both;
+}
+
+@keyframes translation-intent-grow {
+  from {
+    transform: scaleX(0.05);
+  }
+  30% {
+    transform: scaleX(0.6);
+  }
+  to {
+    transform: scaleX(0.9);
+  }
+}
+
+@keyframes translation-intent-complete {
+  from {
+    transform: scaleX(0.9);
+    opacity: 1;
+  }
+  40% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .translation-intent-progress[data-state="streaming"] {
+    animation: none;
+    transform: scaleX(0.9);
+  }
+  .translation-intent-progress[data-state="completed"] {
+    animation: none;
+    opacity: 0;
+  }
+}

@@ -90,6 +90,27 @@ fn classify(error: genai::Error) -> String {
         return "providerResponse".into();
     }
     let status = error.status();
+    if status.is_some_and(|status| status.as_u16() == 429) {
+        let body = match &error {
+            genai::Error::HttpError { body, .. }
+            | genai::Error::WebModelCall {
+                webc_error: genai::webc::Error::ResponseFailedStatus { body, .. },
+                ..
+            } => Some(body),
+            _ => None,
+        };
+        let quota_exceeded = body
+            .and_then(|body| serde_json::from_str::<serde_json::Value>(body).ok())
+            .is_some_and(|body| {
+                body.pointer("/error/code").and_then(|v| v.as_str()) == Some("AccountQuotaExceeded")
+            });
+        return if quota_exceeded {
+            "quotaExceeded"
+        } else {
+            "rateLimit"
+        }
+        .into();
+    }
     if let genai::Error::WebStream { error: inner, .. } = error {
         if inner.is::<genai::webc::StreamTimeout>() {
             return "timeout".into();
@@ -100,7 +121,6 @@ fn classify(error: genai::Error) -> String {
     }
     match status.map(|s| s.as_u16()) {
         Some(401 | 403) => "authentication",
-        Some(429) => "rateLimit",
         Some(_) => "providerResponse",
         None => "network",
     }
@@ -172,15 +192,20 @@ pub async fn test_connection(provider: &Provider, model_id: &str) -> Result<u64,
         {
             options = options.with_extra_body(parameters);
         }
-        let response = client
+        let body = match client
             .exec_chat(
                 target(provider, model_id)?,
                 ChatRequest::new(vec![ChatMessage::user("hi")]),
                 Some(&options),
             )
             .await
-            .map_err(classify)?;
-        let body = response.captured_raw_body.ok_or("providerResponse")?;
+        {
+            Ok(response) => response.captured_raw_body.ok_or("providerResponse")?,
+            // Connectivity needs the envelope, not SDK decoding of optional content
+            // (compatible gateways may return thinking without an Anthropic signature).
+            Err(genai::Error::ChatResponseGeneration { response_body, .. }) => *response_body,
+            Err(error) => return Err(classify(error)),
+        };
         // A one-token budget can legitimately produce no text, especially with reasoning.
         // Require a protocol response and a valid terminal state, not nonempty prose.
         let valid = match provider.protocol {
@@ -551,6 +576,77 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn anthropic_probe_accepts_unsigned_thinking_but_requires_a_successful_envelope() {
+        for (status, content, stop_reason, succeeds) in [
+            (
+                200,
+                json!([{"type":"thinking","thinking":"..."}]),
+                Some("max_tokens"),
+                true,
+            ),
+            (
+                200,
+                json!([{"type":"thinking","thinking":"...","signature":null}]),
+                Some("end_turn"),
+                true,
+            ),
+            (
+                400,
+                json!([{"type":"thinking","thinking":"..."}]),
+                Some("max_tokens"),
+                false,
+            ),
+            (
+                200,
+                json!([{"type":"thinking","thinking":"..."}]),
+                None,
+                false,
+            ),
+            (
+                200,
+                json!([{"type":"thinking","thinking":"..."}]),
+                Some("refusal"),
+                false,
+            ),
+            (
+                200,
+                json!({"type":"thinking","thinking":"..."}),
+                Some("max_tokens"),
+                false,
+            ),
+        ] {
+            let mut server = mockito::Server::new_async().await;
+            let mock = server
+                .mock("POST", "/api/coding/v1/messages")
+                .with_status(status)
+                .with_header("content-type", "application/json")
+                .with_body(
+                    json!({"id":"m1", "type":"message", "role":"assistant",
+                    "model":"glm-5.3-flash", "content":content, "stop_reason":stop_reason,
+                    "usage":{"input_tokens":1,"output_tokens":1}})
+                    .to_string(),
+                )
+                .expect(1)
+                .create_async()
+                .await;
+            let provider = probe_provider(
+                format!("{}/api/coding/", server.url()),
+                Protocol::AnthropicMessages,
+            );
+            let result = test_connection(&provider, "glm-5.3-flash").await;
+            assert_eq!(
+                result.is_ok(),
+                succeeds,
+                "status {status}, stop_reason {stop_reason:?}: {result:?}"
+            );
+            if !succeeds {
+                assert_eq!(result, Err("providerResponse".into()));
+            }
+            mock.assert_async().await;
+        }
+    }
+
+    #[tokio::test]
     async fn connection_probe_rejects_invalid_responses_and_redacts_errors_without_retry() {
         for (status, body, expected) in [
             (401, "echo secret-key", "authentication"),
@@ -731,6 +827,27 @@ mod tests {
             }
         }
     }
+    #[tokio::test]
+    async fn quota_errors_are_distinct_from_rate_limits_for_probes_and_streams() {
+        for (status, body, expected) in [
+            (429, json!({"error":{"code":"AccountQuotaExceeded","message":"echo secret-key private-input"}}).to_string(), "quotaExceeded"),
+            (429, json!({"error":{"code":"RateLimitExceeded","message":"quota word alone is not evidence"}}).to_string(), "rateLimit"),
+            (429, "unknown response echo secret-key".into(), "rateLimit"),
+            (401, json!({"error":{"code":"AccountQuotaExceeded"}}).to_string(), "authentication"),
+        ] {
+            let mut server = mockito::Server::new_async().await;
+            let mock = server.mock("POST", "/v1/messages")
+                .with_status(status).with_header("content-type","application/json")
+                .with_body(body).expect(2).create_async().await;
+            let provider = probe_provider(format!("{}/v1/",server.url()),Protocol::AnthropicMessages);
+            let model = Model {id:"glm-5.3-flash".into(),enabled:true,thinking:false,
+                max_output_tokens:Some(131072),context_window:None};
+            assert_eq!(test_connection(&provider,&model.id).await,Err(expected.into()));
+            assert_eq!(stream(&provider,&model,"Translate","private-input",|_|Ok(())).await,Err(expected.into()));
+            mock.assert_async().await;
+        }
+    }
+
     #[tokio::test]
     async fn anonymous_auth_and_failures_do_not_expose_server_echoes() {
         for (protocol, suffix) in [

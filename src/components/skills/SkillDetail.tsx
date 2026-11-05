@@ -263,6 +263,7 @@ export function SkillDetail({
           updatedLabel={readOnly ? t("skill.archived") : undefined}
           directory={skill?.directory}
           skillId={skill?.id}
+          skillName={skillName}
           onSave={onSave}
           savePending={savePending}
           dirty={dirty}
