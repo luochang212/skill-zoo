@@ -44,3 +44,24 @@ describe("MarkdownContent badge rows", () => {
     expect(p?.className).toContain("badge-row");
   });
 });
+
+describe("MarkdownContent frontmatter", () => {
+  it("keeps delimiter text inside description values", () => {
+    const { container } = render(
+      <MarkdownContent
+        content={'---\nname: keep\ndescription: "说明含 --- 分隔文本"\n---\n# 正文'}
+      />,
+    );
+    expect(container.querySelector("table")?.textContent).toContain("keep");
+    expect(container.querySelector("table")?.textContent).toContain("说明含 --- 分隔文本");
+    expect(container.querySelector("h1")?.textContent).toBe("正文");
+  });
+  it("keeps malformed frontmatter visible rather than dropping it", () => {
+    const { container } = render(
+      <MarkdownContent content={"---\nname: keep\ndescription: [broken\n---\n正文"} />,
+    );
+    expect(container.textContent).toContain("name: keep");
+    expect(container.textContent).toContain("description: [broken");
+    expect(container.textContent).toContain("正文");
+  });
+});

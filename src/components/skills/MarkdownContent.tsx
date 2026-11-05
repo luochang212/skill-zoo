@@ -57,17 +57,13 @@ interface ParsedSkillMd {
 
 function parseFrontmatter(raw: string): ParsedSkillMd {
   const trimmed = raw.trimStart();
-  if (!trimmed.startsWith("---")) {
+  const match = /^---\r?\n([\s\S]*?)^---[ \t]*(?:\r?\n|$)/m.exec(trimmed);
+  if (!match || match.index !== 0) {
     return { frontmatter: null, body: raw };
   }
 
-  const firstClose = trimmed.indexOf("---", 3);
-  if (firstClose === -1) {
-    return { frontmatter: null, body: raw };
-  }
-
-  const yamlStr = trimmed.slice(3, firstClose).trim();
-  const body = trimmed.slice(firstClose + 3).trimStart();
+  const yamlStr = match[1] ?? "";
+  const body = trimmed.slice(match[0].length).trimStart();
 
   try {
     const parsed = yamlLoad(yamlStr);
@@ -78,7 +74,7 @@ function parseFrontmatter(raw: string): ParsedSkillMd {
     // Invalid YAML. Fall through to return no frontmatter
   }
 
-  return { frontmatter: null, body };
+  return { frontmatter: null, body: raw };
 }
 
 function FrontmatterCard({ data }: { data: Record<string, unknown> }) {

@@ -4,7 +4,7 @@ use sha2::{Digest, Sha256};
 use std::sync::LazyLock;
 
 pub const MAX_SOURCE_BYTES: usize = 51_200;
-const POLICY_VERSION: u32 = 3;
+const POLICY_VERSION: u32 = 5;
 
 /// Short per-document token suffix. Models must copy these markers verbatim,
 /// so they stay far shorter than a full source hash; when the source itself
@@ -98,7 +98,7 @@ pub fn parse_translations(response: &str, expected: usize) -> Option<Vec<String>
 pub struct ProtectedMarkdown {
     pub input: String,
     pub(crate) parts: Vec<(String, String)>,
-    description: Option<(String, String, String, usize, usize)>,
+    description: Option<(String, String, String, serde_yaml::Value)>,
 }
 
 struct RepairGap<'a> {
@@ -170,26 +170,14 @@ impl ProtectedMarkdown {
                 let token = format!("SZP_{nonce}_0_END");
                 input.push_str(&token);
                 input.push('\n');
-                // Preserve every other field byte-for-byte; only description is reconstructed.
-                static DESC: LazyLock<Regex> = LazyLock::new(|| {
-                    Regex::new(r"(?m)^description:[^\n]*(?:\n[ \t]+[^\n]*)*").unwrap()
-                });
-                if let Some(span) = DESC.find(&source[first..close_start]) {
-                    if let Ok(yaml) =
-                        serde_yaml::from_str::<serde_yaml::Value>(&source[first..close_start])
-                    {
-                        if let Some(value) = yaml.get("description").and_then(|v| v.as_str()) {
-                            let start = format!("SZDESC_{nonce}_START");
-                            let stop = format!("SZDESC_{nonce}_END");
-                            input.push_str(&format!("{start}\n{value}\n{stop}\n"));
-                            description = Some((
-                                start,
-                                stop,
-                                token.clone(),
-                                first + span.start(),
-                                first + span.end(),
-                            ));
-                        }
+                if let Ok(yaml) =
+                    serde_yaml::from_str::<serde_yaml::Value>(&source[first..close_start])
+                {
+                    if let Some(value) = yaml.get("description").and_then(|v| v.as_str()) {
+                        let start = format!("SZDESC_{nonce}_START");
+                        let stop = format!("SZDESC_{nonce}_END");
+                        input.push_str(&format!("{start}\n{value}\n{stop}\n"));
+                        description = Some((start, stop, token.clone(), yaml));
                     }
                 }
                 parts.push((token, fm.into()));
@@ -245,7 +233,7 @@ impl ProtectedMarkdown {
             return Err("fidelity".into());
         }
         let mut translated_fm = None;
-        if let Some((start, stop, token, from, to)) = &self.description {
+        if let Some((start, stop, token, original)) = &self.description {
             if output.matches(start).count() != 1 || output.matches(stop).count() != 1 {
                 return Err("fidelity".into());
             }
@@ -258,13 +246,10 @@ impl ProtectedMarkdown {
             if value.is_empty() {
                 return Err("fidelity".into());
             }
-            let original = &self.parts[0].1;
-            let fm = format!(
-                "{}description: {}{}",
-                &original[..*from],
-                serde_json::to_string(value).unwrap(),
-                &original[*to..]
-            );
+            let mut yaml = original.clone();
+            yaml["description"] = serde_yaml::Value::String(value.into());
+            let serialized = serde_yaml::to_string(&yaml).map_err(|_| "fidelity")?;
+            let fm = format!("---\n{serialized}---\n");
             translated_fm = Some((token, fm));
             output.replace_range(begin..end + stop.len(), "");
         }
@@ -292,7 +277,7 @@ impl ProtectedMarkdown {
                 (token.as_str(), pos, pos + token.len())
             })
             .collect();
-        if let Some((start, stop, _, _, _)) = &self.description {
+        if let Some((start, stop, _, _)) = &self.description {
             let start_pos = self.input.find(start).unwrap();
             marks.push((start, start_pos, start_pos + start.len()));
             let stop_pos = self.input.find(stop).unwrap();
@@ -430,7 +415,7 @@ impl ProtectedMarkdown {
 
     pub fn preview(&self, output: &str) -> String {
         let mut output = output.to_string();
-        if let Some((start, stop, _, _, _)) = &self.description {
+        if let Some((start, stop, _, _)) = &self.description {
             if let Some(begin) = output.find(start) {
                 let end = output
                     .find(stop)
@@ -536,6 +521,59 @@ mod tests {
     use super::*;
     use crate::persistence::llm_providers::Protocol;
     #[test]
+    fn description_translation_preserves_yaml_values_independent_of_spelling() {
+        for header in [
+            "name: keep\n\"description\": 'First paragraph'\nmetadata:\n  enabled: true\nallowed-tools: [Read, Bash]\n",
+            "name: keep\ndescription: \"First paragraph\n\n  Second paragraph\"\nmetadata: {enabled: true}\n",
+            "{name: keep, description: 'First paragraph', metadata: {enabled: true}}\n",
+        ] {
+            let source = format!("---\n{header}---\n# Body\n");
+            let protected = ProtectedMarkdown::new(&source);
+            let (start, stop, _, _) = protected.description.as_ref().expect("string description must be extracted");
+            let begin = protected.input.find(start).unwrap() + start.len();
+            let end = protected.input.find(stop).unwrap();
+            let value = "说明含 ---、冒号: 与引号 \"\nname: 不应覆盖名称\n";
+            let mut translated = protected.input.clone();
+            translated.replace_range(begin..end, value);
+            let restored = protected.restore(&translated).unwrap();
+            let header = restored.strip_prefix("---\n").unwrap().split("\n---\n").next().unwrap();
+            let actual: serde_yaml::Value = serde_yaml::from_str(header).unwrap();
+            let original_header = source.strip_prefix("---\n").unwrap().split("\n---\n").next().unwrap();
+            let mut expected: serde_yaml::Value = serde_yaml::from_str(original_header).unwrap();
+            expected["description"] = serde_yaml::Value::String(value.trim().into());
+            assert_eq!(actual, expected);
+            assert!(restored.contains("# Body"));
+        }
+    }
+
+    #[test]
+    fn description_with_blank_lines_restores_valid_frontmatter() {
+        for newline in ["\n", "\r\n"] {
+            for style in ["|", ">", ">-"] {
+                let source = format!(
+                    "---\nname: keep-name\ndescription: {style}\n  First paragraph.\n\n  Second paragraph.\n\n  - More details.\nmetadata:\n  category: test\n---\n# Body\n"
+                ).replace('\n', newline);
+                let protected = ProtectedMarkdown::new(&source);
+                let (start, stop, _, _) = protected.description.as_ref().unwrap();
+                let begin = protected.input.find(start).unwrap() + start.len();
+                let end = protected.input.find(stop).unwrap();
+                let mut translated = protected.input.clone();
+                translated.replace_range(begin..end, "\n翻译后的完整说明\n");
+                let restored = protected.restore(&translated).unwrap();
+                let header_start = restored.find('\n').unwrap() + 1;
+                let header_end = restored[header_start..].find("---").unwrap() + header_start;
+                let yaml: serde_yaml::Value =
+                    serde_yaml::from_str(&restored[header_start..header_end]).unwrap();
+                assert_eq!(yaml["name"].as_str(), Some("keep-name"));
+                assert_eq!(yaml["description"].as_str(), Some("翻译后的完整说明"));
+                assert_eq!(yaml["metadata"]["category"].as_str(), Some("test"));
+                assert!(!restored.contains("Second paragraph"));
+                assert!(restored.contains("# Body"));
+            }
+        }
+    }
+
+    #[test]
     fn protects_code_frontmatter_and_links_and_rejects_model_damage() {
         let source = "---\nname: demo\ndescription: |\n  English description\nallowed-tools: Bash\n---\n# Hello\n`echo hi` [docs](https://test/a_(b))\n```sh\nrm file\n```\n";
         let p = ProtectedMarkdown::new(source);
@@ -546,7 +584,14 @@ mod tests {
             .replace("English description", "中文说明")
             .replace("# Hello", "# 你好");
         let restored = p.restore(&output).unwrap();
-        assert!(restored.contains("description: \"中文说明\""));
+        let header = restored
+            .strip_prefix("---\n")
+            .unwrap()
+            .split("\n---\n")
+            .next()
+            .unwrap();
+        let yaml: serde_yaml::Value = serde_yaml::from_str(header).unwrap();
+        assert_eq!(yaml["description"].as_str(), Some("中文说明"));
         assert!(restored.contains("name: demo"));
         assert!(restored.contains("```sh\nrm file\n```"));
         assert!(restored.contains("[docs](https://test/a_(b))"));

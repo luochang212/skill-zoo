@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { translationApi, type TranslationRequest } from "@/lib/api/translation";
@@ -6,19 +7,21 @@ import { translationErrorCode } from "@/lib/translation";
 
 type Input = Omit<TranslationRequest, "taskId" | "force">;
 type Status = "idle" | "streaming" | "completed" | "failed" | "cancelled";
-interface View {
-  identity: string;
+interface Session {
   status: Status;
   text: string;
   showTranslation: boolean;
   error: string | null;
+  task: { id: string; previous: string } | null;
+  cacheVersion: number;
 }
-const empty = (identity: string): View => ({
-  identity,
+const empty = (): Session => ({
   status: "idle",
   text: "",
   showTranslation: false,
   error: null,
+  task: null,
+  cacheVersion: 0,
 });
 
 export function useSkillTranslation(
@@ -29,65 +32,56 @@ export function useSkillTranslation(
   }: { preferCached?: boolean; configurationKey?: string } = {},
 ) {
   const { t } = useTranslation();
+  const client = useQueryClient();
   const identity = JSON.stringify([input, configurationKey]);
-  const currentIdentity = useRef(identity);
-  currentIdentity.current = identity;
-  const task = useRef<{ id: string; identity: string; previous: string } | null>(null);
-  const cacheVersion = useRef(0);
-  const [view, setView] = useState<View>(() => empty(identity));
-  // Identity whose initial cache lookup has settled; null while one is in flight.
+  const key = useMemo(() => ["translation-session", identity] as const, [identity]);
+  // The application owns the session; leaving a document only unsubscribes its view.
+  const { data: view = empty() } = useQuery<Session>({
+    queryKey: key,
+    queryFn: skipToken,
+    initialData: empty,
+    gcTime: 0,
+  });
+  const getView = useCallback(() => client.getQueryData<Session>(key) ?? empty(), [client, key]);
+  const setView = useCallback(
+    (update: (current: Session) => Session) =>
+      client.setQueryData<Session>(key, (current) => update(current ?? empty())),
+    [client, key],
+  );
   const [cacheSettled, setCacheSettled] = useState<string | null>(null);
-  const viewRef = useRef(view);
-  viewRef.current = view;
   const cancelTask = useCallback(() => {
-    const current = task.current;
-    task.current = null;
+    const current = getView().task;
     if (current) {
+      setView((v) => ({ ...v, task: null }));
       void translationApi.cancel(current.id).catch(() => {});
-      // The repair toast belongs to the task; every cancellation path —
-      // explicit cancel, retranslate, identity change — retires it with the task.
       toast.dismiss(`repair-${current.id}`);
     }
     return current;
-  }, []);
-  useLayoutEffect(() => {
-    setView(empty(identity));
-    setCacheSettled(null);
-    return () => {
-      cancelTask();
-    };
-  }, [identity, cancelTask]);
+  }, [getView, setView]);
 
   useEffect(() => {
-    if (!preferCached) return;
+    if (!preferCached || getView().status !== "idle") return;
     let active = true;
-    const version = cacheVersion.current;
+    const version = getView().cacheVersion;
     const [request] = JSON.parse(identity) as [Input, string];
     void translationApi
       .cached(request)
       .then((text) => {
-        if (
-          !active ||
-          !text ||
-          currentIdentity.current !== identity ||
-          cacheVersion.current !== version ||
-          task.current
-        )
-          return;
+        if (!active || !text) return;
         setView((current) =>
-          current.identity === identity && current.status === "idle"
-            ? { identity, status: "completed", text, showTranslation: true, error: null }
+          current.status === "idle" && current.cacheVersion === version
+            ? { ...current, status: "completed", text, showTranslation: true, error: null }
             : current,
         );
       })
       .catch(() => {})
       .finally(() => {
-        if (currentIdentity.current === identity) setCacheSettled(identity);
+        if (active) setCacheSettled(identity);
       });
     return () => {
       active = false;
     };
-  }, [identity, preferCached]);
+  }, [identity, preferCached, getView, setView]);
 
   const cancel = useCallback(() => {
     const current = cancelTask();
@@ -96,47 +90,49 @@ export function useSkillTranslation(
         ...v,
         status: "cancelled",
         text: current.previous,
-        showTranslation: !!current.previous,
+        showTranslation: !!current.previous && v.showTranslation,
         error: null,
       }));
     }
-  }, [cancelTask]);
+  }, [cancelTask, setView]);
 
   const translate = useCallback(
     async (force = false) => {
-      cacheVersion.current += 1;
+      const old = getView();
+      // Multiple views of the same session must not start duplicate requests.
+      if (old.task && !force) return;
       cancelTask();
+      // Only manually started sessions outlive their views; unused drafts can be collected.
+      const query = client.getQueryCache().find({ queryKey: key, exact: true });
+      query?.setOptions({ ...query.options, gcTime: Infinity });
       const id = crypto.randomUUID();
-      const previous =
-        viewRef.current.identity === identity && viewRef.current.status !== "streaming"
-          ? viewRef.current.text
-          : "";
-      const current = { id, identity, previous };
-      task.current = current;
-      setView({
-        identity,
+      const previous = old.task ? old.task.previous : old.text;
+      setView((v) => ({
+        ...v,
         status: "streaming",
         text: previous,
         showTranslation: true,
         error: null,
-      });
-      const active = () => task.current === current && currentIdentity.current === identity;
+        task: { id, previous },
+        cacheVersion: v.cacheVersion + 1,
+      }));
+      const active = () => getView().task?.id === id;
       const dismissRepair = () => toast.dismiss(`repair-${id}`);
       const fail = (code: string) => {
         if (!active()) return;
-        task.current = null;
         dismissRepair();
-        setView({
-          identity,
+        setView((v) => ({
+          ...v,
           status: "failed",
+          task: null,
           text: previous,
-          showTranslation: !!previous,
+          showTranslation: !!previous && v.showTranslation,
           error: code,
-        });
+        }));
       };
       try {
         await translationApi.start(id);
-        // Cleanup can run while registration is in flight. Cancel again after its acknowledgement.
+        // Explicit cancellation can precede registration's acknowledgement.
         if (!active()) {
           await translationApi.cancel(id);
           return;
@@ -148,44 +144,46 @@ export function useSkillTranslation(
             return;
           }
           if (event.type === "repairing") {
-            // The targeted repair round must never run silently.
-            toast.info(t("translation.repairing"), { id: `repair-${id}` });
+            toast.info(t("translation.repairing"), { id: `repair-${id}`, duration: Infinity });
             return;
           }
           if (event.type === "completed") {
             dismissRepair();
-            task.current = null;
-            setView({
-              identity,
+            setView((v) => ({
+              ...v,
               status: "completed",
+              task: null,
               text: event.text,
-              showTranslation: true,
               error: null,
-            });
+            }));
           } else if (!previous) {
             setView((v) => ({ ...v, text: event.text }));
           }
         });
-        if (active()) fail("incomplete");
+        // Command resolution can precede Channel delivery; only terminal events settle the task.
       } catch (error) {
         fail(translationErrorCode(error));
         void translationApi.cancel(id).catch(() => {});
       }
     },
-    [identity, input, cancelTask, t],
+    [input, getView, setView, cancelTask, client, key, t],
   );
 
-  const current = view.identity === identity ? view : empty(identity);
   return {
-    ...current,
+    identity,
+    status: view.status,
+    text: view.text,
+    showTranslation: view.showTranslation,
+    error: view.error,
     translate,
     cancel,
     toggle: () => {
-      cacheVersion.current += 1;
-      setView((v) => ({ ...v, showTranslation: !v.showTranslation }));
+      setView((v) => ({
+        ...v,
+        cacheVersion: v.cacheVersion + 1,
+        showTranslation: !v.showTranslation,
+      }));
     },
-    // While the initial cache lookup is unresolved, the pane holds its loading
-    // state so a hit renders the translation directly without an original flash.
-    cachePending: preferCached && cacheSettled !== identity && current.status === "idle",
+    cachePending: preferCached && cacheSettled !== identity && view.status === "idle",
   };
 }
