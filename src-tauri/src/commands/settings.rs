@@ -1,7 +1,7 @@
 use crate::services::cli::CliService;
 use crate::services::lock::{SkillLock, SkillLockEntry};
 use crate::services::opener::open_directory;
-use crate::services::skill_usage::SkillUsage;
+use crate::services::skill_usage_cache::UsageSnapshot;
 use crate::services::tray::{
     validate_skill_companion_items, SkillCompanionItem, SKILL_COMPANION_ITEMS_SETTING,
 };
@@ -155,6 +155,7 @@ pub fn get_github_credential_status(
 
 #[tauri::command]
 pub fn update_setting(
+    app_handle: tauri::AppHandle,
     state: State<'_, AppState>,
     key: String,
     value: String,
@@ -167,8 +168,25 @@ pub fn update_setting(
     )
     .map_err(|e| e.to_string())?;
     let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
-    settings.set(key, value);
-    settings.save().map_err(|e| e.to_string())
+    if key == crate::services::skill_usage_cache::AGENT_SETTING
+        && !crate::services::skill_usage::supports_agent(&value)
+    {
+        return Err("Unsupported usage agent".into());
+    }
+    let previous = settings.clone();
+    settings.set(key.clone(), value);
+    if let Err(error) = settings.save() {
+        *settings = previous;
+        return Err(error.to_string());
+    }
+    drop(settings);
+    if key == crate::services::skill_usage_cache::AGENT_SETTING {
+        if let Err(error) = crate::services::tray::refresh_recent_skills_menu(&app_handle) {
+            eprintln!("Could not refresh recent skills: {error}");
+        }
+        crate::services::skill_usage_cache::refresh_selected(&app_handle);
+    }
+    Ok(())
 }
 
 /// The credential keys are owned by the credential save command: a generic
@@ -309,22 +327,22 @@ pub fn set_tray_language(app_handle: tauri::AppHandle, language: String) -> Resu
 
 #[tauri::command]
 pub async fn get_skill_usage(
-    state: State<'_, AppState>,
+    app_handle: tauri::AppHandle,
     agent_id: String,
-) -> Result<SkillUsage, String> {
-    let (whitelist, installed_skill_count) = {
-        let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-        crate::services::skill_usage::skill_whitelist(&cache, &agent_id)
-    };
-    tokio::task::spawn_blocking(move || {
-        crate::services::skill_usage::discover_skill_usage(
-            &agent_id,
-            whitelist,
-            installed_skill_count,
-        )
-    })
-    .await
-    .map_err(|e| format!("Skill usage scan failed: {e}"))
+) -> Result<UsageSnapshot, String> {
+    let result =
+        crate::services::skill_usage_cache::load_usage(&app_handle, agent_id.clone()).await;
+    if !crate::services::skill_usage::supports_agent(&agent_id) {
+        return result.map(UsageSnapshot::from_usage);
+    }
+    use tauri::Manager;
+    let mut snapshot = app_handle
+        .state::<crate::services::skill_usage_cache::SkillUsageCache>()
+        .snapshot(&agent_id);
+    if let Err(error) = result {
+        snapshot.error = Some(error);
+    }
+    Ok(snapshot)
 }
 
 #[tauri::command]

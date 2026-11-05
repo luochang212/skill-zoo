@@ -70,8 +70,15 @@ const usage: SkillUsage = {
 
 function mockItems(
   items: SkillCompanionItem[],
-  options: { rejectSave?: boolean; rejectScreenshot?: boolean; skillUsageAgent?: string } = {},
+  options: {
+    rejectSave?: boolean;
+    rejectScreenshot?: boolean;
+    skillUsageAgent?: string;
+    rejectUsage?: boolean;
+    rejectAgentSave?: boolean;
+  } = {},
 ) {
+  let savedAgent = options.skillUsageAgent;
   vi.mocked(invoke).mockImplementation((command, args) => {
     switch (command) {
       case "get_agent_configs":
@@ -83,13 +90,15 @@ function mockItems(
             hasUsageTracking: true,
           },
           { id: "codex", label: "Codex", skillsSubdir: ".codex", hasUsageTracking: true },
-          { id: "opencode", label: "OpenCode", skillsSubdir: ".opencode", hasUsageTracking: true },
+          { id: "zcode", label: "ZCode", skillsSubdir: ".zcode", hasUsageTracking: true },
           { id: "gemini", label: "Gemini", skillsSubdir: ".gemini", hasUsageTracking: false },
         ]);
       case "get_skill_companion_items":
         return Promise.resolve(items);
       case "get_skill_usage":
-        return Promise.resolve(usage);
+        return options.rejectUsage
+          ? Promise.reject(new Error("scan failed"))
+          : Promise.resolve({ usage, error: null });
       case "save_skill_companion_items":
         if (options.rejectSave) return Promise.reject(new Error("save failed"));
         return Promise.resolve((args as { items: SkillCompanionItem[] }).items);
@@ -99,10 +108,11 @@ function mockItems(
       case "copy_text_to_clipboard":
         return Promise.resolve();
       case "get_settings":
-        return Promise.resolve(
-          options.skillUsageAgent ? { skill_usage_agent: options.skillUsageAgent } : {},
-        );
+        return Promise.resolve(savedAgent ? { skill_usage_agent: savedAgent } : {});
       case "update_setting":
+        if (options.rejectAgentSave) return Promise.reject(new Error("save failed"));
+        if ((args as { key: string }).key === "skill_usage_agent")
+          savedAgent = (args as { value: string }).value;
         return Promise.resolve();
       default:
         return Promise.reject(new Error(`Unexpected command: ${command}`));
@@ -462,7 +472,7 @@ describe("SkillCompanionSettings", () => {
     expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
       "Codex",
       "Claude Code",
-      "OpenCode",
+      "ZCode",
     ]);
     await user.click(screen.getByRole("menuitem", { name: /Claude Code/ }));
 
@@ -488,5 +498,82 @@ describe("SkillCompanionSettings", () => {
     await waitFor(() =>
       expect(invoke).toHaveBeenCalledWith("get_skill_usage", { agentId: "codex" }),
     );
+  });
+  it("keeps the old selection and reports a failed selection save", async () => {
+    mockItems([], { rejectAgentSave: true });
+    const user = userEvent.setup();
+    renderSettings();
+    await user.click(await screen.findByRole("button", { name: "View" }));
+    await screen.findByText("Statistics on skill usage from Codex");
+    await user.click(screen.getByRole("button", { name: "Select agent" }));
+    await user.click(screen.getByRole("menuitem", { name: "ZCode" }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Could not save the usage agent selection."),
+    );
+    expect(screen.getByText("Statistics on skill usage from Codex")).toBeInTheDocument();
+    expect(invoke).not.toHaveBeenCalledWith("get_skill_usage", { agentId: "zcode" });
+  });
+
+  it("distinguishes read failure from empty usage and retries", async () => {
+    const options = { rejectUsage: true };
+    mockItems([], options);
+    const user = userEvent.setup();
+    renderSettings();
+    await user.click(await screen.findByRole("button", { name: "View" }));
+    await screen.findByText("Could not read usage from Codex.");
+    expect(screen.queryByText("No Codex skill calls found yet.")).not.toBeInTheDocument();
+    options.rejectUsage = false;
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    await screen.findByText("code-review");
+    expect(screen.queryByText("Could not read usage from Codex.")).not.toBeInTheDocument();
+  });
+
+  it("does not let a late old-agent result overwrite the new selection", async () => {
+    mockItems([]);
+    const base = vi.mocked(invoke).getMockImplementation()!;
+    let complete!: (value: { usage: SkillUsage; error: null }) => void;
+    vi.mocked(invoke).mockImplementation((command, args) => {
+      if (command === "get_skill_usage" && (args as { agentId: string }).agentId === "codex") {
+        return new Promise((resolve) => {
+          complete = resolve;
+        });
+      }
+      if (command === "get_skill_usage")
+        return Promise.resolve({
+          usage: {
+            ...usage,
+            week: { ...usage.week, skills: [{ ...usage.week.skills[0], name: "zcode-only" }] },
+          },
+          error: null,
+        });
+      return base(command, args);
+    });
+    const user = userEvent.setup();
+    renderSettings();
+    await user.click(await screen.findByRole("button", { name: "View" }));
+    await waitFor(() => expect(complete).toBeDefined());
+    await user.click(screen.getByRole("button", { name: "Select agent" }));
+    await user.click(screen.getByRole("menuitem", { name: "ZCode" }));
+    await screen.findByText("zcode-only");
+    complete({ usage, error: null });
+    await waitFor(() =>
+      expect(screen.getByText("Statistics on skill usage from ZCode")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("code-review")).not.toBeInTheDocument();
+  });
+  it("shows a backend cached result with its read error even on first opening", async () => {
+    mockItems([]);
+    const base = vi.mocked(invoke).getMockImplementation()!;
+    vi.mocked(invoke).mockImplementation((command, args) =>
+      command === "get_skill_usage"
+        ? Promise.resolve({ usage, error: "database unreadable" })
+        : base(command, args),
+    );
+    const user = userEvent.setup();
+    renderSettings();
+    await user.click(await screen.findByRole("button", { name: "View" }));
+    await screen.findByText("Could not read usage from Codex.");
+    expect(screen.getByText("code-review")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled();
   });
 });

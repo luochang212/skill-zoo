@@ -108,6 +108,8 @@ export default function App() {
   const [view, setView] = useState<View>("local");
   const [skillCompanionOpenRequest, setSkillCompanionOpenRequest] = useState(0);
   const skillCompanionRequestCounter = useRef(0);
+  const [skillUsageOpenRequest, setSkillUsageOpenRequest] = useState(0);
+  const skillUsageRequestCounter = useRef(0);
   const [showCreateSkill, setShowCreateSkill] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<DiscoverRepo | null>(null);
   const [archivedEditor, setArchivedEditor] = useState<{ archiveId: string; name: string } | null>(
@@ -191,6 +193,12 @@ export default function App() {
       const target = event.payload;
       if (target === "settings") {
         handleTrayNavigateRef.current(() => setView("settings"));
+      } else if (target === "settings:skill-usage") {
+        handleTrayNavigateRef.current(() => {
+          setView("settings");
+          skillUsageRequestCounter.current += 1;
+          setSkillUsageOpenRequest(skillUsageRequestCounter.current);
+        });
       } else if (target === "settings:skill-companion") {
         handleTrayNavigateRef.current(() => {
           setView("settings");
@@ -363,6 +371,8 @@ export default function App() {
         {view === "local" && renderLocalSkills()}
         {view === "settings" && (
           <SettingsView
+            skillUsageOpenRequest={skillUsageOpenRequest}
+            onSkillUsageOpenHandled={() => setSkillUsageOpenRequest(0)}
             skillCompanionOpenRequest={skillCompanionOpenRequest}
             onSkillCompanionOpenHandled={() => setSkillCompanionOpenRequest(0)}
           />

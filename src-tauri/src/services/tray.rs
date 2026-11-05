@@ -1,5 +1,6 @@
 use crate::persistence::Settings;
-use crate::services::skill_usage::{self, RecentSkillUsage};
+use crate::services::skill_usage::RecentSkillUsage;
+use crate::services::skill_usage_cache::{self, SkillUsageCache};
 use crate::store::AppState;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -22,7 +23,9 @@ const MENU_COMPANION_COPY_HINT: &str = "skill-companion-copy-hint";
 const MENU_COMPANION_ADD: &str = "skill-companion-add";
 const COMPANION_MENU_ID: &str = "skill-companion-menu";
 const COMPANION_MENU_PREFIX: &str = "skill-companion:";
+const MENU_RECENT_USAGE: &str = "skill-recent-usage";
 const MENU_RECENT_COPY_HINT: &str = "skill-recent-copy-hint";
+const MENU_RECENT_RETRY: &str = "skill-recent-retry";
 const MENU_RECENT_EMPTY: &str = "skill-recent-empty";
 const RECENT_MENU_ID: &str = "skill-recent-menu";
 const RECENT_MENU_PREFIX: &str = "skill-recent:";
@@ -63,6 +66,7 @@ pub struct TrayLabels {
     copy_hint: &'static str,
     add_companion: &'static str,
     empty_recent: &'static str,
+    view_usage: &'static str,
     quit: &'static str,
 }
 
@@ -86,6 +90,7 @@ impl TrayLanguage {
                 copy_hint: "Click an item to copy",
                 add_companion: "Add new item...",
                 empty_recent: "No recent skills",
+                view_usage: "View usage",
                 quit: "Quit",
             },
             Self::Zh => TrayLabels {
@@ -97,6 +102,7 @@ impl TrayLanguage {
                 copy_hint: "点击条目即可复制",
                 add_companion: "添加新条目…",
                 empty_recent: "暂无最近使用",
+                view_usage: "查看使用情况",
                 quit: "退出",
             },
         }
@@ -186,7 +192,15 @@ pub fn setup_tray(app: &mut App) -> tauri::Result<()> {
         .icon(tray_icon)
         .tooltip("Skill Zoo")
         .show_menu_on_left_click(true)
-        .on_menu_event(handle_tray_menu_event);
+        .on_menu_event(handle_tray_menu_event)
+        .on_tray_icon_event(|tray, event| {
+            if matches!(
+                event,
+                tauri::tray::TrayIconEvent::Enter { .. } | tauri::tray::TrayIconEvent::Click { .. }
+            ) {
+                skill_usage_cache::refresh_selected(tray.app_handle());
+            }
+        });
 
     #[cfg(target_os = "macos")]
     {
@@ -203,6 +217,15 @@ pub fn setup_tray(app: &mut App) -> tauri::Result<()> {
     state.quit_item.lock().unwrap().replace(quit);
     state.companion_menu.lock().unwrap().replace(companion_menu);
     state.recent_menu.lock().unwrap().replace(recent_menu);
+    // Linux emits no tray mouse events; periodic refresh also covers menus left closed.
+    let handle = app_handle.clone();
+    tauri::async_runtime::spawn(async move {
+        loop {
+            let agent = skill_usage_cache::selected_agent(&handle);
+            let _ = skill_usage_cache::load_usage(&handle, agent).await;
+            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+        }
+    });
 
     Ok(())
 }
@@ -318,8 +341,7 @@ fn build_companion_submenu(app: &AppHandle, labels: TrayLabels) -> tauri::Result
 
 fn build_recent_submenu(app: &AppHandle, labels: TrayLabels) -> tauri::Result<Submenu<Wry>> {
     let submenu = Submenu::with_id(app, RECENT_MENU_ID, labels.recent_skills, true)?;
-    let recent = recent_skill_items(app);
-    replace_recent_menu_items(app, &submenu, &recent, labels)?;
+    populate_recent_menu(app, &submenu, labels)?;
     Ok(submenu)
 }
 
@@ -381,9 +403,7 @@ pub fn refresh_recent_skills_menu(app: &AppHandle) -> Result<(), String> {
         return Ok(());
     };
     let language = *tray_state.language.lock().map_err(|e| e.to_string())?;
-    let recent = recent_skill_items(app);
-    replace_recent_menu_items(app, &recent_menu, &recent, language.labels())
-        .map_err(|e| e.to_string())
+    populate_recent_menu(app, &recent_menu, language.labels()).map_err(|e| e.to_string())
 }
 
 fn replace_recent_menu_items(
@@ -415,28 +435,78 @@ fn replace_recent_menu_items(
         )?)?;
     }
 
-    menu.append(&PredefinedMenuItem::separator(app)?)?;
-    menu.append(&MenuItem::with_id(
-        app,
-        MENU_RECENT_COPY_HINT,
-        labels.copy_hint,
-        false,
-        None::<&str>,
-    )?)?;
-
     Ok(())
 }
 
-fn recent_skill_items(app: &AppHandle) -> Vec<RecentSkillUsage> {
-    let state = app.state::<AppState>();
-    let (whitelist, installed_skill_count) = match state.skill_cache.read() {
-        Ok(cache) => skill_usage::skill_whitelist(&cache, "claude-code"),
-        Err(error) => {
-            eprintln!("Failed to read skill cache for recent skills: {error}");
-            return Vec::new();
+fn populate_recent_menu(
+    app: &AppHandle,
+    menu: &Submenu<Wry>,
+    labels: TrayLabels,
+) -> tauri::Result<()> {
+    let agent = skill_usage_cache::selected_agent(app);
+    menu.set_text(labels.recent_skills)?;
+    let snapshot = app.state::<SkillUsageCache>().snapshot(&agent);
+    let recent = snapshot
+        .usage
+        .as_ref()
+        .map(|u| u.recent.as_slice())
+        .unwrap_or_default();
+    replace_recent_menu_items(app, menu, recent, labels)?;
+    if snapshot.error.is_some() || snapshot.usage.is_none() {
+        while menu.remove_at(0)?.is_some() {}
+        let zh = labels == TrayLanguage::Zh.labels();
+        let title = if snapshot.loading {
+            if zh {
+                "正在读取…"
+            } else {
+                "Loading usage…"
+            }
+        } else if snapshot.error.is_some() {
+            if zh {
+                "读取失败，点击重试"
+            } else {
+                "Could not read usage. Click to retry"
+            }
+        } else if zh {
+            "正在读取…"
+        } else {
+            "Loading usage…"
+        };
+        menu.append(&MenuItem::with_id(
+            app,
+            MENU_RECENT_RETRY,
+            title,
+            snapshot.error.is_some() && !snapshot.loading,
+            None::<&str>,
+        )?)?;
+        for item in recent {
+            menu.append(&MenuItem::with_id(
+                app,
+                format!("{RECENT_MENU_PREFIX}{}", item.name),
+                truncate_menu_title(&item.command),
+                true,
+                None::<&str>,
+            )?)?;
         }
-    };
-    skill_usage::discover_skill_usage("claude-code", whitelist, installed_skill_count).recent
+    }
+    menu.append(&PredefinedMenuItem::separator(app)?)?;
+    menu.append(&MenuItem::with_id(
+        app,
+        MENU_RECENT_USAGE,
+        labels.view_usage,
+        true,
+        None::<&str>,
+    )?)?;
+    if !recent.is_empty() {
+        menu.append(&MenuItem::with_id(
+            app,
+            MENU_RECENT_COPY_HINT,
+            labels.copy_hint,
+            false,
+            None::<&str>,
+        )?)?;
+    }
+    Ok(())
 }
 
 fn handle_tray_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
@@ -454,13 +524,21 @@ fn handle_tray_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
                 eprintln!("Failed to emit navigate event: {error}");
             }
         }
-        MENU_COMPANION_ADD => {
+        MENU_COMPANION_ADD | MENU_RECENT_USAGE => {
             show_main_window(app);
-            if let Err(error) = app.emit(NAVIGATE_EVENT, "settings:skill-companion") {
+            if let Err(error) = app.emit(
+                NAVIGATE_EVENT,
+                if id == MENU_RECENT_USAGE {
+                    "settings:skill-usage"
+                } else {
+                    "settings:skill-companion"
+                },
+            ) {
                 eprintln!("Failed to emit companion navigation event: {error}");
             }
         }
         MENU_QUIT => app.exit(0),
+        MENU_RECENT_RETRY => skill_usage_cache::refresh_selected(app),
         _ => {
             if let Some(item_id) = companion_item_id_from_menu_id(id) {
                 if let Err(error) = copy_companion_item(app, item_id) {
@@ -633,6 +711,7 @@ mod tests {
         assert_eq!(english.settings, "Settings");
         assert_eq!(english.skill_companion, "Common Commands");
         assert_eq!(english.recent_skills, "Recently Used");
+        assert_eq!(english.view_usage, "View usage");
         assert_eq!(english.copy_hint, "Click an item to copy");
         assert_eq!(english.add_companion, "Add new item...");
         assert_eq!(english.empty_recent, "No recent skills");
@@ -644,6 +723,7 @@ mod tests {
         assert_eq!(chinese.settings, "设置");
         assert_eq!(chinese.skill_companion, "常用指令");
         assert_eq!(chinese.recent_skills, "最近使用");
+        assert_eq!(chinese.view_usage, "查看使用情况");
         assert_eq!(chinese.copy_hint, "点击条目即可复制");
         assert_eq!(chinese.add_companion, "添加新条目…");
         assert_eq!(chinese.empty_recent, "暂无最近使用");

@@ -192,6 +192,11 @@ export interface RecentSkillUsage {
   lastUsedAt: number;
 }
 
+export interface SkillUsageSnapshot {
+  usage: SkillUsage | null;
+  error: string | null;
+}
+
 export interface SkillUsage {
   installedSkillCount: number;
   totalCalls: number;

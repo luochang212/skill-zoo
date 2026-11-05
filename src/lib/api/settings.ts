@@ -4,7 +4,7 @@ import type {
   AgentPreview,
   AgentChangeResult,
   SkillCompanionItem,
-  SkillUsage,
+  SkillUsageSnapshot,
   VisibleAgents,
 } from "@/types/skills";
 
@@ -60,7 +60,8 @@ export const settingsApi = {
 
   setTrayLanguage: (language: string) => invoke<void>("set_tray_language", { language }),
 
-  getSkillUsage: (agent: string) => invoke<SkillUsage>("get_skill_usage", { agentId: agent }),
+  getSkillUsage: (agent: string) =>
+    invoke<SkillUsageSnapshot>("get_skill_usage", { agentId: agent }),
 
   saveSkillUsageScreenshot: (dataUrl: string) =>
     invoke<string>("save_skill_usage_screenshot", { dataUrl }),

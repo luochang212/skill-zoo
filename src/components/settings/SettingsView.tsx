@@ -14,9 +14,13 @@ import { AppUpdateShortcut } from "@/components/settings/AppUpdateShortcut";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 export function SettingsView({
+  skillUsageOpenRequest = 0,
+  onSkillUsageOpenHandled,
   skillCompanionOpenRequest = 0,
   onSkillCompanionOpenHandled,
 }: {
+  skillUsageOpenRequest?: number;
+  onSkillUsageOpenHandled?: () => void;
   skillCompanionOpenRequest?: number;
   onSkillCompanionOpenHandled?: () => void;
 }) {
@@ -50,6 +54,8 @@ export function SettingsView({
 
             {/* Skill Companion */}
             <SkillCompanionSettings
+              openUsageRequest={skillUsageOpenRequest}
+              onOpenUsageRequestHandled={onSkillUsageOpenHandled}
               openManagerRequest={skillCompanionOpenRequest}
               onOpenManagerRequestHandled={onSkillCompanionOpenHandled}
             />

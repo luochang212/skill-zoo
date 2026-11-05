@@ -269,9 +269,11 @@ function SkillUsageDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useTranslation();
-  const { data: persistedAgent } = useSkillUsageAgent();
+  const agentSelection = useSkillUsageAgent();
+  const persistedAgent = agentSelection.data;
   const updateAgent = useUpdateSkillUsageAgent();
-  const { data: agentConfigs } = useAgentConfigs();
+  const configsQuery = useAgentConfigs();
+  const agentConfigs = configsQuery.data;
   const usageAgents = useMemo(() => {
     const tracked = (agentConfigs ?? []).filter((a) => a.hasUsageTracking);
     // Codex leads the usage sources and is the default; Claude Code follows it.
@@ -282,7 +284,14 @@ function SkillUsageDialog({
     return match?.id ?? usageAgents[0]?.id ?? "codex";
   }, [persistedAgent, usageAgents]);
   const agentDisplayName = getAgentLabel(agent, usageAgents);
-  const { data: usage, isLoading } = useSkillUsage(agent, { enabled: open });
+  const usageQuery = useSkillUsage(agent, { enabled: open && !!persistedAgent && !!agentConfigs });
+  const usage = usageQuery.data?.usage;
+  const isLoading = usageQuery.isLoading;
+  const loadError =
+    agentSelection.isError ||
+    configsQuery.isError ||
+    usageQuery.isError ||
+    !!usageQuery.data?.error;
   const captureRef = useRef<HTMLDivElement>(null);
   const [range, setRange] = useState<UsageRange>("week");
   const [isCapturing, setIsCapturing] = useState(false);
@@ -385,7 +394,11 @@ function SkillUsageDialog({
         <DialogHeader className="shrink-0 border-b border-border/50 px-4 py-4 text-left">
           <DialogTitle>{t("settings.skillCompanion.usageTitle")}</DialogTitle>
           <DialogDescription>
-            {t("settings.skillCompanion.usageDescription", { agent: agentDisplayName })}
+            {agentSelection.isPending || configsQuery.isPending
+              ? t("loading")
+              : agentSelection.isError || configsQuery.isError
+                ? t("settings.skillCompanion.usageSourceFailed")
+                : t("settings.skillCompanion.usageDescription", { agent: agentDisplayName })}
           </DialogDescription>
         </DialogHeader>
         <div className="flex shrink-0 items-center gap-3 border-b border-border/40 px-4 py-3">
@@ -422,7 +435,11 @@ function SkillUsageDialog({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {usageAgents.map((a) => (
-                <DropdownMenuItem key={a.id} onSelect={() => updateAgent.mutate(a.id)}>
+                <DropdownMenuItem
+                  key={a.id}
+                  disabled={updateAgent.isPending}
+                  onSelect={() => updateAgent.mutate(a.id)}
+                >
                   <Check
                     className={cn("h-3.5 w-3.5", agent === a.id ? "opacity-100" : "opacity-0")}
                   />
@@ -451,7 +468,31 @@ function SkillUsageDialog({
         </div>
         <div data-screenshot-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <div data-screenshot-content className="p-4 space-y-4">
-            {isLoading ? (
+            {loadError && (
+              <div
+                role="status"
+                className="flex items-center justify-between gap-3 text-sm text-muted-foreground"
+              >
+                <span>
+                  {agentSelection.isError || configsQuery.isError
+                    ? t("settings.skillCompanion.usageSourceFailed")
+                    : t("settings.skillCompanion.usageReadFailed", { agent: agentDisplayName })}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={usageQuery.isFetching}
+                  onClick={() => {
+                    if (agentSelection.isError) void agentSelection.refetch();
+                    else if (configsQuery.isError) void configsQuery.refetch();
+                    else void usageQuery.refetch();
+                  }}
+                >
+                  {t("settings.skillCompanion.usageRetry")}
+                </Button>
+              </div>
+            )}
+            {(isLoading || agentSelection.isPending || configsQuery.isPending) && !loadError ? (
               <>
                 <div className="grid grid-cols-3 gap-2.5">
                   <Skeleton className="h-24 rounded-lg" />
@@ -476,7 +517,7 @@ function SkillUsageDialog({
                 </div>
                 <Skeleton className="h-3 w-2/3 rounded" />
               </>
-            ) : (
+            ) : !loadError || usage ? (
               <>
                 <SkillUsageSummaryTiles
                   period={period}
@@ -508,7 +549,7 @@ function SkillUsageDialog({
                   </span>
                 </p>
               </>
-            )}
+            ) : null}
           </div>
         </div>
       </DialogContent>
@@ -516,9 +557,23 @@ function SkillUsageDialog({
   );
 }
 
-function SkillUsageSettingsCard() {
+function SkillUsageSettingsCard({
+  openRequest,
+  onOpenRequestHandled,
+}: {
+  openRequest: number;
+  onOpenRequestHandled?: () => void;
+}) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+
+  const handledRequest = useRef(0);
+  useEffect(() => {
+    if (openRequest === 0 || openRequest === handledRequest.current) return;
+    handledRequest.current = openRequest;
+    setOpen(true);
+    onOpenRequestHandled?.();
+  }, [openRequest, onOpenRequestHandled]);
 
   return (
     <>
@@ -990,9 +1045,13 @@ function SkillCompanionImportDialog({
 const EMPTY_ITEMS: SkillCompanionItem[] = [];
 
 export function SkillCompanionSettings({
+  openUsageRequest = 0,
+  onOpenUsageRequestHandled,
   openManagerRequest = 0,
   onOpenManagerRequestHandled,
 }: {
+  openUsageRequest?: number;
+  onOpenUsageRequestHandled?: () => void;
   openManagerRequest?: number;
   onOpenManagerRequestHandled?: () => void;
 }) {
@@ -1045,7 +1104,10 @@ export function SkillCompanionSettings({
         </Button>
       </div>
 
-      <SkillUsageSettingsCard />
+      <SkillUsageSettingsCard
+        openRequest={openUsageRequest}
+        onOpenRequestHandled={onOpenUsageRequestHandled}
+      />
 
       <SkillCompanionManagerDialog
         open={managerOpen}

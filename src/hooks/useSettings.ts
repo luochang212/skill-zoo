@@ -213,6 +213,7 @@ export function useSkillUsageAgent() {
 }
 
 export function useUpdateSkillUsageAgent() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (agent: string) => settingsApi.updateSetting(SKILL_USAGE_AGENT_SETTING, agent),
@@ -220,6 +221,7 @@ export function useUpdateSkillUsageAgent() {
       qc.setQueryData(SKILL_USAGE_AGENT_KEY, agent);
       qc.invalidateQueries({ queryKey: SKILL_USAGE_AGENT_KEY });
     },
+    onError: () => toast.error(t("settings.skillCompanion.usageAgentSaveFailed")),
   });
 }
 
@@ -248,7 +250,10 @@ export function useSkillUsage(agent: string, { enabled = true }: { enabled?: boo
   return useQuery({
     queryKey: skillUsageKey(agent),
     queryFn: () => settingsApi.getSkillUsage(agent),
-    staleTime: 30_000,
+    // Rust owns freshness and scan deduplication for both the dialog and tray.
+    staleTime: 0,
+    refetchInterval: 30_000,
+    retry: false,
     enabled,
   });
 }

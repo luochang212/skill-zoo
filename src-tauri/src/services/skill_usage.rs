@@ -108,7 +108,7 @@ pub fn discover_skill_usage(
     agent_id: &str,
     whitelist: HashSet<String>,
     installed_skill_count: usize,
-) -> SkillUsage {
+) -> Result<SkillUsage, String> {
     let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
     discover_skill_usage_from_home(
         agent_id,
@@ -125,13 +125,13 @@ fn discover_skill_usage_from_home(
     whitelist: HashSet<String>,
     installed_skill_count: usize,
     now: DateTime<Local>,
-) -> SkillUsage {
+) -> Result<SkillUsage, String> {
     let (events, count) = USAGE_COLLECTORS
         .iter()
         .find(|c| c.agent_id == agent_id)
         .map(|c| (c.collect)(home, whitelist, installed_skill_count))
-        .unwrap_or((Vec::new(), installed_skill_count));
-    build_usage(count, events, now)
+        .unwrap_or(Ok((Vec::new(), installed_skill_count)))?;
+    Ok(build_usage(count, events, now))
 }
 
 // ---------------------------------------------------------------------------
@@ -142,7 +142,7 @@ type EventCollector = fn(
     home: &Path,
     whitelist: HashSet<String>,
     installed_skill_count: usize,
-) -> (Vec<SkillUsageEvent>, usize);
+) -> Result<(Vec<SkillUsageEvent>, usize), String>;
 
 struct UsageCollectorEntry {
     agent_id: &'static str,
@@ -182,28 +182,28 @@ fn collect_claude_events(
     home: &Path,
     whitelist: HashSet<String>,
     installed_skill_count: usize,
-) -> (Vec<SkillUsageEvent>, usize) {
+) -> Result<(Vec<SkillUsageEvent>, usize), String> {
     let (whitelist, count) =
         effective_whitelist(home, "claude-code", whitelist, installed_skill_count);
     let mut files = Vec::new();
-    collect_jsonl_files(&home.join(".claude").join("projects"), &mut files);
+    collect_jsonl_files(&home.join(".claude").join("projects"), &mut files)?;
     let (events, _skill_file_mentions) =
-        aggregate_events(&files, parse_claude_skill_line, &whitelist);
-    (events, count)
+        aggregate_events(&files, parse_claude_skill_line, &whitelist)?;
+    Ok((events, count))
 }
 
 fn collect_codex_events(
     home: &Path,
     whitelist: HashSet<String>,
     installed_skill_count: usize,
-) -> (Vec<SkillUsageEvent>, usize) {
+) -> Result<(Vec<SkillUsageEvent>, usize), String> {
     let (whitelist, count) = effective_whitelist(home, "codex", whitelist, installed_skill_count);
     let mut files = Vec::new();
-    collect_jsonl_files(&home.join(".codex").join("sessions"), &mut files);
+    collect_jsonl_files(&home.join(".codex").join("sessions"), &mut files)?;
     let (events, skill_file_mentions) =
-        aggregate_events(&files, parse_codex_skill_line, &whitelist);
+        aggregate_events(&files, parse_codex_skill_line, &whitelist)?;
     report_codex_drift(&skill_file_mentions, &events);
-    (events, count)
+    Ok((events, count))
 }
 
 /// Format-drift sentinel: session files that reference SKILL.md without
@@ -241,11 +241,11 @@ fn collect_zcode_events(
     home: &Path,
     whitelist: HashSet<String>,
     installed_skill_count: usize,
-) -> (Vec<SkillUsageEvent>, usize) {
+) -> Result<(Vec<SkillUsageEvent>, usize), String> {
     let (whitelist, count) = effective_whitelist(home, "zcode", whitelist, installed_skill_count);
     let db_path = home.join(".zcode").join("cli").join("db").join("db.sqlite");
-    let events = query_zcode_skill_events(&db_path, &whitelist);
-    (events, count)
+    let events = query_zcode_skill_events(&db_path, &whitelist)?;
+    Ok((events, count))
 }
 
 /// When the in-memory cache yielded no whitelist, fall back to scanning the
@@ -308,7 +308,7 @@ fn aggregate_events(
     files: &[PathBuf],
     parse_line: impl Fn(&str) -> Option<ParsedSkillLine>,
     whitelist: &HashSet<String>,
-) -> (Vec<SkillUsageEvent>, Vec<PathBuf>) {
+) -> Result<(Vec<SkillUsageEvent>, Vec<PathBuf>), String> {
     let mut events = Vec::new();
     let mut seen = HashSet::new();
     let mut skill_file_mentions = Vec::new();
@@ -321,13 +321,17 @@ fn aggregate_events(
         // valid UTF-8 file yields identical results. A line that fails to
         // decode is skipped, which is strictly more robust than the old
         // `read_to_string`, which dropped the entire file on one bad byte.
-        let Ok(file) = std::fs::File::open(path) else {
-            continue;
+        let file = match std::fs::File::open(path) {
+            Ok(file) => file,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(_) => return Err("Could not read usage sessions".into()),
         };
         let mut mentions_skill_file = false;
         for line in std::io::BufReader::new(file).lines() {
-            let Ok(line) = line else {
-                continue;
+            let line = match line {
+                Ok(line) => line,
+                Err(e) if e.kind() == std::io::ErrorKind::InvalidData => continue,
+                Err(_) => return Err("Could not read usage sessions".into()),
             };
             if absorb_line(&line, &parse_line, whitelist, &mut seen, &mut events) {
                 mentions_skill_file = true;
@@ -337,7 +341,7 @@ fn aggregate_events(
             skill_file_mentions.push(path.clone());
         }
     }
-    (events, skill_file_mentions)
+    Ok((events, skill_file_mentions))
 }
 
 fn build_usage(
@@ -685,38 +689,56 @@ fn extract_skill_names_from_cmd(text: &str) -> Vec<String> {
 // OpenCode's table family, but tool names are Claude-Code-style PascalCase.
 // ---------------------------------------------------------------------------
 
-fn query_zcode_skill_events(db_path: &Path, whitelist: &HashSet<String>) -> Vec<SkillUsageEvent> {
+fn query_zcode_skill_events(
+    db_path: &Path,
+    whitelist: &HashSet<String>,
+) -> Result<Vec<SkillUsageEvent>, String> {
     // ZCode may be running and the db is WAL-mode, so open read-only: the
-    // collector must never take write locks. Any failure degrades to empty
-    // usage.
+    // collector must never take write locks. Only an absent store means no usage.
+    if !db_path
+        .try_exists()
+        .map_err(|_| "Could not read ZCode usage database")?
+    {
+        return Ok(Vec::new());
+    }
     let conn = match rusqlite::Connection::open_with_flags(
         db_path,
         rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
     ) {
         Ok(c) => c,
-        Err(_) => return Vec::new(),
+        Err(_) => return Err("Could not read ZCode usage database".into()),
     };
 
     let mut events = Vec::new();
     let mut seen: HashSet<(String, String)> = HashSet::new();
 
     // 1. Explicit `Skill` tool calls (AI-initiated).
-    if let Ok(mut stmt) = conn.prepare(
-        "SELECT json_extract(data, '$.state.input.skill'),
+    {
+        let mut stmt = conn
+            .prepare(
+                "SELECT json_extract(data, '$.state.input.skill'),
                 COALESCE(json_extract(data, '$.state.time.start'), time_created),
                 json_extract(data, '$.callID')
          FROM part
-         WHERE json_extract(data, '$.tool') = 'Skill'
+         WHERE json_valid(data) AND json_extract(data, '$.tool') = 'Skill'
            AND json_extract(data, '$.state.status') = 'completed'",
-    ) {
-        let rows = stmt.query_map([], |row| {
-            let name: Option<String> = row.get(0)?;
-            let ts_ms: Option<i64> = row.get(1)?;
-            let call_id: Option<String> = row.get(2)?;
-            Ok((name, ts_ms, call_id))
-        });
-        if let Ok(rows) = rows {
-            for row in rows.flatten() {
+            )
+            .map_err(|_| "Could not query ZCode usage database")?;
+        let rows = stmt
+            .query_map([], |row| {
+                let name: Option<String> = row.get(0)?;
+                let ts_ms: Option<i64> = row.get(1)?;
+                let call_id: Option<String> = row.get(2)?;
+                Ok((name, ts_ms, call_id))
+            })
+            .map_err(|_| "Could not query ZCode usage database")?;
+        {
+            for row in rows {
+                let row = match row {
+                    Ok(row) => row,
+                    Err(rusqlite::Error::InvalidColumnType(..)) => continue,
+                    Err(_) => return Err("Could not query ZCode usage database".into()),
+                };
                 let (Some(name), Some(ts_ms), call_id) = row else {
                     continue;
                 };
@@ -743,24 +765,32 @@ fn query_zcode_skill_events(db_path: &Path, whitelist: &HashSet<String>) -> Vec<
     // 2. Slash-command skill invocations typed by the user (ZCode writes no
     //    command-name markers): user-message text parts starting with
     //    `/skill-name`.
-    if let Ok(mut stmt) = conn.prepare(
+    {
+        let mut stmt = conn.prepare(
         "SELECT m.session_id,
                 json_extract(p.data, '$.text'),
                 COALESCE(json_extract(p.data, '$.time.end'), json_extract(p.data, '$.time.start'), p.time_created)
          FROM part p
          JOIN message m ON p.message_id = m.id
-         WHERE json_extract(p.data, '$.type') = 'text'
+         WHERE json_valid(p.data) AND json_valid(m.data) AND json_extract(p.data, '$.type') = 'text'
            AND json_extract(m.data, '$.role') = 'user'
            AND json_extract(p.data, '$.text') LIKE '/%'",
-    ) {
-        let rows = stmt.query_map([], |row| {
-            let session_id: Option<String> = row.get(0)?;
-            let text: Option<String> = row.get(1)?;
-            let ts_ms: Option<i64> = row.get(2)?;
-            Ok((session_id, text, ts_ms))
-        });
-        if let Ok(rows) = rows {
-            for row in rows.flatten() {
+    ).map_err(|_| "Could not query ZCode usage database")?;
+        let rows = stmt
+            .query_map([], |row| {
+                let session_id: Option<String> = row.get(0)?;
+                let text: Option<String> = row.get(1)?;
+                let ts_ms: Option<i64> = row.get(2)?;
+                Ok((session_id, text, ts_ms))
+            })
+            .map_err(|_| "Could not query ZCode usage database")?;
+        {
+            for row in rows {
+                let row = match row {
+                    Ok(row) => row,
+                    Err(rusqlite::Error::InvalidColumnType(..)) => continue,
+                    Err(_) => return Err("Could not query ZCode usage database".into()),
+                };
                 let (Some(session_id), Some(text), Some(ts_ms)) = row else {
                     continue;
                 };
@@ -785,7 +815,7 @@ fn query_zcode_skill_events(db_path: &Path, whitelist: &HashSet<String>) -> Vec<
         }
     }
 
-    events
+    Ok(events)
 }
 
 /// Extract skill name from a `/skill-name …` first line in a user message.
@@ -811,17 +841,17 @@ fn collect_dsh_events(
     home: &Path,
     whitelist: HashSet<String>,
     installed_skill_count: usize,
-) -> (Vec<SkillUsageEvent>, usize) {
+) -> Result<(Vec<SkillUsageEvent>, usize), String> {
     let (whitelist, count) = effective_whitelist(home, "dsh", whitelist, installed_skill_count);
     let mut files = Vec::new();
-    collect_dsh_session_files(&home.join(".dsh").join("sessions"), &mut files);
+    collect_dsh_session_files(&home.join(".dsh").join("sessions"), &mut files)?;
     let mut events = Vec::new();
     let mut seen = HashSet::new();
     // Mirrors `aggregate_events`' file loop. The line-error policy differs on
     // purpose: decompressor errors are persistent, so this loop breaks the
     // file where `aggregate_events` continues (recoverable UTF-8 skips).
     for path in &files {
-        let Some(reader) = open_session_reader(path) else {
+        let Some(reader) = open_session_reader(path)? else {
             continue;
         };
         for line in reader.lines() {
@@ -839,7 +869,7 @@ fn collect_dsh_events(
             );
         }
     }
-    (events, count)
+    Ok((events, count))
 }
 
 /// DeepSeek Harness stores one log per session under
@@ -848,18 +878,22 @@ fn collect_dsh_events(
 /// only matters to full-fidelity consumers: the line scan reads
 /// self-describing records, so any `session*.jsonl` / `session*.jsonl.zstd`
 /// is collected regardless of nesting.
-fn collect_dsh_session_files(dir: &Path, files: &mut Vec<PathBuf>) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
+fn collect_dsh_session_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(_) => return Err("Could not read usage sessions".into()),
     };
-    for entry in entries.flatten() {
+    for entry in entries {
+        let entry = entry.map_err(|_| "Could not read usage sessions")?;
         let path = entry.path();
         if path.is_dir() {
-            collect_dsh_session_files(&path, files);
+            collect_dsh_session_files(&path, files)?;
         } else if is_dsh_session_file(&path) {
             files.push(path);
         }
     }
+    Ok(())
 }
 
 fn is_dsh_session_file(path: &Path) -> bool {
@@ -873,13 +907,19 @@ fn is_dsh_session_file(path: &Path) -> bool {
 /// fly. Multiframe files (one frame per durable append batch) are read to the
 /// end. Errors surface as per-line failures, so a corrupt file simply
 /// contributes no lines.
-fn open_session_reader(path: &Path) -> Option<Box<dyn std::io::BufRead>> {
-    let file = std::fs::File::open(path).ok()?;
+fn open_session_reader(path: &Path) -> Result<Option<Box<dyn std::io::BufRead>>, String> {
+    let file = match std::fs::File::open(path) {
+        Ok(file) => file,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(_) => return Err("Could not read usage sessions".into()),
+    };
     if path.extension().and_then(|ext| ext.to_str()) == Some("zstd") {
-        let decoder = zstd::stream::Decoder::new(file).ok()?;
-        Some(Box::new(std::io::BufReader::new(decoder)))
+        let Ok(decoder) = zstd::stream::Decoder::new(file) else {
+            return Ok(None);
+        };
+        Ok(Some(Box::new(std::io::BufReader::new(decoder))))
     } else {
-        Some(Box::new(std::io::BufReader::new(file)))
+        Ok(Some(Box::new(std::io::BufReader::new(file))))
     }
 }
 
@@ -1045,18 +1085,22 @@ fn weekday_label(w: Weekday) -> String {
     .to_string()
 }
 
-fn collect_jsonl_files(dir: &Path, files: &mut Vec<PathBuf>) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
+fn collect_jsonl_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(_) => return Err("Could not read usage sessions".into()),
     };
-    for entry in entries.flatten() {
+    for entry in entries {
+        let entry = entry.map_err(|_| "Could not read usage sessions")?;
         let path = entry.path();
         if path.is_dir() {
-            collect_jsonl_files(&path, files);
+            collect_jsonl_files(&path, files)?;
         } else if path.extension().and_then(|ext| ext.to_str()) == Some("jsonl") {
             files.push(path);
         }
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -1163,7 +1207,8 @@ mod tests {
         .unwrap();
         let whitelist = HashSet::from(["code-review".to_string()]);
         let now = Local.with_ymd_and_hms(2026, 7, 2, 12, 0, 0).unwrap();
-        let usage = discover_skill_usage_from_home("claude-code", temp.path(), whitelist, 1, now);
+        let usage =
+            discover_skill_usage_from_home("claude-code", temp.path(), whitelist, 1, now).unwrap();
         assert_eq!(usage.total_calls, 1);
         assert_eq!(usage.source_counts.user, 1);
         assert_eq!(usage.source_counts.agent, 0);
@@ -1190,7 +1235,8 @@ mod tests {
         .unwrap();
         let whitelist = HashSet::from(["code-review".to_string()]);
         let now = Local.with_ymd_and_hms(2026, 7, 2, 12, 0, 0).unwrap();
-        let usage = discover_skill_usage_from_home("claude-code", temp.path(), whitelist, 1, now);
+        let usage =
+            discover_skill_usage_from_home("claude-code", temp.path(), whitelist, 1, now).unwrap();
         assert_eq!(
             usage.total_calls, 2,
             "both valid lines must survive the garbage line between them"
@@ -1215,7 +1261,8 @@ mod tests {
         std::fs::write(project_dir.join("session.jsonl"), body).unwrap();
         let whitelist = HashSet::from(["code-review".to_string()]);
         let now = Local.with_ymd_and_hms(2026, 7, 2, 12, 0, 0).unwrap();
-        let usage = discover_skill_usage_from_home("claude-code", temp.path(), whitelist, 1, now);
+        let usage =
+            discover_skill_usage_from_home("claude-code", temp.path(), whitelist, 1, now).unwrap();
         assert_eq!(
             usage.total_calls, 2,
             "an invalid-utf8 line must not drop the surrounding valid events"
@@ -1290,7 +1337,8 @@ mod tests {
         std::fs::write(session_dir.join("rollout-demo.jsonl"), line).unwrap();
         let whitelist = HashSet::from(["coding-philosophy-cce".to_string()]);
         let now = Local.with_ymd_and_hms(2026, 7, 2, 12, 0, 0).unwrap();
-        let usage = discover_skill_usage_from_home("codex", temp.path(), whitelist, 1, now);
+        let usage =
+            discover_skill_usage_from_home("codex", temp.path(), whitelist, 1, now).unwrap();
         assert_eq!(usage.total_calls, 1);
         assert_eq!(usage.source_counts.user, 0);
         assert_eq!(usage.source_counts.agent, 1);
@@ -1422,7 +1470,8 @@ mod tests {
         .unwrap();
         let whitelist = HashSet::from(["code-review".to_string()]);
         let now = Local.with_ymd_and_hms(2026, 11, 4, 12, 0, 0).unwrap();
-        let usage = discover_skill_usage_from_home("codex", temp.path(), whitelist, 1, now);
+        let usage =
+            discover_skill_usage_from_home("codex", temp.path(), whitelist, 1, now).unwrap();
         assert_eq!(
             usage.total_calls, 1,
             "a user message mirrored across carriers must count once"
@@ -1467,7 +1516,8 @@ mod tests {
             .map(String::from)
             .collect();
         let now = Local.with_ymd_and_hms(2026, 7, 8, 12, 0, 0).unwrap();
-        let usage = discover_skill_usage_from_home("codex", temp.path(), whitelist, 1, now);
+        let usage =
+            discover_skill_usage_from_home("codex", temp.path(), whitelist, 1, now).unwrap();
         assert_eq!(
             usage.total_calls, 2,
             "should detect both old and new mechanisms"
@@ -1505,10 +1555,27 @@ mod tests {
         std::fs::write(session_dir.join("rollout-prose.jsonl"), prose.to_string()).unwrap();
         let whitelist = HashSet::from(["demo".to_string()]);
         let now = Local.with_ymd_and_hms(2026, 11, 4, 12, 0, 0).unwrap();
-        let usage = discover_skill_usage_from_home("codex", temp.path(), whitelist, 1, now);
+        let usage =
+            discover_skill_usage_from_home("codex", temp.path(), whitelist, 1, now).unwrap();
         assert_eq!(
             usage.total_calls, 0,
             "prose mention must not count as usage"
+        );
+    }
+
+    #[test]
+    fn unreadable_stores_are_errors_but_absent_stores_are_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("broken.db");
+        std::fs::write(&db, "not sqlite").unwrap();
+        assert!(super::query_zcode_skill_events(&db, &HashSet::new()).is_err());
+        let mut files = Vec::new();
+        assert!(super::collect_jsonl_files(&db, &mut files).is_err());
+        assert!(super::collect_jsonl_files(&dir.path().join("missing"), &mut files).is_ok());
+        assert!(
+            super::query_zcode_skill_events(&dir.path().join("missing.db"), &HashSet::new())
+                .unwrap()
+                .is_empty()
         );
     }
 
@@ -1519,13 +1586,14 @@ mod tests {
         let conn = rusqlite::Connection::open(&db_path).unwrap();
         conn.execute_batch(
             "CREATE TABLE part (id INTEGER PRIMARY KEY, message_id TEXT, session_id TEXT, data TEXT, time_created INTEGER);
+             CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT, data TEXT, time_created INTEGER);
              INSERT INTO part (data, time_created) VALUES ('{\"type\":\"tool\",\"tool\":\"Skill\",\"callID\":\"call_1\",\"state\":{\"status\":\"completed\",\"input\":{\"skill\":\"code-audit\"},\"time\":{\"start\":1779562587114}}}', 1779562587000);
              INSERT INTO part (data, time_created) VALUES ('{\"type\":\"tool\",\"tool\":\"Skill\",\"callID\":\"call_2\",\"state\":{\"status\":\"completed\",\"input\":{\"skill\":\"code-reviewer\"},\"time\":{\"start\":1779563158835}}}', 1779563158000);",
         )
         .unwrap();
 
         let whitelist = HashSet::from(["code-audit".to_string(), "code-reviewer".to_string()]);
-        let events = super::query_zcode_skill_events(&db_path, &whitelist);
+        let events = super::query_zcode_skill_events(&db_path, &whitelist).unwrap();
         assert_eq!(events.len(), 2);
         assert_eq!(events[0].name, "code-audit");
         assert_eq!(events[0].ts_ms, 1779562587114);
@@ -1539,12 +1607,13 @@ mod tests {
         let conn = rusqlite::Connection::open(&db_path).unwrap();
         conn.execute_batch(
             "CREATE TABLE part (id INTEGER PRIMARY KEY, message_id TEXT, session_id TEXT, data TEXT, time_created INTEGER);
+             CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT, data TEXT, time_created INTEGER);
              INSERT INTO part (data, time_created) VALUES ('{\"type\":\"tool\",\"tool\":\"Skill\",\"callID\":\"call_1\",\"state\":{\"status\":\"completed\",\"input\":{\"skill\":\"code-audit\"}}}', 1779562587114);",
         )
         .unwrap();
 
         let whitelist = HashSet::from(["code-audit".to_string()]);
-        let events = super::query_zcode_skill_events(&db_path, &whitelist);
+        let events = super::query_zcode_skill_events(&db_path, &whitelist).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].ts_ms, 1779562587114);
     }
@@ -1556,13 +1625,14 @@ mod tests {
         let conn = rusqlite::Connection::open(&db_path).unwrap();
         conn.execute_batch(
             "CREATE TABLE part (id INTEGER PRIMARY KEY, message_id TEXT, session_id TEXT, data TEXT, time_created INTEGER);
+             CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT, data TEXT, time_created INTEGER);
              INSERT INTO part (data) VALUES ('{\"type\":\"tool\",\"tool\":\"Skill\",\"callID\":\"call_1\",\"state\":{\"status\":\"completed\",\"input\":{\"skill\":\"code-audit\"},\"time\":{\"start\":1}}}');
              INSERT INTO part (data) VALUES ('{\"type\":\"tool\",\"tool\":\"Skill\",\"callID\":\"call_1\",\"state\":{\"status\":\"completed\",\"input\":{\"skill\":\"code-audit\"},\"time\":{\"start\":2}}}');",
         )
         .unwrap();
 
         let whitelist = HashSet::from(["code-audit".to_string()]);
-        let events = super::query_zcode_skill_events(&db_path, &whitelist);
+        let events = super::query_zcode_skill_events(&db_path, &whitelist).unwrap();
         assert_eq!(events.len(), 1, "duplicate callID should be deduped");
     }
 
@@ -1573,13 +1643,14 @@ mod tests {
         let conn = rusqlite::Connection::open(&db_path).unwrap();
         conn.execute_batch(
             "CREATE TABLE part (id INTEGER PRIMARY KEY, message_id TEXT, session_id TEXT, data TEXT, time_created INTEGER);
+             CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT, data TEXT, time_created INTEGER);
              INSERT INTO part (data) VALUES ('{\"type\":\"tool\",\"tool\":\"Skill\",\"callID\":\"call_1\",\"state\":{\"status\":\"completed\",\"input\":{\"skill\":\"code-audit\"},\"time\":{\"start\":1}}}');
              INSERT INTO part (data) VALUES ('{\"type\":\"tool\",\"tool\":\"Skill\",\"callID\":\"call_2\",\"state\":{\"status\":\"completed\",\"input\":{\"skill\":\"other-skill\"},\"time\":{\"start\":2}}}');",
         )
         .unwrap();
 
         let whitelist = HashSet::from(["code-audit".to_string()]);
-        let events = super::query_zcode_skill_events(&db_path, &whitelist);
+        let events = super::query_zcode_skill_events(&db_path, &whitelist).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].name, "code-audit");
     }
@@ -1590,7 +1661,8 @@ mod tests {
         let events = super::query_zcode_skill_events(
             &std::path::PathBuf::from("/nonexistent/db.sqlite"),
             &whitelist,
-        );
+        )
+        .unwrap();
         assert!(events.is_empty());
     }
 
@@ -1608,7 +1680,7 @@ mod tests {
         .unwrap();
 
         let whitelist = HashSet::from(["code-review".to_string()]);
-        let events = super::query_zcode_skill_events(&db_path, &whitelist);
+        let events = super::query_zcode_skill_events(&db_path, &whitelist).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].name, "code-review");
         assert_eq!(events[0].source, SkillUsageSource::User);
@@ -1630,7 +1702,7 @@ mod tests {
         .unwrap();
 
         let whitelist = HashSet::from(["code-review".to_string()]);
-        let events = super::query_zcode_skill_events(&db_path, &whitelist);
+        let events = super::query_zcode_skill_events(&db_path, &whitelist).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].name, "code-review");
     }
@@ -1661,7 +1733,8 @@ mod tests {
             HashSet::new(),
             3,
             now,
-        );
+        )
+        .unwrap();
         assert_eq!(usage.total_calls, 0);
         assert_eq!(usage.installed_skill_count, 3);
     }
@@ -1739,7 +1812,7 @@ mod tests {
             "demo-b".to_string(),
         ]);
         let now = Local.with_ymd_and_hms(2026, 11, 4, 12, 0, 0).unwrap();
-        let usage = discover_skill_usage_from_home("dsh", temp.path(), whitelist, 1, now);
+        let usage = discover_skill_usage_from_home("dsh", temp.path(), whitelist, 1, now).unwrap();
         assert_eq!(
             usage.total_calls, 4,
             "both layouts, multiframe and uncompressed files all count"

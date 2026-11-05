@@ -37,6 +37,7 @@ use tauri::{Emitter, Manager};
 pub fn run() {
     tauri::Builder::default()
         .manage(commands::translation::TranslationState::default())
+        .manage(services::skill_usage_cache::SkillUsageCache::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())

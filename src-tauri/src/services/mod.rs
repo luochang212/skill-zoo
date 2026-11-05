@@ -11,3 +11,5 @@ pub mod watcher;
 pub mod llm;
 pub mod model_catalog;
 pub mod translation;
+
+pub mod skill_usage_cache;

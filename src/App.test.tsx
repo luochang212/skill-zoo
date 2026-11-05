@@ -5,6 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "@/App";
+import { AppUpdaterProvider } from "@/hooks/useAppUpdater";
 import type { InstalledSkill } from "@/types/skills";
 
 class ResizeObserverMock {
@@ -53,7 +54,9 @@ function renderApp() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <App />
+      <AppUpdaterProvider>
+        <App />
+      </AppUpdaterProvider>
     </QueryClientProvider>,
   );
 }
@@ -116,6 +119,20 @@ describe("App local skill detail navigation", () => {
     });
 
     expect(unlisten).toHaveBeenCalledOnce();
+  });
+
+  it("opens usage habits from the tray, closing the skill detail first", async () => {
+    renderApp();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Skill 0" }, { timeout: 5000 }));
+    await screen.findByText("Skill content");
+    const navigation = vi.mocked(listen).mock.calls.find(([event]) => event === "navigate")!;
+    await act(async () => {
+      const handler = navigation[1] as (event: { payload: string }) => void;
+      handler({ payload: "settings:skill-usage" });
+    });
+    expect(await screen.findByRole("dialog", { name: "Usage Habits" })).toBeInTheDocument();
+    expect(screen.queryByText("Skill content")).not.toBeInTheDocument();
   });
 
   it("keeps the local skill list mounted behind the detail overlay", async () => {
