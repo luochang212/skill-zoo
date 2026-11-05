@@ -4,7 +4,7 @@ use sha2::{Digest, Sha256};
 use std::sync::LazyLock;
 
 pub const MAX_SOURCE_BYTES: usize = 51_200;
-const POLICY_VERSION: u32 = 5;
+const POLICY_VERSION: u32 = 6;
 
 /// Short per-document token suffix. Models must copy these markers verbatim,
 /// so they stay far shorter than a full source hash; when the source itself
@@ -98,6 +98,7 @@ pub fn parse_translations(response: &str, expected: usize) -> Option<Vec<String>
 pub struct ProtectedMarkdown {
     pub input: String,
     pub(crate) parts: Vec<(String, String)>,
+    has_frontmatter: bool,
     description: Option<(String, String, String, serde_yaml::Value)>,
 }
 
@@ -147,15 +148,26 @@ fn split_fragment(region: &str) -> Vec<String> {
     fragments
 }
 
+fn fence_content(line: &str) -> (&str, usize) {
+    let content = line.trim_start_matches([' ', '\t', '>']);
+    let depth = line[..line.len() - content.len()]
+        .bytes()
+        .filter(|ch| *ch == b'>')
+        .count();
+    (content, depth)
+}
+
 impl ProtectedMarkdown {
     pub fn new(source: &str) -> Self {
         let nonce = token_suffix(source);
         let mut parts = Vec::new();
         let mut description = None;
+        let mut has_frontmatter = false;
         let mut rest = source;
         let mut input = String::new();
-        if source.starts_with("---\n") || source.starts_with("---\r\n") {
-            let first = source.find('\n').unwrap() + 1;
+        let document = source.trim_start_matches(|ch: char| ch.is_whitespace() || ch == '\u{feff}');
+        if document.starts_with("---\n") || document.starts_with("---\r\n") {
+            let first = source.len() - document.len() + document.find('\n').unwrap() + 1;
             let close = source[first..]
                 .split_inclusive('\n')
                 .scan(first, |offset, line| {
@@ -180,6 +192,7 @@ impl ProtectedMarkdown {
                         description = Some((start, stop, token.clone(), yaml));
                     }
                 }
+                has_frontmatter = true;
                 parts.push((token, fm.into()));
                 rest = &source[end..];
             }
@@ -189,16 +202,18 @@ impl ProtectedMarkdown {
         let lines: Vec<&str> = rest.split_inclusive('\n').collect();
         let mut i = 0;
         while i < lines.len() {
-            let trimmed = lines[i].trim_start_matches([' ', '\t', '>']);
+            let (trimmed, quote_depth) = fence_content(lines[i]);
             let ch = trimmed.chars().next().unwrap_or(' ');
             let count = trimmed.chars().take_while(|c| *c == ch).count();
             if (ch == '`' || ch == '~') && count >= 3 {
                 let begin = i;
                 i += 1;
                 while i < lines.len() {
-                    let closing = lines[i].trim_start_matches([' ', '\t', '>']).trim_end();
+                    let (closing, closing_depth) = fence_content(lines[i]);
+                    let closing = closing.trim_end();
                     i += 1;
-                    if closing.chars().take_while(|c| *c == ch).count() >= count
+                    if closing_depth == quote_depth
+                        && closing.chars().take_while(|c| *c == ch).count() >= count
                         && closing.chars().all(|c| c == ch)
                     {
                         break;
@@ -217,12 +232,16 @@ impl ProtectedMarkdown {
         Self {
             input,
             parts,
+            has_frontmatter,
             description,
         }
     }
 
     pub fn restore(&self, output: &str) -> Result<String, String> {
         let mut output = output.to_string();
+        if self.has_frontmatter && !output.trim_start().starts_with(&self.parts[0].0) {
+            return Err("fidelity".into());
+        }
         // A source line may change word order, but markers cannot cross other lines or blocks.
         let groups = self.marker_groups(&output);
         if groups.iter().any(|group| !group.complete)
@@ -417,9 +436,10 @@ impl ProtectedMarkdown {
         let mut output = output.to_string();
         if let Some((start, stop, _, _)) = &self.description {
             if let Some(begin) = output.find(start) {
-                let end = output
+                let after_start = begin + start.len();
+                let end = output[after_start..]
                     .find(stop)
-                    .map(|e| e + stop.len())
+                    .map(|e| after_start + e + stop.len())
                     .unwrap_or(output.len());
                 output.replace_range(begin..end, "");
             }
@@ -520,6 +540,78 @@ fn protect_inline(body: &str, nonce: &str, parts: &mut Vec<(String, String)>) ->
 mod tests {
     use super::*;
     use crate::persistence::llm_providers::Protocol;
+    #[test]
+    fn malformed_description_preview_never_panics() {
+        let p = ProtectedMarkdown::new("---\nname: demo\ndescription: Hello\n---\n# Body");
+        let (start, stop, _, _) = p.description.as_ref().unwrap();
+        for raw in [
+            format!("{stop}\nmisplaced content\n{start}"),
+            format!("{start}\npartial"),
+            format!("{start}\npartial\n{start}"),
+        ] {
+            p.preview(&raw);
+        }
+        let raw = format!("{stop}\nmisplaced content\n{start}");
+        assert_eq!(p.restore(&raw), Err("fidelity".into()));
+        assert!(!p.repair_plan(&raw).fragments.is_empty());
+    }
+
+    #[test]
+    fn frontmatter_requires_its_original_document_start_position() {
+        let p = ProtectedMarkdown::new("---\nname: demo\ndescription: Hello\n---\n# Body");
+        for prefix in ["Here is the translation:\n", "```markdown\n"] {
+            assert_eq!(
+                p.restore(&format!("{prefix}{}", p.input)),
+                Err("fidelity".into())
+            );
+        }
+        assert!(p.restore(&format!(" \n{}", p.input)).is_ok());
+    }
+
+    #[test]
+    fn frontmatter_with_a_bom_or_leading_whitespace_remains_protected() {
+        for prefix in ["\u{feff}", "\n \n", "\u{feff}\n"] {
+            let p = ProtectedMarkdown::new(&format!(
+                "{prefix}---\nname: demo\ndescription: Hello\n---\n# Body"
+            ));
+            assert!(!p.input.contains("name: demo"));
+            assert!(p.input.contains("Hello"));
+            assert!(p
+                .restore(&p.input.replace("Hello", "你好"))
+                .unwrap()
+                .contains("name: demo"));
+        }
+    }
+
+    #[test]
+    fn fences_only_close_within_their_quote_context() {
+        for (source, protected, prose) in [
+            (
+                "```text\nExample\n> ```\nMUST stay\n```\nTranslate me",
+                "MUST stay",
+                "Translate me",
+            ),
+            (
+                "> ```text\n> Example\n> > ```\n> MUST stay\n> ```\nTranslate me",
+                "MUST stay",
+                "Translate me",
+            ),
+            (
+                "> ```text\n> MUST stay\n> ```\nTranslate me",
+                "MUST stay",
+                "Translate me",
+            ),
+        ] {
+            let p = ProtectedMarkdown::new(source);
+            assert!(!p.input.contains(protected));
+            assert!(p.input.contains(prose));
+            assert!(p
+                .restore(&p.input.replace(prose, "译文"))
+                .unwrap()
+                .contains(protected));
+        }
+    }
+
     #[test]
     fn description_translation_preserves_yaml_values_independent_of_spelling() {
         for header in [
