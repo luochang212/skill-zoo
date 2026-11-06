@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.4.4] — 2026-11-07
+
+### Added
+- Repository loading continues in the background across page navigation. A header task menu tracks progress with retry and dismissal, keeps per-repository skill selections, and returns directly to the prepared skill list.
+- Translated descriptions appear in the live preview as soon as the description stream completes, without waiting for the document body.
+- The Markdown reader renders emphasis and strikethrough correctly around Chinese, Japanese and Korean punctuation.
+- Relative links and heading anchors navigate inside the skill reader, revealing the target file in the file tree; repository README links open the matching GitHub page in the browser.
+
+### Changed
+- Settings, skill creation and the Discover page load on first navigation, reducing the JavaScript parsed at startup.
+- Discovery repository details show metadata and the skill list without requesting a README, and full-page skeletons fill the default window while loading.
+- The local toolbar stays on one line with agent names fading when space is tight, and agent tab widths stay stable when space allows.
+- Local skill cards use a slightly narrower minimum width, fitting more columns at the default window size.
+
+### Fixed
+- skills.sh discovery retains repositories with dotted names such as `citypaul/.dotfiles` while still excluding domain-based sources.
+- Interrupted repository ZIP downloads no longer leave partial temporary files behind on errors or cancellation.
+
 ## [0.4.3] — 2026-11-06
 
 ### Added
