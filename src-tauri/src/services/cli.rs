@@ -726,22 +726,6 @@ impl CliService {
         config::get_repo_zip_cache_dir().join(Self::cache_zip_file_name(owner, repo, branch))
     }
 
-    /// Unique temp path for an in-flight ZIP download. The fixed cache path is
-    /// only used for the completed file; concurrent downloads of the same repo
-    /// must never write the same temp file (File::create truncates).
-    fn zip_tmp_path(cache_dir: &Path, owner: &str, repo: &str, branch: Option<&str>) -> PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|duration| duration.as_nanos())
-            .unwrap_or(0);
-        cache_dir.join(format!(
-            ".{owner}--{repo}--{}.{}.{}.zip.tmp",
-            Self::cache_ref_key(branch),
-            std::process::id(),
-            nanos
-        ))
-    }
-
     pub async fn ensure_cached_zip(
         owner: &str,
         repo: &str,
@@ -757,6 +741,18 @@ impl CliService {
         branch: Option<&str>,
         force: bool,
         app_handle: Option<&tauri::AppHandle>,
+    ) -> Result<PathBuf, AppError> {
+        let url = Self::archive_zip_url(owner, repo, branch);
+        Self::ensure_cached_zip_from_url(owner, repo, branch, force, app_handle, &url).await
+    }
+
+    async fn ensure_cached_zip_from_url(
+        owner: &str,
+        repo: &str,
+        branch: Option<&str>,
+        force: bool,
+        app_handle: Option<&tauri::AppHandle>,
+        url: &str,
     ) -> Result<PathBuf, AppError> {
         let cache_path = Self::cache_zip_path(owner, repo, branch);
 
@@ -775,11 +771,10 @@ impl CliService {
         let cache_dir = config::get_repo_zip_cache_dir();
         std::fs::create_dir_all(&cache_dir).map_err(AppError::Io)?;
 
-        let url = Self::archive_zip_url(owner, repo, branch);
         let repo_id = format!("{owner}/{repo}");
         let client = config::http_client();
         let response = client
-            .get(&url)
+            .get(url)
             .send()
             .await
             .map_err(|e| classify_download_error(repo_id.clone(), e))?;
@@ -798,8 +793,11 @@ impl CliService {
 
         let total_size = response.content_length();
         let mut downloaded: u64 = 0;
-        let tmp_path = Self::zip_tmp_path(&cache_dir, owner, repo, branch);
-        let mut file = std::fs::File::create(&tmp_path).map_err(AppError::Io)?;
+        let mut file = tempfile::Builder::new()
+            .prefix(".repo-")
+            .suffix(".zip.tmp")
+            .tempfile_in(&cache_dir)
+            .map_err(AppError::Io)?;
 
         use futures::StreamExt;
         let mut stream = response.bytes_stream();
@@ -810,7 +808,6 @@ impl CliService {
             downloaded += chunk.len() as u64;
 
             if downloaded > config::MAX_DOWNLOAD_BYTES {
-                let _ = std::fs::remove_file(&tmp_path);
                 return Err(AppError::RepoTooLarge {
                     repo: repo_id,
                     max_mb: config::MAX_DOWNLOAD_BYTES / (1024 * 1024),
@@ -836,9 +833,10 @@ impl CliService {
             }
         }
 
-        // Drop file handle before rename (required on Windows)
-        drop(file);
-        std::fs::rename(&tmp_path, &cache_path).map_err(AppError::Io)?;
+        // Close the handle before publishing (Windows); TempPath cleans up on failure.
+        file.into_temp_path()
+            .persist(&cache_path)
+            .map_err(|e| AppError::Io(e.error))?;
 
         Ok(cache_path)
     }
@@ -1244,6 +1242,186 @@ impl CliService {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    async fn wait_for_partial_downloads(cache_dir: &Path, expected: usize) {
+        loop {
+            if std::fs::read_dir(cache_dir).is_ok_and(|entries| {
+                entries
+                    .flatten()
+                    .filter(|entry| entry.metadata().is_ok_and(|m| m.len() > 0))
+                    .count()
+                    == expected
+            }) {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+    }
+
+    #[test]
+    fn zip_download_cleans_partial_responses_and_cancelled_downloads() {
+        use std::io::Write;
+        for cancel in [false, true] {
+            let home = tempfile::tempdir().unwrap();
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let url = format!("http://{}", listener.local_addr().unwrap());
+            let (finish, wait) = std::sync::mpsc::channel();
+            let server = std::thread::spawn(move || {
+                let (mut socket, _) = listener.accept().unwrap();
+                socket
+                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\nConnection: close\r\n\r\npartial")
+                    .unwrap();
+                socket.flush().unwrap();
+                let _ = wait.recv_timeout(std::time::Duration::from_secs(10));
+                // Close before Content-Length is satisfied to produce a body error.
+            });
+            config::with_test_home(home.path(), || {
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap();
+                rt.block_on(async {
+                    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+                        let mut download = Box::pin(CliService::ensure_cached_zip_from_url(
+                            "owner", "repo", None, false, None, &url,
+                        ));
+                        let cache_dir = config::get_repo_zip_cache_dir();
+                        tokio::select! {
+                            result = &mut download => panic!("download ended before partial data was written: {result:?}"),
+                            _ = wait_for_partial_downloads(&cache_dir, 1) => {}
+                        }
+                        if cancel {
+                            drop(download);
+                            finish.send(()).unwrap();
+                        } else {
+                            finish.send(()).unwrap();
+                            assert!(download.await.is_err());
+                        }
+                        assert_eq!(std::fs::read_dir(cache_dir).unwrap().count(), 0, "cancel={cancel}");
+                    }).await.unwrap();
+                });
+            });
+            server.join().unwrap();
+        }
+    }
+
+    #[test]
+    fn zip_downloads_keep_concurrent_files_isolated_and_publish_complete_archives() {
+        use std::io::Write;
+        let mut archive = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        archive
+            .start_file("repo/SKILL.md", zip::write::SimpleFileOptions::default())
+            .unwrap();
+        archive.write_all(b"# skill").unwrap();
+        let bytes = archive.finish().unwrap().into_inner();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let (finish, wait) = std::sync::mpsc::channel();
+        let server = std::thread::spawn(move || {
+            let mut sockets = Vec::new();
+            for _ in 0..2 {
+                let (mut socket, _) = listener.accept().unwrap();
+                write!(
+                    socket,
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    bytes.len()
+                )
+                .unwrap();
+                socket.write_all(&bytes[..1]).unwrap();
+                socket.flush().unwrap();
+                sockets.push(socket);
+            }
+            wait.recv_timeout(std::time::Duration::from_secs(10))
+                .unwrap();
+            for mut socket in sockets {
+                socket.write_all(&bytes[1..]).unwrap();
+            }
+        });
+        let home = tempfile::tempdir().unwrap();
+        config::with_test_home(home.path(), || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            rt.block_on(async {
+                tokio::time::timeout(std::time::Duration::from_secs(5), async {
+                    let cache_dir = config::get_repo_zip_cache_dir();
+                    let downloads = async {
+                        tokio::join!(
+                            CliService::ensure_cached_zip_from_url(
+                                "owner", "repo", None, false, None, &url
+                            ),
+                            CliService::ensure_cached_zip_from_url(
+                                "owner", "repo", None, false, None, &url
+                            ),
+                        )
+                    };
+                    let release = async {
+                        wait_for_partial_downloads(&cache_dir, 2).await;
+                        finish.send(()).unwrap();
+                    };
+                    let ((first, second), ()) = tokio::join!(downloads, release);
+                    let path = first.unwrap();
+                    assert_eq!(second.unwrap(), path);
+                    let file = std::fs::File::open(path).unwrap();
+                    let mut zip = zip::ZipArchive::new(file).unwrap();
+                    let mut content = String::new();
+                    std::io::Read::read_to_string(&mut zip.by_index(0).unwrap(), &mut content)
+                        .unwrap();
+                    assert_eq!(content, "# skill");
+                    assert_eq!(std::fs::read_dir(cache_dir).unwrap().count(), 1);
+                })
+                .await
+                .unwrap();
+            });
+        });
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn zip_download_cleans_failed_publication_and_replaces_complete_cache() {
+        let mut server = mockito::Server::new();
+        let response = server
+            .mock("GET", "/archive")
+            .with_body(b"complete archive")
+            .expect(3)
+            .create();
+        let home = tempfile::tempdir().unwrap();
+        config::with_test_home(home.path(), || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            rt.block_on(async {
+                let url = format!("{}/archive", server.url());
+                let path = CliService::cache_zip_path("owner", "repo", None);
+                std::fs::create_dir_all(&path).unwrap();
+                assert!(CliService::ensure_cached_zip_from_url(
+                    "owner", "repo", None, true, None, &url
+                )
+                .await
+                .is_err());
+                assert_eq!(
+                    std::fs::read_dir(path.parent().unwrap()).unwrap().count(),
+                    1
+                );
+                std::fs::remove_dir(&path).unwrap();
+                for _ in 0..2 {
+                    let result = CliService::ensure_cached_zip_from_url(
+                        "owner", "repo", None, true, None, &url,
+                    )
+                    .await
+                    .unwrap();
+                    assert_eq!(std::fs::read(result).unwrap(), b"complete archive");
+                    assert_eq!(
+                        std::fs::read_dir(path.parent().unwrap()).unwrap().count(),
+                        1
+                    );
+                }
+            });
+        });
+        response.assert();
+    }
 
     #[test]
     fn install_lock_update_preserves_fixture_optional_fields() {
@@ -1941,19 +2119,6 @@ mod tests {
         assert_eq!(request.repo, "repo");
         assert_eq!(request.branch.as_deref(), Some("main"));
         assert!(request.force);
-    }
-
-    #[test]
-    fn zip_tmp_path_is_unique_per_call() {
-        let cache_dir = std::path::PathBuf::from("/tmp/fake-cache");
-        let a = CliService::zip_tmp_path(&cache_dir, "owner", "repo", Some("main"));
-        let b = CliService::zip_tmp_path(&cache_dir, "owner", "repo", Some("main"));
-        assert_ne!(a, b, "tmp path must be unique per call");
-        assert!(a.starts_with(&cache_dir));
-        assert!(a.extension().is_some_and(|e| e == "tmp"));
-
-        let c = CliService::zip_tmp_path(&cache_dir, "owner", "repo", None);
-        assert_ne!(a, c, "default-branch download must use a distinct tmp path");
     }
 
     #[test]
