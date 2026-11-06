@@ -790,7 +790,6 @@
     "ready": "Skills ready to choose",
     "readyNotice": "{{repo}}: skills are ready to choose",
     "failedNotice": "{{repo}} could not be loaded",
-    "open": "Open repository",
     "dismissRepo": "Dismiss {{repo}}",
     "defaultBranch": "Default branch"
   }

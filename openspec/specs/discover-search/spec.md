@@ -60,7 +60,7 @@ The app header SHALL expose active repository tasks and unviewed terminal tasks 
 #### Scenario: Background repository becomes ready
 
 - **WHEN** discovery completes after the user leaves its page
-- **THEN** a notification offers continuation and a persistent header entry opens that exact repository and branch
+- **THEN** a notification without actions reports completion and a persistent header entry opens that exact repository and branch
 
 #### Scenario: Failure and retry
 
@@ -79,12 +79,12 @@ The app header SHALL expose active repository tasks and unviewed terminal tasks 
 
 ### Requirement: Completion notifications preserve the current activity
 
-Background completion SHALL provide a localized notification with a continuation action. Completion SHALL NOT navigate, steal focus, or install skills automatically. Continuation SHALL use current unsaved-draft navigation protection.
+Background completion SHALL provide a localized notification without actions. Completion SHALL NOT navigate, steal focus, or install skills automatically. Header-entry continuation SHALL use current unsaved-draft navigation protection.
 
 #### Scenario: Completion during other work
 
 - **WHEN** a repository finishes while the user is on another page
-- **THEN** that page remains active and the notification action can open the exact repository after any required discard confirmation
+- **THEN** that page remains active and the persistent header entry can open the exact repository after any required discard confirmation
 
 ### Requirement: Repository reading remains usable during skill loading
 

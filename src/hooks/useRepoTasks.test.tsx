@@ -48,10 +48,6 @@ function setup(initialActive: DiscoverRepo | null = repo) {
       active = next;
       hook.rerender();
     },
-    replaceOpener(next: typeof onOpen) {
-      onOpen = next;
-      hook.rerender();
-    },
   };
 }
 
@@ -86,19 +82,8 @@ describe("repository session tasks", () => {
     await act(async () => request.resolve(data));
     await waitFor(() => expect(hook.result.current.tasks[0]?.query.isSuccess).toBe(true));
     expect(hook.result.current.tasks[0]?.dismissed).toBe(false);
-    expect(toast.success).toHaveBeenCalledOnce();
-    const latestOpener = vi.fn();
-    hook.replaceOpener(latestOpener);
-    const action = vi.mocked(toast.success).mock.calls[0]?.[1]?.action;
-    expect(action).toBeDefined();
-    if (
-      action &&
-      typeof action === "object" &&
-      "onClick" in action &&
-      typeof action.onClick === "function"
-    )
-      action.onClick({} as never);
-    expect(latestOpener).toHaveBeenCalledWith(repo);
+    expect(toast.success).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast.success).mock.calls[0]?.[1]).toBeUndefined();
     hook.navigate(repo);
     await waitFor(() => expect(hook.result.current.tasks[0]?.dismissed).toBe(true));
     expect(hook.result.current.tasks[0]?.selectedKeys.has("skills/example")).toBe(true);

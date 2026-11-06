@@ -48,8 +48,6 @@ function useSessionTasks(activeRepo: DiscoverRepo | null, onOpen: (repo: Discove
   const [listening, setListening] = useState(false);
   const inFlight = useRef(new Map<string, Promise<RepoSkillsResult>>());
   const notified = useRef(new Set<string>());
-  const openRef = useRef(onOpen);
-  openRef.current = onOpen;
   const activeKey = activeRepo ? repoTaskKey(activeRepo) : null;
 
   const register = useCallback((repo: DiscoverRepo) => {
@@ -186,11 +184,9 @@ function useSessionTasks(activeRepo: DiscoverRepo | null, onOpen: (repo: Discove
       const message = t(task.query.isError ? "repoTasks.failedNotice" : "repoTasks.readyNotice", {
         repo: `${task.repo.owner}/${task.repo.name}`,
       });
-      const options = {
-        action: { label: t("repoTasks.open"), onClick: () => openRef.current(task.repo) },
-      };
-      if (task.query.isError) toast.error(message, options);
-      else toast.success(message, options);
+      // The persistent header entry provides continuation; the toast only informs.
+      if (task.query.isError) toast.error(message);
+      else toast.success(message);
     }
   }, [tasks, activeKey, dismiss, t]);
 

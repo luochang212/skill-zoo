@@ -790,7 +790,6 @@
     "ready": "技能列表已准备好",
     "readyNotice": "{{repo}}：技能列表已准备好",
     "failedNotice": "{{repo}} 加载失败",
-    "open": "打开仓库",
     "dismissRepo": "移除 {{repo}} 的记录",
     "defaultBranch": "默认分支"
   }
