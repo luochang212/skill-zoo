@@ -1,4 +1,5 @@
-import { Download, FolderCheck, AlertTriangle, X } from "lucide-react";
+import type { SVGProps } from "react";
+import { AlertTriangle, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useRepoTasks } from "@/hooks/useRepoTasks";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,40 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+// Hard-drive-download geometry (lucide) with the drive's LED dots completed
+// to four: the dots sweep while a task loads, and the icon stands still —
+// its plain original look — once the skill list is ready.
+function RepoTaskIcon({
+  loading = false,
+  className,
+  ...props
+}: SVGProps<SVGSVGElement> & { loading?: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={loading ? `repo-task-icon-loading ${className ?? ""}` : className}
+      {...props}
+    >
+      <path d="M12 2v8" />
+      <path d="m16 6-4 4-4-4" />
+      <rect width="20" height="8" x="2" y="14" rx="2" />
+      {[6, 10, 14, 18].map((x, index) => (
+        <path
+          key={x}
+          d={`M${x} 18h.01`}
+          className="repo-task-led"
+          style={{ animationDelay: `${index * 0.13}s` }}
+        />
+      ))}
+    </svg>
+  );
+}
+
 export function RepoTasksMenu() {
   const { t } = useTranslation();
   const { tasks, dismiss, refresh, onOpen } = useRepoTasks();
@@ -23,7 +58,6 @@ export function RepoTasksMenu() {
   if (!visible.length) return null;
   const running = visible.filter((task) => task.query.isFetching || task.query.isPending).length;
   const failed = visible.some((task) => task.query.isError && !task.query.isFetching);
-  const Icon = running ? Download : failed ? AlertTriangle : FolderCheck;
 
   return (
     <DropdownMenu>
@@ -35,7 +69,13 @@ export function RepoTasksMenu() {
           aria-label={t("repoTasks.summary", { running, count: visible.length })}
           title={t("repoTasks.title")}
         >
-          <Icon aria-hidden="true" className="h-4 w-4" />
+          {running > 0 ? (
+            <RepoTaskIcon loading aria-hidden="true" className="h-4 w-4" />
+          ) : failed ? (
+            <AlertTriangle aria-hidden="true" className="h-4 w-4" />
+          ) : (
+            <RepoTaskIcon aria-hidden="true" className="h-4 w-4" />
+          )}
           <span className="text-xs tabular-nums">{visible.length}</span>
         </Button>
       </DropdownMenuTrigger>
@@ -53,14 +93,17 @@ export function RepoTasksMenu() {
               ? progress.total
               : undefined;
           const hasSkills = (task.query.data?.skills.length ?? 0) > 0;
-          const TaskIcon = loading ? Download : task.query.isError ? AlertTriangle : FolderCheck;
+          const entryIconClass = "mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground";
           return (
             <div key={task.key} className="group/task relative border-t border-border/60 py-1">
               <DropdownMenuItem className="items-start pr-9" onSelect={() => onOpen(task.repo)}>
-                <TaskIcon
-                  aria-hidden="true"
-                  className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                />
+                {loading ? (
+                  <RepoTaskIcon loading aria-hidden="true" className={entryIconClass} />
+                ) : task.query.isError ? (
+                  <AlertTriangle aria-hidden="true" className={entryIconClass} />
+                ) : (
+                  <RepoTaskIcon aria-hidden="true" className={entryIconClass} />
+                )}
                 <div className="min-w-0 flex-1 space-y-1">
                   <p className="truncate font-medium">{label}</p>
                   <p className="truncate text-[10px] text-muted-foreground">

@@ -97,12 +97,17 @@ Repository metadata and navigation SHALL remain usable while the skill list load
 
 ### Requirement: Repository task actions remain visually compact
 
-Task entries SHALL open the corresponding repository when activated, without an extra visible continuation label. Terminal task dismissal SHALL use a top-right close icon shown on row hover or keyboard focus, with an accessible name and without a visible dismissal label. The completed state SHALL use a folder-with-check icon. Dismissal SHALL NOT also activate repository navigation.
+Task entries SHALL open the corresponding repository when activated, without an extra visible continuation label. Terminal task dismissal SHALL use a top-right close icon shown on hover or keyboard focus, with an accessible name and no visible label. Loading and completed states SHALL share one drive-download icon: its LED dots sweep while loading and stand still once the skill list is ready. Failures use a warning triangle. Dismissal SHALL NOT also activate repository navigation.
 
 #### Scenario: Compact completion
 
 - **WHEN** a task has completed
-- **THEN** its entry and the all-completed header use the folder-with-check icon, and no additional choose-skills or open-repository label appears in the entry
+- **THEN** its entry and the all-completed header use the static drive-download icon, and no additional choose-skills or open-repository label appears in the entry
+
+#### Scenario: Loading animation
+
+- **WHEN** a task is downloading, extracting or scanning
+- **THEN** its icon's LED dots sweep and stop when the task completes; reduced-motion settings keep the icon still
 
 #### Scenario: Dismiss with pointer or keyboard
 

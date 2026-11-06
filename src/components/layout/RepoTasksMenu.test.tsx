@@ -75,6 +75,7 @@ it("shows stages and bytes without a line or percentage and opens the correct br
   expect(document.querySelector(".translation-intent-progress")).not.toBeInTheDocument();
   expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   expect(screen.getByText("Downloading...")).toBeInTheDocument();
+  expect(document.querySelector(".repo-task-icon-loading")).toBeInTheDocument();
   expect(screen.queryByText(/50%/)).not.toBeInTheDocument();
   act(() =>
     callback({
@@ -85,6 +86,7 @@ it("shows stages and bytes without a line or percentage and opens the correct br
   expect(screen.getByText("50 B / 100 B")).toBeInTheDocument();
   await act(async () => finish(data));
   await screen.findByText("Skills ready to choose");
+  expect(document.querySelector(".repo-task-icon-loading")).not.toBeInTheDocument();
   expect(within(screen.getByRole("menu")).queryByText("Choose skills")).not.toBeInTheDocument();
   expect(within(screen.getByRole("menu")).queryByText("Open repository")).not.toBeInTheDocument();
   expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
