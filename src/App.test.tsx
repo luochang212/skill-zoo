@@ -1,12 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "@/App";
 import { AppUpdaterProvider } from "@/hooks/useAppUpdater";
-import type { InstalledSkill } from "@/types/skills";
+import type { InstalledSkill, RepoSkillsResult } from "@/types/skills";
 
 class ResizeObserverMock {
   observe() {}
@@ -61,6 +61,66 @@ function renderApp() {
   );
 }
 
+async function startRepositoryLoad() {
+  const original = vi.mocked(invoke).getMockImplementation()!;
+  let finish!: (result: RepoSkillsResult) => void;
+  const loading = new Promise<RepoSkillsResult>((resolve) => {
+    finish = resolve;
+  });
+  vi.mocked(invoke).mockImplementation((command, ...args) => {
+    switch (command) {
+      case "get_recommended_repos":
+        return Promise.resolve([{ owner: "owner", name: "repo", branch: "dev" }]);
+      case "get_banners":
+        return Promise.resolve([]);
+      case "get_skill_audit":
+      case "list_llm_providers":
+      case "get_symlink_status":
+        return Promise.resolve([]);
+      case "get_translation_preferences":
+        return Promise.resolve({});
+      case "get_repo_metadata":
+        return Promise.resolve({ owner: "owner", name: "repo", defaultBranch: "main" });
+      case "get_repo_skills":
+        return loading;
+      case "get_repo_readme":
+        return Promise.resolve("# Read while loading");
+      default:
+        return original(command, ...args);
+    }
+  });
+  renderApp();
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Discover" }));
+  await user.click(await screen.findByRole("button", { name: "owner/repo" }));
+  await screen.findByRole("heading", { name: "owner/repo" });
+  await waitFor(() =>
+    expect(
+      vi.mocked(invoke).mock.calls.filter(([command]) => command === "get_repo_skills"),
+    ).toHaveLength(1),
+  );
+  return {
+    user,
+    async complete() {
+      await act(async () =>
+        finish({
+          total: 1,
+          skills: [
+            {
+              key: "skills/example",
+              name: "Example",
+              directory: "example",
+              repoOwner: "owner",
+              repoName: "repo",
+              installStatus: "available",
+            },
+          ],
+        }),
+      );
+    },
+  };
+}
+
 describe("App local skill detail navigation", () => {
   beforeEach(() => {
     globalThis.ResizeObserver = ResizeObserverMock;
@@ -97,6 +157,62 @@ describe("App local skill detail navigation", () => {
           return Promise.resolve(undefined);
       }
     });
+  });
+
+  it("continues a background repository without a README request and retains selection on return", async () => {
+    const { user, complete } = await startRepositoryLoad();
+    expect(screen.queryByText("README")).not.toBeInTheDocument();
+    expect(vi.mocked(invoke).mock.calls.some(([command]) => command === "get_repo_readme")).toBe(
+      false,
+    );
+    await user.click(screen.getByRole("button", { name: "Local" }));
+    await complete();
+    await user.click(screen.getByRole("button", { name: /Repository tasks:/ }));
+    await user.click(await screen.findByRole("menuitem", { name: /^owner\/repo/ }));
+    expect(await screen.findByRole("checkbox", { name: "Select Example" })).toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: "Select Example" }));
+    await user.click(screen.getByRole("button", { name: "Local" }));
+    await user.click(screen.getByRole("button", { name: "Discover" }));
+    expect(await screen.findByRole("checkbox", { name: "Select Example" })).toBeChecked();
+    expect(
+      vi.mocked(invoke).mock.calls.filter(([command]) => command === "get_repo_skills"),
+    ).toHaveLength(1);
+    expect(vi.mocked(invoke).mock.calls.some(([command]) => command === "install_skills")).toBe(
+      false,
+    );
+  });
+
+  it("protects unsaved editor drafts when continuing a prepared repository", async () => {
+    const { user, complete } = await startRepositoryLoad();
+    await user.click(screen.getByRole("button", { name: "Local" }));
+    await user.click(await screen.findByRole("button", { name: "Skill 0" }));
+    await user.click(await screen.findByText("Edit", { selector: "span" }));
+    const editor = await screen.findByRole("textbox", { name: "Edit" });
+    fireEvent.change(editor, { target: { value: "# Unsaved draft" } });
+    await complete();
+    await user.click(screen.getByRole("button", { name: /Repository tasks:/ }));
+    await user.click(await screen.findByRole("menuitem", { name: /^owner\/repo/ }));
+    expect(await screen.findByRole("dialog", { name: "Unsaved Changes" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Keep Editing" }));
+    expect(screen.getByRole("textbox", { name: "Edit" })).toHaveValue("# Unsaved draft");
+    await user.click(screen.getByRole("button", { name: /Repository tasks:/ }));
+    await user.click(await screen.findByRole("menuitem", { name: /^owner\/repo/ }));
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+    expect(await screen.findByRole("checkbox", { name: "Select Example" })).toBeInTheDocument();
+  });
+
+  it("keeps creation content when repository navigation is declined", async () => {
+    const { user, complete } = await startRepositoryLoad();
+    await user.click(screen.getByRole("button", { name: "Local" }));
+    await user.click(await screen.findByRole("button", { name: /^Mine/ }));
+    await user.click(await screen.findByRole("button", { name: /Create Skill/ }));
+    const name = await screen.findByRole("textbox", { name: "Name" });
+    await user.type(name, "unsaved-skill");
+    await complete();
+    await user.click(screen.getByRole("button", { name: /Repository tasks:/ }));
+    await user.click(await screen.findByRole("menuitem", { name: /^owner\/repo/ }));
+    await user.click(await screen.findByRole("button", { name: "Keep Editing" }));
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("unsaved-skill");
   });
 
   it("unlistens navigation when registration resolves after unmount", async () => {

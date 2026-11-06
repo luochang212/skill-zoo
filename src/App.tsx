@@ -15,6 +15,8 @@ import { listen } from "@tauri-apps/api/event";
 import { useTranslation } from "react-i18next";
 import i18next from "@/i18n";
 import { Header } from "@/components/layout/Header";
+import { RepoTasksMenu } from "@/components/layout/RepoTasksMenu";
+import { RepoTasksProvider } from "@/hooks/useRepoTasks";
 import { BrowseSkills } from "@/components/skills/BrowseSkills";
 import { InstalledSkills } from "@/components/skills/InstalledSkills";
 import { SkillDetail } from "@/components/skills/SkillDetail";
@@ -381,8 +383,29 @@ export default function App() {
     );
   };
 
+  const handleOpenRepoTask = (repo: DiscoverRepo) => {
+    const apply = () => {
+      setShowCreateSkill(false);
+      setView("discover");
+      setSelectedRepo(repo);
+    };
+    if (showCreateSkill) {
+      pendingNavRef.current = apply;
+      setPendingClose(true);
+    } else {
+      handleTrayNavigate(apply);
+    }
+  };
+
   return (
-    <>
+    <RepoTasksProvider
+      activeRepo={
+        view === "discover" && !showCreateSkill && !editor.open && !archivedEditor
+          ? selectedRepo
+          : null
+      }
+      onOpen={handleOpenRepoTask}
+    >
       {editor.pendingOpen && (
         <Dialog
           open
@@ -419,7 +442,13 @@ export default function App() {
           <DialogContent className="sm:max-w-[380px]">
             <DialogHeader>
               <DialogTitle>{t("unsavedDialog.title")}</DialogTitle>
-              <DialogDescription>{t("unsavedDialog.closeDescription")}</DialogDescription>
+              <DialogDescription>
+                {t(
+                  pendingNavRef.current
+                    ? "unsavedDialog.navigateDescription"
+                    : "unsavedDialog.closeDescription",
+                )}
+              </DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <Button
@@ -453,8 +482,9 @@ export default function App() {
         <Header
           view={view}
           onViewChange={setView}
-          hideTabs={editor.open || !!archivedEditor || showCreateSkill || !!selectedRepo}
+          hideTabs={editor.open || !!archivedEditor || showCreateSkill}
           onDragMouseDown={handleDragMouseDown}
+          actions={<RepoTasksMenu />}
         />
         <main className="flex-1 min-h-0">
           <ErrorBoundary>
@@ -494,6 +524,6 @@ export default function App() {
           </ErrorBoundary>
         </main>
       </div>
-    </>
+    </RepoTasksProvider>
   );
 }

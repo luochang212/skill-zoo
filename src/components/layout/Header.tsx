@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { View } from "@/types/skills";
@@ -8,6 +8,7 @@ interface HeaderProps {
   onViewChange: (view: View) => void;
   hideTabs?: boolean;
   onDragMouseDown?: (e: React.MouseEvent) => void;
+  actions?: ReactNode;
 }
 
 const tabKeys: { id: View; key: string }[] = [
@@ -18,7 +19,7 @@ const tabKeys: { id: View; key: string }[] = [
 
 const LOGO_FONT = '"New York", "Iowan Old Style", "Sitka Text", Cambria, Georgia, serif';
 
-export function Header({ view, onViewChange, hideTabs, onDragMouseDown }: HeaderProps) {
+export function Header({ view, onViewChange, hideTabs, onDragMouseDown, actions }: HeaderProps) {
   const { t } = useTranslation();
   const [animating, setAnimating] = useState(false);
   const [initialDone, setInitialDone] = useState(false);
@@ -45,6 +46,7 @@ export function Header({ view, onViewChange, hideTabs, onDragMouseDown }: Header
             >
               <span className="font-bold text-2xl rainbow-text">Skill Zoo</span>
             </h1>
+            {actions}
           </div>
         ) : (
           <nav className="grid grid-cols-[1fr_auto_1fr] items-center h-full">
@@ -95,7 +97,7 @@ export function Header({ view, onViewChange, hideTabs, onDragMouseDown }: Header
                 ))}
               </div>
             </div>
-            <div />
+            <div className="flex justify-end">{actions}</div>
           </nav>
         )}
       </div>

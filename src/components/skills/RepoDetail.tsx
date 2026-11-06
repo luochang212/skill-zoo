@@ -2,14 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
-  useRepoSkills,
-  useRefreshRepoSkills,
   useRepoMetadata,
   useInstallSkills,
   useRemoveSkill,
   useSkillPreview,
 } from "@/hooks/useSkills";
-import { useRepoLoadProgress } from "@/hooks/useRepoLoadStage";
+import { useRepoTask } from "@/hooks/useRepoTasks";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -51,7 +49,12 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
     isLoading,
     isError,
     error,
-  } = useRepoSkills(repo.owner, repo.name, repo.branch || undefined);
+    isFetching,
+    progress: loadProgress,
+    selectedKeys,
+    setSelectedKeys,
+    refresh,
+  } = useRepoTask(repo);
   const { data: metadata } = useRepoMetadata(repo.owner, repo.name);
   const installMutation = useInstallSkills();
   const removeMutation = useRemoveSkill();
@@ -63,15 +66,15 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
 
   // Install dialog state
   const [installSkills, setInstallSkills] = useState<DiscoverableSkill[] | null>(null);
-  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
   const [pendingRemove, setPendingRemove] = useState<DiscoverableSkill | null>(null);
   const [previewSkill, setPreviewSkill] = useState<DiscoverableSkill | null>(null);
 
   // Unified loading state: covers initial load, refresh, and backend progress
-  const loadProgress = useRepoLoadProgress(repo.owner, repo.name);
-  const refreshMutation = useRefreshRepoSkills(repo.owner, repo.name, repo.branch || undefined);
-  const isLoadingRepo = loadProgress !== null || isLoading || refreshMutation.isPending;
+  const isLoadingRepo = isFetching || isLoading;
+  const refreshRepo = () => {
+    void refresh().catch(() => {});
+  };
 
   // Debounced progress display (0.5s to avoid flash for cached repos)
   const [showLoadStage, setShowLoadStage] = useState(false);
@@ -191,7 +194,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
               size="icon"
               className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground translate-y-[1px]"
               disabled={isLoadingRepo}
-              onClick={() => refreshMutation.mutate()}
+              onClick={refreshRepo}
               aria-label={t("error.retry")}
             >
               {isLoadingRepo ? (
@@ -250,129 +253,138 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
           </div>
         </div>
       </div>
-      <ScrollArea className="flex-1 min-h-0">
-        <div className="px-5 py-4 pr-5 max-w-full">
-          {isLoadingRepo && !skills ? (
-            <div className="flex flex-col gap-2">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 rounded-lg border border-border/40 px-4 py-3"
-                >
-                  <Skeleton className="h-4 w-4 rounded-sm shrink-0" />
-                  <div className="min-w-0 flex-1 space-y-1.5">
-                    <Skeleton className="h-4 w-48" />
-                    <Skeleton className="h-3 w-72" />
-                  </div>
-                  <Skeleton className="h-7 w-14 rounded-lg shrink-0" />
-                </div>
-              ))}
-            </div>
-          ) : isError ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-3">
-              <AlertTriangle className="h-8 w-8 text-destructive/60" />
-              <p className="text-sm text-destructive">{formatApiError(error)}</p>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={isLoadingRepo}
-                onClick={() => refreshMutation.mutate()}
+      {isLoadingRepo && !skills ? (
+        <div
+          className="flex-1 min-h-0 overflow-clip px-5 py-4"
+          role="status"
+          aria-label={t("loading")}
+        >
+          <div className="flex flex-col gap-2">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 rounded-lg border border-border/40 px-4 py-3"
               >
-                {t("error.retry")}
-              </Button>
-            </div>
-          ) : skillList.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <p className="text-sm">{t("browse.noSkillsToInstall")}</p>
-            </div>
-          ) : (
-            <>
-              {installableSkills.length > 0 && (
-                <label className="inline-flex items-center gap-3 text-[11px] text-muted-foreground cursor-pointer hover:text-foreground transition-colors mb-4 pl-4">
-                  <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
-                  {t("browse.selectAll")}
-                </label>
-              )}
-              <div className="flex flex-col gap-2">
-                {skillList.map((skill) => (
-                  <div
-                    key={skill.key}
-                    className="flex items-center gap-3 rounded-lg border border-border/40 px-4 py-3 hover:bg-accent/30 transition-colors"
-                  >
-                    <Checkbox
-                      checked={skill.installStatus === "installed" || selectedKeys.has(skill.key)}
-                      disabled={skill.installStatus !== "available"}
-                      onCheckedChange={() => toggleKey(skill.key)}
-                      aria-label={
-                        skill.installStatus === "installed"
-                          ? t("common.installed")
-                          : skill.installStatus === "conflict"
-                            ? t("browse.nameConflict")
-                            : t("browse.selectSkill", { name: skill.name })
-                      }
-                      className="shrink-0"
-                    />
-                    <button
-                      type="button"
-                      className="min-w-0 flex-1 cursor-pointer text-left"
-                      onClick={() => setPreviewSkill(skill)}
-                    >
-                      <h4 className="text-[13px] font-medium hover:text-primary transition-colors">
-                        {skill.name}
-                      </h4>
-                      {skill.description && (
-                        <p className="text-[12px] text-muted-foreground/80 line-clamp-1 mt-0.5">
-                          {skill.description}
-                        </p>
-                      )}
-                    </button>
-                    {skill.installStatus === "installed" ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs rounded-lg shrink-0"
-                        onClick={() => {
-                          setPendingRemove(skill);
-                          setRemoveConfirmOpen(true);
-                        }}
-                      >
-                        {t("common.uninstall")}
-                      </Button>
-                    ) : skill.installStatus === "conflict" ? (
-                      <Badge
-                        variant="destructive"
-                        className="h-7 shrink-0 px-2.5 text-xs font-medium"
-                        title={t("browse.nameConflictHint")}
-                      >
-                        {t("browse.nameConflict")}
-                      </Badge>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="default"
-                        className="press-feedback h-7 text-xs rounded-lg shrink-0"
-                        onClick={() => handleInstallSingle(skill)}
-                      >
-                        {t("common.install")}
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Truncation warning */}
-              {isTruncated && (
-                <div className="flex items-center gap-2 mt-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40">
-                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <p className="text-[11px] text-amber-700 dark:text-amber-300">
-                    {t("browse.truncated", { shown: skillList.length, total })}
-                  </p>
+                <Skeleton className="h-4 w-4 rounded-sm shrink-0" />
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <Skeleton className="h-4 w-48" />
+                  <Skeleton className="h-3 w-72" />
                 </div>
-              )}
-            </>
-          )}
+                <Skeleton className="h-7 w-14 rounded-lg shrink-0" />
+              </div>
+            ))}
+          </div>
         </div>
-      </ScrollArea>
+      ) : (
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="px-5 py-4 pr-5 max-w-full">
+            {isError ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-3">
+                <AlertTriangle className="h-8 w-8 text-destructive/60" />
+                <p className="text-sm text-destructive">{formatApiError(error)}</p>
+                <Button size="sm" variant="outline" disabled={isLoadingRepo} onClick={refreshRepo}>
+                  {t("error.retry")}
+                </Button>
+              </div>
+            ) : skillList.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <p className="text-sm">{t("browse.noSkillsToInstall")}</p>
+              </div>
+            ) : (
+              <>
+                {installableSkills.length > 0 && (
+                  <label className="inline-flex items-center gap-3 text-[11px] text-muted-foreground cursor-pointer hover:text-foreground transition-colors mb-4 pl-4">
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={toggleAll}
+                      disabled={isLoadingRepo}
+                    />
+                    {t("browse.selectAll")}
+                  </label>
+                )}
+                <div className="flex flex-col gap-2">
+                  {skillList.map((skill) => (
+                    <div
+                      key={skill.key}
+                      className="flex items-center gap-3 rounded-lg border border-border/40 px-4 py-3 hover:bg-accent/30 transition-colors"
+                    >
+                      <Checkbox
+                        checked={skill.installStatus === "installed" || selectedKeys.has(skill.key)}
+                        disabled={isLoadingRepo || skill.installStatus !== "available"}
+                        onCheckedChange={() => toggleKey(skill.key)}
+                        aria-label={
+                          skill.installStatus === "installed"
+                            ? t("common.installed")
+                            : skill.installStatus === "conflict"
+                              ? t("browse.nameConflict")
+                              : t("browse.selectSkill", { name: skill.name })
+                        }
+                        className="shrink-0"
+                      />
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 cursor-pointer text-left"
+                        onClick={() => setPreviewSkill(skill)}
+                      >
+                        <h4 className="text-[13px] font-medium hover:text-primary transition-colors">
+                          {skill.name}
+                        </h4>
+                        {skill.description && (
+                          <p className="text-[12px] text-muted-foreground/80 line-clamp-1 mt-0.5">
+                            {skill.description}
+                          </p>
+                        )}
+                      </button>
+                      {skill.installStatus === "installed" ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs rounded-lg shrink-0"
+                          disabled={isLoadingRepo || removeMutation.isPending}
+                          onClick={() => {
+                            setPendingRemove(skill);
+                            setRemoveConfirmOpen(true);
+                          }}
+                        >
+                          {t("common.uninstall")}
+                        </Button>
+                      ) : skill.installStatus === "conflict" ? (
+                        <Badge
+                          variant="destructive"
+                          className="h-7 shrink-0 px-2.5 text-xs font-medium"
+                          title={t("browse.nameConflictHint")}
+                        >
+                          {t("browse.nameConflict")}
+                        </Badge>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="press-feedback h-7 text-xs rounded-lg shrink-0"
+                          disabled={isLoadingRepo || installMutation.isPending}
+                          onClick={() => handleInstallSingle(skill)}
+                        >
+                          {t("common.install")}
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Truncation warning */}
+                {isTruncated && (
+                  <div className="flex items-center gap-2 mt-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40">
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                      {t("browse.truncated", { shown: skillList.length, total })}
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </ScrollArea>
+      )}
 
       {/* Floating action bar for multi-select */}
       {selectedInstallable.length > 0 && (
@@ -383,6 +395,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
           <Button
             size="sm"
             className="press-feedback h-7 text-xs rounded-lg"
+            disabled={isLoadingRepo || installMutation.isPending}
             onClick={handleInstallSelected}
           >
             <Check className="h-3.5 w-3.5 mr-1.5" />

@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   removeMutate: vi.fn(),
   refreshMutate: vi.fn(),
   repoSkillsError: null as unknown,
+  repoSkillsFetching: false,
 }));
 
 class ResizeObserverMock {
@@ -20,7 +21,35 @@ class ResizeObserverMock {
 }
 
 vi.mock("@/hooks/useSkills", () => ({
-  useRepoSkills: () => ({
+  useRepoMetadata: () => ({ data: undefined }),
+  useInstallSkills: () => ({ mutate: mocks.installMutate, isPending: false }),
+  useRemoveSkill: () => ({ mutate: mocks.removeMutate, isPending: false }),
+  useSkillPreview: () => ({ data: undefined, isLoading: false, isError: false }),
+}));
+
+vi.mock("@/components/skills/SkillInstallDialog", () => ({
+  SkillInstallDialog: ({
+    skills,
+    onInstall,
+  }: {
+    skills: Array<{ key: string }>;
+    onInstall: (skillNames: string[], agents: string[]) => void;
+  }) => (
+    <button
+      onClick={() =>
+        onInstall(
+          skills.map((skill) => skill.key),
+          ["codex"],
+        )
+      }
+    >
+      Confirm install test
+    </button>
+  ),
+}));
+
+vi.mock("@/hooks/useRepoTasks", () => ({
+  useRepoTask: () => ({
     data: mocks.repoSkillsError
       ? undefined
       : {
@@ -53,40 +82,15 @@ vi.mock("@/hooks/useSkills", () => ({
             },
           ],
         },
+    isFetching: mocks.repoSkillsFetching,
+    progress: null,
+    selectedKeys: new Set<string>(),
+    setSelectedKeys: vi.fn(),
+    refresh: mocks.refreshMutate,
     isLoading: false,
     isError: !!mocks.repoSkillsError,
     error: mocks.repoSkillsError,
   }),
-  useRefreshRepoSkills: () => ({ mutate: mocks.refreshMutate, isPending: false }),
-  useRepoMetadata: () => ({ data: undefined }),
-  useInstallSkills: () => ({ mutate: mocks.installMutate, isPending: false }),
-  useRemoveSkill: () => ({ mutate: mocks.removeMutate, isPending: false }),
-  useSkillPreview: () => ({ data: undefined, isLoading: false, isError: false }),
-}));
-
-vi.mock("@/components/skills/SkillInstallDialog", () => ({
-  SkillInstallDialog: ({
-    skills,
-    onInstall,
-  }: {
-    skills: Array<{ key: string }>;
-    onInstall: (skillNames: string[], agents: string[]) => void;
-  }) => (
-    <button
-      onClick={() =>
-        onInstall(
-          skills.map((skill) => skill.key),
-          ["codex"],
-        )
-      }
-    >
-      Confirm install test
-    </button>
-  ),
-}));
-
-vi.mock("@/hooks/useRepoLoadStage", () => ({
-  useRepoLoadProgress: () => null,
 }));
 
 function renderDetail(repo: DiscoverRepo = { owner: "owner", name: "repo", branch: "main" }) {
@@ -106,6 +110,15 @@ describe("RepoDetail discover status", () => {
     mocks.removeMutate.mockReset();
     mocks.refreshMutate.mockReset();
     mocks.repoSkillsError = null;
+    mocks.repoSkillsFetching = false;
+  });
+
+  it("blocks stale install actions and does not display a discovery README", async () => {
+    mocks.repoSkillsFetching = true;
+    renderDetail();
+    expect(screen.getByRole("button", { name: "Install" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Select Available Skill" })).toBeDisabled();
+    expect(screen.queryByText("README")).not.toBeInTheDocument();
   });
 
   it("blocks conflicting skills and uninstalls only by the backend-provided skill id", async () => {

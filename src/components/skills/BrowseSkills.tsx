@@ -214,7 +214,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
     return (
       <div className="flex flex-col h-full">
         <RepoDetail
-          key={selectedRepo.owner + "/" + selectedRepo.name}
+          key={JSON.stringify([selectedRepo.owner, selectedRepo.name, selectedRepo.branch])}
           repo={selectedRepo}
           onBack={handleBackFromRepo}
         />

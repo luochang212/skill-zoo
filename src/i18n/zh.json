@@ -289,7 +289,8 @@
     "description": "你有未保存的更改。切换到其他技能将丢弃这些编辑。",
     "closeDescription": "你有未保存的更改。关闭该技能将丢弃这些编辑。",
     "discard": "丢弃",
-    "keepEditing": "继续编辑"
+    "keepEditing": "继续编辑",
+    "navigateDescription": "离开此页面将丢弃尚未保存的修改。"
   },
   "star": {
     "star": "收藏",
@@ -782,5 +783,15 @@
     "openNamed": "打开{{name}}",
     "backToProviders": "返回模型管理",
     "backToTranslation": "返回翻译设置"
+  },
+  "repoTasks": {
+    "title": "仓库任务",
+    "summary": "仓库任务：{{running}} 项加载中，共 {{count}} 项",
+    "ready": "技能列表已准备好",
+    "readyNotice": "{{repo}}：技能列表已准备好",
+    "failedNotice": "{{repo}} 加载失败",
+    "open": "打开仓库",
+    "dismissRepo": "移除 {{repo}} 的记录",
+    "defaultBranch": "默认分支"
   }
 }

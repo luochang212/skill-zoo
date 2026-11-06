@@ -397,27 +397,6 @@ export function useSearchRepo(query: string | null) {
   });
 }
 
-export function useRepoSkills(owner: string | null, name: string | null, branch?: string) {
-  return useQuery({
-    queryKey: ["repos", "skills", owner, name, branch],
-    queryFn: () => skillsApi.getRepoSkills(owner!, name!, branch),
-    enabled: !!owner && !!name,
-    retry: false,
-  });
-}
-
-export function useRefreshRepoSkills(owner: string, name: string, branch?: string) {
-  const qc = useQueryClient();
-  const queryKey = ["repos", "skills", owner, name, branch] as const;
-  return useMutation({
-    mutationFn: () => skillsApi.getRepoSkills(owner, name, branch, true),
-    onSuccess: (data) => {
-      qc.setQueryData(queryKey, data);
-      qc.invalidateQueries({ queryKey: ["repos", "metadata", owner, name] });
-    },
-  });
-}
-
 export function useRepoMetadata(owner: string | null, name: string | null) {
   return useQuery({
     queryKey: ["repos", "metadata", owner, name],
