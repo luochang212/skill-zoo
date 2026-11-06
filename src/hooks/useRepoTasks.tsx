@@ -177,16 +177,13 @@ function useSessionTasks(activeRepo: DiscoverRepo | null, onOpen: (repo: Discove
     for (const task of tasks) {
       if (task.query.isFetching || task.query.isPending) continue;
       if (task.query.isSuccess && task.key === activeKey) dismiss(task.repo);
-      const notice = `${task.key}:${task.query.dataUpdatedAt}:${task.query.errorUpdatedAt}`;
+      // Completion stays quiet: the persistent header entry is the signal.
+      // Only failures interrupt, and never for the page being viewed.
+      if (!task.query.isError || task.key === activeKey || task.dismissed) continue;
+      const notice = `${task.key}:${task.query.errorUpdatedAt}`;
       if (notified.current.has(notice)) continue;
       notified.current.add(notice);
-      if (task.key === activeKey || task.dismissed) continue;
-      const message = t(task.query.isError ? "repoTasks.failedNotice" : "repoTasks.readyNotice", {
-        repo: `${task.repo.owner}/${task.repo.name}`,
-      });
-      // The persistent header entry provides continuation; the toast only informs.
-      if (task.query.isError) toast.error(message);
-      else toast.success(message);
+      toast.error(t("repoTasks.failedNotice", { repo: `${task.repo.owner}/${task.repo.name}` }));
     }
   }, [tasks, activeKey, dismiss, t]);
 

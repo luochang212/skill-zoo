@@ -82,13 +82,12 @@ describe("repository session tasks", () => {
     await act(async () => request.resolve(data));
     await waitFor(() => expect(hook.result.current.tasks[0]?.query.isSuccess).toBe(true));
     expect(hook.result.current.tasks[0]?.dismissed).toBe(false);
-    expect(toast.success).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(toast.success).mock.calls[0]?.[1]).toBeUndefined();
+    expect(toast.success).not.toHaveBeenCalled();
     hook.navigate(repo);
     await waitFor(() => expect(hook.result.current.tasks[0]?.dismissed).toBe(true));
     expect(hook.result.current.tasks[0]?.selectedKeys.has("skills/example")).toBe(true);
     expect(skillsApi.getRepoSkills).toHaveBeenCalledOnce();
-    expect(toast.success).toHaveBeenCalledOnce();
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("isolates default and named branch progress", async () => {

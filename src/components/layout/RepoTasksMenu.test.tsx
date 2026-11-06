@@ -63,7 +63,7 @@ it("shows stages and bytes without a line or percentage and opens the correct br
   );
   const { onOpen, user } = setup();
   await waitFor(() => expect(skillsApi.getRepoSkills).toHaveBeenCalledOnce());
-  await user.click(screen.getByRole("button", { name: /Repository tasks:/ }));
+  await user.click(screen.getByRole("button", { name: /Download tasks:/ }));
   const callback = vi
     .mocked(listen)
     .mock.calls.find(([name]) => name === "repo-download-progress")![1];
@@ -101,12 +101,12 @@ it("retains failures for retry and allows dismissing the completed entry", async
     .mockResolvedValue(data);
   const { user, onOpen } = setup();
   await waitFor(() => expect(skillsApi.getRepoSkills).toHaveBeenCalledOnce());
-  await user.click(screen.getByRole("button", { name: /Repository tasks:/ }));
+  await user.click(screen.getByRole("button", { name: /Download tasks:/ }));
   await user.click(await screen.findByRole("menuitem", { name: "Retry" }));
   await screen.findByText("Skills ready to choose");
   expect(skillsApi.getRepoSkills).toHaveBeenCalledTimes(2);
   expect(within(screen.getByRole("menu")).queryByText("Dismiss")).not.toBeInTheDocument();
   await user.click(screen.getByRole("menuitem", { name: "Dismiss owner/repo" }));
-  expect(screen.queryByRole("button", { name: /Repository tasks:/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Download tasks:/ })).not.toBeInTheDocument();
   expect(onOpen).not.toHaveBeenCalled();
 });

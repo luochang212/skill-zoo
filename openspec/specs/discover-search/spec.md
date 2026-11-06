@@ -77,14 +77,14 @@ The app header SHALL expose active repository tasks and unviewed terminal tasks 
 - **WHEN** a user activates continuation with unsaved editor or creation content
 - **THEN** navigation requires discard confirmation and cancellation preserves the current content
 
-### Requirement: Completion notifications preserve the current activity
+### Requirement: Completion stays quiet while failures may interrupt
 
-Background completion SHALL provide a localized notification without actions. Completion SHALL NOT navigate, steal focus, or install skills automatically. Header-entry continuation SHALL use current unsaved-draft navigation protection.
+Background completion SHALL NOT show a notification, navigate, steal focus, or install skills automatically; the persistent header entry is the completion signal. Failures MAY show a localized notification. Header-entry continuation SHALL use current unsaved-draft navigation protection.
 
 #### Scenario: Completion during other work
 
 - **WHEN** a repository finishes while the user is on another page
-- **THEN** that page remains active and the persistent header entry can open the exact repository after any required discard confirmation
+- **THEN** that page remains active with no completion toast and the persistent header entry can open the exact repository after any required discard confirmation
 
 ### Requirement: Repository reading remains usable during skill loading
 

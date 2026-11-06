@@ -83,7 +83,9 @@ export function RepoTasksMenu() {
         align="end"
         className="w-80 max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto"
       >
-        <p className="px-2 py-2 text-xs font-medium">{t("repoTasks.title")}</p>
+        <p className="sticky top-0 z-10 bg-popover px-2 py-2 text-xs font-medium">
+          {t("repoTasks.title")}
+        </p>
         {visible.map((task) => {
           const loading = task.query.isFetching || task.query.isPending;
           const label = `${task.repo.owner}/${task.repo.name}`;

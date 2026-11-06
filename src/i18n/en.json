@@ -785,10 +785,9 @@
     "backToTranslation": "Back to translation settings"
   },
   "repoTasks": {
-    "title": "Repository tasks",
-    "summary": "Repository tasks: {{running}} loading, {{count}} total",
+    "title": "Download tasks",
+    "summary": "Download tasks: {{running}} loading, {{count}} total",
     "ready": "Skills ready to choose",
-    "readyNotice": "{{repo}}: skills are ready to choose",
     "failedNotice": "{{repo}} could not be loaded",
     "dismissRepo": "Dismiss {{repo}}",
     "defaultBranch": "Default branch"

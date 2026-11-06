@@ -167,7 +167,7 @@ describe("App local skill detail navigation", () => {
     );
     await user.click(screen.getByRole("button", { name: "Local" }));
     await complete();
-    await user.click(screen.getByRole("button", { name: /Repository tasks:/ }));
+    await user.click(screen.getByRole("button", { name: /Download tasks:/ }));
     await user.click(await screen.findByRole("menuitem", { name: /^owner\/repo/ }));
     expect(await screen.findByRole("checkbox", { name: "Select Example" })).toBeInTheDocument();
     await user.click(screen.getByRole("checkbox", { name: "Select Example" }));
@@ -190,12 +190,12 @@ describe("App local skill detail navigation", () => {
     const editor = await screen.findByRole("textbox", { name: "Edit" });
     fireEvent.change(editor, { target: { value: "# Unsaved draft" } });
     await complete();
-    await user.click(screen.getByRole("button", { name: /Repository tasks:/ }));
+    await user.click(screen.getByRole("button", { name: /Download tasks:/ }));
     await user.click(await screen.findByRole("menuitem", { name: /^owner\/repo/ }));
     expect(await screen.findByRole("dialog", { name: "Unsaved Changes" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Keep Editing" }));
     expect(screen.getByRole("textbox", { name: "Edit" })).toHaveValue("# Unsaved draft");
-    await user.click(screen.getByRole("button", { name: /Repository tasks:/ }));
+    await user.click(screen.getByRole("button", { name: /Download tasks:/ }));
     await user.click(await screen.findByRole("menuitem", { name: /^owner\/repo/ }));
     await user.click(screen.getByRole("button", { name: "Discard" }));
     expect(await screen.findByRole("checkbox", { name: "Select Example" })).toBeInTheDocument();
@@ -209,7 +209,7 @@ describe("App local skill detail navigation", () => {
     const name = await screen.findByRole("textbox", { name: "Name" });
     await user.type(name, "unsaved-skill");
     await complete();
-    await user.click(screen.getByRole("button", { name: /Repository tasks:/ }));
+    await user.click(screen.getByRole("button", { name: /Download tasks:/ }));
     await user.click(await screen.findByRole("menuitem", { name: /^owner\/repo/ }));
     await user.click(await screen.findByRole("button", { name: "Keep Editing" }));
     expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("unsaved-skill");

@@ -785,10 +785,9 @@
     "backToTranslation": "返回翻译设置"
   },
   "repoTasks": {
-    "title": "仓库任务",
-    "summary": "仓库任务：{{running}} 项加载中，共 {{count}} 项",
+    "title": "下载任务",
+    "summary": "下载任务：{{running}} 项加载中，共 {{count}} 项",
     "ready": "技能列表已准备好",
-    "readyNotice": "{{repo}}：技能列表已准备好",
     "failedNotice": "{{repo}} 加载失败",
     "dismissRepo": "移除 {{repo}} 的记录",
     "defaultBranch": "默认分支"
