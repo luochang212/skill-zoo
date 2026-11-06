@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.4.3] — 2026-11-06
+
+### Added
+- Translation progress appears as a subtle overlay below the document toolbar, keeping the original readable while waiting for output. Icon-only stop and retry actions sit beside the translation button.
+
+### Changed
+- Model setup uses one sidebar configuration page with inline provider renaming, a deletion menu and automatic saving. First setup and adding a service share a standalone provider picker; the editor no longer shows a persistent unsaved-changes message.
+- Provider presets are OpenAI, DeepSeek, Volcengine and custom. Existing connections to other services remain available.
+
+### Fixed
+- Recently used skills follow the Agent selected in Usage Habits. The tray offers a direct usage link, and usage reads share cached scans, retain that Agent's previous data on failure and support retry without mixing results after a switch.
+- Compatible gateways returning unsigned thinking blocks no longer fail connection tests when the response structure and completion state are valid.
+- Volcengine Coding Plan GLM-5.3-Flash translations over OpenAI Chat Completions explicitly use light reasoning instead of the service default. Known fixed-thinking models show thinking as on with a disabled switch, rather than appearing off.
+- Translation failures show concise localized reasons, including quota exhaustion, request limits, authentication failures and timeouts. Background task notifications retain their skill context without inserting document banners or exposing upstream errors.
+- Model configuration lookup waits for input-method composition and ignores whitespace-only model ID changes, preserving matched and manually entered limits.
+- The Local page's content scrollbar aligns with the right edge.
+
 ## [0.4.2] — 2026-11-05
 
 ### Changed
