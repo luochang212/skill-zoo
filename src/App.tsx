@@ -5,6 +5,8 @@ import {
   useLayoutEffect,
   useRef,
   Component,
+  lazy,
+  Suspense,
   type ReactNode,
 } from "react";
 
@@ -17,11 +19,18 @@ import i18next from "@/i18n";
 import { Header } from "@/components/layout/Header";
 import { RepoTasksMenu } from "@/components/layout/RepoTasksMenu";
 import { RepoTasksProvider } from "@/hooks/useRepoTasks";
-import { BrowseSkills } from "@/components/skills/BrowseSkills";
 import { InstalledSkills } from "@/components/skills/InstalledSkills";
 import { SkillDetail } from "@/components/skills/SkillDetail";
-import { SkillCreateView } from "@/components/skills/SkillCreateView";
-import { SettingsView } from "@/components/settings/SettingsView";
+// Landing view stays eager; secondary pages load on first navigation.
+const BrowseSkills = lazy(() =>
+  import("@/components/skills/BrowseSkills").then((m) => ({ default: m.BrowseSkills })),
+);
+const SkillCreateView = lazy(() =>
+  import("@/components/skills/SkillCreateView").then((m) => ({ default: m.SkillCreateView })),
+);
+const SettingsView = lazy(() =>
+  import("@/components/settings/SettingsView").then((m) => ({ default: m.SettingsView })),
+);
 import {
   Dialog,
   DialogContent,
@@ -517,7 +526,7 @@ export default function App() {
                   transition={{ duration: reduceMotion ? 0 : 0.15 }}
                   className="h-full"
                 >
-                  {renderMain()}
+                  <Suspense fallback={<div className="h-full" />}>{renderMain()}</Suspense>
                 </motion.div>
               </AnimatePresence>
             )}
