@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useRepoPanelCollapsed } from "@/hooks/useRepoPanelCollapsed";
 import { RepoInfoPanel } from "@/components/skills/RepoInfoPanel";
 import {
   AlertTriangle,
@@ -399,6 +400,7 @@ export const InstalledSkills = memo(function InstalledSkills({
 }: InstalledSkillsProps) {
   const { t } = useTranslation();
   const { data: skills, isLoading, isError, refetch } = useInstalledSkills();
+  const repoPanel = useRepoPanelCollapsed();
   const {
     data: archivedSkills,
     isLoading: archivedLoading,
@@ -842,6 +844,8 @@ export const InstalledSkills = memo(function InstalledSkills({
     })();
   };
 
+  const repoPanelExpanded = category.type === "repo" && filtered.length > 0 && !repoPanel.collapsed;
+
   const renderContent = (draggedSkill: InstalledSkill | null) => (
     <div className="flex h-full relative">
       {/* Sidebar */}
@@ -860,7 +864,7 @@ export const InstalledSkills = memo(function InstalledSkills({
 
       {/* Main content */}
       <div className="flex flex-col flex-1 min-w-0">
-        <div className="flex-1 min-h-0 p-6 pb-0 flex flex-col">
+        <div className="flex-1 min-h-0 p-6 pb-0 flex flex-col relative">
           {/* Toolbar. Hidden in consistency view since it has its own panel */}
           {category.type !== "consistency" && (
             <div className="flex items-center gap-3 mb-6">
@@ -954,14 +958,14 @@ export const InstalledSkills = memo(function InstalledSkills({
               scrollToId={consistencyNavTarget?.targetId}
             />
           ) : (
-            <div className="flex-1 min-h-0 flex gap-0 relative -mr-6">
+            <div className={cn("flex-1 min-h-0 flex gap-0", !repoPanelExpanded && "-mr-6")}>
               {filtered.length === 0 ? (
                 <div className="flex-1 flex items-start justify-center pt-24">
                   <p className="text-sm text-muted-foreground">{t("installed.noMatch")}</p>
                 </div>
               ) : (
                 <ScrollArea className="flex-1 pt-1">
-                  <div className="pr-6 @container/main">
+                  <div className={cn("@container/main", !repoPanelExpanded && "pr-6")}>
                     {viewMode === "grid" ? (
                       <div className="grid grid-cols-1 max-w-[780px] @md/main:grid-cols-2 @md/main:max-w-none @3col/main:grid-cols-3 @4col/main:grid-cols-4 gap-4 pt-1 pb-3">
                         {sorted.map((skill) => (
@@ -1045,7 +1049,14 @@ export const InstalledSkills = memo(function InstalledSkills({
               )}
 
               {category.type === "repo" && filtered.length > 0 && (
-                <RepoInfoPanel owner={category.owner} name={category.name} />
+                <RepoInfoPanel
+                  key={`${category.owner}/${category.name}`}
+                  owner={category.owner}
+                  name={category.name}
+                  collapsed={repoPanel.collapsed}
+                  rotation={repoPanel.rotation.current}
+                  onToggle={repoPanel.handleToggle}
+                />
               )}
             </div>
           )}

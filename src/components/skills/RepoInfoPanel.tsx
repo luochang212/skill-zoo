@@ -1,17 +1,10 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type PointerEvent,
-  type RefObject,
-  type WheelEvent,
-} from "react";
+import { useId, useRef } from "react";
 import { Star, GitFork, BookOpen, AlertCircle, AlertTriangle, LoaderCircle } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRefreshRepoPanel, useRepoMetadata, useRepoReadme } from "@/hooks/useSkills";
 import { MarkdownContent } from "@/components/skills/MarkdownContent";
-import { useRepoPanelCollapsed } from "@/hooks/useRepoPanelCollapsed";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { useRepoPanelRefresh } from "@/hooks/useRepoPanelRefresh";
 import { apiErrorCode, formatApiError } from "@/lib/api/errors";
 import { useTranslation } from "react-i18next";
 
@@ -24,195 +17,49 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 interface RepoInfoPanelProps {
   owner: string;
   name: string;
+  collapsed: boolean;
+  rotation: number;
+  onToggle: () => void;
 }
 
-const PULL_REFRESH_THRESHOLD = 128;
-const PULL_REFRESH_MAX = 150;
-const MIN_REFRESH_SPINNER_MS = 700;
-
-function usePullToRefresh({
-  viewportRef,
-  disabled,
-  onRefresh,
-}: {
-  viewportRef: RefObject<HTMLDivElement | null>;
-  disabled: boolean;
-  onRefresh: () => void;
-}) {
-  const [distance, setDistance] = useState(0);
-  const pointerStartYRef = useRef<number | null>(null);
-  const refreshTriggeredRef = useRef(false);
-  const wheelResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const atTop = useCallback(() => (viewportRef.current?.scrollTop ?? 0) <= 0, [viewportRef]);
-
-  const reset = useCallback(() => {
-    setDistance(0);
-    pointerStartYRef.current = null;
-    refreshTriggeredRef.current = false;
-    if (wheelResetTimerRef.current) {
-      clearTimeout(wheelResetTimerRef.current);
-      wheelResetTimerRef.current = null;
-    }
-  }, []);
-
-  const triggerRefresh = useCallback(() => {
-    if (refreshTriggeredRef.current) return;
-    refreshTriggeredRef.current = true;
-    setDistance(PULL_REFRESH_THRESHOLD);
-    onRefresh();
-  }, [onRefresh]);
-
-  const onPointerDown = useCallback(
-    (event: PointerEvent) => {
-      if (disabled || event.pointerType === "mouse" || !atTop()) return;
-      pointerStartYRef.current = event.clientY;
-    },
-    [atTop, disabled],
-  );
-
-  const onPointerMove = useCallback(
-    (event: PointerEvent) => {
-      const startY = pointerStartYRef.current;
-      if (disabled || startY == null) return;
-
-      const delta = event.clientY - startY;
-      if (delta <= 0) {
-        setDistance(0);
-        return;
-      }
-
-      event.preventDefault();
-      setDistance(Math.min(PULL_REFRESH_MAX, delta * 0.42));
-    },
-    [disabled],
-  );
-
-  const onPointerEnd = useCallback(() => {
-    if (disabled || pointerStartYRef.current == null) return;
-    setDistance((current) => {
-      if (current >= PULL_REFRESH_THRESHOLD) {
-        triggerRefresh();
-        return PULL_REFRESH_THRESHOLD;
-      }
-      return 0;
-    });
-    pointerStartYRef.current = null;
-  }, [disabled, triggerRefresh]);
-
-  const onWheel = useCallback(
-    (event: WheelEvent) => {
-      if (disabled || !atTop() || event.deltaY >= 0) return;
-
-      event.preventDefault();
-      setDistance((current) => {
-        const next = Math.min(PULL_REFRESH_MAX, current + Math.abs(event.deltaY) * 0.1);
-        if (next >= PULL_REFRESH_THRESHOLD) {
-          triggerRefresh();
-          return PULL_REFRESH_THRESHOLD;
-        }
-        return next;
-      });
-
-      if (wheelResetTimerRef.current) clearTimeout(wheelResetTimerRef.current);
-      wheelResetTimerRef.current = setTimeout(() => setDistance(0), 220);
-    },
-    [atTop, disabled, triggerRefresh],
-  );
-
-  return {
-    distance: disabled ? PULL_REFRESH_THRESHOLD : distance,
-    active: distance >= PULL_REFRESH_THRESHOLD || disabled,
-    reset,
-    handlers: {
-      onPointerDown,
-      onPointerMove,
-      onPointerUp: onPointerEnd,
-      onPointerCancel: reset,
-      onWheel,
-    },
-  };
-}
-
-export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
+export function RepoInfoPanel({ owner, name, collapsed, rotation, onToggle }: RepoInfoPanelProps) {
   const { t } = useTranslation();
-  const { collapsed, rotation, handleToggle } = useRepoPanelCollapsed();
+  const reduceMotion = useReducedMotion();
+  const panelId = useId();
   const viewportRef = useRef<HTMLDivElement | null>(null);
-  const wasRefreshingRef = useRef(false);
-  const refreshStartedAtRef = useRef<number | null>(null);
-  const refreshResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [spinnerHolding, setSpinnerHolding] = useState(false);
   const {
     data: metadata,
     isLoading: metaLoading,
     isError: metaError,
     error: metaErrorObj,
   } = useRepoMetadata(owner, name);
-  const {
-    data: readme,
-    isLoading: readmeLoading,
-    error: readmeError,
-  } = useRepoReadme(owner, name, undefined);
-  const refreshPanel = useRefreshRepoPanel(owner, name, undefined);
-  const isRefreshing = refreshPanel.isPending;
-  const showRefreshing = isRefreshing || spinnerHolding;
-  const {
-    distance: pullDistance,
-    active: pullActive,
-    reset: resetPullToRefresh,
-    handlers: pullHandlers,
-  } = usePullToRefresh({
+  const { data: readme, isLoading: readmeLoading, error: readmeError } = useRepoReadme(owner, name);
+  const refreshPanel = useRefreshRepoPanel(owner, name);
+  const { distance, progress, refreshing, refresh, handlers } = useRepoPanelRefresh({
     viewportRef,
-    disabled: showRefreshing,
-    onRefresh: () => {
-      refreshStartedAtRef.current = Date.now();
-      setSpinnerHolding(false);
-      if (refreshResetTimerRef.current) clearTimeout(refreshResetTimerRef.current);
-      refreshPanel.mutate();
-    },
+    onRefresh: refreshPanel.mutateAsync,
+    disabled: collapsed,
   });
-  const pullProgress = Math.min(1, pullDistance / PULL_REFRESH_THRESHOLD);
-
-  useEffect(() => {
-    if (wasRefreshingRef.current && !isRefreshing) {
-      const elapsed = Date.now() - (refreshStartedAtRef.current ?? Date.now());
-      const remaining = Math.max(0, MIN_REFRESH_SPINNER_MS - elapsed);
-      if (remaining > 0) {
-        setSpinnerHolding(true);
-        refreshResetTimerRef.current = setTimeout(() => {
-          setSpinnerHolding(false);
-          resetPullToRefresh();
-          refreshStartedAtRef.current = null;
-          refreshResetTimerRef.current = null;
-        }, remaining);
-      } else {
-        resetPullToRefresh();
-        refreshStartedAtRef.current = null;
-      }
-    }
-    wasRefreshingRef.current = isRefreshing;
-  }, [isRefreshing, resetPullToRefresh]);
-
-  useEffect(() => {
-    return () => {
-      if (refreshResetTimerRef.current) clearTimeout(refreshResetTimerRef.current);
-    };
-  }, []);
 
   return (
     <>
       {/* Persistent GitHub toggle button */}
       <motion.button
-        className="group absolute -right-[7px] bottom-[18px] w-[40px] h-[40px] rounded-full bg-background/60
+        className="group motion-reduce:transform-none! absolute right-[17px] bottom-[18px] w-[40px] h-[40px] rounded-full bg-background/60
                    backdrop-blur-md border border-border/50 shadow-lg flex items-center
                    justify-center hover:bg-background/80 hover:border-border/80 z-20"
-        onClick={handleToggle}
-        animate={{ scale: collapsed ? 1 : 1.15 }}
-        transition={{ duration: 0.2, ease: "easeOut" }}
+        type="button"
+        aria-label={t("repoPanel.toggle")}
+        aria-expanded={!collapsed}
+        aria-controls={panelId}
+        onClick={onToggle}
+        animate={{ scale: reduceMotion || collapsed ? 1 : 1.15 }}
+        transition={{ duration: reduceMotion ? 0 : 0.2, ease: "easeOut" }}
       >
         <motion.div
-          animate={{ rotate: rotation.current, opacity: collapsed ? 0.7 : 1 }}
-          transition={{ duration: 0.2, ease: "easeInOut" }}
+          className="motion-reduce:transform-none!"
+          animate={{ rotate: reduceMotion ? 0 : rotation, opacity: collapsed ? 0.7 : 1 }}
+          transition={{ duration: reduceMotion ? 0 : 0.2, ease: "easeInOut" }}
         >
           <GithubIcon className="h-[20px] w-[20px] group-hover:opacity-100 transition-opacity duration-200" />
         </motion.div>
@@ -222,37 +69,35 @@ export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
       <AnimatePresence>
         {!collapsed && (
           <motion.div
-            className="shrink-0 w-[32%] min-w-[360px] flex flex-col rounded-t-[18px] bg-popover
+            className="motion-reduce:transform-none! shrink-0 w-[32%] min-w-[360px] flex flex-col rounded-t-[18px] bg-popover
                        border border-b-0 border-border/65 dark:border-white/10
                        shadow-[0_12px_32px_rgba(15,23,42,0.10)] dark:shadow-[0_22px_55px_rgba(0,0,0,0.45)]
                        ml-4"
+            id={panelId}
             data-selectable
-            initial={{ y: "100%" }}
+            initial={reduceMotion ? false : { y: "100%" }}
             animate={{ y: 0 }}
-            exit={{ y: "100%", transition: { duration: 0.2, ease: "easeIn" } }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
+            exit={{ y: "100%", transition: { duration: reduceMotion ? 0 : 0.2, ease: "easeIn" } }}
+            transition={{ duration: reduceMotion ? 0 : 0.2, ease: "easeOut" }}
           >
-            <div className="relative flex-1 min-h-0" {...pullHandlers}>
+            <div className="relative flex-1 min-h-0" {...handlers}>
               <motion.div
                 className="pointer-events-none absolute left-1/2 top-2 z-20 -translate-x-1/2"
                 initial={false}
                 animate={{
-                  opacity: pullDistance > 0 || showRefreshing ? 1 : 0,
-                  y: pullDistance > 0 || showRefreshing ? 0 : -10,
-                  scale: 0.85 + pullProgress * 0.15,
+                  opacity: distance > 0 || refreshing ? 1 : 0,
+                  y: distance > 0 || refreshing ? 0 : -10,
+                  scale: 0.85 + progress * 0.15,
                 }}
-                transition={{ duration: 0.16, ease: "easeOut" }}
+                transition={{ duration: reduceMotion ? 0 : 0.16, ease: "easeOut" }}
               >
                 <div className="flex h-8 w-8 items-center justify-center rounded-full border border-border/70 bg-popover/95 shadow-sm backdrop-blur">
                   <LoaderCircle
                     className={`h-4 w-4 text-muted-foreground ${
-                      showRefreshing || pullActive ? "animate-spin" : ""
+                      refreshing && !reduceMotion ? "animate-spin" : ""
                     }`}
                     style={{
-                      transform:
-                        showRefreshing || pullActive
-                          ? undefined
-                          : `rotate(${pullProgress * 240}deg)`,
+                      transform: refreshing ? undefined : `rotate(${progress * 240}deg)`,
                     }}
                   />
                 </div>
@@ -299,7 +144,8 @@ export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
                         <button
                           type="button"
                           className="text-xs underline hover:text-foreground cursor-pointer ml-1"
-                          onClick={() => refreshPanel.mutate()}
+                          onClick={refresh}
+                          disabled={refreshing}
                         >
                           {t("error.retry")}
                         </button>
@@ -385,9 +231,10 @@ export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
                     </p>
                   ) : readme ? (
                     <motion.div
-                      initial={{ opacity: 0 }}
+                      className="motion-reduce:opacity-100!"
+                      initial={reduceMotion ? false : { opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      transition={{ duration: 0.2 }}
+                      transition={{ duration: reduceMotion ? 0 : 0.2 }}
                     >
                       <div className="flex items-center gap-2 pb-2 border-b border-border/50">
                         <BookOpen className="h-3 w-3 text-muted-foreground" />
@@ -401,6 +248,8 @@ export function RepoInfoPanel({ owner, name }: RepoInfoPanelProps) {
                           repoOwner={owner}
                           repoName={name}
                           repoBranch={metadata?.defaultBranch}
+                          documentPath="README.md"
+                          repoLinksExternal
                         />
                       </div>
                     </motion.div>

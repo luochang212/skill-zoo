@@ -620,6 +620,7 @@
     }
   },
   "repoPanel": {
+    "toggle": "展开或收起仓库信息",
     "installedCount": "已安装 {{count}} 个技能",
     "lastActive": "最近活跃：",
     "lastPush": "最近推送：",

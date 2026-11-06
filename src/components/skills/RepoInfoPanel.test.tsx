@@ -1,5 +1,5 @@
 import "@/i18n";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RepoInfoPanel } from "@/components/skills/RepoInfoPanel";
@@ -33,14 +33,6 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
   openUrl: vi.fn(),
 }));
 
-vi.mock("@/hooks/useRepoPanelCollapsed", () => ({
-  useRepoPanelCollapsed: () => ({
-    collapsed: false,
-    rotation: { current: 0 },
-    handleToggle: vi.fn(),
-  }),
-}));
-
 vi.mock("@/components/skills/MarkdownContent", () => ({
   MarkdownContent: ({ content }: { content: string }) => <div>{content}</div>,
 }));
@@ -58,7 +50,7 @@ vi.mock("@/hooks/useSkills", () => ({
     isLoading: false,
   }),
   useRefreshRepoPanel: () => ({
-    mutate: mocks.refreshMutate,
+    mutateAsync: mocks.refreshMutate,
     isPending: false,
   }),
 }));
@@ -69,7 +61,9 @@ describe("RepoInfoPanel", () => {
   });
 
   it("keeps rendering the README when repository metadata fails", () => {
-    render(<RepoInfoPanel owner="owner" name="repo" />);
+    render(
+      <RepoInfoPanel owner="owner" name="repo" collapsed={false} rotation={0} onToggle={vi.fn()} />,
+    );
 
     expect(
       screen.getByText("owner/repo is temporarily unavailable. Please try again later."),
@@ -78,13 +72,41 @@ describe("RepoInfoPanel", () => {
   });
   it("shows actionable README authentication errors without requiring metadata", () => {
     mocks.readmeError = { code: "githubUnauthorized" };
-    render(<RepoInfoPanel owner="owner" name="repo" />);
+    render(
+      <RepoInfoPanel owner="owner" name="repo" collapsed={false} rotation={0} onToggle={vi.fn()} />,
+    );
     expect(screen.getByRole("alert")).toHaveTextContent("Replace it in Settings");
   });
 
   it("keeps missing README responses quiet", () => {
     mocks.readmeError = { code: "repoNotFound" };
-    render(<RepoInfoPanel owner="owner" name="repo" />);
+    render(
+      <RepoInfoPanel owner="owner" name="repo" collapsed={false} rotation={0} onToggle={vi.fn()} />,
+    );
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+  it("names the toggle and links its expanded state to the panel", () => {
+    const onToggle = vi.fn();
+    const { rerender } = render(
+      <RepoInfoPanel
+        owner="owner"
+        name="repo"
+        collapsed={false}
+        rotation={0}
+        onToggle={onToggle}
+      />,
+    );
+    const toggle = screen.getByRole("button", { name: "Toggle repository information" });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(document.getElementById(toggle.getAttribute("aria-controls")!)).toContainElement(
+      screen.getByText("# Cached README"),
+    );
+    fireEvent.click(toggle);
+    expect(onToggle).toHaveBeenCalledTimes(1);
+    rerender(
+      <RepoInfoPanel owner="owner" name="repo" collapsed rotation={360} onToggle={onToggle} />,
+    );
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("# Cached README")).not.toBeInTheDocument();
   });
 });

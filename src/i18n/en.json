@@ -620,6 +620,7 @@
     }
   },
   "repoPanel": {
+    "toggle": "Toggle repository information",
     "installedCount": "{{count}} skills installed",
     "lastActive": "Last active:",
     "lastPush": "Last push:",
