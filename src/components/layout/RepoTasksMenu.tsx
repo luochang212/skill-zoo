@@ -1,5 +1,5 @@
 import type { SVGProps } from "react";
-import { AlertTriangle, X } from "lucide-react";
+import { AlertTriangle, FolderOpen, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useRepoTasks } from "@/hooks/useRepoTasks";
 import { Button } from "@/components/ui/button";
@@ -95,16 +95,16 @@ export function RepoTasksMenu() {
               ? progress.total
               : undefined;
           const hasSkills = (task.query.data?.skills.length ?? 0) > 0;
+          // Entries carry identity (which repository), the header button carries
+          // the aggregate state; row text spells out per-task status.
           const entryIconClass = "mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground";
           return (
             <div key={task.key} className="group/task relative border-t border-border/60 py-1">
               <DropdownMenuItem className="items-start pr-9" onSelect={() => onOpen(task.repo)}>
-                {loading ? (
-                  <RepoTaskIcon loading aria-hidden="true" className={entryIconClass} />
-                ) : task.query.isError ? (
+                {!loading && task.query.isError ? (
                   <AlertTriangle aria-hidden="true" className={entryIconClass} />
                 ) : (
-                  <RepoTaskIcon aria-hidden="true" className={entryIconClass} />
+                  <FolderOpen aria-hidden="true" className={entryIconClass} />
                 )}
                 <div className="min-w-0 flex-1 space-y-1">
                   <p className="truncate font-medium">{label}</p>

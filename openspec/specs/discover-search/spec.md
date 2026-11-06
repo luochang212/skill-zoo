@@ -97,17 +97,26 @@ Repository metadata and navigation SHALL remain usable while the skill list load
 
 ### Requirement: Repository task actions remain visually compact
 
-Task entries SHALL open the corresponding repository when activated, without an extra visible continuation label. Terminal task dismissal SHALL use a top-right close icon shown on hover or keyboard focus, with an accessible name and no visible label. Loading and completed states SHALL share one drive-download icon: its LED dots sweep while loading and stand still once the skill list is ready. Failures use a warning triangle. Dismissal SHALL NOT also activate repository navigation.
+Task entries SHALL open the corresponding repository when activated, without an extra visible continuation label. Terminal task dismissal SHALL use a top-right close icon shown on hover or keyboard focus, with an accessible name and no visible label. Dismissal SHALL NOT also activate repository navigation.
 
 #### Scenario: Compact completion
 
 - **WHEN** a task has completed
-- **THEN** its entry and the all-completed header use the static drive-download icon, and no additional choose-skills or open-repository label appears in the entry
+- **THEN** no additional choose-skills or open-repository label appears in the entry
+
+### Requirement: Task icons divide state and identity
+
+The header button SHALL use one drive-download icon: its LED dots sweep while any task loads and stand still once all are ready. Task entries SHALL use a repository identity icon; failures use a warning triangle in both places. Reduced-motion settings SHALL keep the icons still.
 
 #### Scenario: Loading animation
 
 - **WHEN** a task is downloading, extracting or scanning
-- **THEN** its icon's LED dots sweep and stop when the task completes; reduced-motion settings keep the icon still
+- **THEN** the header icon's LED dots sweep and stop when tasks complete
+
+#### Scenario: Compact completion
+
+- **WHEN** a task has completed
+- **THEN** its entry shows the repository identity icon and the all-completed header uses the static drive-download icon
 
 #### Scenario: Dismiss with pointer or keyboard
 
