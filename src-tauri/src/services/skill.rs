@@ -1432,7 +1432,7 @@ impl SkillService {
                 h.emit(
                     "repo-load-stage",
                     serde_json::json!({
-                        "owner": owner, "repo": name, "stage": "downloading"
+                        "owner": owner, "repo": name, "branch": branch, "stage": "downloading"
                     }),
                 )
             });
@@ -1445,7 +1445,7 @@ impl SkillService {
                 h.emit(
                     "repo-load-stage",
                     serde_json::json!({
-                        "owner": owner, "repo": name, "stage": "extracting"
+                        "owner": owner, "repo": name, "branch": branch, "stage": "extracting"
                     }),
                 )
             });
@@ -1475,7 +1475,7 @@ impl SkillService {
                 h.emit(
                     "repo-load-stage",
                     serde_json::json!({
-                        "owner": owner, "repo": name, "stage": "scanning"
+                        "owner": owner, "repo": name, "branch": branch, "stage": "scanning"
                     }),
                 )
             });
@@ -1498,7 +1498,7 @@ impl SkillService {
         let _ = app_handle.map(|h| {
             h.emit(
                 "repo-load-done",
-                serde_json::json!({ "owner": owner, "repo": name }),
+                serde_json::json!({ "owner": owner, "repo": name, "branch": branch }),
             )
         });
 

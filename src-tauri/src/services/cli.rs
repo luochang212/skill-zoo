@@ -824,6 +824,7 @@ impl CliService {
                         serde_json::json!({
                             "owner": owner,
                             "repo": repo,
+                            "branch": branch,
                             "downloaded": downloaded,
                             "total": total_size,
                         }),
