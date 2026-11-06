@@ -880,9 +880,9 @@ export const InstalledSkills = memo(function InstalledSkills({
               <div className="flex flex-1 min-w-0 gap-0.5">
                 <button
                   onClick={() => setAgentFilter("all")}
-                  className={`h-9 shrink-0 px-2.5 text-xs rounded-lg transition-colors ${
+                  className={`h-9 shrink-0 px-2.5 text-xs font-medium rounded-lg transition-colors ${
                     agentFilter === "all"
-                      ? "bg-primary/10 text-primary font-medium"
+                      ? "bg-primary/10 text-primary"
                       : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   }`}
                 >

@@ -131,10 +131,10 @@ export function AgentDropTab({
           : label
       }
       className={cn(
-        "relative h-9 min-w-0 max-w-40 px-2.5 text-xs rounded-lg transition-colors whitespace-nowrap",
-        active ? "shrink-0 max-w-[35%]" : "shrink",
+        "relative h-9 min-w-0 max-w-[35%] px-2.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap",
+        active ? "shrink-0" : "shrink",
         active
-          ? "bg-primary/10 text-primary font-medium"
+          ? "bg-primary/10 text-primary"
           : "text-muted-foreground hover:text-foreground hover:bg-accent",
         canLink && "bg-primary/5 text-foreground ring-1 ring-inset ring-primary/25",
         linked && draggedSkill && "bg-muted text-muted-foreground ring-1 ring-inset ring-border",
