@@ -3185,6 +3185,15 @@ struct SkillsShApiSkill {
     source: String,
 }
 
+fn parse_skills_sh_source(source: &str) -> Option<(&str, &str)> {
+    let (owner, repo) = source.split_once('/')?;
+    // A dotted owner is a domain source; dots are valid in repository names.
+    if owner.contains('.') || github::validate_repo_segments(owner, repo, "HEAD").is_err() {
+        return None;
+    }
+    Some((owner, repo))
+}
+
 #[tauri::command]
 pub async fn search_skills_sh(
     state: State<'_, AppState>,
@@ -3229,17 +3238,9 @@ pub async fn search_skills_sh(
 
     let mut skills = Vec::new();
     for s in api_result.skills {
-        // Filter out non-GitHub sources (e.g. "skills.volces.com/foo")
-        let parts: Vec<&str> = s.source.splitn(2, '/').collect();
-        if parts.len() != 2 {
+        let Some((owner, repo)) = parse_skills_sh_source(&s.source) else {
             continue;
-        }
-        let owner = parts[0];
-        let repo = parts[1];
-        // If either part contains a dot, it's not a GitHub owner/repo
-        if owner.contains('.') || repo.contains('.') {
-            continue;
-        }
+        };
 
         let directory = s.skill_id.clone();
         let (install_status, installed_skill_id) = SkillService::classify_discoverable_skill(
@@ -3439,6 +3440,35 @@ mod tests {
     use crate::services::lock::SkillLockEntry;
     use std::io::Write;
     use zip::write::SimpleFileOptions;
+
+    #[test]
+    fn skills_sh_source_accepts_dotted_repository_names() {
+        for (owner, repo) in [
+            ("citypaul", ".dotfiles"),
+            ("dmmulroy", ".dotfiles"),
+            ("owner", "skills.v2"),
+            ("owner", "skills"),
+        ] {
+            let source = format!("{owner}/{repo}");
+            assert_eq!(parse_skills_sh_source(&source), Some((owner, repo)));
+        }
+    }
+
+    #[test]
+    fn skills_sh_source_rejects_domains_and_malformed_pairs() {
+        for source in [
+            "skills.volces.com/foo",
+            "open.feishu.cn/wiki/id",
+            "uizze.sh",
+            "owner/",
+            "/repo",
+            "owner/repo/extra",
+            "owner/repo?query",
+            "owner/repo name",
+        ] {
+            assert_eq!(parse_skills_sh_source(source), None, "{source}");
+        }
+    }
 
     fn write_test_zip(entries: &[(&str, &str)]) -> tempfile::TempDir {
         let dir = tempfile::tempdir().expect("tempdir");
