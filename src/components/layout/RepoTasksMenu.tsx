@@ -66,21 +66,23 @@ export function RepoTasksMenu() {
                   <p className="truncate text-[10px] text-muted-foreground">
                     {task.repo.branch || t("repoTasks.defaultBranch")}
                   </p>
-                  <p
-                    className={`text-[11px] ${task.query.isError && !loading ? "text-destructive" : "text-muted-foreground"}`}
-                  >
-                    {loading
-                      ? t(`repoLoadStage.${progress?.stage ?? "downloading"}`)
-                      : task.query.isError
-                        ? formatApiError(task.query.error)
-                        : t(hasSkills ? "repoTasks.ready" : "browse.noSkillsToInstall")}
-                  </p>
-                  {loading && progress?.stage === "downloading" && progress.downloaded > 0 && (
-                    <p className="text-[10px] tabular-nums text-muted-foreground">
-                      {formatBytes(progress.downloaded)}
-                      {total && ` / ${formatBytes(total)}`}
+                  <div className="flex items-center justify-between gap-2">
+                    <p
+                      className={`min-w-0 flex-1 truncate text-[11px] ${task.query.isError && !loading ? "text-destructive" : "text-muted-foreground"}`}
+                    >
+                      {loading
+                        ? t(`repoLoadStage.${progress?.stage ?? "downloading"}`)
+                        : task.query.isError
+                          ? formatApiError(task.query.error)
+                          : t(hasSkills ? "repoTasks.ready" : "browse.noSkillsToInstall")}
                     </p>
-                  )}
+                    {loading && progress?.stage === "downloading" && progress.downloaded > 0 && (
+                      <p className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+                        {formatBytes(progress.downloaded)}
+                        {total && ` / ${formatBytes(total)}`}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </DropdownMenuItem>
               {!loading && task.query.isError && (
