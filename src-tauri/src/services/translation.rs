@@ -237,6 +237,20 @@ impl ProtectedMarkdown {
         }
     }
 
+    fn description_frontmatter(
+        original: &serde_yaml::Value,
+        value: &str,
+    ) -> Result<String, String> {
+        let value = value.trim();
+        if value.is_empty() {
+            return Err("fidelity".into());
+        }
+        let mut yaml = original.clone();
+        yaml["description"] = serde_yaml::Value::String(value.into());
+        let serialized = serde_yaml::to_string(&yaml).map_err(|_| "fidelity")?;
+        Ok(format!("---\n{serialized}---\n"))
+    }
+
     pub fn restore(&self, output: &str) -> Result<String, String> {
         let mut output = output.to_string();
         if self.has_frontmatter && !output.trim_start().starts_with(&self.parts[0].0) {
@@ -261,14 +275,7 @@ impl ProtectedMarkdown {
             if begin + start.len() > end {
                 return Err("fidelity".into());
             }
-            let value = output[begin + start.len()..end].trim();
-            if value.is_empty() {
-                return Err("fidelity".into());
-            }
-            let mut yaml = original.clone();
-            yaml["description"] = serde_yaml::Value::String(value.into());
-            let serialized = serde_yaml::to_string(&yaml).map_err(|_| "fidelity")?;
-            let fm = format!("---\n{serialized}---\n");
+            let fm = Self::description_frontmatter(original, &output[begin + start.len()..end])?;
             translated_fm = Some((token, fm));
             output.replace_range(begin..end + stop.len(), "");
         }
@@ -434,14 +441,24 @@ impl ProtectedMarkdown {
 
     pub fn preview(&self, output: &str) -> String {
         let mut output = output.to_string();
-        if let Some((start, stop, _, _)) = &self.description {
+        if let Some((start, stop, token, original)) = &self.description {
             if let Some(begin) = output.find(start) {
                 let after_start = begin + start.len();
-                let end = output[after_start..]
-                    .find(stop)
-                    .map(|e| after_start + e + stop.len())
-                    .unwrap_or(output.len());
+                let stop_at = output[after_start..].find(stop).map(|e| after_start + e);
+                let translated = stop_at
+                    .filter(|_| {
+                        output.matches(start).count() == 1
+                            && output.matches(stop).count() == 1
+                            && output.trim_start().starts_with(token)
+                    })
+                    .and_then(|end| {
+                        Self::description_frontmatter(original, &output[after_start..end]).ok()
+                    });
+                let end = stop_at.map(|end| end + stop.len()).unwrap_or(output.len());
                 output.replace_range(begin..end, "");
+                if let Some(frontmatter) = translated {
+                    output = output.replace(token, &frontmatter);
+                }
             }
         }
         for (token, original) in &self.parts {
@@ -541,6 +558,55 @@ mod tests {
     use super::*;
     use crate::persistence::llm_providers::Protocol;
     #[test]
+    fn streaming_description_is_visible_before_body_translation_finishes() {
+        let source = "---\nname: keep\ndescription: Original\nmetadata: {enabled: true}\n---\n# Body\n`keep`";
+        let p = ProtectedMarkdown::new(source);
+        let (start, stop, _, _) = p.description.as_ref().unwrap();
+        let prefix = p.input.split_once(start).unwrap().0;
+        let raw = format!("{prefix}{start}\n说明: 含引号 \" 与 ---\n第二行\n{stop}\n# 部分正文");
+        let preview = p.preview(&raw);
+        let header = preview
+            .strip_prefix("---\n")
+            .unwrap()
+            .split_once("\n---\n")
+            .unwrap()
+            .0;
+        let yaml: serde_yaml::Value = serde_yaml::from_str(header).unwrap();
+        assert_eq!(
+            yaml["description"].as_str(),
+            Some("说明: 含引号 \" 与 ---\n第二行")
+        );
+        assert_eq!(yaml["name"].as_str(), Some("keep"));
+        assert_eq!(yaml["metadata"]["enabled"].as_bool(), Some(true));
+        assert!(preview.contains("# 部分正文"));
+        assert!(!preview.contains("SZDESC_"));
+        assert_eq!(
+            p.restore(&raw),
+            Err("fidelity".into()),
+            "unfinished body must still fail final validation"
+        );
+    }
+
+    #[test]
+    fn incomplete_or_invalid_streaming_description_keeps_original_frontmatter() {
+        let source = "---\nname: keep\ndescription: Original\n---\n# Body";
+        let p = ProtectedMarkdown::new(source);
+        let (start, stop, _, _) = p.description.as_ref().unwrap();
+        let prefix = p.input.split_once(start).unwrap().0;
+        for suffix in [
+            format!("{start}\n部分说明"),
+            format!("{start}\n部分说明\n{}", &stop[..stop.len() - 3]),
+            format!("{start}\n \n{stop}"),
+            format!("{start}\n说明\n{start}\n{stop}"),
+            format!("{stop}\n{start}\n说明"),
+        ] {
+            let preview = p.preview(&format!("{prefix}{suffix}"));
+            assert!(preview.starts_with("---\nname: keep\ndescription: Original\n---\n"));
+            assert!(!preview.contains("SZDESC_"));
+        }
+    }
+
+    #[test]
     fn malformed_description_preview_never_panics() {
         let p = ProtectedMarkdown::new("---\nname: demo\ndescription: Hello\n---\n# Body");
         let (start, stop, _, _) = p.description.as_ref().unwrap();
@@ -628,6 +694,7 @@ mod tests {
             let mut translated = protected.input.clone();
             translated.replace_range(begin..end, value);
             let restored = protected.restore(&translated).unwrap();
+            assert_eq!(protected.preview(&translated), restored);
             let header = restored.strip_prefix("---\n").unwrap().split("\n---\n").next().unwrap();
             let actual: serde_yaml::Value = serde_yaml::from_str(header).unwrap();
             let original_header = source.strip_prefix("---\n").unwrap().split("\n---\n").next().unwrap();
