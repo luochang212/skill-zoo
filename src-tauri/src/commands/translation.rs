@@ -40,12 +40,12 @@ fn cache_dir() -> PathBuf {
 }
 
 #[tauri::command]
-pub fn can_toggle_model_thinking(
+pub fn get_model_thinking_control(
     base_url: String,
     protocol: config::Protocol,
     model_id: String,
-) -> bool {
-    llm::thinking_parameters(&base_url, protocol, &model_id, false).is_some()
+) -> llm::ThinkingControl {
+    llm::thinking_control(&base_url, protocol, &model_id)
 }
 
 #[tauri::command]

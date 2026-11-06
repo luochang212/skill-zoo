@@ -51,9 +51,9 @@ export function ModelEditorDialog({
   const normalizedModelId = modelId.trim();
   const [composing, setComposing] = useState(false);
   const [thinking, setThinking] = useState(model.thinking ?? false);
-  const { data: canToggleThinking = false } = useQuery({
-    queryKey: ["llm", "canToggleThinking", baseUrl, protocol, normalizedModelId],
-    queryFn: () => translationApi.canToggleThinking(baseUrl, protocol, normalizedModelId),
+  const { data: thinkingControl = "providerDefault" } = useQuery({
+    queryKey: ["llm", "modelThinkingControl", baseUrl, protocol, normalizedModelId],
+    queryFn: () => translationApi.thinkingControl(baseUrl, protocol, normalizedModelId),
     enabled: !!normalizedModelId && !composing,
     retry: false,
     staleTime: Infinity,
@@ -166,8 +166,8 @@ export function ModelEditorDialog({
               </label>
               <Switch
                 id={`${id}-thinking`}
-                checked={thinking}
-                disabled={!canToggleThinking}
+                checked={thinkingControl === "alwaysOn" || thinking}
+                disabled={thinkingControl !== "toggle"}
                 onCheckedChange={(checked) => {
                   setThinking(checked);
                   if (checked) toast.info(t("llm.thinkingSlowHint"));

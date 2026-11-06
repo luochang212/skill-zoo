@@ -7,6 +7,36 @@ use genai::resolver::{AuthData, Endpoint};
 use genai::{Client, ModelIden, ServiceTarget};
 use std::time::Duration;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ThinkingControl {
+    Toggle,
+    AlwaysOn,
+    ProviderDefault,
+}
+
+fn is_fixed_thinking_model(base_url: &str, protocol: Protocol, model_id: &str) -> bool {
+    protocol == Protocol::OpenaiChatCompletions
+        && matches!(model_id.trim(), "glm-5.3-flash" | "glm-5-3-flash-260828")
+        && url::Url::parse(base_url).ok().is_some_and(|url| {
+            url.scheme() == "https"
+                && url.username().is_empty()
+                && url.password().is_none()
+                && url.host_str() == Some("ark.cn-beijing.volces.com")
+                && url.path().trim_end_matches('/') == "/api/coding/v3"
+        })
+}
+
+pub fn thinking_control(base_url: &str, protocol: Protocol, model_id: &str) -> ThinkingControl {
+    if is_fixed_thinking_model(base_url, protocol, model_id) {
+        ThinkingControl::AlwaysOn
+    } else if thinking_parameters(base_url, protocol, model_id, false).is_some() {
+        ThinkingControl::Toggle
+    } else {
+        ThinkingControl::ProviderDefault
+    }
+}
+
 /// Only documented endpoint/model combinations may receive thinking controls.
 pub fn thinking_parameters(
     base_url: &str,
@@ -14,6 +44,10 @@ pub fn thinking_parameters(
     model_id: &str,
     enabled: bool,
 ) -> Option<serde_json::Value> {
+    // This fixed-thinking model defaults to max effort; translation uses light reasoning.
+    if is_fixed_thinking_model(base_url, protocol, model_id) {
+        return Some(serde_json::json!({"reasoning_effort":"low"}));
+    }
     let url = url::Url::parse(base_url).ok()?;
     if !matches!(url.scheme(), "https" | "http")
         || !url.username().is_empty()
@@ -305,6 +339,134 @@ pub async fn stream(
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[tokio::test]
+    async fn coding_fixed_thinking_parameters_reach_the_wire() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("POST", "/api/coding/v3/chat/completions")
+            .match_body(mockito::Matcher::PartialJson(
+                json!({"model":"glm-5.3-flash",
+                "stream":true,"max_tokens":131072,"reasoning_effort":"low"}),
+            ))
+            .with_header("content-type", "text/event-stream")
+            .with_body(format!(
+                "data: {}\n\ndata: [DONE]\n\n",
+                json!({"choices":[{"delta":{"content":"translated"},"finish_reason":"stop"}]})
+            ))
+            .expect(1)
+            .create_async()
+            .await;
+        let provider = probe_provider(
+            format!("{}/api/coding/v3/", server.url()),
+            Protocol::OpenaiChatCompletions,
+        );
+        let options = ChatOptions::default()
+            .with_max_tokens(131072)
+            .with_extra_body(
+                thinking_parameters(
+                    "https://ark.cn-beijing.volces.com/api/coding/v3/",
+                    Protocol::OpenaiChatCompletions,
+                    "glm-5.3-flash",
+                    false,
+                )
+                .unwrap(),
+            );
+        let client = Client::builder()
+            .with_reqwest(crate::config::http_client().clone())
+            .build()
+            .unwrap();
+        let mut events = client
+            .exec_chat_stream(
+                target(&provider, "glm-5.3-flash").unwrap(),
+                ChatRequest::new(vec![
+                    ChatMessage::system("Translate"),
+                    ChatMessage::user("Hello"),
+                ]),
+                Some(&options),
+            )
+            .await
+            .unwrap()
+            .stream;
+        let mut text = String::new();
+        while let Some(event) = events.next().await {
+            if let ChatStreamEvent::Chunk(chunk) = event.unwrap() {
+                text.push_str(&chunk.content);
+            }
+        }
+        assert_eq!(text, "translated");
+        mock.assert_async().await;
+    }
+
+    #[test]
+    fn coding_glm_fixed_thinking_uses_light_reasoning_instead_of_service_default() {
+        for model in ["glm-5.3-flash", "glm-5-3-flash-260828"] {
+            for enabled in [false, true] {
+                assert_eq!(
+                    thinking_parameters(
+                        "https://ark.cn-beijing.volces.com/api/coding/v3/",
+                        Protocol::OpenaiChatCompletions,
+                        model,
+                        enabled
+                    ),
+                    Some(json!({"reasoning_effort":"low"}))
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn thinking_control_distinguishes_fixed_toggleable_and_unknown_models() {
+        assert_eq!(
+            thinking_control(
+                "https://ark.cn-beijing.volces.com/api/coding/v3/",
+                Protocol::OpenaiChatCompletions,
+                "glm-5.3-flash"
+            ),
+            ThinkingControl::AlwaysOn
+        );
+        assert_eq!(
+            thinking_control(
+                "https://api.deepseek.com/v1/",
+                Protocol::OpenaiChatCompletions,
+                "deepseek-v4-pro"
+            ),
+            ThinkingControl::Toggle
+        );
+        for (base, protocol, model) in [
+            (
+                "https://ark.cn-beijing.volces.com.evil.test/api/coding/v3/",
+                Protocol::OpenaiChatCompletions,
+                "glm-5.3-flash",
+            ),
+            (
+                "https://ark.cn-beijing.volces.com/api/plan/v3/",
+                Protocol::OpenaiChatCompletions,
+                "glm-5.3-flash",
+            ),
+            (
+                "https://ark.cn-beijing.volces.com/api/coding/v3/",
+                Protocol::OpenaiResponses,
+                "glm-5.3-flash",
+            ),
+            (
+                "https://ark.cn-beijing.volces.com/api/coding/v3/",
+                Protocol::OpenaiChatCompletions,
+                "custom-glm-5.3-flash",
+            ),
+            (
+                "https://key@ark.cn-beijing.volces.com/api/coding/v3/",
+                Protocol::OpenaiChatCompletions,
+                "glm-5.3-flash",
+            ),
+        ] {
+            assert_eq!(
+                thinking_control(base, protocol, model),
+                ThinkingControl::ProviderDefault
+            );
+            assert_eq!(thinking_parameters(base, protocol, model, false), None);
+        }
+    }
 
     #[test]
     fn thinking_controls_match_the_endpoint_model_and_protocol() {

@@ -181,7 +181,7 @@ pub fn run() {
             commands::translation::list_llm_providers,
             commands::translation::get_llm_provider_api_key,
             commands::translation::resolve_model_configuration,
-            commands::translation::can_toggle_model_thinking,
+            commands::translation::get_model_thinking_control,
             commands::translation::test_llm_connection,
             commands::translation::upsert_llm_provider,
             commands::translation::delete_llm_provider,

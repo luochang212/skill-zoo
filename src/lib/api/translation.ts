@@ -1,6 +1,7 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 
 export type LlmProtocol = "anthropic-messages" | "openai-chat-completions" | "openai-responses";
+export type ModelThinkingControl = "toggle" | "alwaysOn" | "providerDefault";
 export interface LlmModel {
   id: string;
   enabled: boolean;
@@ -48,8 +49,8 @@ export type TranslationEvent =
   | { type: "repairing"; taskId: string };
 
 export const translationApi = {
-  canToggleThinking: (baseUrl: string, protocol: LlmProtocol, modelId: string) =>
-    invoke<boolean>("can_toggle_model_thinking", { baseUrl, protocol, modelId }),
+  thinkingControl: (baseUrl: string, protocol: LlmProtocol, modelId: string) =>
+    invoke<ModelThinkingControl>("get_model_thinking_control", { baseUrl, protocol, modelId }),
   providerApiKey: (id: string) => invoke<string>("get_llm_provider_api_key", { id }),
   cached: (request: Omit<TranslationRequest, "taskId" | "force">) =>
     invoke<string | null>("read_cached_translation", { request }),

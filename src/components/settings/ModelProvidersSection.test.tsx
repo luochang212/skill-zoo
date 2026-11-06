@@ -9,7 +9,7 @@ import { ProviderEditor } from "./ModelProvidersSection";
 
 vi.mock("@/lib/api/translation", () => ({
   translationApi: {
-    canToggleThinking: vi.fn().mockResolvedValue(false),
+    thinkingControl: vi.fn().mockResolvedValue("providerDefault"),
     providerApiKey: vi.fn(),
     testConnection: vi.fn(),
   },
@@ -25,7 +25,7 @@ const provider: LlmProvider = {
 };
 beforeEach(async () => {
   vi.resetAllMocks();
-  vi.mocked(translationApi.canToggleThinking).mockResolvedValue(false);
+  vi.mocked(translationApi.thinkingControl).mockResolvedValue("providerDefault");
   await i18n.changeLanguage("en");
   vi.mocked(translationApi.providerApiKey).mockResolvedValue("saved-key-16char");
 });

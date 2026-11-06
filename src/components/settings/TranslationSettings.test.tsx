@@ -12,7 +12,7 @@ import { translationApi } from "@/lib/api/translation";
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/api/translation", () => ({
   translationApi: {
-    canToggleThinking: vi.fn().mockResolvedValue(false),
+    thinkingControl: vi.fn().mockResolvedValue("providerDefault"),
     providers: vi.fn(),
     providerApiKey: vi.fn(),
     preferences: vi.fn(),

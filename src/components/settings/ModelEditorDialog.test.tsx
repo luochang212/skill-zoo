@@ -19,7 +19,7 @@ const render = (element: Parameters<typeof renderUI>[0]) => {
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/api/translation", () => ({
-  translationApi: { resolveModel: vi.fn(), canToggleThinking: vi.fn() },
+  translationApi: { resolveModel: vi.fn(), thinkingControl: vi.fn() },
 }));
 const deferred = <T,>() => {
   let resolve!: (value: T) => void;
@@ -44,7 +44,7 @@ beforeEach(async () => {
   vi.resetAllMocks();
   await i18n.changeLanguage("en");
   vi.mocked(translationApi.resolveModel).mockResolvedValue(null);
-  vi.mocked(translationApi.canToggleThinking).mockResolvedValue(false);
+  vi.mocked(translationApi.thinkingControl).mockResolvedValue("providerDefault");
 });
 const user = () => userEvent.setup();
 const tick = () =>
@@ -52,8 +52,19 @@ const tick = () =>
     await new Promise((resolve) => setTimeout(resolve, 420));
   });
 describe("model configuration editor", () => {
+  it("shows fixed thinking as on and disabled without changing the stored preference", async () => {
+    vi.mocked(translationApi.thinkingControl).mockResolvedValue("alwaysOn");
+    const config = props();
+    render(<ModelEditorDialog {...config} />);
+    const toggle = screen.getByRole("switch", { name: "Deep thinking" });
+    await waitFor(() => expect(toggle).toBeChecked());
+    expect(toggle).toBeDisabled();
+    await user().click(screen.getByRole("button", { name: "Confirm" }));
+    expect(config.onConfirm).toHaveBeenCalledWith(model);
+  });
+
   it("places thinking first, defaults it off and commits only on confirmation", async () => {
-    vi.mocked(translationApi.canToggleThinking).mockResolvedValue(true);
+    vi.mocked(translationApi.thinkingControl).mockResolvedValue("toggle");
     const config = props();
     const input = user();
     const view = render(<ModelEditorDialog {...config} />);
@@ -80,15 +91,15 @@ describe("model configuration editor", () => {
   });
 
   it("keeps unknown and pending models disabled without exposing capability status", async () => {
-    const pending = deferred<boolean>();
-    vi.mocked(translationApi.canToggleThinking).mockReturnValue(pending.promise);
+    const pending = deferred<"toggle" | "alwaysOn" | "providerDefault">();
+    vi.mocked(translationApi.thinkingControl).mockReturnValue(pending.promise);
     const config = props();
     const view = render(<ModelEditorDialog {...config} />);
     expect(screen.getByRole("switch")).toBeDisabled();
     view.rerender(<ModelEditorDialog {...config} baseUrl="https://other.test/v1" />);
-    vi.mocked(translationApi.canToggleThinking).mockResolvedValue(false);
+    vi.mocked(translationApi.thinkingControl).mockResolvedValue("providerDefault");
     await user().type(screen.getByLabelText("Model ID"), "-other");
-    await act(async () => pending.resolve(true));
+    await act(async () => pending.resolve("alwaysOn"));
     expect(screen.getByRole("switch")).toBeDisabled();
     expect(screen.getByRole("switch")).not.toBeChecked();
     expect(screen.queryByText(/unsupported|unknown|checking|capability/i)).not.toBeInTheDocument();
@@ -96,7 +107,7 @@ describe("model configuration editor", () => {
   });
 
   it("preserves a saved preference when confirming before capability lookup finishes", async () => {
-    vi.mocked(translationApi.canToggleThinking).mockReturnValue(new Promise(() => {}));
+    vi.mocked(translationApi.thinkingControl).mockReturnValue(new Promise(() => {}));
     const config = props();
     render(<ModelEditorDialog {...config} model={{ ...model, thinking: true }} />);
     expect(screen.getByRole("switch")).toBeDisabled();
@@ -115,7 +126,7 @@ describe("model configuration editor", () => {
     expect(input).toHaveValue("model-a-suffix");
   });
   it("restores the stored thinking choice when the edited ID returns to the saved value", async () => {
-    vi.mocked(translationApi.canToggleThinking).mockResolvedValue(true);
+    vi.mocked(translationApi.thinkingControl).mockResolvedValue("toggle");
     const config = props();
     const input = user();
     render(<ModelEditorDialog {...config} model={{ ...model, thinking: true }} />);
@@ -130,7 +141,7 @@ describe("model configuration editor", () => {
     expect(config.onConfirm).not.toHaveBeenCalled();
   });
   it("warns that deep thinking slows down translation when enabled", async () => {
-    vi.mocked(translationApi.canToggleThinking).mockResolvedValue(true);
+    vi.mocked(translationApi.thinkingControl).mockResolvedValue("toggle");
     const input = user();
     render(<ModelEditorDialog {...props()} />);
     const toggle = screen.getByRole("switch", { name: "Deep thinking" });
