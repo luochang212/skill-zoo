@@ -122,6 +122,7 @@ export function AgentDropTab({
   return (
     <button
       ref={ref}
+      title={label}
       type="button"
       onClick={onClick}
       aria-label={
@@ -130,7 +131,8 @@ export function AgentDropTab({
           : label
       }
       className={cn(
-        "relative h-9 px-2.5 text-xs rounded-lg transition-colors whitespace-nowrap",
+        "relative h-9 min-w-0 max-w-40 px-2.5 text-xs rounded-lg transition-colors whitespace-nowrap",
+        active ? "shrink-0 max-w-[35%]" : "shrink",
         active
           ? "bg-primary/10 text-primary font-medium"
           : "text-muted-foreground hover:text-foreground hover:bg-accent",
@@ -139,7 +141,7 @@ export function AgentDropTab({
         isDropTarget && canLink && "bg-primary/15 text-primary ring-2 ring-inset ring-primary/60",
       )}
     >
-      {label}
+      <span className="agent-tab-label">{label}</span>
       {linked && (
         <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm">
           <Check className="h-2.5 w-2.5" />

@@ -504,62 +504,64 @@ export function ConsistencyPanel({
       </div>
 
       {/* Tab content */}
-      <ScrollArea className="flex-1">
-        {resolvedTab === "duplicates" && (
-          <TabContent
-            hint={t("consistency.duplicateHint")}
-            empty={t("consistency.noDuplicates")}
-            hasItems={duplicateGroups.length > 0}
-          >
-            {mergeableGroups.length > 0 && (
-              <Button
-                size="sm"
-                className="h-8 text-xs rounded-lg"
-                onClick={() => setBatchMergeOpen(true)}
-              >
-                {t("consistency.mergeAllBtn")}
-              </Button>
-            )}
-            {duplicateGroups.map((group) => (
-              <DuplicateGroupCard
-                key={group.name}
-                group={group}
-                highlighted={highlightedTarget === group.name}
-                onMerge={() => setConfirmMerge(group.name)}
-              />
-            ))}
-          </TabContent>
-        )}
-        {resolvedTab === "conflicts" && (
-          <TabContent
-            hint={t("consistency.conflictHint")}
-            empty={t("consistency.noConflicts")}
-            hasItems={conflictGroups.length > 0}
-          >
-            {conflictGroups.map((group) => (
-              <DuplicateGroupCard
-                key={group.name}
-                group={group}
-                highlighted={highlightedTarget === group.name}
-              />
-            ))}
-          </TabContent>
-        )}
-        {resolvedTab === "mismatches" && (
-          <TabContent
-            hint={t("consistency.mismatchHint")}
-            empty={t("consistency.noMismatches")}
-            hasItems={nameMismatches.length > 0}
-          >
-            {nameMismatches.map((m) => (
-              <MismatchEntry
-                key={m.skillId}
-                mismatch={m}
-                highlighted={highlightedTarget === m.skillId}
-              />
-            ))}
-          </TabContent>
-        )}
+      <ScrollArea className="flex-1 -mr-6">
+        <div className="pr-6 pb-6">
+          {resolvedTab === "duplicates" && (
+            <TabContent
+              hint={t("consistency.duplicateHint")}
+              empty={t("consistency.noDuplicates")}
+              hasItems={duplicateGroups.length > 0}
+            >
+              {mergeableGroups.length > 0 && (
+                <Button
+                  size="sm"
+                  className="h-8 text-xs rounded-lg"
+                  onClick={() => setBatchMergeOpen(true)}
+                >
+                  {t("consistency.mergeAllBtn")}
+                </Button>
+              )}
+              {duplicateGroups.map((group) => (
+                <DuplicateGroupCard
+                  key={group.name}
+                  group={group}
+                  highlighted={highlightedTarget === group.name}
+                  onMerge={() => setConfirmMerge(group.name)}
+                />
+              ))}
+            </TabContent>
+          )}
+          {resolvedTab === "conflicts" && (
+            <TabContent
+              hint={t("consistency.conflictHint")}
+              empty={t("consistency.noConflicts")}
+              hasItems={conflictGroups.length > 0}
+            >
+              {conflictGroups.map((group) => (
+                <DuplicateGroupCard
+                  key={group.name}
+                  group={group}
+                  highlighted={highlightedTarget === group.name}
+                />
+              ))}
+            </TabContent>
+          )}
+          {resolvedTab === "mismatches" && (
+            <TabContent
+              hint={t("consistency.mismatchHint")}
+              empty={t("consistency.noMismatches")}
+              hasItems={nameMismatches.length > 0}
+            >
+              {nameMismatches.map((m) => (
+                <MismatchEntry
+                  key={m.skillId}
+                  mismatch={m}
+                  highlighted={highlightedTarget === m.skillId}
+                />
+              ))}
+            </TabContent>
+          )}
+        </div>
       </ScrollArea>
 
       {confirmGroup && (

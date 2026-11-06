@@ -435,3 +435,14 @@ textarea,
     opacity: 0;
   }
 }
+
+/* The trailing padding keeps short names opaque; overflowing text fades into it. */
+.agent-tab-label {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  padding-right: 12px;
+  margin-right: -12px;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 12px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 12px), transparent);
+}

@@ -73,16 +73,6 @@ export function SkillCard({
             )}
           </div>
         </div>
-        {"repoOwner" in skill && skill.repoOwner && (
-          <p className="text-xs text-foreground/55">
-            {skill.repoOwner}/{skill.repoName}
-          </p>
-        )}
-        {installedSkill?.origin === "plugin" && installedSkill.pluginSource && (
-          <p className="truncate text-xs text-foreground/55" title={installedSkill.pluginSource}>
-            {installedSkill.pluginSource}
-          </p>
-        )}
       </CardHeader>
       <CardContent className="px-4 pb-3 pt-0">
         {skill.description && (

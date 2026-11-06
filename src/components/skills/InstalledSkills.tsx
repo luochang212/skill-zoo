@@ -300,7 +300,7 @@ function SkeletonToolbar({ viewMode, agentCount }: { viewMode: ViewMode; agentCo
   return (
     <div className="flex items-center gap-3 mb-6">
       <Skeleton className="h-9 w-64 max-w-xs rounded-md" />
-      <div className="flex gap-0.5 flex-wrap">
+      <div className="flex flex-1 min-w-0 gap-0.5">
         {Array.from({ length: pillCount }).map((_, i) => (
           <Skeleton key={i} className="h-7 w-12 rounded-lg" />
         ))}
@@ -320,14 +320,13 @@ function SkeletonToolbar({ viewMode, agentCount }: { viewMode: ViewMode; agentCo
 
 function SkeletonGrid() {
   return (
-    <div className="grid grid-cols-1 max-w-[780px] @md/main:grid-cols-2 @md/main:max-w-none @3col/main:grid-cols-3 @4col/main:grid-cols-4 gap-4 pt-1 pb-3">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,260px),1fr))] gap-4 pt-1 pb-3">
       {Array.from({ length: 12 }).map((_, i) => (
         <div key={i} className="rounded-xl border bg-card p-4 space-y-3">
           <div className="flex items-center justify-between gap-2">
             <Skeleton className="h-4 w-3/4" />
             <Skeleton className="h-4 w-4 rounded-full shrink-0" />
           </div>
-          <Skeleton className="h-3 w-1/2" />
           <div className="space-y-2 pt-1">
             <Skeleton className="h-3 w-full" />
             <Skeleton className="h-3 w-5/6" />
@@ -873,15 +872,15 @@ export const InstalledSkills = memo(function InstalledSkills({
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t("installed.searchPlaceholder")}
                 aria-label={t("installed.searchPlaceholder")}
-                className="h-9 text-[13px] max-w-xs rounded-md border border-input bg-background px-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none"
+                className="h-9 w-[clamp(8rem,24%,20rem)] shrink-0 text-[13px] rounded-md border border-input bg-background px-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none"
                 autoComplete="off"
                 autoCorrect="off"
                 spellCheck={false}
               />
-              <div className="flex gap-0.5 flex-wrap">
+              <div className="flex flex-1 min-w-0 gap-0.5">
                 <button
                   onClick={() => setAgentFilter("all")}
-                  className={`h-9 px-2.5 text-xs rounded-lg transition-colors ${
+                  className={`h-9 shrink-0 px-2.5 text-xs rounded-lg transition-colors ${
                     agentFilter === "all"
                       ? "bg-primary/10 text-primary font-medium"
                       : "text-muted-foreground hover:text-foreground hover:bg-accent"
@@ -900,10 +899,9 @@ export const InstalledSkills = memo(function InstalledSkills({
                   />
                 ))}
               </div>
-              <div className="flex-1" />
               <button
                 onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
-                className="inline-flex items-center bg-muted rounded-lg p-1 gap-1 cursor-pointer"
+                className="inline-flex shrink-0 items-center bg-muted rounded-lg p-1 gap-1 cursor-pointer"
               >
                 <span
                   className={cn(
@@ -967,7 +965,7 @@ export const InstalledSkills = memo(function InstalledSkills({
                 <ScrollArea className="flex-1 pt-1">
                   <div className={cn("@container/main", !repoPanelExpanded && "pr-6")}>
                     {viewMode === "grid" ? (
-                      <div className="grid grid-cols-1 max-w-[780px] @md/main:grid-cols-2 @md/main:max-w-none @3col/main:grid-cols-3 @4col/main:grid-cols-4 gap-4 pt-1 pb-3">
+                      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,260px),1fr))] gap-4 pt-1 pb-3">
                         {sorted.map((skill) => (
                           <SkillDragSource
                             key={skill.id}
