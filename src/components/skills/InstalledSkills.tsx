@@ -320,7 +320,7 @@ function SkeletonToolbar({ viewMode, agentCount }: { viewMode: ViewMode; agentCo
 
 function SkeletonGrid() {
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,260px),1fr))] gap-4 pt-1 pb-3">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,255px),1fr))] gap-4 pt-1 pb-3">
       {Array.from({ length: 12 }).map((_, i) => (
         <div key={i} className="rounded-xl border bg-card p-4 space-y-3">
           <div className="flex items-center justify-between gap-2">
@@ -965,7 +965,7 @@ export const InstalledSkills = memo(function InstalledSkills({
                 <ScrollArea className="flex-1 pt-1">
                   <div className={cn("@container/main", !repoPanelExpanded && "pr-6")}>
                     {viewMode === "grid" ? (
-                      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,260px),1fr))] gap-4 pt-1 pb-3">
+                      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,255px),1fr))] gap-4 pt-1 pb-3">
                         {sorted.map((skill) => (
                           <SkillDragSource
                             key={skill.id}

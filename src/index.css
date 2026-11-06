@@ -391,7 +391,7 @@ textarea,
 
 /* Intent feedback stays above the document; only successful completion reaches the end. */
 .translation-intent-progress[data-state="streaming"] {
-  animation: translation-intent-grow 8s ease-out both;
+  animation: translation-intent-grow 20s ease-out both;
 }
 
 .translation-intent-progress[data-state="completed"] {
