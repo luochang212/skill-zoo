@@ -475,7 +475,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
                       <p className="text-sm text-muted-foreground">{t("error.generic")}</p>
                     </div>
                   ) : previewContent ? (
-                    <MarkdownContent content={previewContent} />
+                    <MarkdownContent content={previewContent} linksDisabled />
                   ) : null}
                 </div>
               </ScrollArea>

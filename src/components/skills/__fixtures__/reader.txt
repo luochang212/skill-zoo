@@ -1,0 +1,58 @@
+# Markdown 阅读器 Reader
+
+中文与 `inline_code` English 混排，包含 **粗体**、_强调_ 与 [链接](https://example.com)。
+
+> 引用内容与 `code`。
+
+```js
+const message = "中文 <>& 特殊字符";
+  console.log(message);
+```
+
+```
+  plain 中文 <>& "quotes"
+    keep indentation
+```
+
+    indented 中文
+      keep indentation
+
+```unknown_xyz
+  unsupported 中文 <>&
+```
+
+```text
+长行 long line 中文：abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz
+```
+
+- [x] 已完成 completed
+- [ ] 未完成 pending
+  - 普通子项
+  - [x] 嵌套任务
+- 普通列表
+  - [ ] 普通列表中的任务
+
+- [ ] 多段落任务
+
+  第二段文字。
+
+| 列 Column | 内容    |
+| --------- | ------- |
+| 中文      | `value` |
+
+## 二级标题 Heading 2
+
+这是用于检查中英文混排和自动换行的段落。Skill Zoo 阅读 SKILL.md 时，应保留中文标点、English words、数字 0123456789 与常见字符 © → ✓ 的自然节奏。
+
+### 三级标题 Heading 3
+
+长路径：`references/very-long-directory-name/another-directory/a-very-long-file-name-without-spaces.md`，链接 https://example.com/a/very/long/path/without/any/spaces/abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz 。
+
+#### 四级标题 Heading 4
+
+- 普通列表 item with `inline_code`
+  - 嵌套内容 nested 中文
+
+| Column 列 | 长内容 Long content | 数值 |
+| --- | --- | --- |
+| mixed 中文 | a_long_value_without_spaces_abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz | 0123456789 |

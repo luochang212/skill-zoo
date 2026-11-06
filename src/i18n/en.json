@@ -1,4 +1,7 @@
 {
+  "markdown": {
+    "openError": "Could not open this link."
+  },
   "common": {
     "back": "Back",
     "cancel": "Cancel",

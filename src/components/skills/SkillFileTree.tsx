@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { skillsApi } from "@/lib/api/skills";
@@ -117,22 +117,35 @@ function FileTreeNode({
 }: FileTreeNodeProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const isLoading = loadingPaths?.has(node.path) ?? false;
   const isError = errorPaths?.has(node.path) ?? false;
 
+  useEffect(() => {
+    if (node.isDir && selectedPath?.startsWith(`${node.path}/`)) setExpanded(true);
+  }, [node.isDir, node.path, selectedPath]);
+
+  useEffect(() => {
+    if (expanded && node.isDir && !node.children && !isLoading && !isError) {
+      onLoadChildren?.(node);
+    }
+  }, [expanded, node, isLoading, isError, onLoadChildren]);
+
+  useEffect(() => {
+    if (!node.isDir && node.path === selectedPath) {
+      buttonRef.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    }
+  }, [node.isDir, node.path, selectedPath]);
+
   const handleClick = useCallback(() => {
     if (node.isDir) {
-      const next = !expanded;
-      if (next && !node.children && !isLoading) {
-        onLoadChildren?.(node);
-      }
-      setExpanded(next);
+      setExpanded(!expanded);
     } else if (onSelectFile) {
       onSelectFile(node);
     } else {
       if (skillId) skillsApi.openSkillPath(skillId, node.path).catch(() => {});
     }
-  }, [expanded, isLoading, node, onLoadChildren, onSelectFile, skillId]);
+  }, [expanded, node, onSelectFile, skillId]);
 
   const isSelected = !node.isDir && node.path === selectedPath;
   const Icon = node.isDir ? Folder : getFileIcon(node.name, node.isSkillMd);
@@ -141,6 +154,8 @@ function FileTreeNode({
   return (
     <div>
       <button
+        ref={buttonRef}
+        aria-current={isSelected ? "true" : undefined}
         onClick={handleClick}
         aria-expanded={node.isDir ? expanded : undefined}
         className={cn(

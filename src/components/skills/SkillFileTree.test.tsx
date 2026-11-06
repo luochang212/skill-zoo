@@ -22,4 +22,34 @@ describe("SkillFileTree disclosure state", () => {
     fireEvent.click(dir);
     expect(dir).toHaveAttribute("aria-expanded", "true");
   });
+  it("reveals selected descendants but still allows manually collapsing their folder", () => {
+    const nested: SkillFileNode[] = [
+      {
+        name: "references",
+        path: "references",
+        isDir: true,
+        isSkillMd: false,
+        children: [
+          { name: "guide.md", path: "references/guide.md", isDir: false, isSkillMd: false },
+          { name: "next.md", path: "references/next.md", isDir: false, isSkillMd: false },
+        ],
+      },
+    ];
+    const { rerender } = render(
+      <SkillFileTree nodes={nested} selectedPath="references/guide.md" />,
+    );
+    const folder = screen.getByRole("button", { name: "references" });
+    expect(folder).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "guide.md" })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    fireEvent.click(folder);
+    expect(folder).toHaveAttribute("aria-expanded", "false");
+    rerender(<SkillFileTree nodes={nested} selectedPath="references/guide.md" />);
+    expect(folder).toHaveAttribute("aria-expanded", "false");
+    rerender(<SkillFileTree nodes={nested} selectedPath="references/next.md" />);
+    expect(folder).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "next.md" })).toHaveAttribute("aria-current", "true");
+  });
 });

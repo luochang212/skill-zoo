@@ -1,10 +1,15 @@
-import { useMemo, useState, useEffect, memo } from "react";
+import { useMemo, useState, useEffect, useRef, memo } from "react";
 import { load as yamlLoad } from "js-yaml";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkCjkFriendly from "remark-cjk-friendly/parseOnly";
+import remarkCjkFriendlyGfmStrikethrough from "remark-cjk-friendly-gfm-strikethrough/parseOnly";
 import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
+import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
+import { repositoryLinkUrl, resolveMarkdownLink } from "@/lib/markdown-links";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
 function makeAbsoluteUrl(
@@ -84,11 +89,11 @@ function FrontmatterCard({ data }: { data: Record<string, unknown> }) {
 
   return (
     <div className="mb-4 not-prose">
-      <table className="w-full text-xs border-collapse rounded-lg overflow-hidden border border-border table-fixed">
+      <table className="reader-metadata w-full border-collapse rounded-lg overflow-hidden border border-border table-fixed">
         <tbody>
           {entries.map(([key, value]) => (
             <tr key={key} className="border-b border-border last:border-b-0">
-              <td className="px-3 py-1.5 font-mono font-medium text-muted-foreground bg-muted/40 w-28 align-top shrink-0">
+              <td className="px-3 py-1.5 font-mono font-medium text-muted-foreground bg-muted/40 w-32 align-top shrink-0">
                 {key}
               </td>
               <td className="px-3 py-1.5 text-foreground break-words overflow-hidden">
@@ -97,7 +102,7 @@ function FrontmatterCard({ data }: { data: Record<string, unknown> }) {
                     {value.map((item, i) => (
                       <code
                         key={i}
-                        className="rounded bg-muted/60 px-1.5 py-0.5 text-[0.7rem] border border-border"
+                        className="rounded bg-muted/60 px-1.5 py-0.5 border border-border"
                       >
                         {String(item)}
                       </code>
@@ -112,7 +117,7 @@ function FrontmatterCard({ data }: { data: Record<string, unknown> }) {
                     {String(value)}
                   </span>
                 ) : typeof value === "object" && value !== null ? (
-                  <code className="text-[0.7rem]">{JSON.stringify(value, null, 2)}</code>
+                  <code>{JSON.stringify(value, null, 2)}</code>
                 ) : (
                   String(value ?? "")
                 )}
@@ -187,11 +192,37 @@ function rehypeBadgeRows() {
   };
 }
 
+function rehypeHeadingIds() {
+  return (tree: HastNode) => {
+    const used = new Set<string>();
+    const text = (node: HastNode): string => node.value ?? (node.children ?? []).map(text).join("");
+    const walk = (node: HastNode) => {
+      if (node.tagName && /^h[1-6]$/.test(node.tagName)) {
+        const base = text(node)
+          .toLowerCase()
+          .replace(/[^\p{L}\p{N}\p{M}_\-\s]/gu, "")
+          .replace(/ /g, "-");
+        let id = base;
+        for (let n = 1; used.has(id); n++) id = `${base}-${n}`;
+        used.add(id);
+        node.properties = { ...node.properties, id: node.properties?.id ?? id };
+      }
+      node.children?.forEach(walk);
+    };
+    walk(tree);
+  };
+}
+
 interface MarkdownContentProps {
   content: string;
   repoOwner?: string | null;
   repoName?: string | null;
   repoBranch?: string | null;
+  linksDisabled?: boolean;
+  repoLinksExternal?: boolean;
+  documentPath?: string;
+  fragment?: string;
+  onDocumentLink?: (path: string, fragment: string) => void | Promise<void>;
 }
 
 export const MarkdownContent = memo(function MarkdownContent({
@@ -199,34 +230,88 @@ export const MarkdownContent = memo(function MarkdownContent({
   repoOwner,
   repoName,
   repoBranch,
+  linksDisabled = false,
+  repoLinksExternal = false,
+  documentPath = "SKILL.md",
+  fragment = "",
+  onDocumentLink,
 }: MarkdownContentProps) {
+  const { t } = useTranslation();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const scrollToFragment = (hash: string) => {
+    if (!hash) {
+      rootRef.current?.scrollIntoView?.({ block: "start" });
+      return;
+    }
+    const target = [...(rootRef.current?.querySelectorAll("[id]") ?? [])].find(
+      (node) => node.id === hash || node.id === `user-content-${hash}`,
+    );
+    target?.scrollIntoView?.({ block: "start" });
+  };
+  useEffect(() => {
+    if (fragment) scrollToFragment(fragment);
+  }, [fragment, content]);
   const { frontmatter, body } = useMemo(() => parseFrontmatter(content), [content]);
 
   return (
     <div
-      className="prose prose-sm prose-neutral dark:prose-invert
-                  prose-headings:font-semibold prose-headings:tracking-tight
-                  prose-h1:text-xl prose-h2:text-lg prose-h3:text-base prose-h4:text-sm
+      ref={rootRef}
+      className="markdown-reader prose prose-neutral dark:prose-invert
                   max-w-none overflow-x-auto prose-p:text-foreground prose-li:text-foreground"
     >
       {frontmatter && <FrontmatterCard data={frontmatter} />}
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeBadgeRows, rehypeHighlight]}
-        urlTransform={(url) => makeAbsoluteUrl(url, repoOwner, repoName, repoBranch)}
+        remarkPlugins={[remarkGfm, remarkCjkFriendly, remarkCjkFriendlyGfmStrikethrough]}
+        rehypePlugins={[
+          rehypeRaw,
+          rehypeSanitize,
+          rehypeBadgeRows,
+          rehypeHighlight,
+          rehypeHeadingIds,
+        ]}
+        urlTransform={(url, key) =>
+          key === "src"
+            ? (() => {
+                const safe = defaultUrlTransform(url);
+                if (!safe || /^https?:\/\//i.test(safe)) return safe;
+                const resolved = resolveMarkdownLink(safe, documentPath);
+                return resolved.kind === "document"
+                  ? makeAbsoluteUrl(resolved.path, repoOwner, repoName, repoBranch)
+                  : "";
+              })()
+            : url
+        }
         components={{
-          a: ({ href, children, ...props }) => (
-            <a
-              {...props}
-              href={href}
-              onClick={(e) => {
-                e.preventDefault();
-                if (href) openUrl(href);
-              }}
-            >
-              {children}
-            </a>
-          ),
+          a: ({ href, children, node: _node, ...props }) => {
+            if (linksDisabled || !href) return <span>{children}</span>;
+            const browserUrl =
+              repoLinksExternal && repoOwner && repoName
+                ? repositoryLinkUrl(href, repoOwner, repoName, repoBranch || "HEAD", documentPath)
+                : null;
+            if (repoLinksExternal && !browserUrl) return <span>{children}</span>;
+            const link = browserUrl
+              ? { kind: "external" as const, url: browserUrl }
+              : resolveMarkdownLink(href, documentPath);
+            if (link.kind === "blocked") return <span>{children}</span>;
+            return (
+              <a
+                {...props}
+                href={browserUrl ?? href}
+                onClick={async (e) => {
+                  e.preventDefault();
+                  try {
+                    if (link.kind === "external") await openUrl(link.url);
+                    else if (link.path === documentPath) scrollToFragment(link.fragment);
+                    else await onDocumentLink?.(link.path, link.fragment);
+                  } catch {
+                    toast.error(t("markdown.openError"));
+                  }
+                }}
+              >
+                {children}
+              </a>
+            );
+          },
           img: ({ src, alt, ...props }) => (
             <SafeImg
               src={src}

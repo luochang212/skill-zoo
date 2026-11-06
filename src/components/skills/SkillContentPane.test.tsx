@@ -313,3 +313,81 @@ describe("SkillContentPane draft identity and saved baseline", () => {
     expect(report).toHaveBeenLastCalledWith(true);
   });
 });
+
+describe("SkillContentPane document links", () => {
+  it("reveals linked files in the lazy tree and switches documents without a back button", async () => {
+    vi.mocked(invoke).mockImplementation((cmd, args) => {
+      if (cmd === "list_skill_files") {
+        const parent = (args as { parentPath?: string }).parentPath;
+        return Promise.resolve(
+          parent === "references/guides"
+            ? [
+                {
+                  name: "guide.md",
+                  path: "references/guides/guide.md",
+                  isDir: false,
+                  isSkillMd: false,
+                },
+                {
+                  name: "next.md",
+                  path: "references/guides/next.md",
+                  isDir: false,
+                  isSkillMd: false,
+                },
+              ]
+            : parent === "references"
+              ? [{ name: "guides", path: "references/guides", isDir: true, isSkillMd: false }]
+              : [
+                  mockFileNodes[0],
+                  { name: "references", path: "references", isDir: true, isSkillMd: false },
+                ],
+        );
+      }
+      if (cmd === "read_skill_text")
+        return Promise.resolve(
+          (args as { relativePath: string }).relativePath === "references/guides/guide.md"
+            ? "# Guide body\n\n[Next](./next.md)"
+            : "# Next body",
+        );
+      return Promise.resolve(null);
+    });
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <SkillContentPane
+          content="[Guide](references/guides/guide.md)"
+          onChange={() => {}}
+          activeTab="overview"
+          onTabChange={() => {}}
+          directory="/path/to/skill-1"
+          skillId="skill-1"
+        />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole("button", { name: "SKILL.md" });
+    expect(screen.getByRole("button", { name: "references" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    await user.click(screen.getByRole("link", { name: "Guide" }));
+    await screen.findByRole("heading", { name: "Guide body" });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "guide.md" })).toHaveAttribute(
+        "aria-current",
+        "true",
+      ),
+    );
+    expect(screen.getByRole("button", { name: "references" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "guides" })).toHaveAttribute("aria-expanded", "true");
+    await user.click(screen.getByRole("link", { name: "Next" }));
+    await screen.findByRole("heading", { name: "Next body" });
+    expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "guide.md" }));
+    await screen.findByRole("heading", { name: "Guide body" });
+    await user.click(screen.getByRole("button", { name: "SKILL.md" }));
+    expect(screen.getByRole("link", { name: "Guide" })).toBeInTheDocument();
+  });
+});

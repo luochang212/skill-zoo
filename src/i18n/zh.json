@@ -1,4 +1,7 @@
 {
+  "markdown": {
+    "openError": "无法打开此链接。"
+  },
   "common": {
     "back": "返回",
     "cancel": "取消",

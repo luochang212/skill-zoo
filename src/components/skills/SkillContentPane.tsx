@@ -202,6 +202,8 @@ export const SkillContentPane = memo(function SkillContentPane({
   const sidebarRowRef = useRef<HTMLDivElement>(null);
   const sidebarPaneRef = useRef<HTMLDivElement>(null);
   const sidebarToggleRef = useRef<HTMLButtonElement>(null);
+  const navigationRequest = useRef(0);
+  const [documentFragment, setDocumentFragment] = useState("");
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   // One draft per auxiliary file: switching files must never discard edits
   // made in another file.
@@ -226,15 +228,26 @@ export const SkillContentPane = memo(function SkillContentPane({
   } = useSkillFileChildren(fileTreeDisabled ? null : (directory ?? null), null, skillId);
 
   // ── Resolve selected node from already loaded nodes ──
-  const selectedNode = findNodeByPath(nodes, selectedFilePath);
+  const selectedNode =
+    findNodeByPath(nodes, selectedFilePath) ??
+    (selectedFilePath
+      ? {
+          path: selectedFilePath,
+          name: selectedFilePath.split("/").at(-1)!,
+          isDir: false,
+          isSkillMd: selectedFilePath === "SKILL.md",
+        }
+      : null);
   const isSkillMdActive = selectedNode?.isSkillMd ?? true;
   const isImageActive = isImageFile(selectedNode);
 
   // ── Reset lazy tree when switching skills ──
   useLayoutEffect(() => {
     sessionRef.current += 1;
+    navigationRequest.current += 1;
     setNodes([]);
     setSelectedFilePath(null);
+    setDocumentFragment("");
     setFileDrafts({});
     loadingDirPathsRef.current = new Set();
     setLoadingDirPaths(new Set());
@@ -392,6 +405,24 @@ export const SkillContentPane = memo(function SkillContentPane({
     },
     [directory, skillId, queryClient, fileTreeDisabled],
   );
+
+  const navigateDocument = async (path: string, fragment: string) => {
+    if (!skillId || fileTreeDisabled) return;
+    const session = sessionRef.current;
+    const request = ++navigationRequest.current;
+    const parent = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : null;
+    const children = await queryClient.fetchQuery({
+      queryKey: ["skills", "fileChildren", skillId, directory, parent],
+      queryFn: () => skillsApi.listSkillFiles(skillId, parent),
+      staleTime: 30 * 1000,
+    });
+    if (session !== sessionRef.current || request !== navigationRequest.current) return;
+    if (!children.some((node) => node.path === path && !node.isDir)) throw new Error("Not a file");
+    setDocumentFragment(fragment);
+    setSelectedFilePath(path);
+    onTabChange("overview");
+    previewViewportRef.current?.scrollTo({ top: 0 });
+  };
 
   // ── Tab change: only forward to parent for SKILL.md ──
   const handleTabChange = useCallback(
@@ -721,7 +752,11 @@ export const SkillContentPane = memo(function SkillContentPane({
               onRetry={() => refetchRootNodes()}
               onLoadChildren={handleLoadChildren}
               onRetryChildren={handleLoadChildren}
-              onSelectFile={(node) => setSelectedFilePath(node.path)}
+              onSelectFile={(node) => {
+                navigationRequest.current += 1;
+                setSelectedFilePath(node.path);
+                setDocumentFragment("");
+              }}
             />
           </div>
         </div>
@@ -760,6 +795,10 @@ export const SkillContentPane = memo(function SkillContentPane({
               {t("skillFiles.openInFinder")}
             </button>
           </div>
+        ) : fileError ? (
+          <p role="alert" className="p-5 text-sm text-destructive">
+            {t("markdown.openError")}
+          </p>
         ) : (
           /* Animated dual-pane layout */
           <div
@@ -855,7 +894,12 @@ export const SkillContentPane = memo(function SkillContentPane({
                     </div>
                   ) : renderedContent ? (
                     isSkillMdActive || isMd ? (
-                      <MarkdownContent content={renderedContent} />
+                      <MarkdownContent
+                        content={renderedContent}
+                        documentPath={selectedFilePath ?? "SKILL.md"}
+                        fragment={documentFragment}
+                        onDocumentLink={navigateDocument}
+                      />
                     ) : (
                       <pre className="text-[13px] font-mono leading-relaxed whitespace-pre-wrap break-all text-foreground">
                         {displayContent}
