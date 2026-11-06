@@ -238,19 +238,22 @@ function InstalledSkillsSkeleton({
             <SkeletonConsistencyPanel />
           ) : (
             <div className="flex-1 min-h-0 flex gap-0 relative -mr-6">
-              <ScrollArea className="flex-1 pt-1">
+              <div className="flex-1 min-w-0 overflow-clip pt-1">
                 <div className="pr-6 @container/main">
                   {viewMode === "grid" ? <SkeletonGrid /> : <SkeletonList />}
                 </div>
-              </ScrollArea>
+              </div>
               {category.type === "repo" && (
-                <div className="hidden @4col/main:block w-[260px] shrink-0 border-l border-border/50 ml-5 pl-5">
+                <div className="hidden @4col/main:block w-[260px] shrink-0 overflow-clip border-l border-border/50 ml-5 pl-5">
                   <Skeleton className="h-4 w-32 mb-3" />
                   <Skeleton className="h-3 w-24 mb-5" />
                   <div className="space-y-2">
-                    <Skeleton className="h-3 w-full" />
-                    <Skeleton className="h-3 w-11/12" />
-                    <Skeleton className="h-3 w-4/5" />
+                    {Array.from({ length: 24 }).map((_, index) => (
+                      <Skeleton
+                        key={index}
+                        className={index % 3 === 0 ? "h-3 w-4/5" : "h-3 w-full"}
+                      />
+                    ))}
                   </div>
                 </div>
               )}
@@ -321,7 +324,7 @@ function SkeletonToolbar({ viewMode, agentCount }: { viewMode: ViewMode; agentCo
 function SkeletonGrid() {
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,255px),1fr))] gap-4 pt-1 pb-3">
-      {Array.from({ length: 12 }).map((_, i) => (
+      {Array.from({ length: 18 }).map((_, i) => (
         <div key={i} className="rounded-xl border bg-card p-4 space-y-3">
           <div className="flex items-center justify-between gap-2">
             <Skeleton className="h-4 w-3/4" />
@@ -349,7 +352,7 @@ function SkeletonList() {
         <Skeleton className="h-3 w-28 shrink-0 hidden @md/main:block" />
         <div className="w-8 shrink-0 hidden @lg/main:block" />
       </div>
-      {Array.from({ length: 10 }).map((_, i) => (
+      {Array.from({ length: 20 }).map((_, i) => (
         <div key={i} className="flex items-center gap-4 px-5 py-2">
           <div className="w-8 shrink-0 flex justify-center">
             <Skeleton className="h-4 w-4 rounded" />
@@ -371,10 +374,10 @@ function SkeletonList() {
 
 function SkeletonConsistencyPanel() {
   return (
-    <div className="flex-1 min-h-0 pt-1">
+    <div className="flex-1 min-h-0 overflow-clip pt-1">
       <div className="space-y-3 max-w-3xl">
         <Skeleton className="h-4 w-40" />
-        {Array.from({ length: 4 }).map((_, i) => (
+        {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="rounded-lg border bg-card p-4 space-y-3">
             <div className="flex items-center gap-2">
               <Skeleton className="h-4 w-4 rounded" />

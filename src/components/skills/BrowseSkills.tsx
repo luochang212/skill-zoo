@@ -223,8 +223,12 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
   }
 
   return (
-    <ScrollArea className="h-full">
-      <div className="flex flex-col min-h-full p-6">
+    <ScrollArea
+      className={
+        loadingRepos ? "h-full [&_[data-radix-scroll-area-viewport]>div]:h-full" : "h-full"
+      }
+    >
+      <div className={`flex flex-col p-6 ${loadingRepos ? "h-full overflow-clip" : "min-h-full"}`}>
         {/* Search bar with dropdown */}
         <div className="flex items-center gap-3 mb-6 shrink-0">
           <div className="relative max-w-md flex-1" ref={searchRef}>
@@ -367,10 +371,10 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
 
         {/* Recommended repos */}
         {loadingRepos ? (
-          <div className="flex-1">
+          <div className="flex-1 min-h-0 overflow-clip" role="status" aria-label={t("loading")}>
             <Skeleton className="h-3 w-24 mb-3" />
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {Array.from({ length: 6 }).map((_, i) => (
+              {Array.from({ length: 18 }).map((_, i) => (
                 <div key={i} className="rounded-xl border bg-card p-4 space-y-3">
                   <Skeleton className="h-4 w-3/4" />
                   <Skeleton className="h-3 w-full" />

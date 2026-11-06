@@ -105,9 +105,9 @@ export function RepoInfoPanel({ owner, name, collapsed, rotation, onToggle }: Re
 
               <ScrollArea
                 viewportRef={viewportRef}
-                className="h-full overflow-hidden px-5 pt-4 pb-0"
+                className={`h-full overflow-hidden px-5 pt-4 pb-0 ${readmeLoading ? "[&_[data-radix-scroll-area-viewport]>div]:h-full" : ""}`}
               >
-                <div className="space-y-4">
+                <div className={readmeLoading ? "flex h-full flex-col gap-4" : "space-y-4"}>
                   {/* Header */}
                   <div>
                     <h3 className="text-xl font-bold tracking-tight truncate">
@@ -212,17 +212,18 @@ export function RepoInfoPanel({ owner, name, collapsed, rotation, onToggle }: Re
 
                   {/* README */}
                   {readmeLoading ? (
-                    <div className="space-y-3">
+                    <div className="flex-1 min-h-0 overflow-clip space-y-3">
                       <div className="flex items-center gap-2 pb-2 border-b border-border/50">
                         <Skeleton className="h-3 w-3" />
                         <Skeleton className="h-3 w-20" />
                       </div>
                       <div className="space-y-2">
-                        <Skeleton className="h-3.5 w-full" />
-                        <Skeleton className="h-3.5 w-11/12" />
-                        <Skeleton className="h-3.5 w-5/6" />
-                        <Skeleton className="h-3.5 w-full" />
-                        <Skeleton className="h-3.5 w-4/5" />
+                        {Array.from({ length: 24 }).map((_, index) => (
+                          <Skeleton
+                            key={index}
+                            className={index % 3 === 0 ? "h-3.5 w-4/5" : "h-3.5 w-full"}
+                          />
+                        ))}
                       </div>
                     </div>
                   ) : readmeError && apiErrorCode(readmeError) !== "repoNotFound" ? (
