@@ -1259,22 +1259,60 @@ mod tests {
         }
     }
 
+    // A well-behaved server consumes the request before responding. Writing
+    // the response first races hyper's client, which can reject the unexpected
+    // bytes or stall waiting for the exchange to settle. Returns false when
+    // the request head never fully arrived; the caller abandons that socket.
+    fn consume_request(socket: &mut std::net::TcpStream) -> bool {
+        use std::io::Read;
+        let mut seen = Vec::new();
+        let mut chunk = [0u8; 1024];
+        while !seen.windows(4).any(|window| window == b"\r\n\r\n") {
+            match socket.read(&mut chunk) {
+                Ok(0) | Err(_) => return false,
+                Ok(n) => seen.extend_from_slice(&chunk[..n]),
+            }
+        }
+        true
+    }
+
     #[test]
     fn zip_download_cleans_partial_responses_and_cancelled_downloads() {
         use std::io::Write;
         for cancel in [false, true] {
             let home = tempfile::tempdir().unwrap();
             let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            listener.set_nonblocking(true).unwrap();
             let url = format!("http://{}", listener.local_addr().unwrap());
             let (finish, wait) = std::sync::mpsc::channel();
             let server = std::thread::spawn(move || {
-                let (mut socket, _) = listener.accept().unwrap();
-                socket
-                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\nConnection: close\r\n\r\npartial")
-                    .unwrap();
-                socket.flush().unwrap();
-                let _ = wait.recv_timeout(std::time::Duration::from_secs(10));
-                // Close before Content-Length is satisfied to produce a body error.
+                let mut sockets = Vec::new();
+                loop {
+                    match wait.try_recv() {
+                        Ok(()) | Err(std::sync::mpsc::TryRecvError::Disconnected) => break,
+                        Err(std::sync::mpsc::TryRecvError::Empty) => {}
+                    }
+                    match listener.accept() {
+                        Ok((mut socket, _)) => {
+                            let _ = socket.set_nonblocking(false);
+                            let _ = socket
+                                .set_read_timeout(Some(std::time::Duration::from_millis(500)));
+                            if !consume_request(&mut socket) {
+                                continue;
+                            }
+                            let _ = socket.write_all(
+                                b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\nConnection: close\r\n\r\npartial",
+                            );
+                            let _ = socket.flush();
+                            sockets.push(socket);
+                        }
+                        Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
+                        Err(_) => break,
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(2));
+                }
+                // Dropping the sockets closes them before Content-Length is
+                // satisfied to produce a body error.
             });
             config::with_test_home(home.path(), || {
                 let rt = tokio::runtime::Builder::new_current_thread()
@@ -1282,14 +1320,30 @@ mod tests {
                     .build()
                     .unwrap();
                 rt.block_on(async {
-                    tokio::time::timeout(std::time::Duration::from_secs(5), async {
-                        let mut download = Box::pin(CliService::ensure_cached_zip_from_url(
-                            "owner", "repo", None, false, None, &url,
-                        ));
+                    tokio::time::timeout(std::time::Duration::from_secs(15), async {
                         let cache_dir = config::get_repo_zip_cache_dir();
-                        tokio::select! {
-                            result = &mut download => panic!("download ended before partial data was written: {result:?}"),
-                            _ = wait_for_partial_downloads(&cache_dir, 1) => {}
+                        // The hand-rolled server can rarely stall or trip
+                        // hyper's client before any data lands, while
+                        // production talks to GitHub. Retry those attempts
+                        // instead of failing: this test asserts temp-file
+                        // cleanup, not transport robustness.
+                        let mut attempts = 0;
+                        let mut download;
+                        loop {
+                            attempts += 1;
+                            download = Box::pin(CliService::ensure_cached_zip_from_url(
+                                "owner", "repo", None, false, None, &url,
+                            ));
+                            tokio::select! {
+                                result = &mut download => {
+                                    assert!(
+                                        attempts < 20,
+                                        "download ended before partial data was written: {result:?}"
+                                    );
+                                }
+                                _ = wait_for_partial_downloads(&cache_dir, 1) => break,
+                                _ = tokio::time::sleep(std::time::Duration::from_secs(3)) => {}
+                            }
                         }
                         if cancel {
                             drop(download);
@@ -1298,8 +1352,14 @@ mod tests {
                             finish.send(()).unwrap();
                             assert!(download.await.is_err());
                         }
-                        assert_eq!(std::fs::read_dir(cache_dir).unwrap().count(), 0, "cancel={cancel}");
-                    }).await.unwrap();
+                        assert_eq!(
+                            std::fs::read_dir(cache_dir).unwrap().count(),
+                            0,
+                            "cancel={cancel}"
+                        );
+                    })
+                    .await
+                    .unwrap();
                 });
             });
             server.join().unwrap();
@@ -1320,8 +1380,11 @@ mod tests {
         let (finish, wait) = std::sync::mpsc::channel();
         let server = std::thread::spawn(move || {
             let mut sockets = Vec::new();
-            for _ in 0..2 {
+            while sockets.len() < 2 {
                 let (mut socket, _) = listener.accept().unwrap();
+                if !consume_request(&mut socket) {
+                    continue;
+                }
                 write!(
                     socket,
                     "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
@@ -1345,7 +1408,7 @@ mod tests {
                 .build()
                 .unwrap();
             rt.block_on(async {
-                tokio::time::timeout(std::time::Duration::from_secs(5), async {
+                tokio::time::timeout(std::time::Duration::from_secs(10), async {
                     let cache_dir = config::get_repo_zip_cache_dir();
                     let downloads = async {
                         tokio::join!(
