@@ -1629,8 +1629,8 @@ pub async fn merge_duplicates_to_ssot(
     state: State<'_, AppState>,
     skill_name: String,
 ) -> Result<(), String> {
-    let _agent_lease = state.acquire_local_lease().map_err(|e| e.to_string())?;
-    SkillService::merge_duplicates_to_ssot(&skill_name, &state.skill_cache, &state.metadata)
+    SkillService::merge_duplicates(&state, &skill_name)
+        .await
         .map_err(|e| e.to_string())
 }
 
