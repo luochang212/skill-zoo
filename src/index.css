@@ -391,8 +391,13 @@ textarea,
 
 /* Intent feedback stays above the document; only successful completion reaches the end. */
 .translation-intent-progress {
+  --translation-glow: 94 234 212;
   position: relative;
   overflow: hidden;
+}
+
+.dark .translation-intent-progress {
+  --translation-glow: 255 255 255;
 }
 
 .translation-intent-progress[data-state="streaming"] {
@@ -402,27 +407,27 @@ textarea,
 .translation-intent-progress[data-state="streaming"]::after {
   content: "";
   position: absolute;
-  inset: 0;
+  inset: 0 0 0 65%;
   background: linear-gradient(
     90deg,
-    transparent 25%,
-    rgb(255 255 255 / 15%) 45%,
-    rgb(255 255 255 / 65%) 60%,
-    transparent 70%
+    transparent,
+    rgb(var(--translation-glow) / 4%) 65%,
+    rgb(var(--translation-glow) / 20%)
   );
-  animation: translation-intent-shimmer 2.4s linear infinite;
+  animation: translation-intent-glow 2.4s ease-in-out infinite;
 }
 
 .translation-intent-progress[data-state="completed"] {
   animation: translation-intent-complete 350ms ease-out both;
 }
 
-@keyframes translation-intent-shimmer {
-  from {
-    transform: translateX(-100%);
+@keyframes translation-intent-glow {
+  0%,
+  100% {
+    opacity: 0.55;
   }
-  to {
-    transform: translateX(100%);
+  50% {
+    opacity: 1;
   }
 }
 

@@ -95,6 +95,8 @@ pub const LANGUAGES: &[&str] = &["zh-CN", "zh-TW", "en", "ja", "ko", "fr", "de",
 #[derive(Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TranslationPreferences {
+    #[serde(default)]
+    pub prefer_cached_translations: bool,
     pub target_language: Option<String>,
     pub provider_id: Option<String>,
     pub model_id: Option<String>,
@@ -237,6 +239,21 @@ pub fn recover(path: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn translation_display_preference_defaults_to_original_and_round_trips() {
+        let mut prefs: TranslationPreferences = serde_json::from_value(serde_json::json!({
+            "targetLanguage":"zh-CN", "providerId":"p", "modelId":"m"
+        }))
+        .unwrap();
+        assert!(!prefs.prefer_cached_translations);
+        assert!(!TranslationPreferences::default().prefer_cached_translations);
+        prefs.prefer_cached_translations = true;
+        let restored: TranslationPreferences =
+            serde_json::from_slice(&serde_json::to_vec(&prefs).unwrap()).unwrap();
+        assert!(restored.prefer_cached_translations);
+        assert_eq!(restored.model_id.as_deref(), Some("m"));
+    }
+
     fn update(id: Option<String>) -> ProviderUpdate {
         ProviderUpdate {
             id,

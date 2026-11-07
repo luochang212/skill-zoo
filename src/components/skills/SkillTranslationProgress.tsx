@@ -24,7 +24,7 @@ export function SkillTranslationProgress({
       </span>
       <div
         aria-hidden="true"
-        className="translation-intent-progress h-full origin-left bg-teal-600/60 dark:bg-teal-400/50"
+        className="translation-intent-progress h-full origin-left bg-teal-700/70 dark:bg-teal-400/50"
         data-state={status}
       />
     </div>

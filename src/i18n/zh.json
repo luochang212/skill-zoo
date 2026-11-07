@@ -695,6 +695,8 @@
       "recoveryUnavailable": "当前配置不可执行恢复。"
     },
     "deviceLanguage": "设备语言",
+    "preferCached": "优先显示译文",
+    "preferCachedHint": "开启后优先显示已有译文；关闭后，每次进入先显示原文。",
     "cacheTitle": "翻译缓存",
     "cacheHint": "清空后，查看译文时需重新翻译。"
   },

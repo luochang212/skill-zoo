@@ -59,12 +59,21 @@ beforeEach(async () => {
 const wrap = (element: React.ReactNode) =>
   render(<QueryClientProvider client={createTestQueryClient()}>{element}</QueryClientProvider>);
 describe("translation settings", () => {
-  it("offers language, model and cache controls without a translation-display switch", async () => {
+  it("defaults to original documents and saves the display preference without changing language or model", async () => {
+    const user = userEvent.setup();
     wrap(<TranslationSettings onConfigureModels={vi.fn()} />);
-    await waitFor(() => expect(translationApi.preferences).toHaveBeenCalled());
-    expect(screen.queryByRole("switch", { name: "Prefer translations" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Clear" })).toBeInTheDocument();
-    expect(translationApi.savePreferences).not.toHaveBeenCalled();
+    const toggle = screen.getByRole("switch", { name: "Prefer translations" });
+    await waitFor(() => expect(toggle).toBeEnabled());
+    expect(toggle).not.toBeChecked();
+    await user.click(toggle);
+    await waitFor(() =>
+      expect(translationApi.savePreferences).toHaveBeenCalledWith({
+        providerId: "p",
+        modelId: "m",
+        targetLanguage: "ja",
+        preferCachedTranslations: true,
+      }),
+    );
     expect(translationApi.start).not.toHaveBeenCalled();
   });
   it("loads and edits the real saved key without a fixed mask", async () => {

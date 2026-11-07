@@ -69,7 +69,41 @@ async function translate() {
   await waitFor(() => expect(translationApi.translate).toHaveBeenCalledOnce());
   return user;
 }
-it("automatically shows an existing cached translation without starting a task", async () => {
+it("opens the original again by default while retaining a completed translation for manual selection", async () => {
+  const user = userEvent.setup();
+  const options = { wrapper: createQueryWrapper().wrapper };
+  const props = {
+    content: "# Readable original",
+    onChange: vi.fn(),
+    activeTab: "overview" as const,
+    onTabChange: vi.fn(),
+    skillId: "demo",
+    readOnly: true,
+  };
+  const first = render(<SkillContentPane {...props} />, options);
+  const translateButton = await screen.findByRole("button", { name: "Translate" });
+  await waitFor(() => expect(translateButton).toBeEnabled());
+  await user.click(translateButton);
+  await waitFor(() => expect(translationApi.translate).toHaveBeenCalledOnce());
+  await act(async () => send({ type: "completed", taskId, text: "# Retained translation" }));
+  await screen.findByRole("heading", { name: "Retained translation" });
+  first.unmount();
+  render(<SkillContentPane {...props} />, options);
+  expect(await screen.findByRole("heading", { name: "Readable original" })).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Retained translation" })).not.toBeInTheDocument();
+  await user.click(await screen.findByRole("button", { name: "Translation" }));
+  expect(await screen.findByRole("heading", { name: "Retained translation" })).toBeInTheDocument();
+  expect(translationApi.translate).toHaveBeenCalledOnce();
+  expect(translationApi.cached).not.toHaveBeenCalled();
+});
+
+it("automatically shows an existing cached translation without starting a task when preferred", async () => {
+  vi.mocked(translationApi.preferences).mockResolvedValue({
+    providerId: "p",
+    modelId: "m",
+    targetLanguage: "zh-CN",
+    preferCachedTranslations: true,
+  });
   vi.mocked(translationApi.cached).mockResolvedValue("# Saved translation");
   render(
     <SkillContentPane
@@ -95,6 +129,19 @@ it("automatically shows an existing cached translation without starting a task",
   );
   expect(translationApi.start).not.toHaveBeenCalled();
   expect(translationApi.translate).not.toHaveBeenCalled();
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Translation settings" }));
+  await user.click(screen.getByRole("menuitem", { name: "Translate again" }));
+  await waitFor(() => expect(translationApi.translate).toHaveBeenCalledOnce());
+  expect(translationApi.translate).toHaveBeenCalledWith(
+    expect.objectContaining({ force: true }),
+    expect.any(Function),
+  );
+  expect(translationApi.cached).toHaveBeenCalledOnce();
+  await act(async () => send({ type: "preview", taskId, text: "# Fresh translation" }));
+  expect(await screen.findByRole("heading", { name: "Fresh translation" })).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Stop" }));
+  expect(await screen.findByRole("heading", { name: "Saved translation" })).toBeInTheDocument();
 });
 
 it("keeps the original readable before the first translated chunk and shows progress without blocking it", async () => {
@@ -105,7 +152,7 @@ it("keeps the original readable before the first translated chunk and shows prog
   expect(await screen.findByRole("heading", { name: "完整译文" })).toBeInTheDocument();
   expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
 });
-it("preserves the last successful translation during retranslation", async () => {
+it("keeps the previous translation until the first fresh retranslation chunk, then streams the replacement", async () => {
   const user = await translate();
   await act(async () => send({ type: "completed", taskId, text: "# 已有译文" }));
   await screen.findByRole("heading", { name: "已有译文" });
@@ -113,6 +160,18 @@ it("preserves the last successful translation during retranslation", async () =>
   await user.click(screen.getByRole("menuitem", { name: "Translate again" }));
   expect(await screen.findByRole("progressbar", { name: "Translating" })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "已有译文" })).toBeInTheDocument();
+  await waitFor(() => expect(translationApi.translate).toHaveBeenCalledTimes(2));
+  expect(translationApi.translate).toHaveBeenLastCalledWith(
+    expect.objectContaining({ force: true }),
+    expect.any(Function),
+  );
+  expect(translationApi.cached).not.toHaveBeenCalled();
+  await act(async () => send({ type: "preview", taskId, text: "# 新译文正在生成" }));
+  expect(await screen.findByRole("heading", { name: "新译文正在生成" })).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "已有译文" })).not.toBeInTheDocument();
+  await act(async () => send({ type: "completed", taskId, text: "# 新译文完整结果" }));
+  expect(await screen.findByRole("heading", { name: "新译文完整结果" })).toBeInTheDocument();
+  expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
 });
 it("leaves the original readable after failure and removes the progress bar", async () => {
   await translate();

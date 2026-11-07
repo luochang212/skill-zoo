@@ -543,6 +543,7 @@ export const SkillContentPane = memo(function SkillContentPane({
     },
     {
       skillName,
+      preferTranslations: preferences.data?.preferCachedTranslations ?? false,
       cacheEnabled:
         translationAvailable &&
         effectiveActiveTab === "overview" &&

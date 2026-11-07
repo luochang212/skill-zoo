@@ -28,9 +28,15 @@ export function useSkillTranslation(
   input: Input,
   {
     cacheEnabled = true,
+    preferTranslations = false,
     configurationKey = "",
     skillName = "",
-  }: { cacheEnabled?: boolean; configurationKey?: string; skillName?: string } = {},
+  }: {
+    cacheEnabled?: boolean;
+    preferTranslations?: boolean;
+    configurationKey?: string;
+    skillName?: string;
+  } = {},
 ) {
   const { t } = useTranslation();
   const client = useQueryClient();
@@ -49,7 +55,15 @@ export function useSkillTranslation(
       client.setQueryData<Session>(key, (current) => update(current ?? empty())),
     [client, key],
   );
+  const selectionKey = JSON.stringify([identity, preferTranslations]);
+  const [selectedView, setSelectedView] = useState<string | null>(null);
   const [cacheSettled, setCacheSettled] = useState<string | null>(null);
+  useEffect(() => {
+    setSelectedView(null);
+    setCacheSettled(null);
+  }, [selectionKey]);
+  const showTranslation =
+    view.showTranslation && (preferTranslations || selectedView === selectionKey);
   const cancelTask = useCallback(() => {
     const current = getView().task;
     if (current) {
@@ -61,7 +75,7 @@ export function useSkillTranslation(
   }, [getView, setView]);
 
   useEffect(() => {
-    if (!cacheEnabled || getView().status !== "idle") return;
+    if (!preferTranslations || !cacheEnabled || getView().status !== "idle") return;
     let active = true;
     const version = getView().cacheVersion;
     const [request] = JSON.parse(identity) as [Input, string];
@@ -82,7 +96,7 @@ export function useSkillTranslation(
     return () => {
       active = false;
     };
-  }, [identity, cacheEnabled, getView, setView]);
+  }, [identity, cacheEnabled, preferTranslations, getView, setView]);
 
   const cancel = useCallback(() => {
     const current = cancelTask();
@@ -103,6 +117,7 @@ export function useSkillTranslation(
       // Multiple views of the same session must not start duplicate requests.
       if (old.task && !force) return;
       cancelTask();
+      setSelectedView(selectionKey);
       // Only manually started sessions outlive their views; unused drafts can be collected.
       const query = client.getQueryCache().find({ queryKey: key, exact: true });
       query?.setOptions({ ...query.options, gcTime: Infinity });
@@ -167,7 +182,7 @@ export function useSkillTranslation(
               text: event.text,
               error: null,
             }));
-          } else if (!previous) {
+          } else if (event.text.trim()) {
             setView((v) => ({ ...v, text: event.text }));
           }
         });
@@ -177,26 +192,28 @@ export function useSkillTranslation(
         void translationApi.cancel(id).catch(() => {});
       }
     },
-    [input, getView, setView, cancelTask, client, key, skillName, t],
+    [input, getView, setView, cancelTask, client, key, selectionKey, skillName, t],
   );
 
   return {
     identity,
     status: view.status,
     text: view.text,
-    showTranslation: view.showTranslation,
+    showTranslation,
     error: view.error,
     translate,
     cancel,
     toggle: () => {
+      setSelectedView(selectionKey);
       const query = client.getQueryCache().find({ queryKey: key, exact: true });
       query?.setOptions({ ...query.options, gcTime: Infinity });
       setView((v) => ({
         ...v,
         cacheVersion: v.cacheVersion + 1,
-        showTranslation: !v.showTranslation,
+        showTranslation: !showTranslation,
       }));
     },
-    cachePending: cacheEnabled && cacheSettled !== identity && view.status === "idle",
+    cachePending:
+      preferTranslations && cacheEnabled && cacheSettled !== identity && view.status === "idle",
   };
 }

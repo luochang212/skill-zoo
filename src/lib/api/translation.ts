@@ -26,6 +26,7 @@ export interface ProviderUpdate {
   models: LlmModel[];
 }
 export interface TranslationPreferences {
+  preferCachedTranslations?: boolean;
   targetLanguage: string | null;
   providerId: string | null;
   modelId: string | null;

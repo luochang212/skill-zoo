@@ -42,7 +42,9 @@ describe("manual translation lifecycle", () => {
     "shows a concise localized reason for %s without echoing unknown errors",
     async (code) => {
       await i18n.changeLanguage("zh");
-      const hook = renderHook(() => useSkillTranslation(input), { wrapper });
+      const hook = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+        wrapper,
+      });
       await act(() => {
         void hook.result.current.translate();
       });
@@ -57,13 +59,137 @@ describe("manual translation lifecycle", () => {
     },
   );
 
+  it.each(["streaming", "completed"] as const)(
+    "defaults to the original on re-entry with a retained %s session without cancelling or restarting it",
+    async (status) => {
+      const first = renderHook(() => useSkillTranslation(input), { wrapper });
+      expect(first.result.current.showTranslation).toBe(false);
+      expect(translationApi.cached).not.toHaveBeenCalled();
+      await act(() => {
+        void first.result.current.translate();
+      });
+      await waitFor(() => expect(translationApi.translate).toHaveBeenCalledOnce());
+      await act(() => send({ type: "preview", taskId: id, text: "translated" }));
+      if (status === "completed")
+        await act(() => {
+          send({ type: "completed", taskId: id, text: "translated" });
+          finish();
+        });
+      await waitFor(() => expect(first.result.current.showTranslation).toBe(true));
+      first.unmount();
+      const returned = renderHook(() => useSkillTranslation(input), { wrapper });
+      expect(returned.result.current.showTranslation).toBe(false);
+      expect(returned.result.current.text).toBe("translated");
+      if (status === "streaming")
+        await act(() => {
+          send({ type: "completed", taskId: id, text: "translated" });
+          finish();
+        });
+      expect(returned.result.current.showTranslation).toBe(false);
+      await act(() => returned.result.current.toggle());
+      await waitFor(() => expect(returned.result.current.showTranslation).toBe(true));
+      expect(translationApi.translate).toHaveBeenCalledOnce();
+      expect(translationApi.cancel).not.toHaveBeenCalled();
+      expect(translationApi.cached).not.toHaveBeenCalled();
+    },
+  );
+
+  it("starts on the original again when navigating A→B→A without unmounting", async () => {
+    const hook = renderHook((value) => useSkillTranslation(value), {
+      wrapper,
+      initialProps: input,
+    });
+    await act(() => {
+      void hook.result.current.translate();
+    });
+    await waitFor(() => expect(translationApi.translate).toHaveBeenCalledOnce());
+    await act(() => {
+      send({ type: "completed", taskId: id, text: "translated" });
+      finish();
+    });
+    await waitFor(() => expect(hook.result.current.showTranslation).toBe(true));
+    hook.rerender({ ...input, path: "other.md" });
+    expect(hook.result.current.showTranslation).toBe(false);
+    hook.rerender(input);
+    expect(hook.result.current.showTranslation).toBe(false);
+    expect(hook.result.current.text).toBe("translated");
+  });
+
+  it("opening an original-first view does not change another view's translation choice", async () => {
+    vi.mocked(translationApi.cached).mockResolvedValue("translated");
+    const preferred = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+      wrapper,
+    });
+    await waitFor(() => expect(preferred.result.current.showTranslation).toBe(true));
+    const original = renderHook(() => useSkillTranslation(input), { wrapper });
+    expect(original.result.current.showTranslation).toBe(false);
+    expect(preferred.result.current.showTranslation).toBe(true);
+    expect(translationApi.cached).toHaveBeenCalledOnce();
+  });
+
+  it("holds the cache loading gate when preference is re-enabled after an earlier miss", async () => {
+    let complete!: (text: string) => void;
+    vi.mocked(translationApi.cached)
+      .mockResolvedValueOnce(null)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            complete = resolve;
+          }),
+      );
+    const hook = renderHook(
+      (preferTranslations) => useSkillTranslation(input, { preferTranslations }),
+      {
+        wrapper,
+        initialProps: true,
+      },
+    );
+    await waitFor(() => expect(hook.result.current.cachePending).toBe(false));
+    hook.rerender(false);
+    hook.rerender(true);
+    expect(hook.result.current.cachePending).toBe(true);
+    await act(async () => {
+      complete("new cached translation");
+    });
+    await waitFor(() => expect(hook.result.current.showTranslation).toBe(true));
+    expect(hook.result.current.cachePending).toBe(false);
+  });
+
+  it("turning the preference off releases a pending cache read and ignores its late result", async () => {
+    let complete!: (text: string) => void;
+    vi.mocked(translationApi.cached).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const hook = renderHook(
+      (preferTranslations) => useSkillTranslation(input, { preferTranslations }),
+      {
+        wrapper,
+        initialProps: true,
+      },
+    );
+    expect(hook.result.current.cachePending).toBe(true);
+    hook.rerender(false);
+    expect(hook.result.current.cachePending).toBe(false);
+    await act(async () => {
+      complete("late cached translation");
+    });
+    expect(hook.result.current.showTranslation).toBe(false);
+    expect(hook.result.current.text).toBe("");
+    expect(translationApi.start).not.toHaveBeenCalled();
+  });
+
   it("automatically restores a disk-cached translation with a fresh application query client", async () => {
     vi.mocked(translationApi.cached).mockResolvedValue("# 你好");
-    const first = renderHook(() => useSkillTranslation(input), { wrapper });
+    const first = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+      wrapper,
+    });
     await waitFor(() => expect(first.result.current.showTranslation).toBe(true));
     first.unmount();
 
-    const restarted = renderHook(() => useSkillTranslation(input), {
+    const restarted = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
       wrapper: createQueryWrapper().wrapper,
     });
     await waitFor(() => expect(restarted.result.current.text).toBe("# 你好"));
@@ -75,7 +201,9 @@ describe("manual translation lifecycle", () => {
 
   it("preserves an explicit original selection when returning to a cache-loaded document", async () => {
     vi.mocked(translationApi.cached).mockResolvedValue("# 你好");
-    const first = renderHook(() => useSkillTranslation(input), { wrapper });
+    const first = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+      wrapper,
+    });
     await waitFor(() => expect(first.result.current.showTranslation).toBe(true));
     await act(() => first.result.current.toggle());
     first.unmount();
@@ -83,7 +211,7 @@ describe("manual translation lifecycle", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const returned = renderHook(() => useSkillTranslation(input), {
+    const returned = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
       wrapper,
     });
     expect(returned.result.current.text).toBe("# 你好");
@@ -94,10 +222,13 @@ describe("manual translation lifecycle", () => {
 
   it("waits until the document is eligible before reading cached translations", async () => {
     vi.mocked(translationApi.cached).mockResolvedValue("# 你好");
-    const hook = renderHook((cacheEnabled) => useSkillTranslation(input, { cacheEnabled }), {
-      wrapper,
-      initialProps: false,
-    });
+    const hook = renderHook(
+      (cacheEnabled) => useSkillTranslation(input, { cacheEnabled, preferTranslations: true }),
+      {
+        wrapper,
+        initialProps: false,
+      },
+    );
     expect(translationApi.cached).not.toHaveBeenCalled();
     expect(hook.result.current.cachePending).toBe(false);
     hook.rerender(true);
@@ -108,7 +239,9 @@ describe("manual translation lifecycle", () => {
 
   it("shows cached text without registering or generating a translation and respects manual original selection", async () => {
     vi.mocked(translationApi.cached).mockResolvedValue("# 你好");
-    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
+    const hook = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+      wrapper,
+    });
     await waitFor(() => expect(hook.result.current.text).toBe("# 你好"));
     expect(translationApi.cached).toHaveBeenCalledWith(input);
     await waitFor(() => expect(hook.result.current.showTranslation).toBe(true));
@@ -119,7 +252,9 @@ describe("manual translation lifecycle", () => {
     await waitFor(() => expect(hook.result.current.showTranslation).toBe(false));
   });
   it("leaves cache misses on the original without starting inference", async () => {
-    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
+    const hook = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+      wrapper,
+    });
     await waitFor(() => expect(translationApi.cached).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(hook.result.current.status).toBe("idle"));
     await waitFor(() => expect(hook.result.current.text).toBe(""));
@@ -135,7 +270,7 @@ describe("manual translation lifecycle", () => {
           complete = resolve;
         }),
     );
-    const hook = renderHook((value) => useSkillTranslation(value), {
+    const hook = renderHook((value) => useSkillTranslation(value, { preferTranslations: true }), {
       wrapper,
       initialProps: input,
     });
@@ -152,7 +287,8 @@ describe("manual translation lifecycle", () => {
       .mockResolvedValueOnce("first configuration")
       .mockResolvedValueOnce("second configuration");
     const hook = renderHook(
-      (configurationKey: string) => useSkillTranslation(input, { configurationKey }),
+      (configurationKey: string) =>
+        useSkillTranslation(input, { configurationKey, preferTranslations: true }),
       { wrapper, initialProps: "first" },
     );
     await waitFor(() => expect(hook.result.current.text).toBe("first configuration"));
@@ -163,7 +299,9 @@ describe("manual translation lifecycle", () => {
   });
   it("keeps the original when cache reading fails without generating or showing an error", async () => {
     vi.mocked(translationApi.cached).mockRejectedValue("cacheRead");
-    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
+    const hook = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+      wrapper,
+    });
     await act(async () => {});
     expect(translationApi.cached).toHaveBeenCalledWith(input);
     await waitFor(() => expect(hook.result.current.status).toBe("idle"));
@@ -179,7 +317,9 @@ describe("manual translation lifecycle", () => {
           complete = resolve;
         }),
     );
-    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
+    const hook = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+      wrapper,
+    });
     await waitFor(() => expect(hook.result.current.cachePending).toBe(true));
     await act(async () => {
       complete("# 你好");
@@ -190,7 +330,9 @@ describe("manual translation lifecycle", () => {
   });
   it("releases the loading gate on a cache miss or failure so the original renders", async () => {
     vi.mocked(translationApi.cached).mockRejectedValue("cacheRead");
-    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
+    const hook = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+      wrapper,
+    });
     await waitFor(() => expect(hook.result.current.cachePending).toBe(true));
     await waitFor(() => expect(hook.result.current.cachePending).toBe(false));
     await waitFor(() => expect(hook.result.current.status).toBe("idle"));
@@ -205,7 +347,9 @@ describe("manual translation lifecycle", () => {
           complete = resolve;
         }),
     );
-    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
+    const hook = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+      wrapper,
+    });
     await waitFor(() => expect(hook.result.current.cachePending).toBe(true));
     await act(() => {
       void hook.result.current.translate();
@@ -225,7 +369,9 @@ describe("manual translation lifecycle", () => {
           complete = resolve;
         }),
     );
-    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
+    const hook = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+      wrapper,
+    });
     await act(() => {
       void hook.result.current.translate();
     });
@@ -242,7 +388,7 @@ describe("manual translation lifecycle", () => {
     await waitFor(() => expect(hook.result.current.text).toBe("new translation"));
   });
   it("continues in the background without leaking results into another file", async () => {
-    const hook = renderHook((value) => useSkillTranslation(value), {
+    const hook = renderHook((value) => useSkillTranslation(value, { preferTranslations: true }), {
       wrapper,
       initialProps: input,
     });
@@ -270,7 +416,9 @@ describe("manual translation lifecycle", () => {
     await waitFor(() => expect(hook.result.current.status).toBe("completed"));
   });
   it("announces the targeted repair round with a toast and dismisses it when the task settles", async () => {
-    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
+    const hook = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+      wrapper,
+    });
     await act(() => {
       void hook.result.current.translate();
     });
@@ -288,7 +436,9 @@ describe("manual translation lifecycle", () => {
     await waitFor(() => expect(hook.result.current.text).toBe("fixed"));
   });
   it("keeps the preview and accepts repaired text when command resolution precedes channel delivery", async () => {
-    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
+    const hook = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+      wrapper,
+    });
     await act(() => {
       void hook.result.current.translate();
     });
@@ -311,7 +461,9 @@ describe("manual translation lifecycle", () => {
     expect(toast.dismiss).toHaveBeenCalledWith(`repair-${id}`);
   });
   it("allows retry after a failed event delivered after command resolution", async () => {
-    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
+    const hook = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+      wrapper,
+    });
     await act(() => {
       void hook.result.current.translate();
     });
@@ -330,10 +482,13 @@ describe("manual translation lifecycle", () => {
     await waitFor(() => expect(hook.result.current.text).toBe("重试成功"));
   });
   it("keeps the background repair toast until the task settles", async () => {
-    const hook = renderHook((value: typeof input) => useSkillTranslation(value), {
-      wrapper,
-      initialProps: input,
-    });
+    const hook = renderHook(
+      (value: typeof input) => useSkillTranslation(value, { preferTranslations: true }),
+      {
+        wrapper,
+        initialProps: input,
+      },
+    );
     await act(() => {
       void hook.result.current.translate();
     });
@@ -354,7 +509,9 @@ describe("manual translation lifecycle", () => {
           registered = resolve;
         }),
     );
-    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
+    const hook = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+      wrapper,
+    });
     await act(() => {
       void hook.result.current.translate();
     });
@@ -365,19 +522,25 @@ describe("manual translation lifecycle", () => {
     });
     expect(translationApi.translate).toHaveBeenCalledOnce();
     expect(translationApi.cancel).not.toHaveBeenCalled();
-    const returned = renderHook(() => useSkillTranslation(input), { wrapper });
+    const returned = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+      wrapper,
+    });
     await waitFor(() => expect(returned.result.current.status).toBe("streaming"));
     await act(() => send({ type: "completed", taskId, text: "background result" }));
     await waitFor(() => expect(returned.result.current.text).toBe("background result"));
   });
   it("does not retain idle document and draft sessions after leaving", async () => {
     const { wrapper: localWrapper, queryClient } = createQueryWrapper();
-    const hook = renderHook(() => useSkillTranslation(input), { wrapper: localWrapper });
+    const hook = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+      wrapper: localWrapper,
+    });
     hook.unmount();
     await waitFor(() => expect(queryClient.getQueryCache().getAll()).toHaveLength(0));
   });
   it("restores a result completed while no document view was mounted", async () => {
-    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
+    const hook = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+      wrapper,
+    });
     await act(() => {
       void hook.result.current.translate();
     });
@@ -390,7 +553,9 @@ describe("manual translation lifecycle", () => {
       send({ type: "completed", taskId: id, text: "finished away" });
       finish();
     });
-    const returned = renderHook(() => useSkillTranslation(input), { wrapper });
+    const returned = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+      wrapper,
+    });
     expect(returned.result.current.text).toBe("finished away");
     expect(returned.result.current.showTranslation).toBe(true);
     expect(translationApi.start).toHaveBeenCalledOnce();
@@ -404,7 +569,9 @@ describe("manual translation lifecycle", () => {
           registered = resolve;
         }),
     );
-    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
+    const hook = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+      wrapper,
+    });
     await act(() => {
       void hook.result.current.translate();
     });
@@ -418,8 +585,12 @@ describe("manual translation lifecycle", () => {
     await waitFor(() => expect(hook.result.current.status).toBe("cancelled"));
   });
   it("shares one task between views and preserves manual original selection on completion", async () => {
-    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
-    const other = renderHook(() => useSkillTranslation(input), { wrapper });
+    const hook = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+      wrapper,
+    });
+    const other = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+      wrapper,
+    });
     await act(() => {
       void hook.result.current.translate();
       void other.result.current.translate();
@@ -434,7 +605,9 @@ describe("manual translation lifecycle", () => {
     expect(other.result.current.showTranslation).toBe(false);
   });
   it("ignores superseded task events after an explicit retranslation", async () => {
-    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
+    const hook = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+      wrapper,
+    });
     await act(() => {
       void hook.result.current.translate();
     });
@@ -450,29 +623,38 @@ describe("manual translation lifecycle", () => {
     await waitFor(() => expect(hook.result.current.text).toBe("replacement"));
     expect(translationApi.cancel).toHaveBeenCalledWith(oldId);
   });
-  it("keeps successful translation during retranslation and restores it on failure", async () => {
-    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
-    await act(() => {
-      void hook.result.current.translate();
-    });
-    await waitFor(() => expect(translationApi.translate).toHaveBeenCalledTimes(1));
-    await act(() => {
-      send({ type: "completed", taskId: id, text: "previous" });
-      finish();
-    });
-    await act(() => {
-      void hook.result.current.translate(true);
-    });
-    await waitFor(() => expect(translationApi.translate).toHaveBeenCalledTimes(2));
-    await act(() => send({ type: "preview", taskId: id, text: "partial replacement" }));
-    await waitFor(() => expect(hook.result.current.text).toBe("previous"));
-    await act(() => {
-      send({ type: "failed", taskId: id, code: "truncated" });
-      finish();
-    });
-    await waitFor(() => expect(hook.result.current.text).toBe("previous"));
-    await waitFor(() => expect(hook.result.current.error).toBe("truncated"));
-  });
+  it.each(["failed", "cancelled"] as const)(
+    "streams retranslation and restores the successful result when %s",
+    async (outcome) => {
+      const hook = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
+        wrapper,
+      });
+      await act(() => {
+        void hook.result.current.translate();
+      });
+      await waitFor(() => expect(translationApi.translate).toHaveBeenCalledTimes(1));
+      await act(() => {
+        send({ type: "completed", taskId: id, text: "previous" });
+        finish();
+      });
+      await act(() => {
+        void hook.result.current.translate(true);
+      });
+      await waitFor(() => expect(translationApi.translate).toHaveBeenCalledTimes(2));
+      await act(() => send({ type: "preview", taskId: id, text: "  " }));
+      expect(hook.result.current.text).toBe("previous");
+      await act(() => send({ type: "preview", taskId: id, text: "partial replacement" }));
+      await waitFor(() => expect(hook.result.current.text).toBe("partial replacement"));
+      await act(() => {
+        if (outcome === "failed") send({ type: "failed", taskId: id, code: "truncated" });
+        else hook.result.current.cancel();
+        finish();
+      });
+      await waitFor(() => expect(hook.result.current.text).toBe("previous"));
+      expect(hook.result.current.status).toBe(outcome);
+      expect(hook.result.current.error).toBe(outcome === "failed" ? "truncated" : null);
+    },
+  );
 });
 
 it("identifies parallel background tasks in error and repair toasts after navigation", async () => {
@@ -485,12 +667,16 @@ it("identifies parallel background tasks in error and repair toasts after naviga
     () =>
       useSkillTranslation(
         { ...input, skillId: "skill-a", path: "references/guide.md" },
-        { skillName: "Alpha skill" },
+        { skillName: "Alpha skill", preferTranslations: true },
       ),
     { wrapper },
   );
   const second = renderHook(
-    () => useSkillTranslation({ ...input, skillId: "skill-b" }, { skillName: "Beta skill" }),
+    () =>
+      useSkillTranslation(
+        { ...input, skillId: "skill-b" },
+        { skillName: "Beta skill", preferTranslations: true },
+      ),
     { wrapper },
   );
   await act(() => {
