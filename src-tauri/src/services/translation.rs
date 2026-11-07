@@ -33,7 +33,6 @@ pub fn cache_key(provider: &Provider, model: &Model, language: &str, source: &st
         &provider.base_url,
         &model.id,
         model.max_output_tokens,
-        model.thinking,
         language,
         source,
     ))
@@ -871,7 +870,6 @@ mod tests {
             models: vec![],
         };
         let mut m = Model {
-            thinking: false,
             id: "test".into(),
             enabled: true,
             max_output_tokens: None,
@@ -884,9 +882,6 @@ mod tests {
         m.max_output_tokens = Some(100);
         assert_ne!(key, cache_key(&p, &m, "en", "text"));
         assert_ne!(key, cache_key(&p, &m, "zh-CN", "text"));
-        m.max_output_tokens = None;
-        m.thinking = true;
-        assert_ne!(key, cache_key(&p, &m, "en", "text"));
     }
     #[test]
     fn tokens_stay_short_and_avoid_source_collisions() {

@@ -17,8 +17,6 @@ pub enum Protocol {
 pub struct Model {
     pub id: String,
     pub enabled: bool,
-    #[serde(default)]
-    pub thinking: bool,
     pub max_output_tokens: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context_window: Option<u32>,
@@ -100,8 +98,6 @@ pub struct TranslationPreferences {
     pub target_language: Option<String>,
     pub provider_id: Option<String>,
     pub model_id: Option<String>,
-    #[serde(default)]
-    pub prefer_cached_translations: bool,
 }
 
 impl TranslationPreferences {
@@ -241,19 +237,6 @@ pub fn recover(path: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn cached_translation_preference_defaults_off_and_round_trips() {
-        let mut prefs: TranslationPreferences = serde_json::from_value(serde_json::json!({
-            "targetLanguage":"zh-CN", "providerId":"p", "modelId":"m"
-        }))
-        .unwrap();
-        assert!(!prefs.prefer_cached_translations);
-        prefs.prefer_cached_translations = true;
-        let restored: TranslationPreferences =
-            serde_json::from_slice(&serde_json::to_vec(&prefs).unwrap()).unwrap();
-        assert!(restored.prefer_cached_translations);
-        assert_eq!(restored.model_id.as_deref(), Some("m"));
-    }
     fn update(id: Option<String>) -> ProviderUpdate {
         ProviderUpdate {
             id,
@@ -263,7 +246,6 @@ mod tests {
             base_url: "http://localhost:11434/v1".into(),
             api_key: Some("secret-key".into()),
             models: vec![Model {
-                thinking: false,
                 id: "test".into(),
                 enabled: true,
                 max_output_tokens: None,
@@ -351,21 +333,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn thinking_defaults_off_for_old_models_and_persists_an_explicit_choice() {
-        let model: Model = serde_json::from_value(serde_json::json!({
-            "id":"deepseek-flash", "enabled":true, "maxOutputTokens":null
-        }))
-        .unwrap();
-        assert!(!model.thinking);
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("providers.json");
-        let mut draft = update(None);
-        draft.models[0].thinking = true;
-        let summaries = upsert(&path, draft).unwrap();
-        assert!(summaries[0].models[0].thinking);
-        assert!(load(&path).unwrap().providers[0].models[0].thinking);
-    }
     #[test]
     fn legacy_headers_are_ignored_and_not_exposed_or_persisted_again() {
         let dir = tempfile::tempdir().unwrap();

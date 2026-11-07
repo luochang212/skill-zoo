@@ -57,9 +57,58 @@ describe("manual translation lifecycle", () => {
     },
   );
 
+  it("automatically restores a disk-cached translation with a fresh application query client", async () => {
+    vi.mocked(translationApi.cached).mockResolvedValue("# 你好");
+    const first = renderHook(() => useSkillTranslation(input), { wrapper });
+    await waitFor(() => expect(first.result.current.showTranslation).toBe(true));
+    first.unmount();
+
+    const restarted = renderHook(() => useSkillTranslation(input), {
+      wrapper: createQueryWrapper().wrapper,
+    });
+    await waitFor(() => expect(restarted.result.current.text).toBe("# 你好"));
+    expect(restarted.result.current.showTranslation).toBe(true);
+    expect(translationApi.cached).toHaveBeenCalledTimes(2);
+    expect(translationApi.start).not.toHaveBeenCalled();
+    expect(translationApi.translate).not.toHaveBeenCalled();
+  });
+
+  it("preserves an explicit original selection when returning to a cache-loaded document", async () => {
+    vi.mocked(translationApi.cached).mockResolvedValue("# 你好");
+    const first = renderHook(() => useSkillTranslation(input), { wrapper });
+    await waitFor(() => expect(first.result.current.showTranslation).toBe(true));
+    await act(() => first.result.current.toggle());
+    first.unmount();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const returned = renderHook(() => useSkillTranslation(input), {
+      wrapper,
+    });
+    expect(returned.result.current.text).toBe("# 你好");
+    expect(returned.result.current.showTranslation).toBe(false);
+    expect(translationApi.cached).toHaveBeenCalledOnce();
+    expect(translationApi.start).not.toHaveBeenCalled();
+  });
+
+  it("waits until the document is eligible before reading cached translations", async () => {
+    vi.mocked(translationApi.cached).mockResolvedValue("# 你好");
+    const hook = renderHook((cacheEnabled) => useSkillTranslation(input, { cacheEnabled }), {
+      wrapper,
+      initialProps: false,
+    });
+    expect(translationApi.cached).not.toHaveBeenCalled();
+    expect(hook.result.current.cachePending).toBe(false);
+    hook.rerender(true);
+    await waitFor(() => expect(hook.result.current.showTranslation).toBe(true));
+    expect(translationApi.start).not.toHaveBeenCalled();
+    expect(translationApi.translate).not.toHaveBeenCalled();
+  });
+
   it("shows cached text without registering or generating a translation and respects manual original selection", async () => {
     vi.mocked(translationApi.cached).mockResolvedValue("# 你好");
-    const hook = renderHook(() => useSkillTranslation(input, { preferCached: true }), { wrapper });
+    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
     await waitFor(() => expect(hook.result.current.text).toBe("# 你好"));
     expect(translationApi.cached).toHaveBeenCalledWith(input);
     await waitFor(() => expect(hook.result.current.showTranslation).toBe(true));
@@ -70,7 +119,7 @@ describe("manual translation lifecycle", () => {
     await waitFor(() => expect(hook.result.current.showTranslation).toBe(false));
   });
   it("leaves cache misses on the original without starting inference", async () => {
-    const hook = renderHook(() => useSkillTranslation(input, { preferCached: true }), { wrapper });
+    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
     await waitFor(() => expect(translationApi.cached).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(hook.result.current.status).toBe("idle"));
     await waitFor(() => expect(hook.result.current.text).toBe(""));
@@ -86,7 +135,7 @@ describe("manual translation lifecycle", () => {
           complete = resolve;
         }),
     );
-    const hook = renderHook((value) => useSkillTranslation(value, { preferCached: true }), {
+    const hook = renderHook((value) => useSkillTranslation(value), {
       wrapper,
       initialProps: input,
     });
@@ -103,8 +152,7 @@ describe("manual translation lifecycle", () => {
       .mockResolvedValueOnce("first configuration")
       .mockResolvedValueOnce("second configuration");
     const hook = renderHook(
-      (configurationKey: string) =>
-        useSkillTranslation(input, { preferCached: true, configurationKey }),
+      (configurationKey: string) => useSkillTranslation(input, { configurationKey }),
       { wrapper, initialProps: "first" },
     );
     await waitFor(() => expect(hook.result.current.text).toBe("first configuration"));
@@ -115,7 +163,7 @@ describe("manual translation lifecycle", () => {
   });
   it("keeps the original when cache reading fails without generating or showing an error", async () => {
     vi.mocked(translationApi.cached).mockRejectedValue("cacheRead");
-    const hook = renderHook(() => useSkillTranslation(input, { preferCached: true }), { wrapper });
+    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
     await act(async () => {});
     expect(translationApi.cached).toHaveBeenCalledWith(input);
     await waitFor(() => expect(hook.result.current.status).toBe("idle"));
@@ -131,7 +179,7 @@ describe("manual translation lifecycle", () => {
           complete = resolve;
         }),
     );
-    const hook = renderHook(() => useSkillTranslation(input, { preferCached: true }), { wrapper });
+    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
     await waitFor(() => expect(hook.result.current.cachePending).toBe(true));
     await act(async () => {
       complete("# 你好");
@@ -142,7 +190,7 @@ describe("manual translation lifecycle", () => {
   });
   it("releases the loading gate on a cache miss or failure so the original renders", async () => {
     vi.mocked(translationApi.cached).mockRejectedValue("cacheRead");
-    const hook = renderHook(() => useSkillTranslation(input, { preferCached: true }), { wrapper });
+    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
     await waitFor(() => expect(hook.result.current.cachePending).toBe(true));
     await waitFor(() => expect(hook.result.current.cachePending).toBe(false));
     await waitFor(() => expect(hook.result.current.status).toBe("idle"));
@@ -157,7 +205,7 @@ describe("manual translation lifecycle", () => {
           complete = resolve;
         }),
     );
-    const hook = renderHook(() => useSkillTranslation(input, { preferCached: true }), { wrapper });
+    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
     await waitFor(() => expect(hook.result.current.cachePending).toBe(true));
     await act(() => {
       void hook.result.current.translate();
@@ -177,7 +225,7 @@ describe("manual translation lifecycle", () => {
           complete = resolve;
         }),
     );
-    const hook = renderHook(() => useSkillTranslation(input, { preferCached: true }), { wrapper });
+    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
     await act(() => {
       void hook.result.current.translate();
     });
@@ -199,7 +247,8 @@ describe("manual translation lifecycle", () => {
       initialProps: input,
     });
     expect(translationApi.start).not.toHaveBeenCalled();
-    expect(translationApi.cached).not.toHaveBeenCalled();
+    await waitFor(() => expect(hook.result.current.cachePending).toBe(false));
+    expect(translationApi.cached).toHaveBeenCalledWith(input);
     await act(() => {
       void hook.result.current.translate();
     });

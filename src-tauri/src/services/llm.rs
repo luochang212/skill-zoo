@@ -7,14 +7,6 @@ use genai::resolver::{AuthData, Endpoint};
 use genai::{Client, ModelIden, ServiceTarget};
 use std::time::Duration;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub enum ThinkingControl {
-    Toggle,
-    AlwaysOn,
-    ProviderDefault,
-}
-
 fn is_fixed_thinking_model(base_url: &str, protocol: Protocol, model_id: &str) -> bool {
     protocol == Protocol::OpenaiChatCompletions
         && matches!(model_id.trim(), "glm-5.3-flash" | "glm-5-3-flash-260828")
@@ -27,22 +19,11 @@ fn is_fixed_thinking_model(base_url: &str, protocol: Protocol, model_id: &str) -
         })
 }
 
-pub fn thinking_control(base_url: &str, protocol: Protocol, model_id: &str) -> ThinkingControl {
-    if is_fixed_thinking_model(base_url, protocol, model_id) {
-        ThinkingControl::AlwaysOn
-    } else if thinking_parameters(base_url, protocol, model_id, false).is_some() {
-        ThinkingControl::Toggle
-    } else {
-        ThinkingControl::ProviderDefault
-    }
-}
-
 /// Only documented endpoint/model combinations may receive thinking controls.
 pub fn thinking_parameters(
     base_url: &str,
     protocol: Protocol,
     model_id: &str,
-    enabled: bool,
 ) -> Option<serde_json::Value> {
     // This fixed-thinking model defaults to max effort; translation uses light reasoning.
     if is_fixed_thinking_model(base_url, protocol, model_id) {
@@ -74,12 +55,12 @@ pub fn thinking_parameters(
     if deepseek || qwen {
         return Some(match (protocol, deepseek) {
             (Protocol::AnthropicMessages, _) | (Protocol::OpenaiChatCompletions, true) => {
-                serde_json::json!({"thinking": {"type": if enabled { "enabled" } else { "disabled" }}})
+                serde_json::json!({"thinking": {"type": "disabled"}})
             }
             (Protocol::OpenaiResponses, true) => serde_json::json!({
-                "reasoning": {"effort": if enabled { "high" } else { "none" }}
+                "reasoning": {"effort": "none"}
             }),
-            _ => serde_json::json!({"enable_thinking": enabled}),
+            _ => serde_json::json!({"enable_thinking": false}),
         });
     }
     if host == "api.anthropic.com" && protocol == Protocol::AnthropicMessages {
@@ -90,7 +71,7 @@ pub fn thinking_parameters(
             _ => return None,
         };
         return Some(serde_json::json!({
-            "thinking": {"type": if enabled { "adaptive" } else { off }}
+            "thinking": {"type": off}
         }));
     }
     None
@@ -222,7 +203,7 @@ pub async fn test_connection(provider: &Provider, model_id: &str) -> Result<u64,
             .with_max_tokens(budget)
             .with_capture_raw_body(true);
         if let Some(parameters) =
-            thinking_parameters(&provider.base_url, provider.protocol, model_id, false)
+            thinking_parameters(&provider.base_url, provider.protocol, model_id)
         {
             options = options.with_extra_body(parameters);
         }
@@ -295,12 +276,8 @@ pub async fn stream(
     if let Some(max) = model.max_output_tokens {
         options = options.with_max_tokens(max);
     }
-    if let Some(parameters) = thinking_parameters(
-        &provider.base_url,
-        provider.protocol,
-        &model.id,
-        model.thinking,
-    ) {
+    if let Some(parameters) = thinking_parameters(&provider.base_url, provider.protocol, &model.id)
+    {
         options = options.with_extra_body(parameters);
     }
     let request = ChatRequest::new(vec![ChatMessage::system(system), ChatMessage::user(input)]);
@@ -368,7 +345,6 @@ mod tests {
                     "https://ark.cn-beijing.volces.com/api/coding/v3/",
                     Protocol::OpenaiChatCompletions,
                     "glm-5.3-flash",
-                    false,
                 )
                 .unwrap(),
             );
@@ -399,41 +375,93 @@ mod tests {
     }
 
     #[test]
-    fn coding_glm_fixed_thinking_uses_light_reasoning_instead_of_service_default() {
+    fn translation_thinking_policy_matches_endpoint_model_and_protocol() {
         for model in ["glm-5.3-flash", "glm-5-3-flash-260828"] {
-            for enabled in [false, true] {
-                assert_eq!(
-                    thinking_parameters(
-                        "https://ark.cn-beijing.volces.com/api/coding/v3/",
-                        Protocol::OpenaiChatCompletions,
-                        model,
-                        enabled
-                    ),
-                    Some(json!({"reasoning_effort":"low"}))
-                );
-            }
+            assert_eq!(
+                thinking_parameters(
+                    "https://ark.cn-beijing.volces.com/api/coding/v3/",
+                    Protocol::OpenaiChatCompletions,
+                    model
+                ),
+                Some(json!({"reasoning_effort":"low"}))
+            );
+        }
+        for protocol in [Protocol::AnthropicMessages, Protocol::OpenaiChatCompletions] {
+            assert_eq!(
+                thinking_parameters("https://api.deepseek.com/v1", protocol, "deepseek-flash"),
+                Some(json!({"thinking":{"type":"disabled"}}))
+            );
+        }
+        assert_eq!(
+            thinking_parameters(
+                "https://api.deepseek.com",
+                Protocol::OpenaiResponses,
+                "deepseek-flash"
+            ),
+            Some(json!({"reasoning":{"effort":"none"}}))
+        );
+        for protocol in [Protocol::OpenaiChatCompletions, Protocol::OpenaiResponses] {
+            assert_eq!(
+                thinking_parameters(
+                    "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                    protocol,
+                    "qwen3.8-flash"
+                ),
+                Some(json!({"enable_thinking":false}))
+            );
+        }
+        assert_eq!(
+            thinking_parameters(
+                "https://workspace.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+                Protocol::AnthropicMessages,
+                "qwen3.8-max"
+            ),
+            Some(json!({"thinking":{"type":"disabled"}}))
+        );
+        for (model, mode) in [
+            ("claude-sonnet-4-6", "disabled"),
+            ("claude-sonnet-5-5", "between_tools"),
+        ] {
+            assert_eq!(
+                thinking_parameters(
+                    "https://api.anthropic.com",
+                    Protocol::AnthropicMessages,
+                    model
+                ),
+                Some(json!({"thinking":{"type":mode}}))
+            );
         }
     }
 
     #[test]
-    fn thinking_control_distinguishes_fixed_toggleable_and_unknown_models() {
-        assert_eq!(
-            thinking_control(
-                "https://ark.cn-beijing.volces.com/api/coding/v3/",
-                Protocol::OpenaiChatCompletions,
-                "glm-5.3-flash"
+    fn unverified_endpoints_models_and_protocols_get_no_extra_parameters() {
+        for (url, protocol, model) in [
+            (
+                "https://proxy.test",
+                Protocol::AnthropicMessages,
+                "deepseek-flash",
             ),
-            ThinkingControl::AlwaysOn
-        );
-        assert_eq!(
-            thinking_control(
-                "https://api.deepseek.com/v1/",
-                Protocol::OpenaiChatCompletions,
-                "deepseek-v4-pro"
+            (
+                "https://api.deepseek.com.evil.test",
+                Protocol::AnthropicMessages,
+                "deepseek-flash",
             ),
-            ThinkingControl::Toggle
-        );
-        for (base, protocol, model) in [
+            (
+                "https://api.deepseek.com",
+                Protocol::AnthropicMessages,
+                "my-deepseek-flash",
+            ),
+            (
+                "https://api.anthropic.com",
+                Protocol::AnthropicMessages,
+                "claude-opus-5-5",
+            ),
+            (
+                "https://dashscope.aliyuncs.com",
+                Protocol::AnthropicMessages,
+                "unregistered-model",
+            ),
+            ("not a URL", Protocol::AnthropicMessages, "deepseek-flash"),
             (
                 "https://ark.cn-beijing.volces.com.evil.test/api/coding/v3/",
                 Protocol::OpenaiChatCompletions,
@@ -460,96 +488,7 @@ mod tests {
                 "glm-5.3-flash",
             ),
         ] {
-            assert_eq!(
-                thinking_control(base, protocol, model),
-                ThinkingControl::ProviderDefault
-            );
-            assert_eq!(thinking_parameters(base, protocol, model, false), None);
-        }
-    }
-
-    #[test]
-    fn thinking_controls_match_the_endpoint_model_and_protocol() {
-        for enabled in [false, true] {
-            let mode = if enabled { "enabled" } else { "disabled" };
-            for protocol in [Protocol::AnthropicMessages, Protocol::OpenaiChatCompletions] {
-                assert_eq!(
-                    thinking_parameters(
-                        "https://api.deepseek.com/v1",
-                        protocol,
-                        "deepseek-flash",
-                        enabled
-                    ),
-                    Some(json!({"thinking":{"type":mode}}))
-                );
-            }
-            assert_eq!(
-                thinking_parameters(
-                    "https://api.deepseek.com",
-                    Protocol::OpenaiResponses,
-                    "deepseek-flash",
-                    enabled
-                ),
-                Some(json!({"reasoning":{"effort":if enabled {"high"} else {"none"}}}))
-            );
-            for protocol in [Protocol::OpenaiChatCompletions, Protocol::OpenaiResponses] {
-                assert_eq!(
-                    thinking_parameters(
-                        "https://dashscope.aliyuncs.com/compatible-mode/v1",
-                        protocol,
-                        "qwen3.8-flash",
-                        enabled
-                    ),
-                    Some(json!({"enable_thinking":enabled}))
-                );
-            }
-            assert_eq!(
-                thinking_parameters(
-                    "https://workspace.cn-beijing.maas.aliyuncs.com/apps/anthropic",
-                    Protocol::AnthropicMessages,
-                    "qwen3.8-max",
-                    enabled
-                ),
-                Some(json!({"thinking":{"type":mode}}))
-            );
-        }
-        assert_eq!(
-            thinking_parameters(
-                "https://api.anthropic.com",
-                Protocol::AnthropicMessages,
-                "claude-sonnet-4-6",
-                true
-            ),
-            Some(json!({"thinking":{"type":"adaptive"}}))
-        );
-        assert_eq!(
-            thinking_parameters(
-                "https://api.anthropic.com",
-                Protocol::AnthropicMessages,
-                "claude-sonnet-5-5",
-                false
-            ),
-            Some(json!({"thinking":{"type":"between_tools"}}))
-        );
-    }
-
-    #[test]
-    fn unknown_gateways_aliases_and_fixed_thinking_models_get_no_extra_parameters() {
-        for (url, model) in [
-            ("https://proxy.test", "deepseek-flash"),
-            ("https://api.deepseek.com.evil.test", "deepseek-flash"),
-            ("https://api.deepseek.com", "my-deepseek-flash"),
-            ("https://api.anthropic.com", "claude-opus-5-5"),
-            ("https://api.anthropic.com", "claude-fable-5-1"),
-            ("https://dashscope.aliyuncs.com", "unregistered-model"),
-            ("not a URL", "deepseek-flash"),
-        ] {
-            for enabled in [false, true] {
-                assert_eq!(
-                    thinking_parameters(url, Protocol::AnthropicMessages, model, enabled),
-                    None
-                );
-            }
+            assert_eq!(thinking_parameters(url, protocol, model), None);
         }
     }
 
@@ -568,7 +507,6 @@ mod tests {
             "https://api.deepseek.com/anthropic",
             provider.protocol,
             "deepseek-flash",
-            false,
         )
         .unwrap();
         let options = ChatOptions::default()
@@ -962,7 +900,6 @@ mod tests {
         };
         // Deliberately mismatched model name: protocol must win over inference.
         let model = Model {
-            thinking: false,
             id: "gpt-test".into(),
             enabled: true,
             max_output_tokens: Some(100),
@@ -1002,7 +939,7 @@ mod tests {
                 .with_status(status).with_header("content-type","application/json")
                 .with_body(body).expect(2).create_async().await;
             let provider = probe_provider(format!("{}/v1/",server.url()),Protocol::AnthropicMessages);
-            let model = Model {id:"glm-5.3-flash".into(),enabled:true,thinking:false,
+            let model = Model {id:"glm-5.3-flash".into(),enabled:true,
                 max_output_tokens:Some(131072),context_window:None};
             assert_eq!(test_connection(&provider,&model.id).await,Err(expected.into()));
             assert_eq!(stream(&provider,&model,"Translate","private-input",|_|Ok(())).await,Err(expected.into()));
@@ -1036,7 +973,6 @@ mod tests {
                 let mut provider = probe_provider(format!("{}/v1/", server.url()), protocol);
                 provider.api_key.clear();
                 let model = Model {
-                    thinking: false,
                     id: "local".into(),
                     enabled: true,
                     max_output_tokens: None,
@@ -1102,7 +1038,6 @@ mod tests {
                 .await;
             let provider = probe_provider(format!("{}/v1/", server.url()), protocol);
             let model = Model {
-                thinking: false,
                 id: "test".into(),
                 enabled: true,
                 max_output_tokens: Some(100),
@@ -1139,7 +1074,6 @@ mod tests {
             models: vec![],
         };
         let model = Model {
-            thinking: false,
             id: "test".into(),
             enabled: true,
             max_output_tokens: None,

@@ -1,11 +1,9 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 
 export type LlmProtocol = "anthropic-messages" | "openai-chat-completions" | "openai-responses";
-export type ModelThinkingControl = "toggle" | "alwaysOn" | "providerDefault";
 export interface LlmModel {
   id: string;
   enabled: boolean;
-  thinking?: boolean;
   maxOutputTokens: number | null;
   contextWindow?: number | null;
 }
@@ -31,7 +29,6 @@ export interface TranslationPreferences {
   targetLanguage: string | null;
   providerId: string | null;
   modelId: string | null;
-  preferCachedTranslations?: boolean;
 }
 export interface TranslationRequest {
   taskId: string;
@@ -49,8 +46,6 @@ export type TranslationEvent =
   | { type: "repairing"; taskId: string };
 
 export const translationApi = {
-  thinkingControl: (baseUrl: string, protocol: LlmProtocol, modelId: string) =>
-    invoke<ModelThinkingControl>("get_model_thinking_control", { baseUrl, protocol, modelId }),
   providerApiKey: (id: string) => invoke<string>("get_llm_provider_api_key", { id }),
   cached: (request: Omit<TranslationRequest, "taskId" | "force">) =>
     invoke<string | null>("read_cached_translation", { request }),

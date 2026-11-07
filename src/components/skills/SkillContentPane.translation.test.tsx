@@ -40,6 +40,7 @@ beforeEach(async () => {
     modelId: "m",
     targetLanguage: "zh-CN",
   });
+  vi.mocked(translationApi.cached).mockResolvedValue(null);
   vi.mocked(translationApi.start).mockResolvedValue();
   vi.mocked(translationApi.cancel).mockResolvedValue();
   vi.mocked(translationApi.translate).mockImplementation((request, callback) => {
@@ -68,6 +69,34 @@ async function translate() {
   await waitFor(() => expect(translationApi.translate).toHaveBeenCalledOnce());
   return user;
 }
+it("automatically shows an existing cached translation without starting a task", async () => {
+  vi.mocked(translationApi.cached).mockResolvedValue("# Saved translation");
+  render(
+    <SkillContentPane
+      content="# Readable original"
+      onChange={vi.fn()}
+      activeTab="overview"
+      onTabChange={vi.fn()}
+      skillId="demo"
+      readOnly
+    />,
+    { wrapper: createQueryWrapper().wrapper },
+  );
+  expect(await screen.findByRole("heading", { name: "Saved translation" })).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Readable original" })).not.toBeInTheDocument();
+  expect(translationApi.cached).toHaveBeenCalledWith(
+    expect.objectContaining({
+      skillId: "demo",
+      source: "# Readable original",
+      providerId: "p",
+      modelId: "m",
+      targetLanguage: "zh-CN",
+    }),
+  );
+  expect(translationApi.start).not.toHaveBeenCalled();
+  expect(translationApi.translate).not.toHaveBeenCalled();
+});
+
 it("keeps the original readable before the first translated chunk and shows progress without blocking it", async () => {
   await translate();
   expect(screen.getByRole("heading", { name: "Readable original" })).toBeInTheDocument();

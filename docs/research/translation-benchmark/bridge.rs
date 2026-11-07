@@ -4,7 +4,6 @@ mod persistence {
         pub struct Model {
             pub id: String,
             pub max_output_tokens: Option<u32>,
-            pub thinking: bool,
         }
         pub struct Provider {
             pub protocol: u8,

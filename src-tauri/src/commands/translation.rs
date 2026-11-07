@@ -40,15 +40,6 @@ fn cache_dir() -> PathBuf {
 }
 
 #[tauri::command]
-pub fn get_model_thinking_control(
-    base_url: String,
-    protocol: config::Protocol,
-    model_id: String,
-) -> llm::ThinkingControl {
-    llm::thinking_control(&base_url, protocol, &model_id)
-}
-
-#[tauri::command]
 pub async fn resolve_model_configuration(
     base_url: String,
     model_id: String,
@@ -593,7 +584,6 @@ mod tests {
                 base_url: format!("{}/v1/", server.url()),
                 api_key: None,
                 models: vec![Model {
-                    thinking: false,
                     id: "test".into(),
                     enabled: true,
                     max_output_tokens: None,
@@ -696,7 +686,6 @@ mod tests {
                 base_url: format!("{}/v1/", server.url()),
                 api_key: None,
                 models: vec![Model {
-                    thinking: false,
                     id: "test".into(),
                     enabled: true,
                     max_output_tokens: None,
@@ -873,7 +862,6 @@ mod tests {
                 base_url: "http://127.0.0.1:1/v1/".into(),
                 api_key: None,
                 models: vec![Model {
-                    thinking: false,
                     id: "test".into(),
                     enabled: true,
                     max_output_tokens: None,
@@ -965,7 +953,6 @@ mod tests {
                 base_url: format!("{}/v1/", server.url()),
                 api_key: None,
                 models: vec![Model {
-                    thinking: false,
                     id: "test".into(),
                     enabled: true,
                     max_output_tokens: None,

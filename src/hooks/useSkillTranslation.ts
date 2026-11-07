@@ -27,10 +27,10 @@ const empty = (): Session => ({
 export function useSkillTranslation(
   input: Input,
   {
-    preferCached = false,
+    cacheEnabled = true,
     configurationKey = "",
     skillName = "",
-  }: { preferCached?: boolean; configurationKey?: string; skillName?: string } = {},
+  }: { cacheEnabled?: boolean; configurationKey?: string; skillName?: string } = {},
 ) {
   const { t } = useTranslation();
   const client = useQueryClient();
@@ -61,7 +61,7 @@ export function useSkillTranslation(
   }, [getView, setView]);
 
   useEffect(() => {
-    if (!preferCached || getView().status !== "idle") return;
+    if (!cacheEnabled || getView().status !== "idle") return;
     let active = true;
     const version = getView().cacheVersion;
     const [request] = JSON.parse(identity) as [Input, string];
@@ -82,7 +82,7 @@ export function useSkillTranslation(
     return () => {
       active = false;
     };
-  }, [identity, preferCached, getView, setView]);
+  }, [identity, cacheEnabled, getView, setView]);
 
   const cancel = useCallback(() => {
     const current = cancelTask();
@@ -189,12 +189,14 @@ export function useSkillTranslation(
     translate,
     cancel,
     toggle: () => {
+      const query = client.getQueryCache().find({ queryKey: key, exact: true });
+      query?.setOptions({ ...query.options, gcTime: Infinity });
       setView((v) => ({
         ...v,
         cacheVersion: v.cacheVersion + 1,
         showTranslation: !v.showTranslation,
       }));
     },
-    cachePending: preferCached && cacheSettled !== identity && view.status === "idle",
+    cachePending: cacheEnabled && cacheSettled !== identity && view.status === "idle",
   };
 }

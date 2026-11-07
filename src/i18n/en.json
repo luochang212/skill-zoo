@@ -651,8 +651,6 @@
     "configureModels": "Configure models",
     "clearCache": "Clear",
     "confirmClearCache": "Confirm",
-    "preferCached": "Prefer translations",
-    "preferCachedHint": "Show an existing translation when available. Otherwise, translate manually.",
     "cacheCleared": "Translation cache cleared.",
     "repairing": "Repairing translation…",
     "showOriginal": "Show original",
@@ -701,8 +699,6 @@
     "cacheHint": "Cleared translations will need to be generated again."
   },
   "llm": {
-    "thinking": "Deep thinking",
-    "thinkingSlowHint": "Enabling deep thinking slows down translation",
     "title": "Model management",
     "description": "Connect the model services you use.",
     "add": "Add service",

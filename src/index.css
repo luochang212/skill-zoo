@@ -390,12 +390,40 @@ textarea,
 }
 
 /* Intent feedback stays above the document; only successful completion reaches the end. */
+.translation-intent-progress {
+  position: relative;
+  overflow: hidden;
+}
+
 .translation-intent-progress[data-state="streaming"] {
   animation: translation-intent-grow 20s ease-out both;
 }
 
+.translation-intent-progress[data-state="streaming"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 25%,
+    rgb(255 255 255 / 15%) 45%,
+    rgb(255 255 255 / 65%) 60%,
+    transparent 70%
+  );
+  animation: translation-intent-shimmer 2.4s linear infinite;
+}
+
 .translation-intent-progress[data-state="completed"] {
   animation: translation-intent-complete 350ms ease-out both;
+}
+
+@keyframes translation-intent-shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
 }
 
 @keyframes translation-intent-grow {
@@ -426,6 +454,10 @@ textarea,
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .translation-intent-progress[data-state="streaming"]::after {
+    content: none;
+    animation: none;
+  }
   .translation-intent-progress[data-state="streaming"] {
     animation: none;
     transform: scaleX(0.9);

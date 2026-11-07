@@ -1,6 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type RefObject } from "react";
 import { toast } from "sonner";
-import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,8 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { translationApi, type LlmModel, type LlmProtocol } from "@/lib/api/translation";
-import { Switch } from "@/components/ui/switch";
+import { translationApi, type LlmModel } from "@/lib/api/translation";
 
 const parseLimit = (value: string) => {
   if (!value.trim()) return null;
@@ -29,7 +27,6 @@ export function ModelEditorDialog({
   mode = "edit",
   model,
   baseUrl,
-  protocol,
   otherModelIds,
   onConfirm,
   onClose,
@@ -38,7 +35,6 @@ export function ModelEditorDialog({
   mode?: "add" | "edit";
   model: LlmModel;
   baseUrl: string;
-  protocol: LlmProtocol;
   otherModelIds: string[];
   onConfirm: (model: LlmModel) => void;
   onClose: () => void;
@@ -50,14 +46,6 @@ export function ModelEditorDialog({
   const [modelId, setModelId] = useState(model.id);
   const normalizedModelId = modelId.trim();
   const [composing, setComposing] = useState(false);
-  const [thinking, setThinking] = useState(model.thinking ?? false);
-  const { data: thinkingControl = "providerDefault" } = useQuery({
-    queryKey: ["llm", "modelThinkingControl", baseUrl, protocol, normalizedModelId],
-    queryFn: () => translationApi.thinkingControl(baseUrl, protocol, normalizedModelId),
-    enabled: !!normalizedModelId && !composing,
-    retry: false,
-    staleTime: Infinity,
-  });
   const [context, setContext] = useState(model.contextWindow?.toString() ?? "");
   const [output, setOutput] = useState(model.maxOutputTokens?.toString() ?? "");
   const manual = useRef({
@@ -115,7 +103,6 @@ export function ModelEditorDialog({
       ...model,
       id: nextId,
       maxOutputTokens: nextOutput,
-      thinking,
     };
     if (nextContext != null) next.contextWindow = nextContext;
     else delete next.contextWindow;
@@ -160,20 +147,6 @@ export function ModelEditorDialog({
           }}
         >
           <div className="min-h-0 space-y-5 overflow-y-auto p-4">
-            <div className="flex items-center justify-between gap-4">
-              <label htmlFor={`${id}-thinking`} className="text-xs font-medium">
-                {t("llm.thinking")}
-              </label>
-              <Switch
-                id={`${id}-thinking`}
-                checked={thinkingControl === "alwaysOn" || thinking}
-                disabled={thinkingControl !== "toggle"}
-                onCheckedChange={(checked) => {
-                  setThinking(checked);
-                  if (checked) toast.info(t("llm.thinkingSlowHint"));
-                }}
-              />
-            </div>
             <div className="space-y-2">
               <label htmlFor={`${id}-model`} className="block text-xs font-medium">
                 {t("llm.modelIdentifier")}
@@ -192,13 +165,6 @@ export function ModelEditorDialog({
                 onChange={(event) => {
                   setModelId(event.target.value);
                   if (event.target.value.trim() === normalizedModelId) return;
-                  // Editing the ID retargets the model, so thinking resets;
-                  // returning to the saved ID restores the stored choice.
-                  setThinking(
-                    event.target.value.trim() === model.id.trim()
-                      ? (model.thinking ?? false)
-                      : false,
-                  );
                   setError(null);
                   if (!manual.current.context) setContext("");
                   if (!manual.current.output) setOutput("");

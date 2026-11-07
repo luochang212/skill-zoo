@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import {
   useSaveTranslationPreferences,
   useSkillProviders,
@@ -104,22 +103,6 @@ export function TranslationSettings({ onConfigureModels }: { onConfigureModels: 
           }}
         />
       )}
-      <div className="flex items-center justify-between gap-4 border-t border-border/40 pt-4">
-        <div className="space-y-1">
-          <label htmlFor={`${uid}-prefer-cache`} className="block text-xs font-medium">
-            {t("translation.preferCached")}
-          </label>
-          <p className="text-[11px] text-muted-foreground">{t("translation.preferCachedHint")}</p>
-        </div>
-        <Switch
-          id={`${uid}-prefer-cache`}
-          checked={prefs.data?.preferCachedTranslations ?? false}
-          disabled={!prefs.data || save.isPending}
-          onCheckedChange={(preferCachedTranslations) => {
-            if (prefs.data) save.mutate({ ...prefs.data, preferCachedTranslations });
-          }}
-        />
-      </div>
       <div className="flex items-center justify-between gap-4 border-t border-border/40 pt-4">
         <div className="space-y-1">
           <p className="text-xs font-medium">{t("translation.cacheTitle")}</p>

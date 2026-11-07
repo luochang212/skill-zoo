@@ -12,7 +12,6 @@ import { translationApi } from "@/lib/api/translation";
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/api/translation", () => ({
   translationApi: {
-    thinkingControl: vi.fn().mockResolvedValue("providerDefault"),
     providers: vi.fn(),
     providerApiKey: vi.fn(),
     preferences: vi.fn(),
@@ -60,21 +59,12 @@ beforeEach(async () => {
 const wrap = (element: React.ReactNode) =>
   render(<QueryClientProvider client={createTestQueryClient()}>{element}</QueryClientProvider>);
 describe("translation settings", () => {
-  it("saves the cache-display preference without changing the selected language or model", async () => {
-    const user = userEvent.setup();
+  it("offers language, model and cache controls without a translation-display switch", async () => {
     wrap(<TranslationSettings onConfigureModels={vi.fn()} />);
-    const toggle = screen.getByRole("switch", { name: "Prefer translations" });
-    await waitFor(() => expect(toggle).toBeEnabled());
-    expect(toggle).toHaveAttribute("aria-checked", "false");
-    await user.click(toggle);
-    await waitFor(() =>
-      expect(translationApi.savePreferences).toHaveBeenCalledWith({
-        providerId: "p",
-        modelId: "m",
-        targetLanguage: "ja",
-        preferCachedTranslations: true,
-      }),
-    );
+    await waitFor(() => expect(translationApi.preferences).toHaveBeenCalled());
+    expect(screen.queryByRole("switch", { name: "Prefer translations" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear" })).toBeInTheDocument();
+    expect(translationApi.savePreferences).not.toHaveBeenCalled();
     expect(translationApi.start).not.toHaveBeenCalled();
   });
   it("loads and edits the real saved key without a fixed mask", async () => {
@@ -797,10 +787,7 @@ describe("translation settings", () => {
       expect(translationApi.saveProvider).toHaveBeenCalledWith(
         expect.objectContaining({
           apiKey: "new-key",
-          models: [
-            provider.models[0],
-            { id: "new-model", enabled: true, maxOutputTokens: 4096, thinking: false },
-          ],
+          models: [provider.models[0], { id: "new-model", enabled: true, maxOutputTokens: 4096 }],
         }),
       ),
     );

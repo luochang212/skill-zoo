@@ -543,8 +543,7 @@ export const SkillContentPane = memo(function SkillContentPane({
     },
     {
       skillName,
-      preferCached:
-        preferences.data?.preferCachedTranslations === true &&
+      cacheEnabled:
         translationAvailable &&
         effectiveActiveTab === "overview" &&
         !contentLoading &&
@@ -556,7 +555,6 @@ export const SkillContentPane = memo(function SkillContentPane({
         provider?.protocol,
         provider?.baseUrl,
         model?.maxOutputTokens,
-        model?.thinking ?? false,
       ]),
     },
   );
