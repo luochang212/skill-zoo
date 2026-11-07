@@ -148,8 +148,7 @@
     "from": "来自",
     "agents": "编程工具",
     "skills": "技能",
-    "selectAll": "全选",
-    "installCount": "安装 ({{count}})"
+    "selectAll": "全选"
   },
   "error": {
     "title": "出错了",

@@ -49,16 +49,47 @@ describe("SkillInstallDialog", () => {
     const user = userEvent.setup();
     const { onOpenChange } = renderDialog(true);
 
-    const codexSwitch = screen.getByRole("switch", { name: "Toggle Codex" });
+    const codexCheckbox = screen.getByRole("checkbox", { name: "Toggle Codex" });
     const cancel = screen.getByRole("button", { name: "Cancel" });
     const install = screen.getByRole("button", { name: "Installing..." });
 
-    expect(codexSwitch).toBeDisabled();
+    expect(codexCheckbox).toBeDisabled();
     expect(cancel).toBeDisabled();
     expect(install).toBeDisabled();
 
     await user.click(cancel);
 
     expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("selects all agents via the select-all checkbox and installs with a plain label", async () => {
+    const user = userEvent.setup();
+    const { onInstall } = renderDialog(false);
+
+    // First visible agent is preselected; the master checkbox stays unchecked
+    // until every agent is selected.
+    const selectAll = screen.getByRole("checkbox", { name: "Select all" });
+    expect(selectAll).not.toBeChecked();
+
+    await user.click(selectAll);
+    expect(selectAll).toHaveAttribute("data-state", "checked");
+    expect(screen.getByRole("checkbox", { name: "Toggle Codex" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Toggle Claude Code" })).toBeChecked();
+
+    const install = screen.getByRole("button", { name: "Install" });
+    await user.click(install);
+    expect(onInstall).toHaveBeenCalledWith(["demo"], ["codex", "claude-code"]);
+  });
+
+  it("disables install when deselecting the last selected agent", async () => {
+    const user = userEvent.setup();
+    const { onInstall } = renderDialog(false);
+
+    const codex = screen.getByRole("checkbox", { name: "Toggle Codex" });
+    await user.click(codex);
+
+    const install = screen.getByRole("button", { name: "Install" });
+    expect(install).toBeDisabled();
+    expect(onInstall).not.toHaveBeenCalled();
   });
 });

@@ -9,8 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useAgentConfigs, getAgentLabel } from "@/lib/agents";
 import { useVisibleAgentOrder } from "@/hooks/useSettings";
 import type { DiscoverableSkill } from "@/types/skills";
@@ -68,6 +67,12 @@ export function SkillInstallDialog({
     });
   };
 
+  const allSelected = visibleAgentOrder.length > 0 && visibleAgentOrder.every((a) => agents.has(a));
+  const toggleAll = () => {
+    if (isPending) return;
+    setAgents(allSelected ? new Set() : new Set(visibleAgentOrder));
+  };
+
   const handleInstall = () => {
     if (isPending || agents.size === 0) return;
     onInstall(skillNames, Array.from(agents));
@@ -87,30 +92,42 @@ export function SkillInstallDialog({
             {t("installDialog.from")} {repoOwner}/{repoName} ({repoBranch ?? "default"})
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
-          <div>
-            <Label className="text-xs">{t("installDialog.agents")}</Label>
-            <div className="space-y-1 mt-1.5 -mx-2">
-              {visibleAgentOrder.map((agent) => (
-                <div
-                  key={agent}
-                  className="flex items-center justify-between px-3 py-2.5 rounded-md hover:bg-accent/50 transition-colors"
-                >
-                  <label className="text-sm font-medium cursor-pointer">
-                    {getAgentLabel(agent, agentConfigs ?? [])}
-                  </label>
-                  <Switch
-                    checked={agents.has(agent)}
-                    disabled={isPending}
-                    onCheckedChange={() => toggleAgent(agent)}
-                    aria-label={t("configureDialog.toggleAgent", {
-                      agent: getAgentLabel(agent, agentConfigs ?? []),
-                    })}
-                  />
-                </div>
-              ))}
-            </div>
+        <div className="space-y-1 -mx-2">
+          <div
+            className="flex items-center gap-2.5 px-3 py-2.5 rounded-md hover:bg-accent/50 transition-colors cursor-pointer"
+            onClick={toggleAll}
+          >
+            <Checkbox
+              checked={allSelected}
+              disabled={isPending}
+              onClick={(e) => e.stopPropagation()}
+              onCheckedChange={toggleAll}
+              aria-label={t("installDialog.selectAll")}
+            />
+            <label className="text-sm font-medium cursor-pointer">
+              {t("installDialog.selectAll")}
+            </label>
           </div>
+          {visibleAgentOrder.map((agent) => (
+            <div
+              key={agent}
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-md hover:bg-accent/50 transition-colors cursor-pointer"
+              onClick={() => toggleAgent(agent)}
+            >
+              <Checkbox
+                checked={agents.has(agent)}
+                disabled={isPending}
+                onClick={(e) => e.stopPropagation()}
+                onCheckedChange={() => toggleAgent(agent)}
+                aria-label={t("configureDialog.toggleAgent", {
+                  agent: getAgentLabel(agent, agentConfigs ?? []),
+                })}
+              />
+              <label className="text-sm font-medium cursor-pointer">
+                {getAgentLabel(agent, agentConfigs ?? [])}
+              </label>
+            </div>
+          ))}
         </div>
         <DialogFooter>
           <Button
@@ -127,9 +144,7 @@ export function SkillInstallDialog({
             onClick={handleInstall}
             disabled={agents.size === 0 || isPending}
           >
-            {isPending
-              ? t("common.installing")
-              : t("installDialog.installCount", { count: skillNames.length })}
+            {isPending ? t("common.installing") : t("common.install")}
           </Button>
         </DialogFooter>
       </DialogContent>

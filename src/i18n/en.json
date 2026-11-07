@@ -148,8 +148,7 @@
     "from": "From",
     "agents": "Coding Agents",
     "skills": "Skills",
-    "selectAll": "Select all",
-    "installCount": "Install ({{count}})"
+    "selectAll": "Select all"
   },
   "error": {
     "title": "Something went wrong",
