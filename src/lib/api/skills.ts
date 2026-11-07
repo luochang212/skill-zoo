@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  CatalogKind,
+  SkillCatalog,
   AgentPathInfo,
   AgentConfig,
   ArchivedSkill,
@@ -18,6 +20,8 @@ import type {
 } from "@/types/skills";
 
 export const skillsApi = {
+  getSkillCatalog: (kind: CatalogKind) => invoke<SkillCatalog>("get_skill_catalog", { kind }),
+
   listExternalImports: () => invoke<ExternalImportInfo[]>("list_external_imports"),
 
   scanExternalImportFolder: (path: string) =>

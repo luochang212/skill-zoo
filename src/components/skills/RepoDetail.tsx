@@ -22,13 +22,11 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SkillInstallDialog } from "@/components/skills/SkillInstallDialog";
-import { MarkdownContent } from "@/components/skills/MarkdownContent";
+import { SkillPreviewPanel } from "@/components/skills/SkillPreviewPanel";
 import { formatApiError } from "@/lib/api/errors";
 import type { DiscoverRepo, DiscoverableSkill } from "@/types/skills";
 import { BackButton } from "@/components/ui/BackButton";
 import { AlertTriangle, Star, GitFork, ExternalLink, Check, RotateCw, Loader } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -43,7 +41,7 @@ interface RepoDetailProps {
 
 export function RepoDetail({ repo, onBack }: RepoDetailProps) {
   const { t } = useTranslation();
-  const reduceMotion = useReducedMotion();
+
   const {
     data: skills,
     isLoading,
@@ -452,50 +450,23 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
         />
       )}
 
-      {/* Preview side panel */}
-      <AnimatePresence>
-        {previewSkill && (
-          <>
-            {/* Backdrop */}
-            <motion.div
-              className="absolute inset-0 bg-black/20 z-20"
-              initial={reduceMotion ? false : { opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: reduceMotion ? 0 : 0.2 }}
-              onClick={() => setPreviewSkill(null)}
-            />
-            {/* Panel */}
-            <motion.div
-              className="absolute top-0 right-0 h-full w-[45%] min-w-[400px] max-w-[600px] bg-background border-l border-border shadow-xl z-30 flex flex-col"
-              initial={reduceMotion ? false : { x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={
-                reduceMotion ? { duration: 0 } : { type: "spring", damping: 24, stiffness: 260 }
-              }
-            >
-              <ScrollArea className="flex-1 min-h-0">
-                <div className="px-5 py-4">
-                  {previewLoading ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader className="h-4 w-4 animate-spin" />
-                      <span>{t("loading")}</span>
-                    </div>
-                  ) : previewError ? (
-                    <div className="flex flex-col items-center justify-center gap-3 py-12">
-                      <AlertTriangle className="h-8 w-8 text-destructive/60" />
-                      <p className="text-sm text-muted-foreground">{t("error.generic")}</p>
-                    </div>
-                  ) : previewContent ? (
-                    <MarkdownContent content={previewContent} linksDisabled />
-                  ) : null}
-                </div>
-              </ScrollArea>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      <SkillPreviewPanel
+        open={!!previewSkill}
+        loading={previewLoading}
+        error={previewError ? null : undefined}
+        content={previewContent}
+        installStatus={
+          previewSkill
+            ? (skills?.skills.find((s) => s.key === previewSkill.key)?.installStatus ??
+              previewSkill.installStatus)
+            : undefined
+        }
+        installPending={installMutation.isPending}
+        onInstall={() => {
+          if (previewSkill) handleInstallSingle(previewSkill);
+        }}
+        onClose={() => setPreviewSkill(null)}
+      />
     </div>
   );
 }

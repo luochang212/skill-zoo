@@ -34,6 +34,8 @@ export interface ArchivedSkill extends InstalledSkill {
 export interface DiscoverableSkill {
   key: string;
   name: string;
+  /** SKILL.md frontmatter name; catalog slugs (skills.sh) refer to this. */
+  frontmatterName?: string;
   description?: string;
   directory: string;
   repoOwner: string;
@@ -248,4 +250,17 @@ export interface Banner {
   name?: string;
   branch?: string;
   hideText?: boolean;
+}
+
+export type CatalogKind = "popular" | "trending";
+export interface CatalogSkill {
+  source: string;
+  skillId: string;
+  name: string;
+  installs: number;
+}
+export interface SkillCatalog {
+  skills: CatalogSkill[];
+  fetchedAt: number;
+  stale: boolean;
 }

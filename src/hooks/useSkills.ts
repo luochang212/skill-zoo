@@ -453,6 +453,14 @@ export function useSkillPreview(
   });
 }
 
+export function useRepoSkillList(owner: string | null, name: string | null) {
+  return useQuery({
+    queryKey: ["repos", "skills", owner, name],
+    queryFn: () => skillsApi.getRepoSkills(owner!, name!),
+    enabled: !!owner && !!name,
+  });
+}
+
 // ── Discover (skills.sh) ──
 
 export function useSearchSkillsSh(query: string | null, limit?: number) {

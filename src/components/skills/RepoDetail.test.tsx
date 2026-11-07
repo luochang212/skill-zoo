@@ -197,3 +197,31 @@ describe("RepoDetail discover status", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("skill preview install", () => {
+  it("previews from the skill list and installs only after confirmation", async () => {
+    const user = userEvent.setup();
+    mocks.repoSkillsError = null;
+    mocks.repoSkillsFetching = false;
+    mocks.installMutate.mockReset();
+    renderDetail();
+    await user.click(await screen.findByRole("button", { name: "Available Skill" }));
+    expect(mocks.installMutate).not.toHaveBeenCalled();
+    // The preview panel's footer button is the only enabled "Install" — the
+    // toolbar's stays disabled until a skill is selected.
+    const panelInstall = screen
+      .getAllByRole("button", { name: "Install" })
+      .find((button) => !button.hasAttribute("disabled"));
+    expect(panelInstall).toBeTruthy();
+    await user.click(panelInstall!);
+    await user.click(screen.getByRole("button", { name: "Confirm install test" }));
+    expect(mocks.installMutate).toHaveBeenCalledWith(
+      {
+        repoUrl: "https://github.com/owner/repo/tree/main",
+        skillNames: [".agents/skills/available"],
+        agents: ["codex"],
+      },
+      expect.any(Object),
+    );
+  });
+});
