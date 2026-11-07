@@ -932,53 +932,18 @@ impl CliService {
     }
 
     /// Walk a directory tree and find every directory containing a SKILL.md.
-    fn discover_skills_in_tree(root: &PathBuf) -> Vec<(String, String, PathBuf)> {
-        let mut skills = Vec::new();
-        Self::scan_dir(root, root, &mut skills, 0);
-        skills
-    }
-
-    fn scan_dir(
-        dir: &PathBuf,
-        root: &PathBuf,
-        skills: &mut Vec<(String, String, PathBuf)>,
-        depth: usize,
-    ) {
-        if depth > 20 || !dir.is_dir() {
-            return;
-        }
-
-        let skill_md = dir.join("SKILL.md");
-        let is_repo_root = depth == 0 && dir == root;
-        let valid_root_skill = is_repo_root && SkillService::has_valid_repo_root_skill(&skill_md);
-        if skill_md.exists() && (!is_repo_root || valid_root_skill) {
-            let name = dir
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("unknown")
-                .to_string();
-            skills.push((name, String::new(), dir.clone()));
-            if valid_root_skill {
-                return;
-            }
-        }
-
-        let entries = match std::fs::read_dir(dir) {
-            Ok(e) => e,
-            Err(_) => return,
-        };
-
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if is_symlink_or_junction(&path) || !path.is_dir() {
-                continue;
-            }
-            let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            if crate::config::SKIP_DIRS.contains(&file_name) {
-                continue;
-            }
-            Self::scan_dir(&path, root, skills, depth + 1);
-        }
+    fn discover_skills_in_tree(root: &Path) -> Vec<(String, String, PathBuf)> {
+        SkillService::repo_skill_roots(root)
+            .into_iter()
+            .map(|path| {
+                let name = path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("unknown")
+                    .to_string();
+                (name, String::new(), path)
+            })
+            .collect()
     }
 
     /// Recursively copy directory contents, skipping hidden / VCS /

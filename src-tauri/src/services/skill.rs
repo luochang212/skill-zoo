@@ -1482,17 +1482,15 @@ impl SkillService {
                 )
             });
 
-            let mut skills = Vec::new();
             let root_dir = std::fs::read_dir(temp_dir.path())?
                 .flatten()
                 .find(|e| e.path().is_dir())
                 .map(|e| e.path());
             let Some(root_dir) = root_dir else {
-                return Ok(skills);
+                return Ok(Vec::new());
             };
             let root_dir = Self::normalize_extracted_repo_root(&root_dir, name)?;
-            Self::scan_for_skills(&root_dir, &root_dir, owner, name, 0, &mut skills)?;
-            Ok(skills)
+            Ok(Self::scan_for_skills(&root_dir, owner, name))
         }
         .await;
 
@@ -1507,70 +1505,77 @@ impl SkillService {
         result
     }
 
-    fn scan_for_skills(
-        dir: &PathBuf,
-        base_path: &PathBuf,
-        owner: &str,
-        repo: &str,
-        depth: usize,
-        skills: &mut Vec<DiscoverableSkill>,
-    ) -> Result<(), AppError> {
-        if !dir.is_dir() || depth > Self::MAX_SCAN_DEPTH {
-            return Ok(());
-        }
-        let skill_md = dir.join("SKILL.md");
-        let is_repo_root = depth == 0 && dir == base_path;
-        let valid_root_skill = is_repo_root && Self::has_valid_repo_root_skill(&skill_md);
-        if skill_md.exists() && (!is_repo_root || valid_root_skill) {
-            let dir_name = dir
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("unknown");
-            let (frontmatter_name, description) = match Self::parse_skill_md(&skill_md) {
-                Ok((name, description)) => (Some(name), description),
-                Err(_) => (None, None),
-            };
-            let rel = dir.strip_prefix(base_path).unwrap_or(dir);
-            // Normalize OS-native separators to forward slashes so the key is
-            // identical on Windows/macOS/Linux. Without this, `to_string_lossy`
-            // on Windows produces backslashes (e.g. "skills\self-learning"),
-            // which then fail to match against forward-slash-locked paths in
-            // `CliService::lock_skill_path`.
-            let key = if rel.as_os_str().is_empty() {
-                ".".to_string()
-            } else {
-                rel.to_string_lossy().replace('\\', "/")
-            };
-            skills.push(DiscoverableSkill {
-                key,
-                name: dir_name.to_string(),
-                frontmatter_name,
-                description,
-                directory: dir_name.to_string(),
-                repo_owner: owner.to_string(),
-                repo_name: repo.to_string(),
-                install_status: DiscoverableSkillInstallStatus::Available,
-                installed_skill_id: None,
-                installs: None,
-            });
-            if valid_root_skill {
-                return Ok(());
+    /// Repository candidate traversal shared by browsing and installation.
+    pub(crate) fn repo_skill_roots(root: &Path) -> Vec<PathBuf> {
+        fn visit(dir: &Path, depth: usize, skills: &mut Vec<PathBuf>) {
+            if depth > SkillService::MAX_SCAN_DEPTH || !dir.is_dir() {
+                return;
             }
-        }
-        if let Ok(entries) = std::fs::read_dir(dir) {
+            let skill_md = dir.join("SKILL.md");
+            let valid_root = depth == 0 && SkillService::has_valid_repo_root_skill(&skill_md);
+            if skill_md.exists() && (depth != 0 || valid_root) {
+                skills.push(dir.to_path_buf());
+                if valid_root {
+                    return;
+                }
+            }
+            let Ok(entries) = std::fs::read_dir(dir) else {
+                return;
+            };
             for entry in entries.flatten() {
                 let path = entry.path();
                 if is_symlink_or_junction(&path) || !path.is_dir() {
                     continue;
                 }
-                let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                if crate::config::SKIP_DIRS.contains(&file_name) {
-                    continue;
+                let name = path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("");
+                if !config::SKIP_DIRS.contains(&name) {
+                    visit(&path, depth + 1, skills);
                 }
-                Self::scan_for_skills(&path, base_path, owner, repo, depth + 1, skills)?;
             }
         }
-        Ok(())
+        let mut skills = Vec::new();
+        visit(root, 0, &mut skills);
+        skills
+    }
+
+    fn scan_for_skills(root: &Path, owner: &str, repo: &str) -> Vec<DiscoverableSkill> {
+        Self::repo_skill_roots(root)
+            .into_iter()
+            .map(|dir| {
+                let name = dir
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("unknown")
+                    .to_string();
+                let (frontmatter_name, description) =
+                    match Self::parse_skill_md(&dir.join("SKILL.md")) {
+                        Ok((name, description)) => (Some(name), description),
+                        Err(_) => (None, None),
+                    };
+                let relative = dir.strip_prefix(root).unwrap_or(&dir);
+                let key = if relative.as_os_str().is_empty() {
+                    ".".into()
+                } else {
+                    // Repository keys use forward slashes on every platform.
+                    relative.to_string_lossy().replace('\\', "/")
+                };
+                DiscoverableSkill {
+                    key,
+                    name: name.clone(),
+                    frontmatter_name,
+                    description,
+                    directory: name,
+                    repo_owner: owner.to_string(),
+                    repo_name: repo.to_string(),
+                    install_status: DiscoverableSkillInstallStatus::Available,
+                    installed_skill_id: None,
+                    installs: None,
+                }
+            })
+            .collect()
     }
 
     pub async fn discover_from_repo_capped(
@@ -2626,9 +2631,7 @@ mod tests {
         )
         .expect("write nested skill");
 
-        let mut skills = Vec::new();
-        SkillService::scan_for_skills(&repo_root, &repo_root, "owner", "repo", 0, &mut skills)
-            .expect("scan skills");
+        let skills = SkillService::scan_for_skills(&repo_root, "owner", "repo");
 
         assert_eq!(skills.len(), 1);
         assert_eq!(skills[0].key, "skills/child");
@@ -2651,9 +2654,7 @@ mod tests {
         std::os::unix::fs::symlink("../skills", agent_dir.join("skills"))
             .expect("create skills symlink");
 
-        let mut skills = Vec::new();
-        SkillService::scan_for_skills(&repo_root, &repo_root, "owner", "repo", 0, &mut skills)
-            .expect("scan skills");
+        let skills = SkillService::scan_for_skills(&repo_root, "owner", "repo");
 
         assert_eq!(skills.len(), 1);
         assert_eq!(skills[0].key, "skills/demo");
@@ -2673,16 +2674,7 @@ mod tests {
         let repo_root = SkillService::normalize_extracted_repo_root(&repo_root, "identity-skill")
             .expect("normalize repo root");
 
-        let mut skills = Vec::new();
-        SkillService::scan_for_skills(
-            &repo_root,
-            &repo_root,
-            "Sac-Y",
-            "identity-skill",
-            0,
-            &mut skills,
-        )
-        .expect("scan skills");
+        let skills = SkillService::scan_for_skills(&repo_root, "Sac-Y", "identity-skill");
 
         assert_eq!(skills.len(), 1);
         assert_eq!(skills[0].key, ".");
@@ -2708,16 +2700,7 @@ mod tests {
         let repo_root = SkillService::normalize_extracted_repo_root(repo.path(), "taste-skill")
             .expect("normalize repo root");
 
-        let mut skills = Vec::new();
-        SkillService::scan_for_skills(
-            &repo_root,
-            &repo_root,
-            "leonxlnx",
-            "taste-skill",
-            0,
-            &mut skills,
-        )
-        .expect("scan skills");
+        let skills = SkillService::scan_for_skills(&repo_root, "leonxlnx", "taste-skill");
 
         assert_eq!(skills.len(), 1);
         assert_eq!(skills[0].name, "taste-skill");
@@ -3788,5 +3771,35 @@ mod tests {
             );
             assert!(statuses.is_empty());
         });
+    }
+    #[test]
+    fn repository_candidates_preserve_skip_depth_and_nested_skill_rules() {
+        let tmp = tempfile::tempdir().unwrap();
+        for relative in [
+            ".system/demo",
+            ".system/demo/child",
+            "node_modules/ignored",
+            ".git/ignored",
+        ] {
+            let path = tmp.path().join(relative);
+            std::fs::create_dir_all(&path).unwrap();
+            std::fs::write(path.join("SKILL.md"), "# skill").unwrap();
+        }
+        let mut deep = tmp.path().to_path_buf();
+        for _ in 0..20 {
+            deep.push("level");
+        }
+        std::fs::create_dir_all(deep.join("too-deep")).unwrap();
+        std::fs::write(deep.join("SKILL.md"), "# boundary").unwrap();
+        std::fs::write(deep.join("too-deep/SKILL.md"), "# excluded").unwrap();
+        let mut roots = SkillService::repo_skill_roots(tmp.path());
+        roots.sort();
+        let mut expected = vec![
+            tmp.path().join(".system/demo"),
+            tmp.path().join(".system/demo/child"),
+            deep,
+        ];
+        expected.sort();
+        assert_eq!(roots, expected);
     }
 }

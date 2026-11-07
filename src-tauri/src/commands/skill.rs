@@ -468,7 +468,17 @@ pub async fn import_external_skills(
     selections: Vec<ExternalImportSelection>,
     agents: Vec<String>,
 ) -> Result<Vec<InstalledSkill>, String> {
+    import_external_skills_for_state(&state, selections, agents).await
+}
+
+async fn import_external_skills_for_state(
+    state: &AppState,
+    selections: Vec<ExternalImportSelection>,
+    agents: Vec<String>,
+) -> Result<Vec<InstalledSkill>, String> {
+    let _update = state.update_exit.start_update();
     let _agent_lease = state.acquire_local_lease().map_err(|e| e.to_string())?;
+    let _refresh = state.cache_refresh_lock.lock().await;
     if selections.is_empty() {
         return Err("No external skills selected".into());
     }
@@ -485,14 +495,23 @@ pub async fn import_external_skills(
     }
 
     let now = chrono::Utc::now().timestamp();
+    let previous_imports = imports.clone();
     let mut prepared = Vec::new();
+    let mut sources = HashSet::new();
+    let mut link_names = HashSet::new();
     for selection in &selections {
         validate_skill_directory(&selection.directory)?;
         let source_path = PathBuf::from(&selection.source_path)
             .canonicalize()
             .map_err(|e| format!("Invalid source path {}: {e}", selection.source_path))?;
         assert_external_source_path(&source_path)?;
-        if !source_path.join("SKILL.md").exists() {
+        if !sources.insert(source_path.clone()) {
+            return Err("The same external source was selected more than once".into());
+        }
+        if !link_names.insert(SkillService::agent_link_name(&selection.directory).to_string()) {
+            return Err("Selected external skills require the same agent link name".into());
+        }
+        if !source_path.join("SKILL.md").is_file() {
             return Err(format!("SKILL.md not found: {}", source_path.display()));
         }
         for agent in &agents {
@@ -502,8 +521,6 @@ pub async fn import_external_skills(
     }
 
     let mut imported_ids = Vec::new();
-    let mut new_import_ids = Vec::new();
-    let mut updated_imports: Vec<ExternalImportEntry> = Vec::new();
     let mut renamed_imports: Vec<(String, String)> = Vec::new();
     for (selection, source_path) in &prepared {
         let existing_id = imports.imports.values().find_map(|import| {
@@ -517,14 +534,9 @@ pub async fn import_external_skills(
             existing_id.unwrap_or_else(|| make_external_import_id(source_path, &imports));
         match imports.imports.get_mut(&import_id) {
             Some(import) => {
-                let original_import = import.clone();
                 if import.directory != selection.directory {
-                    renamed_imports.push((
-                        original_import.directory.clone(),
-                        original_import.source_path.clone(),
-                    ));
+                    renamed_imports.push((import.directory.clone(), import.source_path.clone()));
                 }
-                updated_imports.push(original_import);
                 import.source_path = strip_verbatim_prefix(source_path.display().to_string());
                 import.directory = selection.directory.clone();
                 import.updated_at = now;
@@ -540,7 +552,6 @@ pub async fn import_external_skills(
                         updated_at: now,
                     },
                 );
-                new_import_ids.push(import_id.clone());
             }
         }
         imported_ids.push(import_id);
@@ -548,6 +559,27 @@ pub async fn import_external_skills(
 
     imports.save().map_err(|e| e.to_string())?;
 
+    let rollback = |message: String, created_links: &[(String, PathBuf, String)]| {
+        let mut errors = Vec::new();
+        for (directory, source_path, agent) in created_links.iter().rev() {
+            if let Err(e) = SkillService::toggle_symlink(
+                directory,
+                &source_path.to_string_lossy(),
+                agent,
+                false,
+            ) {
+                errors.push(format!("remove new import link: {e}"));
+            }
+        }
+        if let Err(e) = previous_imports.save() {
+            errors.push(format!("restore imports: {e}"));
+        }
+        if errors.is_empty() {
+            message
+        } else {
+            format!("{message}. Recovery incomplete: {}", errors.join("; "))
+        }
+    };
     let mut created_links: Vec<(String, PathBuf, String)> = Vec::new();
     for (selection, source_path) in &prepared {
         for agent in &agents {
@@ -567,22 +599,7 @@ pub async fn import_external_skills(
                 agent,
                 true,
             ) {
-                for (directory, source_path, agent) in created_links.iter().rev() {
-                    let _ = SkillService::toggle_symlink(
-                        directory,
-                        &source_path.to_string_lossy(),
-                        agent,
-                        false,
-                    );
-                }
-                for import_id in &new_import_ids {
-                    imports.imports.remove(import_id);
-                }
-                for import in &updated_imports {
-                    imports.imports.insert(import.id.clone(), import.clone());
-                }
-                let _ = imports.save();
-                return Err(e.to_string());
+                return Err(rollback(e.to_string(), &created_links));
             }
             if !preexisting {
                 created_links.push((
@@ -593,6 +610,15 @@ pub async fn import_external_skills(
             }
         }
     }
+
+    let entries = imported_ids
+        .iter()
+        .map(|id| SkillService::scan_external_import(&imports.imports[id]))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| rollback(e.to_string(), &created_links))?;
+    // Commit the derived cache once, before retiring any previous links.
+    SkillService::upsert_cache_entries(&state.skill_cache, entries)
+        .map_err(|e| rollback(e.to_string(), &created_links))?;
 
     for (old_directory, old_source) in &renamed_imports {
         let _ = remove_external_import_links_for_target(old_directory, &PathBuf::from(old_source));
@@ -606,21 +632,13 @@ pub async fn import_external_skills(
         );
     }
 
-    for import_id in &imported_ids {
-        if let Some(import) = imports.imports.get(import_id) {
-            if let Ok(entry) = SkillService::scan_external_import(import) {
-                let _ = SkillService::upsert_cache_entry(&state.skill_cache, entry);
-            }
-        }
-    }
-
     // Start watching external source directories so file changes
     // trigger incremental cache refreshes automatically.
     {
         let mut seen = std::collections::HashSet::new();
         for (_, source_path) in &prepared {
             if seen.insert(source_path) {
-                crate::services::watcher::watch_external_path(&state, source_path);
+                crate::services::watcher::watch_external_path(state, source_path);
             }
         }
     }
@@ -3307,5 +3325,139 @@ mod tests {
             strip_verbatim_prefix("\\\\?\\UNC\\server\\share\\skills\\demo".into()),
             "\\\\server\\share\\skills\\demo"
         );
+    }
+    #[test]
+    fn external_import_failures_preserve_sources_and_registry() {
+        for duplicate in [true, false] {
+            let tmp = tempfile::tempdir().unwrap();
+            config::with_test_home(tmp.path(), || {
+                let source = tmp.path().join("private/demo");
+                std::fs::create_dir_all(&source).unwrap();
+                std::fs::write(source.join("SKILL.md"), "# private").unwrap();
+                let root = config::get_agent_skills_dir("codex").unwrap();
+                std::fs::create_dir_all(&root).unwrap();
+                let state = AppState::new(
+                    SkillCache::empty(),
+                    crate::persistence::MetadataStore {
+                        entries: Default::default(),
+                    },
+                    crate::persistence::Settings {
+                        values: Default::default(),
+                    },
+                );
+                let mut selections = vec![ExternalImportSelection {
+                    source_path: source.to_string_lossy().into_owned(),
+                    directory: "demo".into(),
+                }];
+                if duplicate {
+                    selections.push(ExternalImportSelection {
+                        source_path: source.to_string_lossy().into_owned(),
+                        directory: "alias".into(),
+                    });
+                } else {
+                    std::fs::create_dir_all(
+                        config::get_app_config_dir().join("skills-cache.json.tmp"),
+                    )
+                    .unwrap();
+                }
+                let result = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap()
+                    .block_on(import_external_skills_for_state(
+                        &state,
+                        selections,
+                        vec!["codex".into()],
+                    ));
+                assert!(
+                    result.is_err(),
+                    "duplicate={duplicate}: operation must fail"
+                );
+                assert!(ExternalImports::load().unwrap().imports.is_empty());
+                assert!(!is_symlink_or_junction(&root.join("demo")));
+                assert!(!is_symlink_or_junction(&root.join("alias")));
+                assert!(state.skill_cache.read().unwrap().skills().is_empty());
+                assert_eq!(
+                    std::fs::read_to_string(source.join("SKILL.md")).unwrap(),
+                    "# private"
+                );
+            });
+        }
+    }
+    #[test]
+    fn external_import_commit_preserves_preexisting_links_on_failure() {
+        for fail_cache in [true, false] {
+            let tmp = tempfile::tempdir().unwrap();
+            config::with_test_home(tmp.path(), || {
+                let source = tmp.path().join("private/demo");
+                std::fs::create_dir_all(&source).unwrap();
+                std::fs::write(source.join("SKILL.md"), "# private").unwrap();
+                let root = config::get_agent_skills_dir("codex").unwrap();
+                std::fs::create_dir_all(&root).unwrap();
+                SkillService::toggle_symlink("demo", &source.to_string_lossy(), "codex", true)
+                    .unwrap();
+                let mut previous = ExternalImports::default();
+                previous.imports.insert(
+                    "external:existing".into(),
+                    ExternalImportEntry {
+                        id: "external:existing".into(),
+                        source_path: source.to_string_lossy().into_owned(),
+                        directory: "demo".into(),
+                        imported_at: 1,
+                        updated_at: 1,
+                    },
+                );
+                previous.save().unwrap();
+                let state = AppState::new(
+                    SkillCache::empty(),
+                    crate::persistence::MetadataStore {
+                        entries: Default::default(),
+                    },
+                    crate::persistence::Settings {
+                        values: Default::default(),
+                    },
+                );
+                if fail_cache {
+                    std::fs::create_dir_all(
+                        config::get_app_config_dir().join("skills-cache.json.tmp"),
+                    )
+                    .unwrap();
+                }
+                let result = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap()
+                    .block_on(import_external_skills_for_state(
+                        &state,
+                        vec![ExternalImportSelection {
+                            source_path: source.to_string_lossy().into_owned(),
+                            directory: "demo".into(),
+                        }],
+                        vec!["codex".into()],
+                    ));
+                if fail_cache {
+                    assert!(result.is_err());
+                    assert_eq!(ExternalImports::load().unwrap(), previous);
+                    assert!(state.skill_cache.read().unwrap().skills().is_empty());
+                } else {
+                    let skills = result.unwrap();
+                    assert!(
+                        skills
+                            .iter()
+                            .any(|skill| skill.id == "external:existing"
+                                && skill.origin == "external")
+                    );
+                    assert_eq!(
+                        ExternalImports::load().unwrap().imports["external:existing"].imported_at,
+                        1
+                    );
+                }
+                assert!(link_points_to_import_source(&root.join("demo"), &source));
+                assert_eq!(
+                    std::fs::read_to_string(source.join("SKILL.md")).unwrap(),
+                    "# private"
+                );
+            });
+        }
     }
 }
