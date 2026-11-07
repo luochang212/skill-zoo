@@ -479,6 +479,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
         }
         content={panelContent}
         installStatus={previewSkill?.installStatus}
+        installLoading={!!previewTarget && !previewRepoSkills}
         installPending={installMutation.isPending}
         onInstall={() => {
           if (previewSkill) setInstallSkill(previewSkill);

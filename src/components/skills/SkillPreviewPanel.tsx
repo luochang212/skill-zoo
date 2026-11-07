@@ -16,6 +16,8 @@ interface SkillPreviewPanelProps {
   content: string | undefined;
   /** Present when the panel offers installation; the footer is hidden otherwise. */
   installStatus?: DiscoverableSkill["installStatus"];
+  /** Gray placeholder footer while the install status is still resolving. */
+  installLoading?: boolean;
   installPending?: boolean;
   onInstall?: () => void;
   /** Shown under a resolution error so the user can pick a skill manually. */
@@ -34,6 +36,7 @@ export function SkillPreviewPanel({
   error,
   content,
   installStatus,
+  installLoading = false,
   installPending = false,
   onInstall,
   fallbackSkills,
@@ -112,7 +115,9 @@ export function SkillPreviewPanel({
                 ) : null}
               </div>
             </ScrollArea>
-            {installStatus && (
+            {/* While loading, keep the footer present but gray so the button
+                never pops in after the content resolves. */}
+            {(installStatus !== undefined || installLoading) && (
               <div className="border-t border-border px-5 py-3">
                 <Button
                   className="w-full"

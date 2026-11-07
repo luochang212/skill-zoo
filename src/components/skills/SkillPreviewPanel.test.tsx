@@ -17,6 +17,13 @@ describe("skill preview panel install", () => {
     rerender(<SkillPreviewPanel {...base} installStatus="available" onInstall={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Install" })).toBeEnabled();
   });
+  it("keeps a gray install footer while the status is still loading", () => {
+    const { rerender } = render(<SkillPreviewPanel {...base} loading installLoading />);
+    const install = screen.getByRole("button", { name: "Install" });
+    expect(install).toBeDisabled();
+    rerender(<SkillPreviewPanel {...base} installStatus="available" onInstall={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Install" })).toBeEnabled();
+  });
   it("disables with a short label when installed or conflicting", () => {
     const { rerender } = render(<SkillPreviewPanel {...base} installStatus="installed" />);
     expect(screen.getByRole("button", { name: "Installed" })).toBeDisabled();
