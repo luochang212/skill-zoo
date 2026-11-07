@@ -3,3 +3,5 @@ pub mod settings;
 pub mod skill;
 
 pub mod translation;
+
+pub mod discovery;

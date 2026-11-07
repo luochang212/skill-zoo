@@ -3249,6 +3249,7 @@ pub async fn search_skills_sh(
         skills.push(DiscoverableSkill {
             key: s.id.clone(),
             name: s.name,
+            frontmatter_name: None,
             description: None,
             directory,
             repo_owner: owner.to_string(),

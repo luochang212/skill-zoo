@@ -164,6 +164,7 @@ pub fn run() {
             commands::agents::remove_custom_agent,
             commands::skill::get_banners,
             commands::skill::get_recommended_repos,
+            commands::discovery::get_skill_catalog,
             commands::skill::search_repo,
             commands::skill::get_repo_metadata,
             commands::skill::get_repo_readme,

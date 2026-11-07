@@ -135,6 +135,10 @@ impl StagedAgentSymlinkRemoval {
 pub struct DiscoverableSkill {
     pub key: String,
     pub name: String,
+    /// SKILL.md frontmatter name when it differs from the directory name;
+    /// catalog slugs (skills.sh) refer to this, not the folder name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub frontmatter_name: Option<String>,
     pub description: Option<String>,
     pub directory: String,
     pub repo_owner: String,
@@ -1524,8 +1528,10 @@ impl SkillService {
                 .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or("unknown");
-            let (_, description) =
-                Self::parse_skill_md(&skill_md).unwrap_or((dir_name.to_string(), None));
+            let (frontmatter_name, description) = match Self::parse_skill_md(&skill_md) {
+                Ok((name, description)) => (Some(name), description),
+                Err(_) => (None, None),
+            };
             let rel = dir.strip_prefix(base_path).unwrap_or(dir);
             // Normalize OS-native separators to forward slashes so the key is
             // identical on Windows/macOS/Linux. Without this, `to_string_lossy`
@@ -1540,6 +1546,7 @@ impl SkillService {
             skills.push(DiscoverableSkill {
                 key,
                 name: dir_name.to_string(),
+                frontmatter_name,
                 description,
                 directory: dir_name.to_string(),
                 repo_owner: owner.to_string(),
@@ -2919,6 +2926,45 @@ mod tests {
 
         assert_eq!(skills.len(), 1);
         assert_eq!(skills[0].key, ".");
+        // The catalog slug (skills.sh) is the frontmatter name, which may
+        // differ from the directory name.
+        assert_eq!(
+            skills[0].frontmatter_name.as_deref(),
+            Some("identity-skill")
+        );
+    }
+
+    #[test]
+    fn repo_discovery_carries_frontmatter_name_when_it_differs_from_directory() {
+        let repo = tempfile::tempdir().expect("tempdir");
+        let skill_dir = repo.path().join("skills").join("taste-skill");
+        std::fs::create_dir_all(&skill_dir).expect("create skill dir");
+        std::fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: design-taste-frontend\ndescription: Demo\n---\n",
+        )
+        .expect("write skill");
+
+        let repo_root = SkillService::normalize_extracted_repo_root(repo.path(), "taste-skill")
+            .expect("normalize repo root");
+
+        let mut skills = Vec::new();
+        SkillService::scan_for_skills(
+            &repo_root,
+            &repo_root,
+            "leonxlnx",
+            "taste-skill",
+            0,
+            &mut skills,
+        )
+        .expect("scan skills");
+
+        assert_eq!(skills.len(), 1);
+        assert_eq!(skills[0].name, "taste-skill");
+        assert_eq!(
+            skills[0].frontmatter_name.as_deref(),
+            Some("design-taste-frontend")
+        );
     }
 
     #[test]
