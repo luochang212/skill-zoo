@@ -616,7 +616,6 @@ impl SkillService {
     }
 
     /// Construct the canonical skill ID string used across cache and duplicate detection.
-    /// Must match the logic in `scan_single_skill`.
     /// Identity is anchored to the installation directory; provenance must not
     /// leak into the ID, or metadata detaches when the source drifts.
     fn make_skill_id(origin: &str, dir: &str, agent_id: Option<&str>) -> String {
@@ -835,11 +834,7 @@ impl SkillService {
             )));
         }
 
-        let mut current = cache
-            .write()
-            .map_err(|e| AppError::Parse(format!("Cache lock: {e}")))?;
-        commit_cache_entries(&mut current, entries, SkillCache::save)?;
-        drop(current);
+        Self::upsert_cache_entries(cache, entries)?;
 
         Self::reload_metadata(metadata)?;
         Self::read_all_skills(cache, metadata)
@@ -1693,84 +1688,23 @@ impl SkillService {
     /// Looks in SSOT first, then agent directories, to handle both origins.
     pub fn scan_single_skill(skill_dir: &str) -> Result<SkillCacheEntry, AppError> {
         let origin = Self::detect_origin(skill_dir);
-        let home_path = Self::detect_home_path(skill_dir, origin);
-
-        let skill_md = home_path
-            .as_ref()
-            .map(|p| std::path::PathBuf::from(p).join("SKILL.md"))
-            .unwrap_or_else(|| {
-                config::get_agents_skills_dir()
-                    .join(skill_dir)
-                    .join("SKILL.md")
-            });
-
-        if !skill_md.exists() {
-            return Err(AppError::NotFound(format!(
-                "SKILL.md not found for skill: {skill_dir}"
-            )));
-        }
-
-        let lock_data: Option<SkillLock> = SkillLock::read().ok();
-        let lock_entry = lock_data
-            .as_ref()
-            .and_then(|lock| lock.skills.get(skill_dir));
-
-        let (repo_owner, repo_name, source_url) = lock_entry
-            .map(|e| e.to_repo_info())
-            .unwrap_or((None, None, None));
-
-        let (parsed_name, description) =
-            Self::parse_skill_md(&skill_md).unwrap_or((skill_dir.to_string(), None));
-        // Use Path::file_name for platform-agnostic leaf extraction
-        // (backslashes on Windows would defeat a simple rsplit on '/').
-        let name = std::path::Path::new(skill_dir)
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or(skill_dir)
-            .to_string();
-        let yaml_name = if parsed_name == name {
-            None
+        let home_path = Self::detect_home_path(skill_dir, origin).ok_or_else(|| {
+            AppError::NotFound(format!("SKILL.md not found for skill: {skill_dir}"))
+        })?;
+        let home_agent = Self::detect_home_agent(&Some(home_path.clone()), origin);
+        let scan_root = if origin == "ssot" {
+            config::get_agents_skills_dir()
         } else {
-            Some(parsed_name)
+            home_agent
+                .as_deref()
+                .and_then(config::get_agent_skills_dir)
+                .ok_or_else(|| {
+                    AppError::NotFound(format!(
+                        "Skill directory '{skill_dir}' cannot be attributed to the SSOT store or an agent directory"
+                    ))
+                })?
         };
-
-        let content_hash = home_path
-            .as_ref()
-            .and_then(|p| Self::compute_content_hash(p));
-        let home_agent = Self::detect_home_agent(&home_path, origin);
-        // A directory that is neither a real SSOT directory nor attributable
-        // to an agent directory (for example a symlink planted at the SSOT
-        // location) has no stable identity. Report it so callers skip the
-        // skill instead of panicking mid-command.
-        if origin != "ssot" && home_agent.is_none() {
-            return Err(AppError::NotFound(format!(
-                "Skill directory '{skill_dir}' cannot be attributed to the SSOT store or an agent directory"
-            )));
-        }
-        let now = chrono::Utc::now().timestamp();
-        let (installed_at, updated_at) =
-            Self::resolve_timestamps(lock_entry, home_path.as_deref().unwrap_or(skill_dir), now);
-        let id = Self::make_skill_id(origin, skill_dir, home_agent.as_deref());
-        let apps = Self::detect_agents(skill_dir, &home_path);
-
-        Ok(SkillCacheEntry {
-            id,
-            name,
-            yaml_name,
-            description,
-            directory: skill_dir.to_string(),
-            repo_owner,
-            repo_name,
-            source_url,
-            origin: origin.to_string(),
-            home_path,
-            content_hash,
-            home_agent,
-            apps,
-            plugin_source: None,
-            installed_at,
-            updated_at,
-        })
+        Self::scan_skill_root(Path::new(&home_path), &scan_root, home_agent.as_deref())
     }
 
     /// Scan concrete skill roots without guessing by directory name.
@@ -1997,11 +1931,18 @@ impl SkillService {
         cache: &RwLock<SkillCache>,
         entry: SkillCacheEntry,
     ) -> Result<(), AppError> {
-        let mut c = cache
+        Self::upsert_cache_entries(cache, vec![entry])
+    }
+
+    /// Commit an incremental batch once, restoring memory if persistence fails.
+    pub fn upsert_cache_entries(
+        cache: &RwLock<SkillCache>,
+        entries: Vec<SkillCacheEntry>,
+    ) -> Result<(), AppError> {
+        let mut current = cache
             .write()
             .map_err(|e| AppError::Parse(format!("Cache lock: {e}")))?;
-        c.upsert(entry);
-        c.save()
+        commit_cache_entries(&mut current, entries, SkillCache::save)
     }
 
     /// Remove a cache entry by skill_id and persist.
@@ -2786,6 +2727,56 @@ mod tests {
     }
     use super::*;
     use crate::services::lock::SUPPORTED_LOCK_VERSION;
+
+    #[test]
+    fn single_and_root_scans_agree_for_nested_skills() {
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            let mut lock = SkillLock::read().unwrap();
+            lock.skills
+                .insert("demo".into(), test_lock_entry("owner/repo", "skills/demo"));
+            lock.write().unwrap();
+            for (agent, scan_root) in [
+                (
+                    Some("codex"),
+                    config::get_agent_skills_dir("codex").unwrap(),
+                ),
+                (None, config::get_agents_skills_dir()),
+            ] {
+                let root = scan_root.join("category/demo");
+                std::fs::create_dir_all(&root).unwrap();
+                for content in [b"---\nname: demo\n---\n".as_slice(), &[0xff]] {
+                    std::fs::write(root.join("SKILL.md"), content).unwrap();
+                    let single = SkillService::scan_single_skill("category/demo").unwrap();
+                    let concrete = SkillService::scan_skill_root(&root, &scan_root, agent).unwrap();
+                    assert_eq!(single.id, concrete.id);
+                    assert_eq!(single.origin, concrete.origin);
+                    assert_eq!(single.home_agent, concrete.home_agent);
+                    assert_eq!(single.repo_owner, concrete.repo_owner);
+                    assert_eq!(single.yaml_name, concrete.yaml_name);
+                    assert_eq!(single.content_hash, concrete.content_hash);
+                }
+            }
+        });
+    }
+
+    #[test]
+    fn cache_upsert_preserves_memory_and_disk_when_save_fails() {
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            let original = test_cache_entry("ssot:original", "original", "owner", "repo");
+            let cache = RwLock::new(SkillCache::from_entries(vec![original]));
+            let cache_path = config::get_app_config_dir().join("skills-cache.json");
+            std::fs::create_dir_all(&cache_path).unwrap();
+            let added = test_cache_entry("ssot:added", "added", "owner", "repo");
+
+            assert!(SkillService::upsert_cache_entry(&cache, added).is_err());
+            assert!(cache_path.is_dir());
+            let current = cache.read().unwrap();
+            assert!(current.find_by_id("ssot:original").is_some());
+            assert!(current.find_by_id("ssot:added").is_none());
+        });
+    }
 
     #[test]
     fn repo_root_normalization_uses_safe_skill_name() {
