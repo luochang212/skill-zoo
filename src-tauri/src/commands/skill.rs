@@ -1054,13 +1054,23 @@ pub async fn update_skill(
         return Err(CommandError::generic(result.errors.join("; ")));
     }
 
-    let entry = SkillService::scan_single_skill(&skill.directory)
-        .map_err(|e| CommandError::generic(e.to_string()))?;
-    SkillService::upsert_cache_entry(&state.skill_cache, entry)
-        .map_err(|e| CommandError::generic(e.to_string()))?;
-
-    let skills = SkillService::read_all_skills(&state.skill_cache, &state.metadata)
-        .map_err(|e| CommandError::generic(e.to_string()))?;
+    let skills = match SkillService::refresh_installed_skills(
+        &state.skill_cache,
+        &state.metadata,
+        &state.cache_refresh_lock,
+        result.updated.clone(),
+    )
+    .await
+    {
+        Ok(skills) => skills,
+        Err(e) => {
+            let message = e.to_string();
+            let result =
+                update_result_with_added_error(result, format!("{}: {message}", skill.directory));
+            record_update_history_with_started_at(started_at, "single", requested_skills, &result);
+            return Err(CommandError::generic(message));
+        }
+    };
 
     match skills.into_iter().find(|s| s.id == skill_id) {
         Some(skill) => {
@@ -1147,16 +1157,14 @@ pub async fn update_all_skills(
     };
     let update_result = update_result_with_error_count(update_result);
 
-    let dirs: Vec<String> = {
-        let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
-        cache.iter().map(|s| s.directory.clone()).collect()
-    };
-    let (entries, _failed) = SkillService::scan_skills_batch(&dirs);
-    for entry in entries {
-        let _ = SkillService::upsert_cache_entry(&state.skill_cache, entry);
-    }
-
-    let skills = match SkillService::read_all_skills(&state.skill_cache, &state.metadata) {
+    let skills = match SkillService::refresh_installed_skills(
+        &state.skill_cache,
+        &state.metadata,
+        &state.cache_refresh_lock,
+        update_result.updated.clone(),
+    )
+    .await
+    {
         Ok(skills) => skills,
         Err(e) => {
             let message = e.to_string();
@@ -1630,15 +1638,13 @@ pub(crate) fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<
         .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
     assert_skill_archiveable(&skill)?;
 
-    let is_external = skill.origin == "external";
-
     let home_path = skill
         .home_path
         .clone()
         .ok_or_else(|| "Skill has no physical home path, cannot archive".to_string())?;
     let home = std::path::PathBuf::from(&home_path);
 
-    if !is_external && (!home.exists() || is_symlink_or_junction(&home)) {
+    if !home.exists() || is_symlink_or_junction(&home) {
         return Err(format!(
             "Skill home path is not an archiveable directory: {home_path}"
         ));
@@ -1687,15 +1693,7 @@ pub(crate) fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<
         .insert(archive_id.clone(), archived_skill.clone());
     manifest.save().map_err(|e| e.to_string())?;
 
-    if is_external {
-        std::fs::create_dir_all(&archive_dir).map_err(|e| {
-            format_archive_io_error(
-                "Create archive directory for external import",
-                &archive_dir,
-                &e,
-            )
-        })?;
-    } else if let Some(parent) = archive_dir.parent() {
+    if let Some(parent) = archive_dir.parent() {
         if let Err(e) = std::fs::create_dir_all(parent) {
             if let Err(restore_error) = old_manifest.save() {
                 log_archive_rollback_error(
@@ -1713,7 +1711,7 @@ pub(crate) fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<
 
     let mut removed_agents: Vec<String> = Vec::new();
     let rollback = |message: String, removed_agents: &[String]| -> String {
-        if !is_external && archive_dir.exists() && !home.exists() {
+        if archive_dir.exists() && !home.exists() {
             if let Some(parent) = home.parent() {
                 if let Err(e) = std::fs::create_dir_all(parent) {
                     log_archive_rollback_error("recreate skill parent", e);
@@ -1763,13 +1761,11 @@ pub(crate) fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<
         }
     }
 
-    if !is_external {
-        if let Err(e) = std::fs::rename(&home, &archive_dir) {
-            return Err(rollback(
-                format_archive_io_error("Move skill into archive", &archive_dir, &e),
-                &removed_agents,
-            ));
-        }
+    if let Err(e) = std::fs::rename(&home, &archive_dir) {
+        return Err(rollback(
+            format_archive_io_error("Move skill into archive", &archive_dir, &e),
+            &removed_agents,
+        ));
     }
 
     {
@@ -1800,14 +1796,12 @@ pub(crate) fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<
         }
     }
 
-    if !is_external {
-        if let Some(key) = lock_key {
-            if let Err(e) = SkillLock::update(|lock| {
-                lock.skills.remove(&key);
-                Ok::<(), AppError>(())
-            }) {
-                return Err(rollback(e.to_string(), &removed_agents));
-            }
+    if let Some(key) = lock_key {
+        if let Err(e) = SkillLock::update(|lock| {
+            lock.skills.remove(&key);
+            Ok::<(), AppError>(())
+        }) {
+            return Err(rollback(e.to_string(), &removed_agents));
         }
     }
 
@@ -3906,6 +3900,46 @@ mod tests {
         let err = assert_skill_archiveable(&skill).expect_err("external import should not archive");
 
         assert!(err.contains("External imports cannot be archived"));
+    }
+
+    #[test]
+    fn archive_rejects_external_import_before_touching_files_or_stores() {
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            let source = tmp.path().join("private/demo");
+            std::fs::create_dir_all(&source).unwrap();
+            std::fs::write(source.join("SKILL.md"), "# Private skill").unwrap();
+            let entry = test_cache_entry_with_home(
+                "external:demo",
+                "demo",
+                "external",
+                Some(source.to_string_lossy().into_owned()),
+            );
+            let state = AppState::new(
+                SkillCache::from_entries(vec![entry]),
+                crate::persistence::MetadataStore {
+                    entries: Default::default(),
+                },
+                crate::persistence::Settings {
+                    values: Default::default(),
+                },
+            );
+            let result = archive_skill_inner(&state, "external:demo".into());
+            assert!(result
+                .unwrap_err()
+                .contains("External imports cannot be archived"));
+            assert_eq!(
+                std::fs::read_to_string(source.join("SKILL.md")).unwrap(),
+                "# Private skill"
+            );
+            assert!(!config::get_app_config_dir().exists());
+            assert!(state
+                .skill_cache
+                .read()
+                .unwrap()
+                .find_by_id("external:demo")
+                .is_some());
+        });
     }
 
     #[cfg(unix)]

@@ -313,7 +313,11 @@ async fn trigger_refresh(app_handle: &tauri::AppHandle, events: Vec<Event>) {
             trigger_rebuild(app_handle, events.len(), started).await;
         }
         RefreshPlan::Incremental(skill_roots) => {
-            if trigger_incremental_refresh(app_handle, &skill_roots).await {
+            let state = app_handle.state::<AppState>();
+            if let Err(e) = trigger_incremental_refresh(&state, &skill_roots).await {
+                eprintln!("Watcher incremental refresh failed, falling back to full rebuild: {e}");
+                trigger_rebuild(app_handle, events.len(), started).await;
+            } else {
                 let _ = app_handle.emit("skills-changed", ());
                 eprintln!(
                     "Watcher refresh incremental: {} event(s), {} skill(s), {:?}",
@@ -321,18 +325,16 @@ async fn trigger_refresh(app_handle: &tauri::AppHandle, events: Vec<Event>) {
                     skill_roots.len(),
                     started.elapsed()
                 );
-            } else {
-                trigger_rebuild(app_handle, events.len(), started).await;
             }
         }
     }
 }
 
 async fn trigger_incremental_refresh(
-    app_handle: &tauri::AppHandle,
+    state: &AppState,
     skill_roots: &[SkillRoot],
-) -> bool {
-    let state = app_handle.state::<AppState>();
+) -> Result<(), crate::error::AppError> {
+    let _refresh_guard = state.cache_refresh_lock.lock().await;
     let scan_inputs: Vec<(PathBuf, PathBuf, Option<String>)> = skill_roots
         .iter()
         .map(|root| {
@@ -344,22 +346,8 @@ async fn trigger_incremental_refresh(
         })
         .collect();
 
-    let entries = match SkillService::scan_skill_roots_batch(&scan_inputs) {
-        Ok(entries) => entries,
-        Err(e) => {
-            eprintln!("Watcher incremental scan failed, falling back to full rebuild: {e}");
-            return false;
-        }
-    };
-
-    for entry in entries {
-        if let Err(e) = SkillService::upsert_cache_entry(&state.skill_cache, entry) {
-            eprintln!("Watcher incremental cache update failed, falling back to full rebuild: {e}");
-            return false;
-        }
-    }
-
-    true
+    let entries = SkillService::scan_skill_roots_batch(&scan_inputs)?;
+    SkillService::upsert_cache_entries(&state.skill_cache, entries)
 }
 
 async fn trigger_rebuild(app_handle: &tauri::AppHandle, event_count: usize, started: Instant) {
@@ -434,6 +422,79 @@ pub fn restart_skill_watcher(app: &tauri::AppHandle, state: &AppState) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn incremental_refresh_waits_before_scanning_during_an_active_refresh() {
+        let state = AppState::new(
+            crate::persistence::SkillCache::empty(),
+            crate::persistence::MetadataStore {
+                entries: Default::default(),
+            },
+            crate::persistence::Settings {
+                values: Default::default(),
+            },
+        );
+        let tmp = tempfile::tempdir().unwrap();
+        let roots = [SkillRoot {
+            skill_root: tmp.path().join("missing"),
+            scan_root: tmp.path().to_path_buf(),
+            agent_id: None,
+        }];
+        let guard = state.cache_refresh_lock.lock().await;
+        let blocked = tokio::time::timeout(
+            Duration::from_millis(20),
+            trigger_incremental_refresh(&state, &roots),
+        )
+        .await;
+        assert!(
+            blocked.is_err(),
+            "refresh must wait before trying the missing root"
+        );
+        drop(guard);
+    }
+
+    #[test]
+    fn incremental_refresh_preserves_the_batch_when_cache_persistence_fails() {
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            let scan_root = config::get_agents_skills_dir();
+            let roots: Vec<_> = ["one", "two"]
+                .into_iter()
+                .map(|name| {
+                    let skill_root = scan_root.join(name);
+                    std::fs::create_dir_all(&skill_root).unwrap();
+                    std::fs::write(skill_root.join("SKILL.md"), "# Skill").unwrap();
+                    SkillRoot {
+                        skill_root,
+                        scan_root: scan_root.clone(),
+                        agent_id: None,
+                    }
+                })
+                .collect();
+            std::fs::create_dir_all(config::get_app_config_dir().join("skills-cache.json"))
+                .unwrap();
+            let state = AppState::new(
+                crate::persistence::SkillCache::empty(),
+                crate::persistence::MetadataStore {
+                    entries: Default::default(),
+                },
+                crate::persistence::Settings {
+                    values: Default::default(),
+                },
+            );
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            assert!(runtime
+                .block_on(trigger_incremental_refresh(&state, &roots))
+                .is_err());
+            assert!(state.skill_cache.read().unwrap().is_empty());
+            assert!(roots
+                .iter()
+                .all(|root| root.skill_root.join("SKILL.md").exists()));
+        });
+    }
     use notify::event::{CreateKind, DataChange, RemoveKind};
 
     #[test]
