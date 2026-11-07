@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowUpRight, Download } from "lucide-react";
+import { Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSkillCatalog } from "@/hooks/useSkillCatalog";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,70 @@ export function diversifySkills(skills: CatalogSkill[]) {
 }
 
 const BATCH = 9;
+
+// Eight weekly install counts as a watermark-style area sparkline, anchored
+// to the card's empty bottom-right corner: a smooth curve over a gradient
+// that fades downward, with the latest week marked by a dot. Purely
+// decorative; the install number above carries the meaning.
+function TrendSparkline({ values }: { values: number[] }) {
+  const gradientId = useId();
+  if (values.length < 2) return null;
+  const width = 104;
+  const height = 30;
+  const pad = 3;
+  const max = Math.max(...values, 1);
+  const points = values.map((value, index): [number, number] => [
+    pad + (index / (values.length - 1)) * (width - 2 * pad),
+    height - pad - (value / max) * (height - 2 * pad),
+  ]);
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (!first || !last) return null;
+  // Catmull-Rom through the points, emitted as cubic beziers: the curve
+  // reads like a chart, not a join-the-dots zigzag.
+  let line = `M ${first[0]},${first[1]}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const prev = points[Math.max(0, i - 1)];
+    const current = points[i];
+    const following = points[i + 1];
+    const next = points[Math.min(points.length - 1, i + 2)];
+    if (!prev || !current || !following || !next) continue;
+    const [x1, y1] = current;
+    const [x2, y2] = following;
+    line += ` C ${x1 + (x2 - prev[0]) / 6},${y1 + (y2 - prev[1]) / 6} ${x2 - (next[0] - x1) / 6},${
+      y2 - (next[1] - y1) / 6
+    } ${x2},${y2}`;
+  }
+  const [lastX, lastY] = last;
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      className="h-[30px] w-[104px] text-primary"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="currentColor" stopOpacity="0.28" />
+          <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path
+        d={`${line} L ${lastX},${height} L ${first[0]},${height} Z`}
+        fill={`url(#${gradientId})`}
+        stroke="none"
+      />
+      <path
+        d={line}
+        fill="none"
+        stroke="currentColor"
+        strokeOpacity="0.55"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <circle cx={lastX} cy={lastY} r="2" fill="currentColor" fillOpacity="0.55" />
+    </svg>
+  );
+}
 
 // A precise skeleton: mirrors the real card structure bar for bar so the
 // handoff from loading to loaded never shifts layout.
@@ -118,7 +182,7 @@ export function CommunitySkills({ onOpen }: { onOpen: (skill: CatalogSkill) => v
         <div
           aria-busy="true"
           aria-label={t("common.loading")}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
+          className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-3"
         >
           {Array.from({ length: switchCount ?? 6 }, (_, index) => (
             <CatalogCardSkeleton key={index} />
@@ -135,7 +199,10 @@ export function CommunitySkills({ onOpen }: { onOpen: (skill: CatalogSkill) => v
         </div>
       ) : (
         <>
-          <ul role="list" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <ul
+            role="list"
+            className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-3"
+          >
             {skills.slice(0, limit).map((skill, index) => (
               <li
                 key={`${skill.source}/${skill.skillId}`}
@@ -151,18 +218,19 @@ export function CommunitySkills({ onOpen }: { onOpen: (skill: CatalogSkill) => v
                   >
                     <span className="flex w-full items-center justify-between gap-2">
                       <span className="truncate text-[13px] font-medium">{skill.name}</span>
-                      <ArrowUpRight
-                        aria-hidden="true"
-                        className="size-3.5 shrink-0 text-muted-foreground group-hover:text-primary"
-                      />
+                      <span className="flex shrink-0 items-center gap-1 text-xs tabular-nums text-muted-foreground">
+                        <Download aria-hidden="true" className="size-3" />
+                        {number.format(skill.installs)}
+                        <span className="sr-only">
+                          {t(kind === "popular" ? "browse.totalInstalls" : "browse.dailyInstalls")}
+                        </span>
+                      </span>
                     </span>
                     <span className="mt-1 truncate max-w-full text-xs text-muted-foreground">
                       {skill.source}
                     </span>
-                    <span className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Download aria-hidden="true" className="size-3" />
-                      {number.format(skill.installs)}{" "}
-                      {t(kind === "popular" ? "browse.totalInstalls" : "browse.dailyInstalls")}
+                    <span className="mt-auto self-end">
+                      <TrendSparkline values={skill.weeklyInstalls ?? []} />
                     </span>
                   </button>
                 </article>

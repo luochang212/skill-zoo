@@ -15,6 +15,7 @@ const skill = (source: string, skillId: string): CatalogSkill => ({
   skillId,
   name: skillId,
   installs: 1200,
+  weeklyInstalls: [100, 300, 200, 500, 400, 800, 700, 900],
 });
 describe("community discovery", () => {
   it("spreads repository exposure without losing skills", () => {
@@ -35,7 +36,12 @@ describe("community discovery", () => {
     const skills = Array.from({ length: 13 }, (_, i) => skill("owner/repo", `skill-${i}`));
     mocks.result = { data: { skills, fetchedAt: 123, stale: true }, isPending: false };
     const onOpen = vi.fn();
-    render(<CommunitySkills onOpen={onOpen} />);
+    const { container } = render(<CommunitySkills onOpen={onOpen} />);
+    // Each card shows the weekly trend area in its bottom-right corner.
+    const sparklines = container.querySelectorAll('svg[viewBox="0 0 104 30"]');
+    expect(sparklines).toHaveLength(12);
+    expect(sparklines[0]?.querySelectorAll("path")).toHaveLength(2);
+    expect(sparklines[0]?.querySelector("circle")).toBeTruthy();
     expect(screen.queryByText("skill-12")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /^skill-0 ·/ }));
     expect(onOpen).toHaveBeenCalledWith(skills[0]);
