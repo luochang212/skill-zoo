@@ -18,7 +18,7 @@ const IGNORED_BASELINE_FILES: &[&str] = &[".DS_Store", "Thumbs.db"];
 /// `SkillLock::update` calls don't lose fields to interleaved writes.
 static LOCK_WRITE: Mutex<()> = Mutex::new(());
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillLockEntry {
     #[serde(flatten)]
@@ -100,6 +100,22 @@ impl SkillLock {
         self.write_to(&config::get_agent_lock_file())
     }
 
+    /// The lifecycle caller holds the local lease; keep recovery inside the writer mutex too.
+    pub(crate) fn restore_snapshot(snapshot: Option<&Self>) -> Result<(), AppError> {
+        let _guard = LOCK_WRITE.lock().map_err(|e| {
+            AppError::Io(std::io::Error::other(format!("lock mutex poisoned: {e}")))
+        })?;
+        if let Some(snapshot) = snapshot {
+            snapshot.write()
+        } else {
+            match std::fs::remove_file(config::get_agent_lock_file()) {
+                Ok(()) => Ok(()),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                Err(e) => Err(AppError::Io(e)),
+            }
+        }
+    }
+
     pub fn write_to(&self, path: &Path) -> Result<(), AppError> {
         if self.version > SUPPORTED_LOCK_VERSION {
             return Err(AppError::BadRequest(format!(
@@ -118,10 +134,19 @@ impl SkillLock {
 }
 
 impl SkillLock {
-    pub fn update_commit_sha(skill_name: &str, sha: &str) -> Result<(), AppError> {
+    pub fn baseline_commit_sha(
+        skill_name: &str,
+        expected: &SkillLockEntry,
+        sha: &str,
+    ) -> Result<(), AppError> {
+        let _lease = crate::persistence::agent_transaction::AgentLease::acquire(
+            &config::get_app_config_dir(),
+        )?;
         Self::update(|lock| {
             if let Some(entry) = lock.skills.get_mut(skill_name) {
-                entry.commit_sha = Some(sha.to_string());
+                if entry == expected && entry.commit_sha.is_none() {
+                    entry.commit_sha = Some(sha.to_string());
+                }
             }
             Ok(())
         })

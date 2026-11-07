@@ -9,7 +9,118 @@ import { isSymlinkOrJunction, normalizePath, pathExists } from "../src/lib/io.js
 import { CLI_VERSION } from "../src/version.js";
 import { createDirLink, makeTempHome, writeJson, writeSkill } from "./helpers.js";
 
+const roundtripCases: Array<{
+  name: string;
+  origin: "ssot" | "agent";
+  directory: string;
+  coexistingStore: boolean;
+  historicalLock?: boolean;
+}> = JSON.parse(
+  await fs.readFile(
+    new URL("../../../fixtures/local-protocol/archive-roundtrip-cases.json", import.meta.url),
+    "utf8",
+  ),
+);
+
 describe("archive and restore", () => {
+  it("rejects unsupported archive ownership without touching either source", async () => {
+    const cases: Array<{ name: string; origin: string; missingHome: boolean }> = JSON.parse(
+      await fs.readFile(
+        new URL("../../../fixtures/local-protocol/archive-unsupported-cases.json", import.meta.url),
+        "utf8",
+      ),
+    );
+    for (const scenario of cases) {
+      const home = await makeTempHome();
+      const paths = getPaths(home);
+      const source = path.join(home, ".codex", "skills", "demo");
+      await writeSkill(source, "name: demo\ndescription: Selected");
+      await archiveSkillRefs(home, ["agent:codex:demo"]);
+      const manifest = await readArchiveManifest(home);
+      const [id, record] = Object.entries(manifest.skills)[0]!;
+      const external = path.join(home, "private", "source");
+      await writeSkill(external, "name: external\ndescription: Keep external source");
+      Object.assign(record, {
+        origin: scenario.origin,
+        homePath: scenario.missingHome ? null : external,
+      });
+      await writeJson(paths.archiveManifestFile, manifest);
+      const result = await restoreArchiveIds(home, [id]);
+      expect(result.failed, scenario.name).toHaveLength(1);
+      expect(
+        await fs.readFile(path.join(paths.archiveSkillsDir, id, "SKILL.md"), "utf8"),
+      ).toContain("Selected");
+      expect(await fs.readFile(path.join(external, "SKILL.md"), "utf8")).toContain(
+        "Keep external source",
+      );
+      expect((await readArchiveManifest(home)).skills[id]).toBeDefined();
+    }
+  });
+
+  it.each(roundtripCases)(
+    "preserves identity and unrelated provenance: $name",
+    async (scenario) => {
+      const home = await makeTempHome();
+      const paths = getPaths(home);
+      const root =
+        scenario.origin === "ssot" ? paths.agentsSkillsDir : path.join(home, ".codex", "skills");
+      const selected = path.join(root, scenario.directory);
+      await writeSkill(selected, "name: demo\ndescription: Selected");
+      if (scenario.coexistingStore) {
+        await writeSkill(
+          path.join(paths.agentsSkillsDir, scenario.directory),
+          "name: demo\ndescription: Independent",
+        );
+      }
+      const id = `${scenario.origin === "ssot" ? "ssot" : "agent:codex"}:${scenario.directory}`;
+      const provenance = {
+        source: "independent/repo",
+        sourceType: "github",
+        skillPath: "skills/demo",
+        futureOptional: "preserve",
+      };
+      await writeJson(paths.agentLockFile, {
+        version: 3,
+        skills:
+          scenario.coexistingStore || scenario.origin === "ssot"
+            ? { [scenario.directory]: provenance }
+            : {},
+        dismissed: {},
+        futureTop: "preserve",
+      });
+      await writeJson(paths.metadataFile, { entries: { [id]: { starred: true, isMine: true } } });
+      await rebuildCache(home);
+      const before = await readLock(home);
+
+      const preview = await archiveSkillRefs(home, [id], { dryRun: true });
+      expect(preview.failed).toEqual([]);
+      if (scenario.origin === "agent") {
+        expect(preview.changes).not.toContainEqual({ action: "write", path: paths.agentLockFile });
+      }
+      const archived = await archiveSkillRefs(home, [id]);
+      expect(archived.failed).toEqual([]);
+      const archiveId = makeArchiveId(id, scenario.directory);
+      if (scenario.coexistingStore) {
+        expect(await readLock(home)).toEqual(before);
+        expect((await readArchiveManifest(home)).skills[archiveId]?.lockEntry).toBeFalsy();
+      }
+      if (scenario.historicalLock) {
+        const manifest = await readArchiveManifest(home);
+        manifest.skills[archiveId]!.lockKey = scenario.directory;
+        manifest.skills[archiveId]!.lockEntry = { ...provenance, source: "historical/repo" };
+        await writeJson(paths.archiveManifestFile, manifest);
+      }
+      const restored = await restoreArchiveIds(home, [archiveId]);
+      expect(restored.failed).toEqual([]);
+      expect(await readLock(home)).toEqual(before);
+      expect((await readCache(home)).skills.find((skill) => skill.id === id)?.homePath).toBe(
+        normalizePath(selected),
+      );
+      expect((await readMetadata(home)).entries[id]).toEqual({ starred: true, isMine: true });
+      expect(await fs.readFile(path.join(selected, "SKILL.md"), "utf8")).toContain("Selected");
+    },
+  );
+
   it("dry-runs archive without writing files", async () => {
     const { home, skillDir } = await createInstalledSkillFixture();
 

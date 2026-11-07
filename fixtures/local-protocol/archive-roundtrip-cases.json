@@ -1,0 +1,6 @@
+[
+  { "name": "nested store", "origin": "ssot", "directory": ".system/demo", "coexistingStore": false },
+  { "name": "nested agent", "origin": "agent", "directory": ".system/demo", "coexistingStore": false },
+  { "name": "same-name agent and store", "origin": "agent", "directory": "demo", "coexistingStore": true },
+  { "name": "historical agent archive beside an independent store", "origin": "agent", "directory": "demo", "coexistingStore": true, "historicalLock": true }
+]

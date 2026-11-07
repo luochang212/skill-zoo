@@ -810,7 +810,18 @@ mod tests {
             let entry = SkillService::scan_skill_root(&skill, &root, Some(id)).unwrap();
             state.metadata.write().unwrap().set_starred(&entry.id, true);
             state.skill_cache.write().unwrap().upsert(entry.clone());
-            crate::commands::skill::archive_skill_inner(&state, entry.id.clone()).unwrap();
+            state.metadata.read().unwrap().save().unwrap();
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            let archived = rt
+                .block_on(crate::services::skill_archive::archive_skills(
+                    &state,
+                    vec![entry.id.clone()],
+                ))
+                .unwrap();
+            assert!(archived.failed.is_empty());
             assert!(!skill.exists());
             let archive_id = ArchiveManifest::load()
                 .unwrap()
@@ -826,9 +837,14 @@ mod tests {
                 .unwrap()
                 .imports
                 .contains_key(&entry.id));
-            let restored =
-                crate::commands::skill::restore_archived_skill_inner(&state, archive_id).unwrap();
-            assert_eq!(restored, entry.id);
+            let restored = rt
+                .block_on(crate::services::skill_archive::restore_archived_skills(
+                    &state,
+                    vec![archive_id],
+                ))
+                .unwrap();
+            assert!(restored.failed.is_empty());
+            assert_eq!(restored.restored[0].skill.id, entry.id);
             assert_eq!(
                 std::fs::read_to_string(skill.join("SKILL.md")).unwrap(),
                 "# Original"

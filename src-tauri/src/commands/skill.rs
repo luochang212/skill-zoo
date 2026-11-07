@@ -1,20 +1,20 @@
 use crate::config;
 use crate::config::{AgentConfig, AgentPathInfo};
 use crate::error::{classify_download_error, AppError, CommandError};
-use crate::persistence::archive::SUPPORTED_ARCHIVE_VERSION;
 use crate::persistence::external_imports::SUPPORTED_EXTERNAL_IMPORTS_VERSION;
 use crate::persistence::{
-    atomic_write, ArchiveManifest, ArchivedSkill, ExternalImportEntry, ExternalImports, SkillCache,
-    SkillCacheEntry, SkillUpdateHistory, SkillUpdateHistoryRecord,
+    atomic_write, ArchivedSkill, ExternalImportEntry, ExternalImports, SkillCache, SkillCacheEntry,
+    SkillUpdateHistory, SkillUpdateHistoryRecord,
 };
 use crate::services::cli::{CliService, KnownSkillUpdate};
 use crate::services::github;
-use crate::services::lock::{SkillLock, SUPPORTED_LOCK_VERSION};
+use crate::services::lock::SkillLock;
 use crate::services::opener::open_directory;
 use crate::services::skill::{
     is_symlink_or_junction, plugin_read_only_error, DiscoverableSkill, InstalledSkill,
     ManagedSkill, RepoSkillsResult, SkillFileNode, SkillService, SymlinkStatus,
 };
+use crate::services::skill_archive::{self, ArchiveSkillsResult, RestoreArchivedSkillsResult};
 use crate::store::AppState;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -90,95 +90,6 @@ fn validate_skill_name(name: &str) -> Result<(), String> {
         );
     }
     Ok(())
-}
-
-static ARCHIVE_ID_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$").unwrap());
-
-fn validate_archive_id(archive_id: &str) -> Result<(), String> {
-    if !ARCHIVE_ID_RE.is_match(archive_id) {
-        return Err("Invalid archive id".into());
-    }
-    Ok(())
-}
-
-fn format_archive_io_error(action: &str, path: &std::path::Path, error: &std::io::Error) -> String {
-    let detail = match error.kind() {
-        std::io::ErrorKind::PermissionDenied => {
-            "Permission denied. On Windows this often means the skill folder or one of its files is open in another app, terminal, antivirus scan, or file indexer."
-        }
-        std::io::ErrorKind::AlreadyExists => {
-            "The destination already exists. Resolve the conflicting folder before trying again."
-        }
-        std::io::ErrorKind::NotFound => {
-            "The source folder is missing. Refresh the local skills list and try again."
-        }
-        _ => {
-            let msg = error.to_string().to_lowercase();
-            if msg.contains("cross-device")
-                || msg.contains("different device")
-                || msg.contains("not same device")
-                || msg.contains("not on the same device")
-                || msg.contains("os error 17")
-            {
-                "The source and destination appear to be on different drives or volumes. Skill Zoo cannot move archived skills across filesystems safely yet."
-            } else if msg.contains("access is denied") || msg.contains("being used by another process") {
-                "Access was denied. On Windows this often means the skill folder or one of its files is open in another app, terminal, antivirus scan, or file indexer."
-            } else {
-                "Filesystem operation failed."
-            }
-        }
-    };
-    format!("{action} failed for {}: {detail} ({error})", path.display())
-}
-
-fn format_archive_app_error(action: &str, error: impl std::fmt::Display) -> String {
-    let message = error.to_string();
-    let lower = message.to_lowercase();
-    let detail = if lower.contains("access is denied")
-        || lower.contains("permission denied")
-        || lower.contains("being used by another process")
-    {
-        "Permission denied. On Windows this often means a file or folder is open in another app, terminal, antivirus scan, or file indexer."
-    } else if lower.contains("cross-device")
-        || lower.contains("different device")
-        || lower.contains("not same device")
-        || lower.contains("not on the same device")
-        || lower.contains("os error 17")
-    {
-        "The source and destination appear to be on different drives or volumes. Skill Zoo cannot move archived skills across filesystems safely yet."
-    } else {
-        return format!("{action} failed: {message}");
-    };
-    format!("{action} failed: {detail} ({message})")
-}
-
-fn log_archive_rollback_error(action: &str, error: impl std::fmt::Display) {
-    eprintln!("Archive rollback failed during {action}: {error}");
-}
-
-fn restore_archive_stores(
-    state: &AppState,
-    cache_snapshot: &SkillCache,
-    metadata_snapshot: &crate::persistence::MetadataStore,
-    manifest_snapshot: &ArchiveManifest,
-    operation: &str,
-) {
-    if let Ok(mut cache) = state.skill_cache.write() {
-        *cache = cache_snapshot.clone();
-        if let Err(error) = cache.save() {
-            log_archive_rollback_error(&format!("restore cache after {operation}"), error);
-        }
-    }
-    if let Ok(mut metadata) = state.metadata.write() {
-        *metadata = metadata_snapshot.clone();
-        if let Err(error) = metadata.save() {
-            log_archive_rollback_error(&format!("restore metadata after {operation}"), error);
-        }
-    }
-    if let Err(error) = manifest_snapshot.save() {
-        log_archive_rollback_error(&format!("restore manifest after {operation}"), error);
-    }
 }
 
 fn known_skill_roots() -> Vec<PathBuf> {
@@ -1453,43 +1364,6 @@ pub struct RemoveSkillFailure {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ArchiveSkillsResult {
-    pub archived: Vec<String>,
-    pub failed: Vec<ArchiveSkillFailure>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ArchiveSkillFailure {
-    pub skill_id: String,
-    pub error: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RestoreArchivedSkillsResult {
-    pub restored: Vec<RestoredArchivedSkill>,
-    pub failed: Vec<RestoreArchivedSkillFailure>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub skipped_agents: Vec<String>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RestoredArchivedSkill {
-    pub archive_id: String,
-    pub skill: InstalledSkill,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RestoreArchivedSkillFailure {
-    pub archive_id: String,
-    pub error: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct BatchUnlinkSkillsResult {
     pub unlinked: Vec<String>,
     pub skipped: Vec<String>,
@@ -1571,578 +1445,28 @@ pub async fn remove_skills(
 
 #[tauri::command]
 pub fn get_archived_skills() -> Result<Vec<ArchivedSkill>, String> {
-    let manifest = ArchiveManifest::load().map_err(|e| e.to_string())?;
-    let mut skills: Vec<ArchivedSkill> = manifest.skills.values().cloned().collect();
-    skills.sort_by(|a, b| {
-        b.archived_at
-            .cmp(&a.archived_at)
-            .then_with(|| a.name.cmp(&b.name))
-    });
-    Ok(skills)
+    skill_archive::get_archived_skills()
 }
 
 #[tauri::command]
 pub fn read_archived_skill_md(archive_id: String) -> Result<String, String> {
-    validate_archive_id(&archive_id)?;
-    let manifest = ArchiveManifest::load().map_err(|e| e.to_string())?;
-    let archived_skill = manifest
-        .skills
-        .get(&archive_id)
-        .cloned()
-        .ok_or_else(|| format!("Archived skill not found: {archive_id}"))?;
-
-    // External imports keep source files at their original location.
-    let skill_md = if archived_skill.origin == "external" {
-        archived_skill
-            .home_path
-            .as_ref()
-            .map(std::path::PathBuf::from)
-            .ok_or_else(|| "Archived external import has no source path recorded".to_string())?
-            .join("SKILL.md")
-    } else {
-        ArchiveManifest::archive_skill_dir(&archive_id).join("SKILL.md")
-    };
-
-    if !skill_md.exists() {
-        return Err(format!(
-            "Archived SKILL.md is missing for {archive_id}: {}. The archive entry exists, but its files may have been moved or deleted outside Skill Zoo.",
-            skill_md.display()
-        ));
-    }
-    std::fs::read_to_string(&skill_md)
-        .map_err(|e| format_archive_io_error("Read archived SKILL.md", &skill_md, &e))
-}
-
-fn assert_skill_archiveable(skill: &InstalledSkill) -> Result<(), String> {
-    if skill.origin == "external" {
-        return Err(
-            "External imports cannot be archived because their source folders are owned by the user."
-                .to_string(),
-        );
-    }
-    if skill.origin == "plugin" {
-        return Err(plugin_read_only_error(
-            &skill.name,
-            skill.plugin_source.as_deref(),
-        ));
-    }
-    Ok(())
-}
-
-pub(crate) fn archive_skill_inner(state: &AppState, skill_id: String) -> Result<(), String> {
-    let skills = SkillService::read_all_skills(&state.skill_cache, &state.metadata)
-        .map_err(|e| e.to_string())?;
-    let skill = skills
-        .into_iter()
-        .find(|s| s.id == skill_id)
-        .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
-    assert_skill_archiveable(&skill)?;
-
-    let home_path = skill
-        .home_path
-        .clone()
-        .ok_or_else(|| "Skill has no physical home path, cannot archive".to_string())?;
-    let home = std::path::PathBuf::from(&home_path);
-
-    if !home.exists() || is_symlink_or_junction(&home) {
-        return Err(format!(
-            "Skill home path is not an archiveable directory: {home_path}"
-        ));
-    }
-
-    let archive_id = ArchiveManifest::make_archive_id(&skill.id, &skill.directory);
-    validate_archive_id(&archive_id)?;
-    let archive_dir = ArchiveManifest::archive_skill_dir(&archive_id);
-    if archive_dir.exists() {
-        return Err(format!(
-            "Cannot archive {}: archive destination already exists at {}. Restore or move that archived copy before trying again.",
-            skill.name,
-            archive_dir.display()
-        ));
-    }
-
-    let old_manifest = ArchiveManifest::load().map_err(|e| e.to_string())?;
-    if old_manifest.skills.contains_key(&archive_id) {
-        return Err(format!("Skill is already archived: {}", skill.name));
-    }
-
-    let old_cache = state.skill_cache.read().map_err(|e| e.to_string())?.clone();
-    let old_metadata = state.metadata.read().map_err(|e| e.to_string())?.clone();
-    let old_lock = SkillLock::read().map_err(|e| e.to_string())?;
-    assert_writable_schema(&old_lock, &old_manifest)?;
-    let lock_key = if old_lock.skills.contains_key(&skill.directory) {
-        Some(skill.directory.clone())
-    } else if old_lock.skills.contains_key(&skill.name) {
-        Some(skill.name.clone())
-    } else {
-        None
-    };
-    let lock_entry = lock_key
-        .as_ref()
-        .and_then(|key| old_lock.skills.get(key).cloned());
-    let archived_skill = ArchivedSkill::from_installed(
-        skill.clone(),
-        archive_id.clone(),
-        lock_key.clone(),
-        lock_entry,
-    );
-
-    let mut manifest = old_manifest.clone();
-    manifest
-        .skills
-        .insert(archive_id.clone(), archived_skill.clone());
-    manifest.save().map_err(|e| e.to_string())?;
-
-    if let Some(parent) = archive_dir.parent() {
-        if let Err(e) = std::fs::create_dir_all(parent) {
-            if let Err(restore_error) = old_manifest.save() {
-                log_archive_rollback_error(
-                    "restore manifest after archive dir create failure",
-                    restore_error,
-                );
-            }
-            return Err(format_archive_io_error(
-                "Create archive directory",
-                parent,
-                &e,
-            ));
-        }
-    }
-
-    let mut removed_agents: Vec<String> = Vec::new();
-    let rollback = |message: String, removed_agents: &[String]| -> String {
-        if archive_dir.exists() && !home.exists() {
-            if let Some(parent) = home.parent() {
-                if let Err(e) = std::fs::create_dir_all(parent) {
-                    log_archive_rollback_error("recreate skill parent", e);
-                }
-            }
-            if let Err(e) = std::fs::rename(&archive_dir, &home) {
-                log_archive_rollback_error("move archived skill back home", e);
-            }
-        }
-        for agent in removed_agents {
-            if let Err(e) = SkillService::toggle_symlink(&skill.directory, &home_path, agent, true)
-            {
-                log_archive_rollback_error("restore agent symlink after archive failure", e);
-            }
-        }
-        restore_archive_stores(
-            state,
-            &old_cache,
-            &old_metadata,
-            &old_manifest,
-            "archive failure",
-        );
-        message
-    };
-
-    for (agent, enabled) in &archived_skill.apps {
-        if !enabled {
-            continue;
-        }
-        // A native home is an entity, not an agent link. It is moved below;
-        // nested native skills may also have no flat link at all.
-        if archived_skill.home_agent.as_deref() == Some(agent.as_str()) {
-            let flat_path = config::get_agent_skills_dir(agent)
-                .map(|root| root.join(SkillService::agent_link_name(&skill.directory)));
-            if flat_path.is_none_or(|path| !is_symlink_or_junction(&path)) {
-                continue;
-            }
-        }
-        match SkillService::toggle_symlink(&skill.directory, &home_path, agent, false) {
-            Ok(()) => removed_agents.push(agent.clone()),
-            Err(e) => {
-                return Err(rollback(
-                    format_archive_app_error("Remove agent link while archiving", e),
-                    &removed_agents,
-                ))
-            }
-        }
-    }
-
-    if let Err(e) = std::fs::rename(&home, &archive_dir) {
-        return Err(rollback(
-            format_archive_io_error("Move skill into archive", &archive_dir, &e),
-            &removed_agents,
-        ));
-    }
-
-    {
-        let mut cache = state
-            .skill_cache
-            .write()
-            .map_err(|e| rollback(format!("Cache lock: {e}"), &removed_agents))?;
-        cache.remove(&skill.id);
-        if let Err(e) = cache.save() {
-            // Drop the write guard before rolling back: rollback re-acquires
-            // this lock (std RwLock is not reentrant) and would deadlock.
-            drop(cache);
-            return Err(rollback(e.to_string(), &removed_agents));
-        }
-    }
-
-    {
-        let mut metadata = state
-            .metadata
-            .write()
-            .map_err(|e| rollback(format!("Metadata lock: {e}"), &removed_agents))?;
-        metadata.remove(&skill.id);
-        if let Err(e) = metadata.save() {
-            // Drop the write guard before rolling back: rollback re-acquires
-            // this lock (std RwLock is not reentrant) and would deadlock.
-            drop(metadata);
-            return Err(rollback(e.to_string(), &removed_agents));
-        }
-    }
-
-    if let Some(key) = lock_key {
-        if let Err(e) = SkillLock::update(|lock| {
-            lock.skills.remove(&key);
-            Ok::<(), AppError>(())
-        }) {
-            return Err(rollback(e.to_string(), &removed_agents));
-        }
-    }
-
-    Ok(())
+    skill_archive::read_archived_skill_md(archive_id)
 }
 
 #[tauri::command]
-pub fn archive_skills(
+pub async fn archive_skills(
     state: State<'_, AppState>,
     skill_ids: Vec<String>,
 ) -> Result<ArchiveSkillsResult, String> {
-    let _update_guard = state.update_exit.start_update();
-    let _agent_lease = state.acquire_local_lease().map_err(|e| e.to_string())?;
-    let mut archived: Vec<String> = Vec::new();
-    let mut failed: Vec<ArchiveSkillFailure> = Vec::new();
-
-    for skill_id in skill_ids {
-        match archive_skill_inner(&state, skill_id.clone()) {
-            Ok(()) => archived.push(skill_id),
-            Err(e) => failed.push(ArchiveSkillFailure { skill_id, error: e }),
-        }
-    }
-
-    Ok(ArchiveSkillsResult { archived, failed })
+    skill_archive::archive_skills(&state, skill_ids).await
 }
 
 #[tauri::command]
-pub fn restore_archived_skills(
+pub async fn restore_archived_skills(
     state: State<'_, AppState>,
     archive_ids: Vec<String>,
 ) -> Result<RestoreArchivedSkillsResult, String> {
-    let _update_guard = state.update_exit.start_update();
-    let _agent_lease = state.acquire_local_lease().map_err(|e| e.to_string())?;
-    let mut restored: Vec<RestoredArchivedSkill> = Vec::new();
-    let mut failed: Vec<RestoreArchivedSkillFailure> = Vec::new();
-
-    let manifest = ArchiveManifest::load().map_err(|e| e.to_string())?;
-    for archive_id in archive_ids {
-        match restore_archived_skill_inner(&state, archive_id.clone()).and_then(|restored_id| {
-            SkillService::read_all_skills(&state.skill_cache, &state.metadata)
-                .map_err(|e| e.to_string())?
-                .into_iter()
-                .find(|skill| skill.id == restored_id)
-                .ok_or_else(|| "Skill restored but not found in cache".to_string())
-        }) {
-            Ok(skill) => restored.push(RestoredArchivedSkill { archive_id, skill }),
-            Err(e) => failed.push(RestoreArchivedSkillFailure {
-                archive_id,
-                error: e,
-            }),
-        }
-    }
-
-    let mut skipped_agents = restored
-        .iter()
-        .map(|record| &record.archive_id)
-        .filter_map(|id| manifest.skills.get(id))
-        .flat_map(|s| s.apps.iter())
-        .filter(|(agent, enabled)| {
-            **enabled && config::get_agent_skills_dir(agent).is_none_or(|p| !p.exists())
-        })
-        .map(|(agent, _)| agent.clone())
-        .collect::<Vec<_>>();
-    skipped_agents.sort();
-    skipped_agents.dedup();
-    Ok(RestoreArchivedSkillsResult {
-        restored,
-        failed,
-        skipped_agents,
-    })
-}
-
-pub(crate) fn restore_archived_skill_inner(
-    state: &AppState,
-    archive_id: String,
-) -> Result<String, String> {
-    validate_archive_id(&archive_id)?;
-    let old_manifest = ArchiveManifest::load().map_err(|e| e.to_string())?;
-    let archived_skill = old_manifest
-        .skills
-        .get(&archive_id)
-        .cloned()
-        .ok_or_else(|| format!("Archived skill not found: {archive_id}"))?;
-
-    let is_external = archived_skill.origin == "external";
-
-    let archive_dir = ArchiveManifest::archive_skill_dir(&archive_id);
-    if !is_external && !archive_dir.exists() {
-        return Err(format!(
-            "Archived directory is missing: {}. The archive entry exists, but its files may have been moved or deleted outside Skill Zoo.",
-            archive_dir.display()
-        ));
-    }
-
-    let restore_path = if is_external {
-        archived_skill
-            .home_path
-            .as_ref()
-            .map(std::path::PathBuf::from)
-            .ok_or_else(|| {
-                "Cannot restore external import: source path not recorded in archive".to_string()
-            })?
-    } else {
-        archived_skill
-            .home_path
-            .as_ref()
-            .map(std::path::PathBuf::from)
-            .unwrap_or_else(|| {
-                if archived_skill.origin == "ssot" {
-                    config::get_agents_skills_dir().join(&archived_skill.directory)
-                } else {
-                    archived_skill
-                        .home_agent
-                        .as_deref()
-                        .and_then(config::get_agent_skills_dir)
-                        .unwrap_or_else(config::get_agents_skills_dir)
-                        .join(&archived_skill.directory)
-                }
-            })
-    };
-
-    if is_external {
-        if !restore_path.exists() || !restore_path.join("SKILL.md").exists() {
-            return Err(format!(
-                "Cannot restore: external import source no longer exists at {}",
-                restore_path.display()
-            ));
-        }
-        // Remove the empty archive placeholder directory.
-        if archive_dir.exists() {
-            let _ = std::fs::remove_dir_all(&archive_dir);
-        }
-    } else if restore_path.exists() {
-        return Err(format!(
-            "Cannot restore: destination already exists at {}. Move, rename, archive, or remove the existing skill folder before restoring this archived skill.",
-            restore_path.display()
-        ));
-    }
-
-    let old_cache = state.skill_cache.read().map_err(|e| e.to_string())?.clone();
-    let old_metadata = state.metadata.read().map_err(|e| e.to_string())?.clone();
-    let old_lock = SkillLock::read().map_err(|e| e.to_string())?;
-    assert_writable_schema(&old_lock, &old_manifest)?;
-
-    if !is_external {
-        if let Some(parent) = restore_path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| format_archive_io_error("Create restore directory", parent, &e))?;
-        }
-        std::fs::rename(&archive_dir, &restore_path)
-            .map_err(|e| format_archive_io_error("Move archived skill back", &restore_path, &e))?;
-    }
-
-    let mut restored_agents: Vec<String> = Vec::new();
-    let rollback = |message: String, restored_agents: &[String]| -> String {
-        for agent in restored_agents {
-            if let Err(e) = SkillService::toggle_symlink(
-                &archived_skill.directory,
-                &restore_path.to_string_lossy(),
-                agent,
-                false,
-            ) {
-                log_archive_rollback_error(
-                    "remove restored agent symlink after restore failure",
-                    e,
-                );
-            }
-        }
-        if !is_external && restore_path.exists() && !archive_dir.exists() {
-            if let Some(parent) = archive_dir.parent() {
-                if let Err(e) = std::fs::create_dir_all(parent) {
-                    log_archive_rollback_error("recreate archive parent", e);
-                }
-            }
-            if let Err(e) = std::fs::rename(&restore_path, &archive_dir) {
-                log_archive_rollback_error("move restored skill back to archive", e);
-            }
-        }
-        restore_archive_stores(
-            state,
-            &old_cache,
-            &old_metadata,
-            &old_manifest,
-            "restore failure",
-        );
-        let restore_key = archived_skill
-            .lock_key
-            .clone()
-            .unwrap_or_else(|| archived_skill.directory.clone());
-        if let Err(e) = SkillLock::update(|lock| {
-            lock.skills.remove(&restore_key);
-            Ok::<(), AppError>(())
-        }) {
-            log_archive_rollback_error("remove restored lock entry after restore failure", e);
-        }
-        message
-    };
-
-    if !is_external {
-        if let Some(lock_entry) = archived_skill.lock_entry.clone() {
-            let key = archived_skill
-                .lock_key
-                .clone()
-                .unwrap_or_else(|| archived_skill.directory.clone());
-            if let Err(e) = SkillLock::update(|lock| {
-                lock.skills.insert(key, lock_entry);
-                Ok::<(), AppError>(())
-            }) {
-                return Err(rollback(e.to_string(), &restored_agents));
-            }
-        }
-    }
-
-    {
-        let mut metadata = state
-            .metadata
-            .write()
-            .map_err(|e| rollback(format!("Metadata lock: {e}"), &restored_agents))?;
-        // Manifest IDs are historical records; map a legacy provenance-derived
-        // ID to the canonical installation identity before touching metadata.
-        let metadata_key = crate::persistence::metadata::canonicalize_legacy_skill_id(
-            &archived_skill.original_skill_id,
-        )
-        .unwrap_or_else(|| archived_skill.original_skill_id.clone());
-        if archived_skill.starred || archived_skill.is_mine {
-            let entry = metadata.entries.entry(metadata_key).or_insert(
-                crate::persistence::metadata::SkillMetadata {
-                    starred: false,
-                    is_mine: false,
-                },
-            );
-            entry.starred = entry.starred || archived_skill.starred;
-            entry.is_mine = entry.is_mine || archived_skill.is_mine;
-        } else {
-            metadata.remove(&metadata_key);
-        }
-        if let Err(e) = metadata.save() {
-            // Drop the write guard before rolling back: rollback re-acquires
-            // this lock (std RwLock is not reentrant) and would deadlock.
-            drop(metadata);
-            return Err(rollback(e.to_string(), &restored_agents));
-        }
-    }
-
-    for (agent, enabled) in &archived_skill.apps {
-        if !enabled {
-            continue;
-        }
-        let Some(agent_dir) = config::get_agent_skills_dir(agent) else {
-            continue;
-        };
-        if !agent_dir.exists() {
-            continue;
-        }
-        let agent_skill_path =
-            agent_dir.join(SkillService::agent_link_name(&archived_skill.directory));
-        if agent_skill_path.exists() && !is_symlink_or_junction(&agent_skill_path) {
-            let is_native_home = agent_skill_path == restore_path
-                || agent_skill_path
-                    .canonicalize()
-                    .ok()
-                    .zip(restore_path.canonicalize().ok())
-                    .is_some_and(|(agent_path, restore_path)| agent_path == restore_path);
-            if is_native_home {
-                continue;
-            }
-            return Err(rollback(
-                format!(
-                    "Restore agent link failed: destination already exists at {} and is a real directory, not a symlink.",
-                    agent_skill_path.display()
-                ),
-                &restored_agents,
-            ));
-        }
-        match SkillService::toggle_symlink(
-            &archived_skill.directory,
-            &restore_path.to_string_lossy(),
-            agent,
-            true,
-        ) {
-            Ok(()) => restored_agents.push(agent.clone()),
-            Err(e) => {
-                return Err(rollback(
-                    format_archive_app_error("Restore agent link", e),
-                    &restored_agents,
-                ))
-            }
-        }
-    }
-
-    // Scan after symlinks are created so detect_agents finds the restored links.
-    // External imports use the import registry to preserve origin = "external".
-    let retained_import = ExternalImports::load()
-        .map_err(|e| rollback(e.to_string(), &restored_agents))?
-        .imports
-        .get(&archived_skill.original_skill_id)
-        .cloned();
-    let entry = if let Some(import) = retained_import {
-        SkillService::scan_external_import(&import)
-            .map_err(|e| rollback(e.to_string(), &restored_agents))?
-    } else if is_external {
-        let imports = ExternalImports::load().map_err(|e| {
-            rollback(
-                format!("Failed to load import registry: {e}"),
-                &restored_agents,
-            )
-        })?;
-        let import = imports
-            .imports
-            .get(&archived_skill.original_skill_id)
-            .ok_or_else(|| {
-                rollback(
-                    format!(
-                        "Cannot restore: import registry entry not found for {}",
-                        archived_skill.name
-                    ),
-                    &restored_agents,
-                )
-            })?;
-        SkillService::scan_external_import(import).map_err(|e| {
-            rollback(
-                format!("Failed to scan external import: {e}"),
-                &restored_agents,
-            )
-        })?
-    } else {
-        SkillService::scan_single_skill(&archived_skill.directory)
-            .map_err(|e| rollback(e.to_string(), &restored_agents))?
-    };
-    let restored_id = entry.id.clone();
-    if let Err(e) = SkillService::upsert_cache_entry(&state.skill_cache, entry) {
-        return Err(rollback(e.to_string(), &restored_agents));
-    }
-
-    let mut manifest = old_manifest.clone();
-    manifest.skills.remove(&archive_id);
-    if let Err(e) = manifest.save() {
-        return Err(rollback(e.to_string(), &restored_agents));
-    }
-
-    Ok(restored_id)
+    skill_archive::restore_archived_skills(&state, archive_ids).await
 }
 
 #[tauri::command]
@@ -3413,26 +2737,25 @@ pub async fn create_skill(
         .ok_or_else(|| "Skill disappeared after creation".to_string())
 }
 
-fn assert_writable_schema(lock: &SkillLock, manifest: &ArchiveManifest) -> Result<(), String> {
-    if lock.version > SUPPORTED_LOCK_VERSION {
-        return Err(format!(
-            "Lock file version {0} is newer than this desktop app supports. Upgrade Skill Zoo before writing.",
-            lock.version
-        ));
-    }
-    if manifest.version > SUPPORTED_ARCHIVE_VERSION {
-        return Err(format!(
-            "Archive manifest version {0} is newer than this desktop app supports. Upgrade Skill Zoo before writing.",
-            manifest.version
-        ));
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::lock::SkillLockEntry;
+    use crate::services::lock::{SkillLockEntry, SUPPORTED_LOCK_VERSION};
+    fn test_lock_entry(source: &str, commit_sha: &str) -> SkillLockEntry {
+        SkillLockEntry {
+            extra: Default::default(),
+            source: Some(source.to_string()),
+            source_type: Some("github".to_string()),
+            source_url: Some(format!("https://github.com/{source}")),
+            branch: Some("main".to_string()),
+            skill_path: Some("skills/demo".to_string()),
+            skill_folder_hash: None,
+            installed_at: None,
+            updated_at: None,
+            commit_sha: Some(commit_sha.to_string()),
+        }
+    }
+
     use std::io::Write;
     use zip::write::SimpleFileOptions;
 
@@ -3893,55 +3216,6 @@ mod tests {
         assert!(source.exists());
     }
 
-    #[test]
-    fn external_imports_are_not_archiveable() {
-        let skill = test_installed_skill("external:demo", "demo", "external");
-
-        let err = assert_skill_archiveable(&skill).expect_err("external import should not archive");
-
-        assert!(err.contains("External imports cannot be archived"));
-    }
-
-    #[test]
-    fn archive_rejects_external_import_before_touching_files_or_stores() {
-        let tmp = tempfile::tempdir().unwrap();
-        config::with_test_home(tmp.path(), || {
-            let source = tmp.path().join("private/demo");
-            std::fs::create_dir_all(&source).unwrap();
-            std::fs::write(source.join("SKILL.md"), "# Private skill").unwrap();
-            let entry = test_cache_entry_with_home(
-                "external:demo",
-                "demo",
-                "external",
-                Some(source.to_string_lossy().into_owned()),
-            );
-            let state = AppState::new(
-                SkillCache::from_entries(vec![entry]),
-                crate::persistence::MetadataStore {
-                    entries: Default::default(),
-                },
-                crate::persistence::Settings {
-                    values: Default::default(),
-                },
-            );
-            let result = archive_skill_inner(&state, "external:demo".into());
-            assert!(result
-                .unwrap_err()
-                .contains("External imports cannot be archived"));
-            assert_eq!(
-                std::fs::read_to_string(source.join("SKILL.md")).unwrap(),
-                "# Private skill"
-            );
-            assert!(!config::get_app_config_dir().exists());
-            assert!(state
-                .skill_cache
-                .read()
-                .unwrap()
-                .find_by_id("external:demo")
-                .is_some());
-        });
-    }
-
     #[cfg(unix)]
     #[test]
     fn dangling_external_import_symlink_still_matches_raw_target() {
@@ -3985,117 +3259,6 @@ mod tests {
             installed_at: 0,
             updated_at: 0,
         }
-    }
-
-    fn test_installed_skill(id: &str, directory: &str, origin: &str) -> InstalledSkill {
-        InstalledSkill {
-            id: id.to_string(),
-            name: directory.to_string(),
-            yaml_name: None,
-            description: None,
-            directory: directory.to_string(),
-            repo_owner: None,
-            repo_name: None,
-            source_url: None,
-            apps: std::collections::HashMap::new(),
-            origin: origin.to_string(),
-            home_path: Some(directory.to_string()),
-            content_hash: None,
-            home_agent: None,
-            plugin_source: None,
-            starred: false,
-            is_mine: false,
-            installed_at: 0,
-            updated_at: 0,
-        }
-    }
-
-    fn test_lock_entry(source: &str, commit_sha: &str) -> SkillLockEntry {
-        SkillLockEntry {
-            extra: Default::default(),
-            source: Some(source.to_string()),
-            source_type: Some("github".to_string()),
-            source_url: Some(format!("https://github.com/{source}")),
-            branch: Some("main".to_string()),
-            skill_path: Some("skills/demo".to_string()),
-            skill_folder_hash: None,
-            installed_at: None,
-            updated_at: None,
-            commit_sha: Some(commit_sha.to_string()),
-        }
-    }
-
-    #[test]
-    fn restore_maps_legacy_skill_id_to_canonical_metadata_key() {
-        use crate::persistence::{MetadataStore, Settings};
-        use std::collections::{BTreeMap, HashMap};
-
-        let dir = tempfile::tempdir().expect("tempdir");
-        let home = dir.path();
-        crate::config::with_test_home(home, || {
-            // Archived skill files under the archive skills dir.
-            let archive_id = "demo-abc123";
-            let archive_skill_dir = ArchiveManifest::archive_skill_dir(archive_id);
-            std::fs::create_dir_all(&archive_skill_dir).expect("create archive dir");
-            std::fs::write(archive_skill_dir.join("SKILL.md"), "# Demo").expect("write skill");
-
-            // Manifest entry keeps the historical provenance-derived ID and
-            // the user flags snapshotted at archive time.
-            let archived_skill = ArchivedSkill {
-                id: archive_id.to_string(),
-                archive_id: archive_id.to_string(),
-                original_skill_id: "repo:owner/repo:demo".to_string(),
-                name: "demo".to_string(),
-                yaml_name: None,
-                description: None,
-                directory: "demo".to_string(),
-                repo_owner: Some("owner".to_string()),
-                repo_name: Some("repo".to_string()),
-                source_url: Some("https://github.com/owner/repo".to_string()),
-                apps: HashMap::new(),
-                origin: "ssot".to_string(),
-                home_path: None,
-                content_hash: None,
-                home_agent: None,
-                starred: true,
-                is_mine: false,
-                installed_at: 100,
-                updated_at: 200,
-                archived_at: 300,
-                lock_key: Some("demo".to_string()),
-                lock_entry: Some(test_lock_entry("owner/repo", "abc123")),
-                archived_by_version: Some("test".to_string()),
-                reason: None,
-            };
-            let manifest = ArchiveManifest {
-                version: SUPPORTED_ARCHIVE_VERSION,
-                skills: BTreeMap::from([(archive_id.to_string(), archived_skill)]),
-            };
-            manifest.save().expect("save manifest");
-
-            let state = AppState::new(
-                SkillCache::empty(),
-                MetadataStore {
-                    entries: HashMap::new(),
-                },
-                Settings {
-                    values: HashMap::new(),
-                },
-            );
-
-            let restored = restore_archived_skill_inner(&state, archive_id.to_string())
-                .expect("restore archived skill");
-            // The restored skill scans under the canonical identity.
-            assert_eq!(restored, "ssot:demo");
-
-            // The historical legacy ID must land on the canonical key.
-            let metadata = state.metadata.read().expect("metadata lock");
-            assert!(
-                metadata.get("ssot:demo").starred,
-                "restored star must be readable under the canonical key without a restart"
-            );
-            assert!(!metadata.entries.contains_key("repo:owner/repo:demo"));
-        });
     }
 
     #[test]

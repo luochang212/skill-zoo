@@ -4,6 +4,52 @@ use common::{make_lock_entry, SkillLock};
 use std::collections::BTreeMap;
 
 #[test]
+fn auto_baseline_respects_an_active_local_writer() {
+    let tmp = tempfile::tempdir().unwrap();
+    skill_zoo_lib::config::with_test_home(tmp.path(), || {
+        let mut lock = SkillLock::read().unwrap();
+        let expected = make_lock_entry("owner/repo");
+        lock.skills.insert("demo".into(), expected.clone());
+        lock.write().unwrap();
+        let lease = skill_zoo_lib::persistence::agent_transaction::AgentLease::acquire(
+            &skill_zoo_lib::config::get_app_config_dir(),
+        )
+        .unwrap();
+        assert!(SkillLock::baseline_commit_sha("demo", &expected, "latest").is_err());
+        assert!(SkillLock::read().unwrap().skills["demo"]
+            .commit_sha
+            .is_none());
+        drop(lease);
+        SkillLock::baseline_commit_sha("demo", &expected, "latest").unwrap();
+        assert_eq!(
+            SkillLock::read().unwrap().skills["demo"]
+                .commit_sha
+                .as_deref(),
+            Some("latest")
+        );
+    });
+}
+
+#[test]
+fn auto_baseline_does_not_overwrite_a_newer_or_replaced_installation() {
+    let tmp = tempfile::tempdir().unwrap();
+    skill_zoo_lib::config::with_test_home(tmp.path(), || {
+        let expected = make_lock_entry("original/repo");
+        for replacement in [make_lock_entry("replacement/repo"), {
+            let mut entry = expected.clone();
+            entry.commit_sha = Some("newer".into());
+            entry
+        }] {
+            let mut lock = SkillLock::read().unwrap();
+            lock.skills.insert("demo".into(), replacement.clone());
+            lock.write().unwrap();
+            SkillLock::baseline_commit_sha("demo", &expected, "stale-result").unwrap();
+            assert_eq!(SkillLock::read().unwrap().skills["demo"], replacement);
+        }
+    });
+}
+
+#[test]
 fn test_effective_url_derives_from_source() {
     let entry = make_lock_entry("anthropics/skills");
     let url = entry.effective_url();

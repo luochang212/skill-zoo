@@ -1,0 +1,6 @@
+[
+  { "name": "historical external archive", "origin": "external", "missingHome": false },
+  { "name": "plugin archive", "origin": "plugin", "missingHome": false },
+  { "name": "unknown owner", "origin": "future-origin", "missingHome": false },
+  { "name": "agent archive without its original home", "origin": "agent", "missingHome": true }
+]

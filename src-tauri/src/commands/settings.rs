@@ -1286,7 +1286,7 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
             None,
         ) = (checked_skills.get(skill_name), entry.commit_sha.as_ref())
         {
-            let _ = SkillLock::update_commit_sha(skill_name, latest);
+            let _ = SkillLock::baseline_commit_sha(skill_name, entry, latest);
         }
     }
 

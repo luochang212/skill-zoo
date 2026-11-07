@@ -178,7 +178,9 @@ async function planArchive(home: string | undefined, skill: InstalledSkill): Pro
     }
   }
   changes.push({ action: "write", path: getPaths(home).archiveManifestFile });
-  changes.push({ action: "write", path: getPaths(home).agentLockFile });
+  if (skill.origin === "ssot") {
+    changes.push({ action: "write", path: getPaths(home).agentLockFile });
+  }
   changes.push({ action: "write", path: getPaths(home).metadataFile });
   changes.push({ action: "write", path: getPaths(home).skillsCacheFile });
   return changes;
@@ -207,7 +209,9 @@ async function archiveOne(home: string | undefined, skill: InstalledSkill): Prom
   ]);
   const archiveId = makeArchiveId(skill.id, skill.directory);
   const archiveDir = path.join(paths.archiveSkillsDir, archiveId);
-  const lockKey = lock.skills[skill.directory] ? skill.directory : lock.skills[skill.name] ? skill.name : null;
+  const lockKey = skill.origin === "ssot"
+    ? lock.skills[skill.directory] ? skill.directory : lock.skills[skill.name] ? skill.name : null
+    : null;
   const lockEntryRaw = lockKey ? lock.skills[lockKey] : null;
   const lockEntry = lockEntryRaw ? structuredClone(lockEntryRaw) : null;
   const removedAgents: string[] = [];
@@ -294,7 +298,9 @@ async function planRestore(home: string | undefined, archiveId: string): Promise
     changes.push({ action: "create-link", path: linkPath, target: restorePath });
   }
   changes.push({ action: "write", path: getPaths(home).archiveManifestFile });
-  changes.push({ action: "write", path: getPaths(home).agentLockFile });
+  if (archived.origin === "ssot" && archived.lockEntry) {
+    changes.push({ action: "write", path: getPaths(home).agentLockFile });
+  }
   changes.push({ action: "write", path: getPaths(home).metadataFile });
   changes.push({ action: "write", path: getPaths(home).skillsCacheFile });
   return changes;
@@ -327,7 +333,7 @@ async function restoreOne(home: string | undefined, archiveId: string): Promise<
     await ensureDir(path.dirname(restorePath));
     await movePath(archiveDir, restorePath);
 
-    if (archived.lockEntry) {
+    if (archived.origin === "ssot" && archived.lockEntry) {
       lock.skills[normalizePath(archived.lockKey ?? archived.directory)] = archived.lockEntry;
       await writeLock(home, lock);
     }
@@ -418,6 +424,9 @@ async function getWritableSchemaError(home: string | undefined): Promise<CliErro
 }
 
 function getRestorePath(home: string | undefined, archived: ArchivedSkill): string {
+  if (archived.origin !== "ssot" && archived.origin !== "agent") {
+    throw new CliError(`Unsupported archive ownership '${archived.origin}'. The archive and original source were preserved.`);
+  }
   if (archived.homePath) {
     return archived.homePath;
   }
@@ -426,8 +435,7 @@ function getRestorePath(home: string | undefined, archived: ArchivedSkill): stri
     return path.join(getPaths(home).agentsSkillsDir, archived.directory);
   }
 
-  const homeAgentDir = archived.homeAgent ? getAgentSkillsDir(home, archived.homeAgent) : undefined;
-  return path.join(homeAgentDir ?? getPaths(home).agentsSkillsDir, archived.directory);
+  throw new CliError("Archive does not record the original agent home. The archive was preserved; restore its files manually rather than guessing a destination.");
 }
 
 async function rollbackArchive(

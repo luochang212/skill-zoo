@@ -39,6 +39,42 @@ Metadata identity is anchored to the installation directory and must not encode 
 
 Metadata refresh acquires the desktop metadata write lock before reading disk and replacing the in-memory map; metadata mutations and their save share that lock. Replacing an existing lock entry during installation preserves its unknown optional fields. Explicit duplicate merges refuse sources containing symbolic links or junctions, preserving the originals and their link targets.
 
+### Archive identity and provenance
+
+An archive operation targets the selected physical home and ownership, not every
+skill sharing its directory name. The installation lock describes SSOT content:
+new archives of agent-native skills do not capture or remove a same-name SSOT
+lock entry. Restore scans the recorded concrete home and preserves the original
+agent identity (or an existing retained-import identity), even when another SSOT
+skill has the same directory name. Ordinary failure recovery restores the lock
+state present before the operation, including unknown optional fields.
+
+This corrects ownership isolation without changing lock v3 or archive v1 fields.
+Existing historical records remain readable; agent archives' old lock snapshots
+are ignored rather than applied to SSOT. SSOT archives still preserve and restore
+their installation provenance. Restore accepts only SSOT and agent ownership;
+external/plugin/unknown historical archives and agent records missing their
+original `homePath` are rejected before moving files. Their archive records,
+archive files and original sources are retained for inspection/manual recovery.
+The deterministic canonical-SSOT fallback and legacy metadata ID mapping remain
+supported. There is no automatic rewriting of old manifests. The shared
+`archive-roundtrip-cases.json` fixture exercises nested SSOT, nested agent, and
+same-name independent installations, including historical agent lock snapshots.
+`archive-unsupported-cases.json` pins the deliberately rejected legacy cases in
+both runtimes. These are explicit operation-compatibility boundaries, not a change
+to the stored v3/v1 JSON shapes.
+
+The desktop archive service owns the writer lease, refresh coordination and exit
+guard. It revalidates source ownership and SKILL.md before moving a directory;
+an import registry that cannot be read safely prevents archive mutations. Cache
+and metadata save failures retain ordinary rollback behavior; this does not
+extend the agent lifecycle journal to skill files or promise crash atomicity.
+
+The background commit-SHA baseline writer also acquires the shared local lease.
+It fills only a still-missing SHA on the exact lock entry that was checked;
+replacement installs or newer baselines are left unchanged. A busy lease defers
+this best-effort enrichment to a later check.
+
 ## Agent Link Semantics
 
 `directory` stores the skill's path relative to its owning skill root and may be nested, for example `.system/openai-docs`. Agent skill directories are flat compatibility surfaces: the link created under `~/<agent>/skills/` uses the final path segment of `directory`, for example `~/.opencode/skills/openai-docs`. Link creation must not overwrite an existing real directory or a symlink/junction that points to a different target. Link removal must only remove a symlink/junction that resolves to the skill's current `homePath`.
