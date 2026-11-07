@@ -24,24 +24,6 @@
     "description": "Create detailed, interactive isometric illustrations of machines and complex systems with SVG, optional WebGL shaders, and 3D effects"
   },
   {
-    "owner": "vercel-labs",
-    "name": "agent-browser",
-    "branch": "main",
-    "description": "Browser automation CLI for AI agents"
-  },
-  {
-    "owner": "GoogleChrome",
-    "name": "modern-web-guidance",
-    "branch": "main",
-    "description": "Modern web platform guidance for coding agents — best practices, browser compatibility data, plus accessibility, privacy and security skills"
-  },
-  {
-    "owner": "Fission-AI",
-    "name": "OpenSpec",
-    "branch": "main",
-    "description": "Spec-driven development (SDD) for AI coding assistants"
-  },
-  {
     "owner": "mattpocock",
     "name": "skills",
     "branch": "main",
