@@ -35,6 +35,10 @@ pub struct CatalogSkill {
     skill_id: String,
     name: String,
     installs: u64,
+    /// Weekly install counts as published by skills.sh; older cache files
+    /// predate this field, hence the default.
+    #[serde(default)]
+    weekly_installs: Vec<u64>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -169,7 +173,7 @@ mod tests {
     use super::*;
     #[test]
     fn parses_html_payload_and_filters_sources_without_treating_slugs_as_paths() {
-        let payload = r#"53:["$",null,{"initialSkills":[{"source":"owner/repo.v2","skillId":"test","name":"A \"quoted\" skill","installs":42},{"source":"owner/repo.v2","skillId":"test","name":"duplicate","installs":10},{"source":"site.com/skills","skillId":"test","name":"domain","installs":1},{"source":"owner/repo","skillId":"../bad","name":"bad","installs":1}]}]"#;
+        let payload = r#"53:["$",null,{"initialSkills":[{"source":"owner/repo.v2","skillId":"test","name":"A \"quoted\" skill","installs":42,"weeklyInstalls":[10,20,30]},{"source":"owner/repo.v2","skillId":"test","name":"duplicate","installs":10},{"source":"site.com/skills","skillId":"test","name":"domain","installs":1},{"source":"owner/repo","skillId":"../bad","name":"bad","installs":1}]}]"#;
         let html = format!(
             "<script>self.__next_f.push([0])</script><script>self.__next_f.push({})</script>",
             serde_json::to_string(&(1, payload)).unwrap()
@@ -178,6 +182,7 @@ mod tests {
         assert_eq!(skills.len(), 1);
         assert_eq!(skills[0].name, "A \"quoted\" skill");
         assert_eq!(skills[0].installs, 42);
+        assert_eq!(skills[0].weekly_installs, vec![10, 20, 30]);
     }
     #[tokio::test]
     #[ignore = "requires skills.sh network access"]

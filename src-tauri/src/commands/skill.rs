@@ -3048,7 +3048,7 @@ pub async fn get_repo_skills(
         &owner,
         &name,
         branch.as_deref(),
-        800,
+        1000,
         force,
         Some(&app),
     )
