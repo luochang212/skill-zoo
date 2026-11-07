@@ -534,7 +534,10 @@ async fn import_external_skills_for_state(
             existing_id.unwrap_or_else(|| make_external_import_id(source_path, &imports));
         match imports.imports.get_mut(&import_id) {
             Some(import) => {
-                if import.directory != selection.directory {
+                // Agent links are flat: changing only the parent path reuses the same link.
+                if SkillService::agent_link_name(&import.directory)
+                    != SkillService::agent_link_name(&selection.directory)
+                {
                     renamed_imports.push((import.directory.clone(), import.source_path.clone()));
                 }
                 import.source_path = strip_verbatim_prefix(source_path.display().to_string());
@@ -3386,7 +3389,12 @@ mod tests {
     }
     #[test]
     fn external_import_commit_preserves_preexisting_links_on_failure() {
-        for fail_cache in [true, false] {
+        for (fail_cache, old_directory, new_directory) in [
+            (true, "demo", "demo"),
+            (false, "demo", "demo"),
+            (false, "a/demo", "b/demo"),
+            (false, "old", "new"),
+        ] {
             let tmp = tempfile::tempdir().unwrap();
             config::with_test_home(tmp.path(), || {
                 let source = tmp.path().join("private/demo");
@@ -3394,15 +3402,20 @@ mod tests {
                 std::fs::write(source.join("SKILL.md"), "# private").unwrap();
                 let root = config::get_agent_skills_dir("codex").unwrap();
                 std::fs::create_dir_all(&root).unwrap();
-                SkillService::toggle_symlink("demo", &source.to_string_lossy(), "codex", true)
-                    .unwrap();
+                SkillService::toggle_symlink(
+                    old_directory,
+                    &source.to_string_lossy(),
+                    "codex",
+                    true,
+                )
+                .unwrap();
                 let mut previous = ExternalImports::default();
                 previous.imports.insert(
                     "external:existing".into(),
                     ExternalImportEntry {
                         id: "external:existing".into(),
                         source_path: source.to_string_lossy().into_owned(),
-                        directory: "demo".into(),
+                        directory: old_directory.into(),
                         imported_at: 1,
                         updated_at: 1,
                     },
@@ -3431,7 +3444,7 @@ mod tests {
                         &state,
                         vec![ExternalImportSelection {
                             source_path: source.to_string_lossy().into_owned(),
-                            directory: "demo".into(),
+                            directory: new_directory.into(),
                         }],
                         vec!["codex".into()],
                     ));
@@ -3452,7 +3465,28 @@ mod tests {
                         1
                     );
                 }
-                assert!(link_points_to_import_source(&root.join("demo"), &source));
+                let active_directory = if fail_cache {
+                    old_directory
+                } else {
+                    new_directory
+                };
+                assert!(link_points_to_import_source(
+                    &root.join(SkillService::agent_link_name(active_directory)),
+                    &source,
+                ));
+                if !fail_cache {
+                    assert_eq!(
+                        ExternalImports::load().unwrap().imports["external:existing"].directory,
+                        new_directory
+                    );
+                    if SkillService::agent_link_name(old_directory)
+                        != SkillService::agent_link_name(new_directory)
+                    {
+                        assert!(!is_symlink_or_junction(
+                            &root.join(SkillService::agent_link_name(old_directory))
+                        ));
+                    }
+                }
                 assert_eq!(
                     std::fs::read_to_string(source.join("SKILL.md")).unwrap(),
                     "# private"
