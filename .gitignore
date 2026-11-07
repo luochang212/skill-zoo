@@ -24,3 +24,4 @@ docs/superpowers/
 site/.astro/
 site/test-results/
 site/playwright-report/
+adr/.decision-sequence
