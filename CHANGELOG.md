@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.5] — 2026-11-07
+
+### Added
+- The Discover page recommends popular and 24-hour trending skills from skills.sh. Community cards identify their source and metric period, sketch weekly install trends, and open a live preview that installs through the existing agent-selection flow. Saved catalog results remain browsable when the upstream request fails.
+
+### Changed
+- Cached translations are reused across providers, models and output settings. Switching models keeps previously translated content readable, and a failed retranslation preserves the last successful text instead of losing it.
+- The installation dialog uses checkboxes with a select-all control instead of agent switches.
+- Loading skeletons on the local and Discover pages match the real card layout, fill three rows, and hand over to content with a soft highlight; the skill preview shows a realistic skeleton and a compact install bar with a thin progress line.
+
+### Fixed
+- The skill preview keeps its install footer visible while installation status loads.
+
 ## [0.4.4] — 2026-11-07
 
 ### Added
