@@ -78,6 +78,8 @@ Run `archive` and `restore` with `--dry-run` first. In non-interactive shells, w
 
 `consistency` reports app-aligned skill consistency issues for agents to inspect: duplicate same-content skills, conflicting same-name skills, and `SKILL.md` frontmatter names that differ from directory names. Consistency warnings do not fail automation by default.
 
+External imports do not participate in consistency issues. Identical duplicates require matching content hashes for every copy; an unavailable hash is treated conservatively as a conflict. The CLI continues scanning all registered agent roots independently of desktop display preferences.
+
 The CLI does not directly notify a running desktop app. The desktop app watches local Skill Zoo state and should usually refresh after CLI changes; if the GUI still looks stale, run `skill-zoo refresh` or refresh/restart the app.
 
 ## Local Development

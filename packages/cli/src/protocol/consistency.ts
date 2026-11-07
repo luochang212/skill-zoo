@@ -38,7 +38,7 @@ export interface ConsistencyReport {
 }
 
 export async function runConsistency(home?: string): Promise<ConsistencyReport> {
-  const skills = await scanInstalledSkills(home);
+  const skills = (await scanInstalledSkills(home)).filter((skill) => skill.origin !== "external");
   const issues = [
     ...findDuplicateAndConflictIssues(skills),
     ...findMismatchIssues(skills),
@@ -63,10 +63,9 @@ function findDuplicateAndConflictIssues(skills: InstalledSkill[]): ConsistencyIs
       continue;
     }
 
-    const nonEmptyHashes = group.filter((skill) => skill.contentHash);
+    const first = group[0];
     const sameContent =
-      nonEmptyHashes.length > 0 &&
-      nonEmptyHashes.every((skill) => skill.contentHash === nonEmptyHashes[0]?.contentHash);
+      !!first?.contentHash && group.every((skill) => skill.contentHash === first.contentHash);
     const kind: ConsistencyIssueKind = sameContent ? "duplicate" : "conflict";
 
     issues.push({
