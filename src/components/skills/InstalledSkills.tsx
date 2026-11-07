@@ -32,6 +32,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSkeletonCount } from "@/hooks/useSkeletonCount";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRepoPanelCollapsed } from "@/hooks/useRepoPanelCollapsed";
 import { RepoInfoPanel } from "@/components/skills/RepoInfoPanel";
@@ -217,11 +218,12 @@ function InstalledSkillsSkeleton({
   viewMode: ViewMode;
   agentCount: number;
 }) {
+  const { t } = useTranslation();
   const showToolbar = category.type !== "consistency";
   const showCreateRow = category.type === "mine";
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full" role="status" aria-label={t("common.loading")} aria-busy="true">
       <SkeletonSidebar />
 
       <div className="flex flex-col flex-1 min-w-0">
@@ -239,7 +241,7 @@ function InstalledSkillsSkeleton({
           ) : (
             <div className="flex-1 min-h-0 flex gap-0 relative -mr-6">
               <div className="flex-1 min-w-0 overflow-clip pt-1">
-                <div className="pr-6 @container/main">
+                <div className="h-full pr-6 @container/main">
                   {viewMode === "grid" ? <SkeletonGrid /> : <SkeletonList />}
                 </div>
               </div>
@@ -322,27 +324,34 @@ function SkeletonToolbar({ viewMode, agentCount }: { viewMode: ViewMode; agentCo
 }
 
 function SkeletonGrid() {
+  const { ref, count } = useSkeletonCount(245, 112, 16);
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,245px),1fr))] gap-4 pt-1 pb-3">
-      {Array.from({ length: 18 }).map((_, i) => (
-        <div key={i} className="rounded-xl border bg-card p-4 space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <Skeleton className="h-4 w-3/4" />
-            <Skeleton className="h-4 w-4 rounded-full shrink-0" />
+    <div ref={ref} className="h-full overflow-hidden">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,245px),1fr))] gap-4 pt-1 pb-3">
+        {Array.from({ length: count }).map((_, i) => (
+          <div key={i} aria-hidden="true" className="skeleton-card h-[112px] px-4 pt-4 pb-3">
+            <div className="flex h-7 items-center justify-between gap-4">
+              <Skeleton className="h-3" style={{ width: `${[58, 72, 46, 64][i % 4]}%` }} />
+              <Skeleton className="size-3.5 rounded-sm opacity-50" />
+            </div>
+            <div className="mt-1 flex h-[42px] flex-col justify-center gap-3">
+              <Skeleton className="h-2 w-11/12 opacity-60" />
+              <Skeleton
+                className="h-2 opacity-60"
+                style={{ width: `${[72, 54, 80, 62][i % 4]}%` }}
+              />
+            </div>
           </div>
-          <div className="space-y-2 pt-1">
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-5/6" />
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
 
 function SkeletonList() {
+  const { ref, count } = useSkeletonCount(Infinity, 36, 0);
   return (
-    <div className="flex flex-col">
+    <div ref={ref} className="h-full overflow-hidden flex flex-col">
       <div className="flex items-center gap-4 px-5 py-1.5 border-b border-border/40">
         <div className="w-8 shrink-0 flex justify-center">
           <Skeleton className="h-4 w-4 rounded" />
@@ -352,8 +361,8 @@ function SkeletonList() {
         <Skeleton className="h-3 w-28 shrink-0 hidden @md/main:block" />
         <div className="w-8 shrink-0 hidden @lg/main:block" />
       </div>
-      {Array.from({ length: 20 }).map((_, i) => (
-        <div key={i} className="flex items-center gap-4 px-5 py-2">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="flex h-9 shrink-0 items-center gap-4 px-5 py-2">
           <div className="w-8 shrink-0 flex justify-center">
             <Skeleton className="h-4 w-4 rounded" />
           </div>

@@ -22,6 +22,46 @@ describe("community discovery", () => {
     const skills = [skill("a/repo", "one"), skill("a/repo", "two"), skill("b/repo", "three")];
     expect(diversifySkills(skills).map((s) => s.skillId)).toEqual(["one", "three", "two"]);
   });
+  it("keeps an SVG chart silhouette in each loading card", () => {
+    mocks.result = { isPending: true };
+    const { container } = render(<CommunitySkills onOpen={vi.fn()} />);
+    const charts = container.querySelectorAll('.skeleton-card svg[viewBox="0 0 104 30"]');
+    expect(charts).toHaveLength(9);
+    expect(charts[0]?.querySelectorAll("path")).toHaveLength(2);
+  });
+  it("fills three rows at the current column count and updates on resize", () => {
+    let resize: () => void = vi.fn();
+    const disconnect = vi.fn();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: () => void) {
+          resize = callback;
+        }
+        observe() {}
+        disconnect = disconnect;
+      },
+    );
+    let width = 1160;
+    const widthSpy = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockImplementation(() => width);
+    mocks.result = { isPending: true };
+    try {
+      const { container, unmount } = render(<CommunitySkills onOpen={vi.fn()} />);
+      expect(container.querySelectorAll(".skeleton-card")).toHaveLength(12);
+      act(() => {
+        width = 560;
+        resize();
+      });
+      expect(container.querySelectorAll(".skeleton-card")).toHaveLength(3);
+      unmount();
+      expect(disconnect).toHaveBeenCalledOnce();
+    } finally {
+      widthSpy.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
   it("opens the exact source slug, auto-extends on scroll, and switches metrics", () => {
     const observer = { callback: null as IntersectionObserverCallback | null };
     class MockIntersectionObserver {

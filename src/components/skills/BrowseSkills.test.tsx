@@ -1,4 +1,4 @@
-import "@/i18n";
+import i18n from "@/i18n";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   repoSearchLoading: false,
   skillsSearchLoading: false,
   skillsSearchQueries: [] as Array<string | null | undefined>,
+  recommendedLoading: false,
   recommendedRepos: [] as Array<{
     owner: string;
     name: string;
@@ -53,7 +54,7 @@ vi.mock("@/hooks/useSkills", () => ({
   useSkillPreview: () => ({ data: undefined, isLoading: false, isError: false }),
   useRecommendedRepos: () => ({
     data: mocks.recommendedRepos,
-    isLoading: false,
+    isLoading: mocks.recommendedLoading,
     isError: false,
     refetch: vi.fn(),
   }),
@@ -87,6 +88,7 @@ describe("BrowseSkills", () => {
     globalThis.ResizeObserver = ResizeObserverMock;
     vi.useRealTimers();
     mocks.recommendedRepos = [];
+    mocks.recommendedLoading = false;
     mocks.skillsResults = [];
     mocks.repoResult = undefined;
     mocks.repoSearchLoading = false;
@@ -96,6 +98,19 @@ describe("BrowseSkills", () => {
     mocks.refetchRepoSearch.mockReset();
     mocks.refetchSkillsSearch.mockReset();
     mocks.searchRepo.mockReset();
+  });
+
+  it("waits for local recommendations without skeletons or a false empty state", () => {
+    mocks.recommendedLoading = true;
+    const { container, rerender } = render(
+      <BrowseSkills selectedRepo={null} onSelectRepo={vi.fn()} />,
+    );
+    expect(container.querySelector(".skeleton")).toBeNull();
+    expect(screen.queryByText(i18n.t("browse.noRepos"))).toBeNull();
+    mocks.recommendedLoading = false;
+    mocks.recommendedRepos = [{ owner: "owner", name: "repo" }];
+    rerender(<BrowseSkills selectedRepo={null} onSelectRepo={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "owner/repo" })).toBeInTheDocument();
   });
 
   it("renders repository cards as keyboard-operable buttons", async () => {

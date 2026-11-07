@@ -18,7 +18,6 @@ import { resolveCatalogSkill } from "@/components/skills/resolveCatalogSkill";
 import { BannerCarousel } from "@/components/skills/BannerCarousel";
 import { Input } from "@/components/ui/input";
 import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { RepoDetail } from "@/components/skills/RepoDetail";
 import type { CatalogSkill, DiscoverableSkill, DiscoverRepo } from "@/types/skills";
@@ -280,11 +279,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
 
   return (
     <div className="relative h-full">
-      <ScrollArea
-        className={
-          loadingRepos ? "h-full [&_[data-radix-scroll-area-viewport]>div]:h-full" : "h-full"
-        }
-      >
+      <ScrollArea className="h-full">
         <div className="mx-auto flex min-h-full max-w-6xl flex-col p-6 pb-10">
           {/* Search bar with dropdown */}
           <div className="flex items-center gap-3 shrink-0">
@@ -421,24 +416,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
           )}
 
           {/* Recommended repos */}
-          {loadingRepos ? (
-            <div
-              className="mt-6 flex-1 min-h-0 overflow-clip"
-              role="status"
-              aria-label={t("common.loading")}
-            >
-              <Skeleton className="h-3 w-24 mb-3" />
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-3">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="rounded-xl border bg-card p-4 space-y-3">
-                    <Skeleton className="h-4 w-3/4" />
-                    <Skeleton className="h-3 w-full" />
-                    <Skeleton className="h-3 w-4/5" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : reposError ? (
+          {reposError ? (
             <div className="mt-6 flex-1 flex flex-col items-center justify-center gap-3">
               <AlertTriangle className="h-8 w-8 text-destructive/60" />
               <p className="text-sm text-destructive">{t("error.generic")}</p>
@@ -446,7 +424,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
                 {t("error.retry")}
               </Button>
             </div>
-          ) : repos.length === 0 ? (
+          ) : loadingRepos ? null : repos.length === 0 ? (
             <div className="mt-6 flex-1 flex items-center justify-center">
               <p className="text-sm text-muted-foreground">{t("browse.noRepos")}</p>
             </div>

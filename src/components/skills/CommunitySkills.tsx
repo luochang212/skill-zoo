@@ -91,20 +91,40 @@ function TrendSparkline({ values }: { values: number[] }) {
   );
 }
 
-// A precise skeleton: mirrors the real card structure bar for bar so the
-// handoff from loading to loaded never shifts layout.
+// Match the catalog card: name and installs, source, then a 104 × 30 chart slot.
 function CatalogCardSkeleton() {
   return (
-    <div aria-hidden="true" className="h-full rounded-xl border border-border/70 bg-card p-4">
-      <div className="flex w-full items-center justify-between gap-2">
-        <Skeleton className="h-3.5 w-2/3 rounded-md" />
-        <Skeleton className="size-3.5 rounded" />
+    <div aria-hidden="true" className="skeleton-card h-full flex flex-col p-4">
+      <div className="flex h-[19.5px] w-full items-center justify-between gap-4">
+        <Skeleton className="h-3 w-1/2" />
+        <div className="flex items-center gap-1">
+          <Skeleton className="size-3 rounded-sm opacity-50" />
+          <Skeleton className="h-2.5 w-7 opacity-60" />
+        </div>
       </div>
-      <Skeleton className="mt-1.5 h-3 w-1/2 rounded-md" />
-      <div className="mt-4 flex items-center gap-1.5">
-        <Skeleton className="size-3 rounded" />
-        <Skeleton className="h-3 w-1/3 rounded-md" />
+      <div className="mt-1 flex h-4 items-center">
+        <Skeleton className="h-2 w-2/5 opacity-60" />
       </div>
+      <svg
+        viewBox="0 0 104 30"
+        className="mt-auto h-[30px] w-[104px] self-end text-primary"
+        aria-hidden="true"
+      >
+        {/* A neutral chart silhouette reserves the slot without implying real values. */}
+        <path
+          d="M3 24 C18 24 20 18 34 19 S51 12 65 14 S83 8 101 6 L101 30 L3 30 Z"
+          fill="currentColor"
+          fillOpacity="0.025"
+        />
+        <path
+          d="M3 24 C18 24 20 18 34 19 S51 12 65 14 S83 8 101 6"
+          fill="none"
+          stroke="currentColor"
+          strokeOpacity="0.09"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+      </svg>
     </div>
   );
 }
@@ -136,25 +156,33 @@ export function CommunitySkills({ onOpen }: { onOpen: (skill: CatalogSkill) => v
     observer.observe(node);
     return () => observer.disconnect();
   }, [limit, skills.length]);
-  // Switching tabs swaps the list for precise skeletons; rendering as many of
-  // them as the previous list showed keeps the section height stable.
-  const [switchCount, setSwitchCount] = useState<number | null>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+  const [columns, setColumns] = useState(3);
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section) return;
+    const update = () => {
+      if (section.clientWidth > 0) {
+        setColumns(Math.max(1, Math.floor((section.clientWidth + 12) / 292)));
+      }
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, []);
   const switchKind = (value: CatalogKind) => {
     if (value === kind) return;
-    setSwitchCount(Math.min(limit, skills.length));
     setKind(value);
     setLimit(12);
     setEntranceStart(0);
   };
-  useEffect(() => {
-    if (!isPending) setSwitchCount(null);
-  }, [isPending]);
   const number = new Intl.NumberFormat(i18n.language, {
     notation: "compact",
     maximumFractionDigits: 1,
   });
   return (
-    <section className="mt-6">
+    <section ref={sectionRef} className="mt-6">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <h2 className="text-sm font-semibold">{t("browse.community")}</h2>
         <div
@@ -184,7 +212,7 @@ export function CommunitySkills({ onOpen }: { onOpen: (skill: CatalogSkill) => v
           aria-label={t("common.loading")}
           className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-3"
         >
-          {Array.from({ length: switchCount ?? 6 }, (_, index) => (
+          {Array.from({ length: columns * 3 }, (_, index) => (
             <CatalogCardSkeleton key={index} />
           ))}
         </div>

@@ -538,3 +538,66 @@ textarea,
     animation: none;
   }
 }
+
+/* A quiet, shared rhythm keeps dense loading views from flickering. */
+@keyframes skeleton-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton {
+    animation: skeleton-breathe 2.8s ease-in-out infinite;
+  }
+}
+
+/* Loading cards share a finish; each page owns its content geometry. */
+.skeleton-card {
+  position: relative;
+  overflow: clip;
+  border: 1px solid hsl(var(--foreground) / 0.045);
+  border-radius: 0.75rem;
+  background: hsl(var(--card) / 0.45);
+}
+
+.skeleton-card .skeleton {
+  animation: none;
+  border-radius: 3px;
+  background: hsl(var(--primary) / 0.065);
+}
+
+.skeleton-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 20%,
+    hsl(var(--card) / 0.55) 50%,
+    transparent 80%
+  );
+  transform: translateX(-100%);
+}
+
+@keyframes skeleton-sweep {
+  0%,
+  15% {
+    transform: translateX(-100%);
+  }
+  85%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton-card::after {
+    animation: skeleton-sweep 3.2s ease-in-out infinite;
+  }
+}
