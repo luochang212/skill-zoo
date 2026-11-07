@@ -99,18 +99,17 @@ fn test_desktop_migrates_legacy_metadata_fixture_keys() {
         .expect("load metadata fixture");
 
     // Legacy repo keys merge (OR) into canonical ssot keys.
-    assert_eq!(store.get("ssot:demo").starred, true);
-    assert_eq!(store.get("ssot:demo").is_mine, true);
-    assert_eq!(store.get("ssot:category/nested").is_mine, true);
-    assert_eq!(store.get("ssot:category/nested").starred, false);
-    assert_eq!(store.get("ssot:kept").starred, true);
-    assert_eq!(
+    assert!(store.get("ssot:demo").starred);
+    assert!(store.get("ssot:demo").is_mine);
+    assert!(store.get("ssot:category/nested").is_mine);
+    assert!(!store.get("ssot:category/nested").starred);
+    assert!(store.get("ssot:kept").starred);
+    assert!(
         store
             .get("agent:codex:/Users/example/.codex/skills/local-skill")
-            .is_mine,
-        true
+            .is_mine
     );
-    assert_eq!(store.get("external:demo-a1b2c3d4").is_mine, true);
+    assert!(store.get("external:demo-a1b2c3d4").is_mine);
     assert!(store.get("ssot:foo:bar").starred);
     assert!(store.get("ssot:foo:bar").is_mine);
     assert!(!store.entries.keys().any(|key| key.starts_with("repo:")));

@@ -383,8 +383,8 @@ mod tests {
         );
         values.insert("theme".to_string(), "dark".to_string());
         let visible = super::visible_settings(&values);
-        assert!(visible.get("github_token").is_none());
-        assert!(visible.get("github_token_expires_at").is_none());
+        assert!(!visible.contains_key("github_token"));
+        assert!(!visible.contains_key("github_token_expires_at"));
         assert_eq!(visible.get("theme").map(String::as_str), Some("dark"));
     }
 
@@ -985,8 +985,11 @@ mod agent_preferences_tests {
         let root = tempfile::tempdir().expect("tempdir");
         let (agent_dir, home) = hidden_agent_fixture(root.path());
 
-        let failed =
-            cleanup_hidden_agent_links(&["openclaw"], &[agent_dir.clone()], &[home.clone()]);
+        let failed = cleanup_hidden_agent_links(
+            &["openclaw"],
+            std::slice::from_ref(&agent_dir),
+            std::slice::from_ref(&home),
+        );
 
         assert!(!failed);
         assert!(std::fs::symlink_metadata(agent_dir.join("mine")).is_err());
@@ -1004,8 +1007,11 @@ mod agent_preferences_tests {
         perms.set_mode(0o500);
         std::fs::set_permissions(&agent_dir, perms).unwrap();
 
-        let failed =
-            cleanup_hidden_agent_links(&["openclaw"], &[agent_dir.clone()], &[home.clone()]);
+        let failed = cleanup_hidden_agent_links(
+            &["openclaw"],
+            std::slice::from_ref(&agent_dir),
+            std::slice::from_ref(&home),
+        );
 
         assert!(failed);
         assert!(symlink_target_matches(&agent_dir.join("mine"), &home));
@@ -1025,8 +1031,11 @@ mod agent_preferences_tests {
         perms.set_mode(0o555);
         std::fs::set_permissions(agent_home, perms).unwrap();
 
-        let failed =
-            cleanup_hidden_agent_links(&["openclaw"], &[agent_dir.clone()], &[home.clone()]);
+        let failed = cleanup_hidden_agent_links(
+            &["openclaw"],
+            std::slice::from_ref(&agent_dir),
+            std::slice::from_ref(&home),
+        );
 
         assert!(failed);
         assert!(symlink_target_matches(&agent_dir.join("mine"), &home));
@@ -1042,8 +1051,11 @@ mod agent_preferences_tests {
         std::fs::create_dir_all(&foreign).unwrap();
         SkillService::create_link_to_target_for_test(&foreign, &agent_dir.join("theirs")).unwrap();
 
-        let failed =
-            cleanup_hidden_agent_links(&["openclaw"], &[agent_dir.clone()], &[home.clone()]);
+        let failed = cleanup_hidden_agent_links(
+            &["openclaw"],
+            std::slice::from_ref(&agent_dir),
+            std::slice::from_ref(&home),
+        );
 
         assert!(!failed);
         assert!(std::fs::symlink_metadata(agent_dir.join("theirs")).is_ok());

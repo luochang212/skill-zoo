@@ -204,9 +204,9 @@ mod tests {
 
         let store = MetadataStore::load_from(&path).expect("load metadata");
 
-        assert_eq!(store.get("ssot:demo").starred, true);
-        assert_eq!(store.get("ssot:other").is_mine, true);
-        assert_eq!(store.get("agent:codex:/a/demo").starred, true);
+        assert!(store.get("ssot:demo").starred);
+        assert!(store.get("ssot:other").is_mine);
+        assert!(store.get("agent:codex:/a/demo").starred);
         assert!(!store.entries.contains_key("repo:owner/repo:demo"));
 
         // Convergence: the migrated state is persisted verbatim.

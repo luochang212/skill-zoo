@@ -2943,7 +2943,7 @@ mod tests {
         SkillService::create_link_to_target(&target, &link).unwrap();
         let staged = SkillService::stage_agent_symlink_removal_in_dirs_for_test(
             &[agent_dir],
-            &[target.clone()],
+            std::slice::from_ref(&target),
         )
         .unwrap();
         let backup = staged.moved_links[0].1.clone();
@@ -2968,7 +2968,7 @@ mod tests {
 
         let staged = SkillService::stage_agent_symlink_removal_in_dirs_for_test(
             &[agent_dir],
-            &[target.clone()],
+            std::slice::from_ref(&target),
         )
         .unwrap();
         staged.commit();
@@ -2990,8 +2990,8 @@ mod tests {
         SkillService::create_link_to_target(&foreign, &agent_dir.join("theirs")).unwrap();
 
         let staged = SkillService::stage_agent_symlink_removal_in_dirs_for_test(
-            &[agent_dir.clone()],
-            &[home.clone()],
+            std::slice::from_ref(&agent_dir),
+            std::slice::from_ref(&home),
         )
         .unwrap();
 
@@ -3016,8 +3016,8 @@ mod tests {
         std::os::unix::fs::symlink(&home, agent_dir.join("gone")).unwrap();
 
         let staged = SkillService::stage_agent_symlink_removal_in_dirs_for_test(
-            &[agent_dir.clone()],
-            &[home.clone()],
+            std::slice::from_ref(&agent_dir),
+            std::slice::from_ref(&home),
         )
         .unwrap();
 
@@ -3044,17 +3044,17 @@ mod tests {
         assert!(super::is_app_owned_link(
             &dir.join("ssot"),
             &ssot_root,
-            &[home.clone()]
+            std::slice::from_ref(&home)
         ));
         assert!(super::is_app_owned_link(
             &dir.join("local"),
             &ssot_root,
-            &[home.clone()]
+            std::slice::from_ref(&home)
         ));
         assert!(!super::is_app_owned_link(
             &dir.join("foreign"),
             &ssot_root,
-            &[home.clone()]
+            std::slice::from_ref(&home)
         ));
         // 缓存退化：无已知 homePath 时仅 SSOT 前缀命中
         assert!(!super::is_app_owned_link(
@@ -3075,8 +3075,8 @@ mod tests {
         SkillService::create_link_to_target(&home, &agent_dir.join("mine")).unwrap();
 
         let staged = SkillService::stage_agent_symlink_removal_in_dirs_for_test(
-            &[agent_dir.clone()],
-            &[home.clone()],
+            std::slice::from_ref(&agent_dir),
+            std::slice::from_ref(&home),
         )
         .unwrap();
         // 模拟外部进程（如 openclaw 的 watcher）在原位重建了链接

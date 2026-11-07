@@ -943,7 +943,7 @@ mod tests {
             let retained = imports
                 .imports
                 .values()
-                .find(|i| PathBuf::from(&i.source_path) == skill.canonicalize().unwrap())
+                .find(|i| Path::new(&i.source_path) == skill.canonicalize().unwrap())
                 .unwrap();
             assert_eq!(
                 SkillService::scan_external_import(retained).unwrap().origin,
@@ -1076,8 +1076,22 @@ mod tests {
         let canonical_root = tmp.path().canonicalize().unwrap();
         let protected = canonical_root.join("store");
         std::fs::create_dir(&protected).unwrap();
-        assert!(validate("Tool", &protected, None, &[], &[protected.clone()]).is_err());
-        assert!(validate("Tool", &canonical_root, None, &[], &[protected.clone()]).is_err());
+        assert!(validate(
+            "Tool",
+            &protected,
+            None,
+            &[],
+            std::slice::from_ref(&protected)
+        )
+        .is_err());
+        assert!(validate(
+            "Tool",
+            &canonical_root,
+            None,
+            &[],
+            std::slice::from_ref(&protected)
+        )
+        .is_err());
         assert!(validate("Tool", &protected.join("nested"), None, &[], &[protected]).is_err());
         let case_alias = canonical_root.join("STORE");
         if case_alias.is_dir() {
