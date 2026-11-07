@@ -59,8 +59,6 @@
     "totalInstalls": "total installs",
     "dailyInstalls": "installs · 24h",
     "communityUnavailable": "Community picks are unavailable. Curated repositories are still here to explore.",
-    "showLess": "Show less",
-    "allRepos": "Show more",
     "catalogSkillMissing": "Could not uniquely locate “{{name}}” in this repository. Browse the available skills below.",
     "searchRepoPlaceholder": "Search skills or GitHub repo...",
     "installs": "installs",

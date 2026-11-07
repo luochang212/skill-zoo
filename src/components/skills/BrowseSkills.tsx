@@ -86,7 +86,6 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
   const { items: recentItems, add: addRecent, clear: clearRecent } = useRecentlyViewed();
 
   const [previewTarget, setPreviewTarget] = useState<CatalogSkill | null>(null);
-  const [showAllRepos, setShowAllRepos] = useState(false);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState<string | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -408,7 +407,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
                   {t("browse.clearHistory")}
                 </Button>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-3">
                 {recentToDisplay.map((entry) => (
                   <RepoCard
                     key={`${entry.owner}/${entry.name}`}
@@ -429,7 +428,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
               aria-label={t("common.loading")}
             >
               <Skeleton className="h-3 w-24 mb-3" />
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-3">
                 {Array.from({ length: 3 }).map((_, i) => (
                   <div key={i} className="rounded-xl border bg-card p-4 space-y-3">
                     <Skeleton className="h-4 w-3/4" />
@@ -453,22 +452,9 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
             </div>
           ) : (
             <div className="mt-6">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold">{t("browse.recommended")}</h2>
-                {repos.length > 6 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs"
-                    aria-expanded={showAllRepos}
-                    onClick={() => setShowAllRepos(!showAllRepos)}
-                  >
-                    {t(showAllRepos ? "browse.showLess" : "browse.allRepos")}
-                  </Button>
-                )}
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {(showAllRepos ? repos : repos.slice(0, 6)).map((repo) => (
+              <h2 className="text-sm font-semibold mb-3">{t("browse.recommended")}</h2>
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-3">
+                {repos.map((repo) => (
                   <RepoCard
                     key={`${repo.owner}/${repo.name}`}
                     repo={repo}

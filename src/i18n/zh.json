@@ -59,8 +59,6 @@
     "totalInstalls": "累计安装",
     "dailyInstalls": "安装 · 24h",
     "communityUnavailable": "社区推荐暂时无法加载，你仍可浏览精选仓库。",
-    "showLess": "收起",
-    "allRepos": "展开",
     "catalogSkillMissing": "未能在仓库中唯一定位“{{name}}”，你可以从下方的技能列表中选择。",
     "searchRepoPlaceholder": "搜索技能或 GitHub 仓库...",
     "installs": "次安装",
