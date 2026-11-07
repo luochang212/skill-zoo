@@ -358,14 +358,11 @@ pub struct TranslationCacheRequest {
     pub skill_id: String,
     pub path: String,
     pub source: String,
-    pub provider_id: String,
-    pub model_id: String,
     pub target_language: String,
 }
 
 fn cached_translation(
     app: &AppState,
-    state: &TranslationState,
     request: &TranslationCacheRequest,
     root: &Path,
 ) -> Result<Option<String>, String> {
@@ -376,22 +373,9 @@ fn cached_translation(
         return Err("targetLanguage".into());
     }
     read_source(app, &request.skill_id, &request.path, &request.source)?;
-    let provider = {
-        let _lock = state.config_lock.lock().map_err(|_| "configRead")?;
-        config::load(&root.join("llm_providers.json"))?
-            .providers
-            .into_iter()
-            .find(|p| p.id == request.provider_id && p.enabled)
-            .ok_or("providerMissing")?
-    };
-    let model = provider
-        .models
-        .iter()
-        .find(|m| m.id == request.model_id && m.enabled)
-        .ok_or("modelMissing")?;
     let path = root.join("translations").join(format!(
         "{}.md",
-        translation::cache_key(&provider, model, &request.target_language, &request.source)
+        translation::cache_key(&request.target_language, &request.source)
     ));
     // This entry point only reads disk. A miss or error must never fall through to inference.
     match std::fs::read_to_string(path) {
@@ -405,10 +389,9 @@ fn cached_translation(
 #[tauri::command]
 pub fn read_cached_translation(
     app: State<'_, AppState>,
-    state: State<'_, TranslationState>,
     request: TranslationCacheRequest,
 ) -> Result<Option<String>, String> {
-    cached_translation(&app, &state, &request, &crate::config::get_app_config_dir())
+    cached_translation(&app, &request, &crate::config::get_app_config_dir())
 }
 
 #[tauri::command]
@@ -445,6 +428,18 @@ async fn run_translation(
                 return Err("targetLanguage".into());
             }
             read_source(app, &request.skill_id, &request.path, &request.source)?;
+            let path = root.join("translations").join(format!(
+                "{}.md",
+                translation::cache_key(&request.target_language, &request.source)
+            ));
+            if !request.force {
+                match std::fs::read_to_string(&path) {
+                    Ok(text) if !text.trim().is_empty() => return Ok((path, text, false)),
+                    Ok(_) => {}
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(_) => return Err("cacheRead".into()),
+                }
+            }
             let provider = {
                 let _lock = state.config_lock.lock().map_err(|_| "configRead")?;
                 config::load(&root.join("llm_providers.json"))?
@@ -458,18 +453,6 @@ async fn run_translation(
                 .iter()
                 .find(|m| m.id == request.model_id && m.enabled)
                 .ok_or("modelMissing")?;
-            let path = root.join("translations").join(format!(
-                "{}.md",
-                translation::cache_key(&provider, model, &request.target_language, &request.source)
-            ));
-            if !request.force {
-                match std::fs::read_to_string(&path) {
-                    Ok(text) if !text.is_empty() => return Ok((path, text, false)),
-                    Ok(_) => {}
-                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-                    Err(_) => return Err("cacheRead".into()),
-                }
-            }
             let protected = ProtectedMarkdown::new(&request.source);
             let raw = tokio::time::timeout(
                 std::time::Duration::from_secs(180),
@@ -656,8 +639,7 @@ mod tests {
         assert_eq!(completed, "# 你好\n\n```sh\nrm file\n```\n");
         translate_mock.assert_async().await;
         repair_mock.assert_async().await;
-        let provider = config::load(&config_path).unwrap().providers.remove(0);
-        let key = translation::cache_key(&provider, &provider.models[0], "zh-CN", source);
+        let key = translation::cache_key("zh-CN", source);
         assert_eq!(
             std::fs::read_to_string(root.join("translations").join(format!("{key}.md"))).unwrap(),
             completed
@@ -748,8 +730,7 @@ mod tests {
             "expected a fidelity failure, got {events:?}"
         );
         translate_mock.assert_async().await;
-        let provider = config::load(&config_path).unwrap().providers.remove(0);
-        let key = translation::cache_key(&provider, &provider.models[0], "zh-CN", source);
+        let key = translation::cache_key("zh-CN", source);
         assert!(
             !root.join("translations").join(format!("{key}.md")).exists(),
             "a failed translation must not populate the cache"
@@ -842,7 +823,7 @@ mod tests {
         )
     }
     #[test]
-    fn cache_only_read_checks_source_language_and_effective_config_without_writing() {
+    fn cache_only_read_checks_source_and_language_without_requiring_a_model() {
         use crate::persistence::llm_providers::{Model, Protocol, ProviderUpdate};
         let dir = tempfile::tempdir().unwrap();
         let source = dir.path().join("skill");
@@ -852,7 +833,7 @@ mod tests {
         let state = TranslationState::default();
         let root = dir.path().join("app");
         let path = root.join("llm_providers.json");
-        let summaries = config::upsert(
+        config::upsert(
             &path,
             ProviderUpdate {
                 id: None,
@@ -875,17 +856,11 @@ mod tests {
             skill_id: "plugin:test".into(),
             path: "references/guide.md".into(),
             source: "# Hello".into(),
-            provider_id: summaries[0].id.clone(),
-            model_id: "test".into(),
             target_language: "zh-CN".into(),
         };
-        assert_eq!(
-            cached_translation(&app, &state, &request, &root).unwrap(),
-            None
-        );
+        assert_eq!(cached_translation(&app, &request, &root).unwrap(), None);
         assert!(!root.join("translations").exists());
-        let provider = config::load(&path).unwrap().providers.remove(0);
-        let key = translation::cache_key(&provider, &provider.models[0], "zh-CN", "# Hello");
+        let key = translation::cache_key("zh-CN", "# Hello");
         std::fs::create_dir_all(root.join("translations")).unwrap();
         std::fs::write(
             root.join("translations").join(format!("{key}.md")),
@@ -893,17 +868,14 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            cached_translation(&app, &state, &request, &root).unwrap(),
+            cached_translation(&app, &request, &root).unwrap(),
             Some("# 你好".into())
         );
         request.target_language = "en".into();
-        assert_eq!(
-            cached_translation(&app, &state, &request, &root).unwrap(),
-            None
-        );
+        assert_eq!(cached_translation(&app, &request, &root).unwrap(), None);
         request.source = "unsaved draft".into();
         assert_eq!(
-            cached_translation(&app, &state, &request, &root),
+            cached_translation(&app, &request, &root),
             Err("sourceChanged".into())
         );
         assert_eq!(std::fs::read(&path).unwrap(), bytes);
@@ -911,13 +883,26 @@ mod tests {
         request.target_language = "zh-CN".into();
         let mut changed = config::load(&path).unwrap();
         changed.providers[0].base_url = "http://127.0.0.1:2/v1/".into();
+        changed.providers[0].enabled = false;
+        changed.providers[0].models[0].id = "another-model".into();
+        changed.providers[0].models[0].max_output_tokens = Some(100);
         config::save(&path, &changed).unwrap();
         let changed_bytes = std::fs::read(&path).unwrap();
         assert_eq!(
-            cached_translation(&app, &state, &request, &root).unwrap(),
-            None
+            cached_translation(&app, &request, &root).unwrap(),
+            Some("# 你好".into())
         );
         assert_eq!(std::fs::read(&path).unwrap(), changed_bytes);
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(
+            cached_translation(&app, &request, &root).unwrap(),
+            Some("# 你好".into())
+        );
+        std::fs::write(&path, "invalid config").unwrap();
+        assert_eq!(
+            cached_translation(&app, &request, &root).unwrap(),
+            Some("# 你好".into())
+        );
         assert!(state.runtime.lock().unwrap().tasks.is_empty());
     }
     fn request(id: &str, provider: &str) -> TranslationRequest {
@@ -995,6 +980,35 @@ mod tests {
             .unwrap()
             .unwrap()
             .path();
+        state.start("missing-provider-cached".into()).unwrap();
+        run_translation(
+            &app,
+            &state,
+            request("missing-provider-cached", "deleted"),
+            &root,
+            |e| {
+                events.lock().unwrap().push(e);
+                Ok(())
+            },
+        )
+        .await
+        .unwrap();
+        assert!(
+            matches!(events.lock().unwrap().last(), Some(TranslationEvent::Completed { text, .. }) if text == "# 你好")
+        );
+        state.start("missing-provider-force".into()).unwrap();
+        let mut forced = request("missing-provider-force", "deleted");
+        forced.force = true;
+        run_translation(&app, &state, forced, &root, |e| {
+            events.lock().unwrap().push(e);
+            Ok(())
+        })
+        .await
+        .unwrap();
+        assert!(
+            matches!(events.lock().unwrap().last(), Some(TranslationEvent::Failed { code, .. }) if code == "providerMissing")
+        );
+        assert_eq!(std::fs::read_to_string(&cache_file).unwrap(), "# 你好");
         let mock = server.mock("POST", "/v1/chat/completions").with_status(200)
             .with_header("content-type","text/event-stream")
             .with_body("data: {\"choices\":[{\"delta\":{\"content\":\"partial\"},\"finish_reason\":\"length\"}]}\n\ndata: [DONE]\n\n").create_async().await;

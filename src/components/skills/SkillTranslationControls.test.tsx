@@ -14,6 +14,7 @@ const translation = () => ({
   showTranslation: false,
   error: null,
   cachePending: false,
+  showCached: vi.fn().mockResolvedValue(false),
   translate: vi.fn(),
   cancel: vi.fn(),
   toggle: vi.fn(),
@@ -43,6 +44,27 @@ describe("translation toolbar menu", () => {
     await user.click(screen.getByRole("button", { name: "Translate" }));
     expect(state.translate).toHaveBeenCalledOnce();
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+  it("reads cached text before asking for a model", async () => {
+    await i18n.changeLanguage("en");
+    const user = userEvent.setup();
+    const state = translation();
+    state.showCached.mockResolvedValue(true);
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <SkillTranslationControls
+          translation={state}
+          language="en"
+          setLanguage={vi.fn()}
+          unavailable
+          preferencePending={false}
+        />
+      </QueryClientProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: "Translate" }));
+    expect(state.showCached).toHaveBeenCalledOnce();
+    expect(state.translate).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
   it("keeps a disabled control available in edit mode", async () => {
     await i18n.changeLanguage("en");

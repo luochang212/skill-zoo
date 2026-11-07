@@ -391,3 +391,36 @@ describe("SkillContentPane document links", () => {
     expect(screen.getByRole("link", { name: "Guide" })).toBeInTheDocument();
   });
 });
+
+describe("SkillContentPane cached translation without a model", () => {
+  it("shows a saved translation with no configured providers and never generates", async () => {
+    vi.mocked(invoke).mockClear();
+    vi.mocked(invoke).mockImplementation((cmd) => {
+      if (cmd === "list_skill_files") return Promise.resolve(mockFileNodes);
+      if (cmd === "list_llm_providers") return Promise.resolve([]);
+      if (cmd === "get_translation_preferences")
+        return Promise.resolve({
+          targetLanguage: "zh-CN",
+          providerId: null,
+          modelId: null,
+          preferCachedTranslations: true,
+        });
+      if (cmd === "read_cached_translation") return Promise.resolve("# Saved translation");
+      return Promise.resolve(null);
+    });
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <SkillContentPane
+          content="# Original"
+          onChange={() => {}}
+          activeTab="overview"
+          onTabChange={() => {}}
+          directory="/path/to/skill-1"
+          skillId="skill-1"
+        />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole("heading", { name: "Saved translation" });
+    expect(vi.mocked(invoke).mock.calls.some(([cmd]) => cmd === "translate_skill")).toBe(false);
+  });
+});

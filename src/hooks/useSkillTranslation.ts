@@ -2,7 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { translationApi, type TranslationRequest } from "@/lib/api/translation";
+import {
+  translationApi,
+  type TranslationRequest,
+  type TranslationCacheRequest,
+} from "@/lib/api/translation";
 import { translationErrorCode } from "@/lib/translation";
 
 type Input = Omit<TranslationRequest, "taskId" | "force">;
@@ -29,18 +33,21 @@ export function useSkillTranslation(
   {
     cacheEnabled = true,
     preferTranslations = false,
-    configurationKey = "",
     skillName = "",
   }: {
     cacheEnabled?: boolean;
     preferTranslations?: boolean;
-    configurationKey?: string;
     skillName?: string;
   } = {},
 ) {
   const { t } = useTranslation();
   const client = useQueryClient();
-  const identity = JSON.stringify([input, configurationKey]);
+  const identity = JSON.stringify({
+    skillId: input.skillId,
+    path: input.path,
+    source: input.source,
+    targetLanguage: input.targetLanguage,
+  } satisfies TranslationCacheRequest);
   const key = useMemo(() => ["translation-session", identity] as const, [identity]);
   // The application owns the session; leaving a document only unsubscribes its view.
   const { data: view = empty() } = useQuery<Session>({
@@ -78,7 +85,7 @@ export function useSkillTranslation(
     if (!preferTranslations || !cacheEnabled || getView().status !== "idle") return;
     let active = true;
     const version = getView().cacheVersion;
-    const [request] = JSON.parse(identity) as [Input, string];
+    const request = JSON.parse(identity) as TranslationCacheRequest;
     void translationApi
       .cached(request)
       .then((text) => {
@@ -97,6 +104,31 @@ export function useSkillTranslation(
       active = false;
     };
   }, [identity, cacheEnabled, preferTranslations, getView, setView]);
+
+  const showCached = useCallback(async () => {
+    if (!cacheEnabled) return false;
+    const version = getView().cacheVersion;
+    try {
+      const text = await translationApi.cached(JSON.parse(identity) as TranslationCacheRequest);
+      const current = getView();
+      if (current.task || current.cacheVersion !== version) return !!current.text || !!current.task;
+      if (!text) return false;
+      setSelectedView(selectionKey);
+      const query = client.getQueryCache().find({ queryKey: key, exact: true });
+      query?.setOptions({ ...query.options, gcTime: Infinity });
+      setView((v) => ({
+        ...v,
+        status: "completed",
+        text,
+        showTranslation: true,
+        error: null,
+        cacheVersion: v.cacheVersion + 1,
+      }));
+      return true;
+    } catch {
+      return false;
+    }
+  }, [cacheEnabled, identity, getView, selectionKey, client, key, setView]);
 
   const cancel = useCallback(() => {
     const current = cancelTask();
@@ -203,6 +235,7 @@ export function useSkillTranslation(
     error: view.error,
     translate,
     cancel,
+    showCached,
     toggle: () => {
       setSelectedView(selectionKey);
       const query = client.getQueryCache().find({ queryKey: key, exact: true });

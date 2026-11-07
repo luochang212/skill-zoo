@@ -1,4 +1,3 @@
-use crate::persistence::llm_providers::{Model, Provider};
 use regex::Regex;
 use sha2::{Digest, Sha256};
 use std::sync::LazyLock;
@@ -26,17 +25,8 @@ fn token_suffix(source: &str) -> String {
     unreachable!("token suffix space exhausted");
 }
 
-pub fn cache_key(provider: &Provider, model: &Model, language: &str, source: &str) -> String {
-    let bytes = serde_json::to_vec(&(
-        POLICY_VERSION,
-        provider.protocol,
-        &provider.base_url,
-        &model.id,
-        model.max_output_tokens,
-        language,
-        source,
-    ))
-    .unwrap();
+pub fn cache_key(language: &str, source: &str) -> String {
+    let bytes = serde_json::to_vec(&(POLICY_VERSION, language, source)).unwrap();
     Sha256::digest(bytes)
         .iter()
         .map(|b| format!("{b:02x}"))
@@ -555,7 +545,6 @@ fn protect_inline(body: &str, nonce: &str, parts: &mut Vec<(String, String)>) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::persistence::llm_providers::Protocol;
     #[test]
     fn streaming_description_is_visible_before_body_translation_finishes() {
         let source = "---\nname: keep\ndescription: Original\nmetadata: {enabled: true}\n---\n# Body\n`keep`";
@@ -859,29 +848,11 @@ mod tests {
     }
 
     #[test]
-    fn cache_covers_effective_parameters_but_not_identity_or_key() {
-        let mut p = Provider {
-            id: "one".into(),
-            name: "One".into(),
-            enabled: true,
-            protocol: Protocol::OpenaiChatCompletions,
-            base_url: "http://localhost/v1/".into(),
-            api_key: "secret".into(),
-            models: vec![],
-        };
-        let mut m = Model {
-            id: "test".into(),
-            enabled: true,
-            max_output_tokens: None,
-            context_window: None,
-        };
-        let key = cache_key(&p, &m, "en", "text");
-        p.id = "two".into();
-        p.api_key = "rotated".into();
-        assert_eq!(key, cache_key(&p, &m, "en", "text"));
-        m.max_output_tokens = Some(100);
-        assert_ne!(key, cache_key(&p, &m, "en", "text"));
-        assert_ne!(key, cache_key(&p, &m, "zh-CN", "text"));
+    fn cache_depends_on_content_and_language_not_generation_config() {
+        let key = cache_key("en", "text");
+        assert_eq!(key, cache_key("en", "text"));
+        assert_ne!(key, cache_key("zh-CN", "text"));
+        assert_ne!(key, cache_key("en", "changed text"));
     }
     #[test]
     fn tokens_stay_short_and_avoid_source_collisions() {

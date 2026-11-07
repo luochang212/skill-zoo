@@ -243,7 +243,12 @@ describe("manual translation lifecycle", () => {
       wrapper,
     });
     await waitFor(() => expect(hook.result.current.text).toBe("# 你好"));
-    expect(translationApi.cached).toHaveBeenCalledWith(input);
+    expect(translationApi.cached).toHaveBeenCalledWith({
+      skillId: input.skillId,
+      path: input.path,
+      source: input.source,
+      targetLanguage: input.targetLanguage,
+    });
     await waitFor(() => expect(hook.result.current.showTranslation).toBe(true));
     expect(translationApi.start).not.toHaveBeenCalled();
     expect(translationApi.translate).not.toHaveBeenCalled();
@@ -282,19 +287,79 @@ describe("manual translation lifecycle", () => {
     await waitFor(() => expect(hook.result.current.showTranslation).toBe(false));
     expect(translationApi.start).not.toHaveBeenCalled();
   });
-  it("rereads the cache when the effective model configuration changes", async () => {
-    vi.mocked(translationApi.cached)
-      .mockResolvedValueOnce("first configuration")
-      .mockResolvedValueOnce("second configuration");
-    const hook = renderHook(
-      (configurationKey: string) =>
-        useSkillTranslation(input, { configurationKey, preferTranslations: true }),
-      { wrapper, initialProps: "first" },
+  it("manually reads cached text without a configured model or generating", async () => {
+    vi.mocked(translationApi.cached).mockResolvedValue("saved translation");
+    const hook = renderHook(() => useSkillTranslation({ ...input, providerId: "", modelId: "" }), {
+      wrapper,
+    });
+    expect(translationApi.cached).not.toHaveBeenCalled();
+    let found = false;
+    await act(async () => {
+      found = await hook.result.current.showCached();
+    });
+    expect(found).toBe(true);
+    expect(hook.result.current.text).toBe("saved translation");
+    expect(hook.result.current.showTranslation).toBe(true);
+    expect(translationApi.start).not.toHaveBeenCalled();
+    expect(translationApi.translate).not.toHaveBeenCalled();
+  });
+  it("treats simultaneous manual cache hits as handled without requesting model settings", async () => {
+    vi.mocked(translationApi.cached).mockResolvedValue("saved translation");
+    const hook = renderHook(() => useSkillTranslation(input), { wrapper });
+    let found: boolean[] = [];
+    await act(async () => {
+      found = await Promise.all([
+        hook.result.current.showCached(),
+        hook.result.current.showCached(),
+      ]);
+    });
+    expect(found).toEqual([true, true]);
+    expect(translationApi.translate).not.toHaveBeenCalled();
+  });
+  it("keeps an in-flight task on a model switch and uses the new model for explicit retranslation", async () => {
+    const hook = renderHook((value) => useSkillTranslation(value, { preferTranslations: true }), {
+      wrapper,
+      initialProps: input,
+    });
+    await act(() => {
+      void hook.result.current.translate();
+    });
+    await waitFor(() => expect(translationApi.translate).toHaveBeenCalledOnce());
+    const oldId = id;
+    hook.rerender({ ...input, providerId: "new-provider", modelId: "new-model" });
+    expect(hook.result.current.status).toBe("streaming");
+    expect(translationApi.cancel).not.toHaveBeenCalled();
+    await act(() => {
+      send({ type: "completed", taskId: oldId, text: "old success" });
+      finish();
+    });
+    await waitFor(() => expect(hook.result.current.text).toBe("old success"));
+    await act(() => {
+      void hook.result.current.translate(true);
+    });
+    await waitFor(() => expect(translationApi.translate).toHaveBeenCalledTimes(2));
+    expect(translationApi.translate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ providerId: "new-provider", modelId: "new-model", force: true }),
+      expect.any(Function),
     );
-    await waitFor(() => expect(hook.result.current.text).toBe("first configuration"));
-    hook.rerender("second");
-    await waitFor(() => expect(hook.result.current.text).toBe("second configuration"));
-    expect(translationApi.cached).toHaveBeenCalledTimes(2);
+    await act(() => {
+      send({ type: "failed", taskId: id, code: "quotaExceeded" });
+      finish();
+    });
+    await waitFor(() => expect(hook.result.current.text).toBe("old success"));
+  });
+  it("keeps the successful translation and view choice when providers or models change", async () => {
+    vi.mocked(translationApi.cached).mockResolvedValueOnce("saved translation");
+    const hook = renderHook((value) => useSkillTranslation(value, { preferTranslations: true }), {
+      wrapper,
+      initialProps: input,
+    });
+    await waitFor(() => expect(hook.result.current.text).toBe("saved translation"));
+    act(() => hook.result.current.toggle());
+    hook.rerender({ ...input, providerId: "other", modelId: "new-model" });
+    expect(hook.result.current.text).toBe("saved translation");
+    expect(hook.result.current.showTranslation).toBe(false);
+    expect(translationApi.cached).toHaveBeenCalledOnce();
     expect(translationApi.translate).not.toHaveBeenCalled();
   });
   it("keeps the original when cache reading fails without generating or showing an error", async () => {
@@ -303,7 +368,12 @@ describe("manual translation lifecycle", () => {
       wrapper,
     });
     await act(async () => {});
-    expect(translationApi.cached).toHaveBeenCalledWith(input);
+    expect(translationApi.cached).toHaveBeenCalledWith({
+      skillId: input.skillId,
+      path: input.path,
+      source: input.source,
+      targetLanguage: input.targetLanguage,
+    });
     await waitFor(() => expect(hook.result.current.status).toBe("idle"));
     await waitFor(() => expect(hook.result.current.showTranslation).toBe(false));
     await waitFor(() => expect(hook.result.current.error).toBeNull());
@@ -394,7 +464,12 @@ describe("manual translation lifecycle", () => {
     });
     expect(translationApi.start).not.toHaveBeenCalled();
     await waitFor(() => expect(hook.result.current.cachePending).toBe(false));
-    expect(translationApi.cached).toHaveBeenCalledWith(input);
+    expect(translationApi.cached).toHaveBeenCalledWith({
+      skillId: input.skillId,
+      path: input.path,
+      source: input.source,
+      targetLanguage: input.targetLanguage,
+    });
     await act(() => {
       void hook.result.current.translate();
     });

@@ -122,8 +122,6 @@ it("automatically shows an existing cached translation without starting a task w
     expect.objectContaining({
       skillId: "demo",
       source: "# Readable original",
-      providerId: "p",
-      modelId: "m",
       targetLanguage: "zh-CN",
     }),
   );

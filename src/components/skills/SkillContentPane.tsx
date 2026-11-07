@@ -549,14 +549,7 @@ export const SkillContentPane = memo(function SkillContentPane({
         effectiveActiveTab === "overview" &&
         !contentLoading &&
         !!displayContent &&
-        !!provider &&
-        !!model &&
         !(isSkillMdActive ? dirty || savePending : isDirty || saveFileMutation.isPending),
-      configurationKey: JSON.stringify([
-        provider?.protocol,
-        provider?.baseUrl,
-        model?.maxOutputTokens,
-      ]),
     },
   );
   const translationDisabledReason =

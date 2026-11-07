@@ -41,6 +41,11 @@ export interface TranslationRequest {
   targetLanguage: string;
   force: boolean;
 }
+export type TranslationCacheRequest = Omit<
+  TranslationRequest,
+  "taskId" | "force" | "providerId" | "modelId"
+>;
+
 export type TranslationEvent =
   | { type: "preview" | "completed"; taskId: string; text: string }
   | { type: "failed"; taskId: string; code: string }
@@ -48,7 +53,7 @@ export type TranslationEvent =
 
 export const translationApi = {
   providerApiKey: (id: string) => invoke<string>("get_llm_provider_api_key", { id }),
-  cached: (request: Omit<TranslationRequest, "taskId" | "force">) =>
+  cached: (request: TranslationCacheRequest) =>
     invoke<string | null>("read_cached_translation", { request }),
   testConnection: (request: { provider: ProviderUpdate; modelId: string }) =>
     invoke<number>("test_llm_connection", request),

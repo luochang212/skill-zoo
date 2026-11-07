@@ -52,10 +52,11 @@ export function SkillTranslationControls({
                 : t("translation.translateTo", { language: label }))
             }
             className="inline-flex h-full items-center justify-center gap-1 px-2 transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50 focus-visible:outline-none"
-            onClick={() => {
+            onClick={async () => {
               if (translation.text) translation.toggle();
-              else if (unavailable) setSettingsOpen(true);
-              else void translation.translate();
+              else if (unavailable) {
+                if (!(await translation.showCached())) setSettingsOpen(true);
+              } else void translation.translate();
             }}
           >
             {streaming ? (
