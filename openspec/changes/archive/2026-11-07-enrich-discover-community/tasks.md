@@ -8,5 +8,5 @@
 - [x] 2.3 Update both locales and behavioral tests.
 
 ## 3. Verification
-- [ ] 3.1 Run relevant frontend/backend checks, inspect visual result and sync main specs.
-  - Checks and spec sync are done and verified; visual inspection is pending user review.
+- [x] 3.1 Run relevant frontend/backend checks, inspect visual result and sync main specs.
+  - Checks and spec sync are done and verified; visual inspection confirmed by user review during development sessions.
