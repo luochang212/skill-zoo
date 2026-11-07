@@ -22,12 +22,27 @@ describe("community discovery", () => {
     const skills = [skill("a/repo", "one"), skill("a/repo", "two"), skill("b/repo", "three")];
     expect(diversifySkills(skills).map((s) => s.skillId)).toEqual(["one", "three", "two"]);
   });
-  it("keeps an SVG chart silhouette in each loading card", () => {
+  it("defaults to Hot again after leaving Latest and remounting", () => {
+    mocks.result = { isPending: true };
+    const first = render(<CommunitySkills onOpen={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Latest" }));
+    expect(screen.getByRole("button", { name: "Latest" })).toHaveAttribute("aria-pressed", "true");
+    first.unmount();
+    render(<CommunitySkills onOpen={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Hot" })).toHaveAttribute("aria-pressed", "true");
+    expect(mocks.hook).toHaveBeenLastCalledWith("popular");
+  });
+  it("only reserves a trend chart for Hot loading cards", () => {
     mocks.result = { isPending: true };
     const { container } = render(<CommunitySkills onOpen={vi.fn()} />);
     const charts = container.querySelectorAll('.skeleton-card svg[viewBox="0 0 104 30"]');
     expect(charts).toHaveLength(9);
     expect(charts[0]?.querySelectorAll("path")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Latest" }));
+    expect(container.querySelectorAll(".skeleton-card")).toHaveLength(9);
+    expect(container.querySelectorAll(".skeleton-card svg")).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "Hot" }));
+    expect(container.querySelectorAll(".skeleton-card svg")).toHaveLength(9);
   });
   it("fills three rows at the current column count and updates on resize", () => {
     let resize: () => void = vi.fn();

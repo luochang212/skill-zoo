@@ -446,6 +446,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
         </div>
       </ScrollArea>
       <SkillPreviewPanel
+        skillName={previewSkill?.name ?? previewTarget?.name ?? ""}
         open={!!previewTarget}
         loading={!!previewTarget && (!previewRepoSkills || panelContentLoading)}
         error={

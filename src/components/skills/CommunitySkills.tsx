@@ -91,8 +91,8 @@ function TrendSparkline({ values }: { values: number[] }) {
   );
 }
 
-// Match the catalog card: name and installs, source, then a 104 × 30 chart slot.
-function CatalogCardSkeleton() {
+// Only Hot cards have the additional 104 × 30 trend slot.
+function CatalogCardSkeleton({ showTrend }: { showTrend: boolean }) {
   return (
     <div aria-hidden="true" className="skeleton-card h-full flex flex-col p-4">
       <div className="flex h-[19.5px] w-full items-center justify-between gap-4">
@@ -105,26 +105,28 @@ function CatalogCardSkeleton() {
       <div className="mt-1 flex h-4 items-center">
         <Skeleton className="h-2 w-2/5 opacity-60" />
       </div>
-      <svg
-        viewBox="0 0 104 30"
-        className="mt-auto h-[30px] w-[104px] self-end text-primary"
-        aria-hidden="true"
-      >
-        {/* A neutral chart silhouette reserves the slot without implying real values. */}
-        <path
-          d="M3 24 C18 24 20 18 34 19 S51 12 65 14 S83 8 101 6 L101 30 L3 30 Z"
-          fill="currentColor"
-          fillOpacity="0.025"
-        />
-        <path
-          d="M3 24 C18 24 20 18 34 19 S51 12 65 14 S83 8 101 6"
-          fill="none"
-          stroke="currentColor"
-          strokeOpacity="0.09"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        />
-      </svg>
+      {showTrend && (
+        <svg
+          viewBox="0 0 104 30"
+          className="mt-auto h-[30px] w-[104px] self-end text-primary"
+          aria-hidden="true"
+        >
+          {/* A neutral chart silhouette reserves the slot without implying real values. */}
+          <path
+            d="M3 24 C18 24 20 18 34 19 S51 12 65 14 S83 8 101 6 L101 30 L3 30 Z"
+            fill="currentColor"
+            fillOpacity="0.025"
+          />
+          <path
+            d="M3 24 C18 24 20 18 34 19 S51 12 65 14 S83 8 101 6"
+            fill="none"
+            stroke="currentColor"
+            strokeOpacity="0.09"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+        </svg>
+      )}
     </div>
   );
 }
@@ -213,7 +215,7 @@ export function CommunitySkills({ onOpen }: { onOpen: (skill: CatalogSkill) => v
           className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-3"
         >
           {Array.from({ length: columns * 3 }, (_, index) => (
-            <CatalogCardSkeleton key={index} />
+            <CatalogCardSkeleton key={index} showTrend={kind === "popular"} />
           ))}
         </div>
       ) : isError ? (

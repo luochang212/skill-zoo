@@ -451,6 +451,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
       )}
 
       <SkillPreviewPanel
+        skillName={previewSkill?.name ?? ""}
         open={!!previewSkill}
         loading={previewLoading}
         error={previewError ? null : undefined}
