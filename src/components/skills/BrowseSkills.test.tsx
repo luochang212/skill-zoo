@@ -4,6 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BrowseSkills } from "@/components/skills/BrowseSkills";
 
+vi.mock("@/components/skills/CommunitySkills", () => ({ CommunitySkills: () => null }));
+
 const mocks = vi.hoisted(() => ({
   refetchRepoSearch: vi.fn(),
   refetchSkillsSearch: vi.fn(),
@@ -46,6 +48,9 @@ class ResizeObserverMock {
 
 vi.mock("@/hooks/useSkills", () => ({
   useBanners: () => ({ data: [] }),
+  useRepoSkillList: () => ({ data: undefined }),
+  useInstallSkills: () => ({ mutate: vi.fn(), isPending: false }),
+  useSkillPreview: () => ({ data: undefined, isLoading: false, isError: false }),
   useRecommendedRepos: () => ({
     data: mocks.recommendedRepos,
     isLoading: false,

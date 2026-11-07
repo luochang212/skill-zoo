@@ -58,6 +58,13 @@ export function RepoTasksMenu() {
   if (!visible.length) return null;
   const running = visible.filter((task) => task.query.isFetching || task.query.isPending).length;
   const failed = visible.some((task) => task.query.isError && !task.query.isFetching);
+  // Only settled entries count as read-notifications; running downloads stay.
+  const clearable = visible.filter(
+    (task) => !task.dismissed && !(task.query.isFetching || task.query.isPending),
+  );
+  const clearAll = () => {
+    for (const task of clearable) dismiss(task.repo);
+  };
 
   return (
     <DropdownMenu>
@@ -83,9 +90,19 @@ export function RepoTasksMenu() {
         align="end"
         className="w-80 max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto"
       >
-        <p className="sticky top-0 z-10 bg-popover px-2 py-2 text-xs font-medium">
-          {t("repoTasks.title")}
-        </p>
+        <div className="sticky top-0 z-10 flex h-10 items-center justify-between gap-2 bg-popover px-2 py-2">
+          <p className="text-xs font-medium">{t("repoTasks.title")}</p>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`h-6 shrink-0 px-2 text-[11px] text-muted-foreground hover:text-foreground ${
+              clearable.length === 0 ? "invisible" : ""
+            }`}
+            onClick={clearAll}
+          >
+            {t("repoTasks.clearAll")}
+          </Button>
+        </div>
         {visible.map((task) => {
           const loading = task.query.isFetching || task.query.isPending;
           const label = `${task.repo.owner}/${task.repo.name}`;

@@ -160,7 +160,7 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
   return (
     <div
       ref={containerRef}
-      className="relative w-full mb-6 select-none overflow-hidden"
+      className="relative w-full select-none overflow-hidden"
       style={{ height: `${Math.max(cardH + 50, 240)}px`, perspective: "1400px" }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}

@@ -53,10 +53,19 @@
     "scanning": "Scanning skills..."
   },
   "browse": {
+    "community": "Community skills",
+    "popular": "Hot",
+    "trending": "Latest",
+    "totalInstalls": "total installs",
+    "dailyInstalls": "installs · 24h",
+    "communityUnavailable": "Community picks are unavailable. Curated repositories are still here to explore.",
+    "showLess": "Show less",
+    "allRepos": "Show more",
+    "catalogSkillMissing": "Could not uniquely locate “{{name}}” in this repository. Browse the available skills below.",
     "searchRepoPlaceholder": "Search skills or GitHub repo...",
     "installs": "installs",
     "discovering": "Discovering skills...",
-    "recommended": "Recommended",
+    "recommended": "Curated repositories",
     "skills": "{{count}} skills",
     "notSynced": "not synced",
     "truncated": "Showing {{shown}} of {{total}} skills",
@@ -788,6 +797,7 @@
     "ready": "Skills ready to choose",
     "failedNotice": "{{repo}} could not be loaded",
     "dismissRepo": "Dismiss {{repo}}",
-    "defaultBranch": "Default branch"
+    "defaultBranch": "Default branch",
+    "clearAll": "Clear all"
   }
 }

@@ -110,3 +110,30 @@ it("retains failures for retry and allows dismissing the completed entry", async
   expect(screen.queryByRole("button", { name: /Download tasks:/ })).not.toBeInTheDocument();
   expect(onOpen).not.toHaveBeenCalled();
 });
+
+it("clears all settled notifications at once", async () => {
+  const repo2 = { owner: "other", name: "repo2", branch: "dev" };
+  vi.mocked(skillsApi.getRepoSkills).mockResolvedValue(data);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  function StartTwo() {
+    const { register } = useRepoTasks();
+    useEffect(() => {
+      register(repo);
+      register(repo2);
+    }, [register]);
+    return <RepoTasksMenu />;
+  }
+  render(
+    <QueryClientProvider client={client}>
+      <RepoTasksProvider activeRepo={null} onOpen={vi.fn()}>
+        <StartTwo />
+      </RepoTasksProvider>
+    </QueryClientProvider>,
+  );
+  const user = userEvent.setup();
+  await waitFor(() => expect(skillsApi.getRepoSkills).toHaveBeenCalledTimes(2));
+  await user.click(screen.getByRole("button", { name: /Download tasks:/ }));
+  await screen.findAllByText("Skills ready to choose");
+  await user.click(screen.getByRole("button", { name: "Clear all" }));
+  expect(screen.queryByRole("button", { name: /Download tasks:/ })).not.toBeInTheDocument();
+});
