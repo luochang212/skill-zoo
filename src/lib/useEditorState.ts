@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback } from "react";
+import { useFileDrafts } from "./useFileDrafts";
 import { useSkillContent, useSaveSkillContent, useInstalledSkills } from "@/hooks/useSkills";
 
 /**
@@ -10,23 +11,13 @@ export function useEditorState(externalUnsaved?: { current: boolean }) {
   const [skillId, setSkillId] = useState<string>("");
   const [directory, setDirectory] = useState<string>("");
   const [skillName, setSkillName] = useState<string>("");
-  const [localContent, setLocalContent] = useState<string>("");
-  const [dirty, setDirty] = useState(false);
-  const dirtyRef = useRef(false);
-  // Latest editor text, mirrored synchronously so a save completion can tell
-  // whether the user typed past the submitted revision while it was in flight.
-  const contentRef = useRef("");
-  const sessionRef = useRef(0);
+  const { drafts, reset, change, has, checkpoint, acknowledge } = useFileDrafts();
+  const dirty = drafts.has("SKILL.md");
   const [pendingOpen, setPendingOpen] = useState<{
     id: string;
     dir: string;
     name: string;
   } | null>(null);
-
-  const markDirty = useCallback((value: boolean) => {
-    dirtyRef.current = value;
-    setDirty(value);
-  }, []);
 
   const {
     data: content,
@@ -42,82 +33,58 @@ export function useEditorState(externalUnsaved?: { current: boolean }) {
       ? (installedSkills.find((s) => s.id === skillId) ?? null)
       : null;
 
-  // Sync local content when loaded
-  useEffect(() => {
-    if (open && content !== undefined && !dirty) {
-      setLocalContent(content);
-    }
-  }, [open, content, dirty]);
+  const localContent = open ? (drafts.get("SKILL.md") ?? content ?? "") : "";
 
   const openEditor = useCallback(
     (id: string, dir: string, name: string) => {
-      if (dirtyRef.current || externalUnsaved?.current) {
+      if (has("SKILL.md") || externalUnsaved?.current) {
         setPendingOpen({ id, dir, name });
         return;
       }
       setSkillId(id);
-      sessionRef.current += 1;
       setDirectory(dir);
       setSkillName(name);
-      setLocalContent("");
-      contentRef.current = "";
-      markDirty(false);
+      reset();
       setOpen(true);
     },
-    [markDirty, externalUnsaved],
+    [reset, has, externalUnsaved],
   );
 
   const confirmSwitch = useCallback(() => {
     if (!pendingOpen) return;
     const { id, dir, name } = pendingOpen;
     setPendingOpen(null);
-    sessionRef.current += 1;
     setSkillId(id);
     setDirectory(dir);
     setSkillName(name);
-    setLocalContent("");
-    contentRef.current = "";
-    markDirty(false);
+    reset();
     setOpen(true);
-  }, [pendingOpen, markDirty]);
+  }, [pendingOpen, reset]);
 
   const cancelSwitch = useCallback(() => {
     setPendingOpen(null);
   }, []);
 
   const closeEditor = useCallback(() => {
-    sessionRef.current += 1;
     setOpen(false);
-    markDirty(false);
-    setLocalContent("");
-    contentRef.current = "";
-  }, [markDirty]);
+    reset();
+  }, [reset]);
 
   const save = useCallback(() => {
     if (!dirty || saveMutation.isPending) return;
     const submitted = localContent;
-    const submittedSession = sessionRef.current;
+    const saved = checkpoint("SKILL.md");
     saveMutation.mutate(
       { directory, skillId, content: submitted },
       {
-        onSuccess: () => {
-          // Only confirm the revision we submitted; keep drafts typed
-          // while the save was in flight.
-          if (sessionRef.current === submittedSession && contentRef.current === submitted) {
-            markDirty(false);
-          }
-        },
+        onSuccess: () => acknowledge(saved),
       },
     );
-  }, [directory, skillId, localContent, dirty, saveMutation, markDirty]);
+  }, [directory, skillId, localContent, dirty, saveMutation, checkpoint, acknowledge]);
 
   const updateContent = useCallback(
-    (newContent: string) => {
-      contentRef.current = newContent;
-      setLocalContent(newContent);
-      markDirty(true);
-    },
-    [markDirty],
+    (newContent: string) => change("SKILL.md", newContent),
+    [change],
   );
 
   return {

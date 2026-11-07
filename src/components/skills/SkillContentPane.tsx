@@ -1,3 +1,4 @@
+import { useFileDrafts } from "@/lib/useFileDrafts";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, memo } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -207,9 +208,15 @@ export const SkillContentPane = memo(function SkillContentPane({
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   // One draft per auxiliary file: switching files must never discard edits
   // made in another file.
-  const [fileDrafts, setFileDrafts] = useState<Record<string, string>>({});
+  const {
+    drafts: fileDrafts,
+    reset: resetDrafts,
+    change: changeDraft,
+    checkpoint,
+    acknowledge,
+  } = useFileDrafts();
   const sessionRef = useRef(0);
-  const fileDraft = selectedFilePath !== null ? (fileDrafts[selectedFilePath] ?? null) : null;
+  const fileDraft = selectedFilePath !== null ? (fileDrafts.get(selectedFilePath) ?? null) : null;
   const [nodes, setNodes] = useState<SkillFileNode[]>([]);
   const [loadingDirPaths, setLoadingDirPaths] = useState<Set<string>>(() => new Set());
   const [errorDirPaths, setErrorDirPaths] = useState<Set<string>>(() => new Set());
@@ -248,12 +255,12 @@ export const SkillContentPane = memo(function SkillContentPane({
     setNodes([]);
     setSelectedFilePath(null);
     setDocumentFragment("");
-    setFileDrafts({});
+    resetDrafts();
     loadingDirPathsRef.current = new Set();
     setLoadingDirPaths(new Set());
     setErrorDirPaths(new Set());
     setSidebarOpen(!fileTreeDisabled);
-  }, [skillId, directory, fileTreeDisabled]);
+  }, [skillId, directory, fileTreeDisabled, resetDrafts]);
 
   // ── Seed root nodes and auto-select SKILL.md ──
   useEffect(() => {
@@ -281,7 +288,7 @@ export const SkillContentPane = memo(function SkillContentPane({
   useEffect(() => {
     onUnsavedDraftsChangeRef.current = onUnsavedDraftsChange;
   });
-  const hasUnsavedDrafts = Object.keys(fileDrafts).length > 0;
+  const hasUnsavedDrafts = fileDrafts.size > 0;
   useEffect(() => {
     onUnsavedDraftsChangeRef.current?.(hasUnsavedDrafts);
     return () => onUnsavedDraftsChangeRef.current?.(false);
@@ -323,20 +330,11 @@ export const SkillContentPane = memo(function SkillContentPane({
       ? onChange
       : (v: string) => {
           if (selectedFilePath !== null) {
-            setFileDrafts((prev) => {
-              const savingThisFile =
-                saveFileMutation.isPending &&
-                saveFileMutation.variables.skillId === skillId &&
-                saveFileMutation.variables.path === selectedFilePath;
-              // Landing the in-flight save swaps fileData to its submitted
-              // content; clearing this draft now would resurrect the text
-              // the user reverted.
-              if (v === fileData && !savingThisFile) {
-                const { [selectedFilePath]: _reverted, ...rest } = prev;
-                return rest;
-              }
-              return { ...prev, [selectedFilePath]: v };
-            });
+            const savingThisFile =
+              saveFileMutation.isPending &&
+              saveFileMutation.variables.skillId === skillId &&
+              saveFileMutation.variables.path === selectedFilePath;
+            changeDraft(selectedFilePath, v, fileData, savingThisFile);
           }
         };
   const isDirty = !isSkillMdActive && fileDraft !== null && fileDraft !== fileData;
@@ -345,23 +343,14 @@ export const SkillContentPane = memo(function SkillContentPane({
     if (!skillId || !selectedFilePath || !isDirty || saveFileMutation.isPending) return;
     const submittedPath = selectedFilePath;
     const submittedContent = fileDraft!;
-    const submittedSession = sessionRef.current;
+    const saved = checkpoint(submittedPath);
     saveFileMutation.mutate(
       { skillId, path: submittedPath, content: submittedContent },
       {
-        onSuccess: () => {
-          if (sessionRef.current !== submittedSession) return;
-          // Only confirm the submitted revision; keep newer edits typed
-          // while the save was in flight.
-          setFileDrafts((prev) => {
-            if (prev[submittedPath] !== submittedContent) return prev;
-            const { [submittedPath]: _confirmed, ...rest } = prev;
-            return rest;
-          });
-        },
+        onSuccess: () => acknowledge(saved),
       },
     );
-  }, [skillId, selectedFilePath, isDirty, fileDraft, saveFileMutation]);
+  }, [skillId, selectedFilePath, isDirty, fileDraft, saveFileMutation, checkpoint, acknowledge]);
 
   const handleLoadChildren = useCallback(
     async (node: SkillFileNode) => {
