@@ -132,6 +132,7 @@ Project gate: `adrkit validate --all`, run by `.githooks/pre-push` because CI do
 **Run tests:**
 - frontend: `bun run test`
 - backend: `cargo test --features test-helpers --manifest-path src-tauri/Cargo.toml`
+- CLI: `bun run cli:test` (vitest). Do NOT run `bun test` inside `packages/cli` — Bun aliases the tests' `vitest` imports to `bun:test`, and under that alias at least the symlinked re-import test in `tests/imports.test.ts` hangs until the runner timeout kills it.
 
 **Test where bugs breed, skip what doesn't matter.** Only test code that would both go wrong and hurt when it does. Not thin wrappers, trivial getters, library behavior, or simple useState. These won't break, and if they do it's obvious.
 
