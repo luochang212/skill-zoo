@@ -227,7 +227,7 @@ export function CommunitySkills({ onOpen }: { onOpen: (skill: CatalogSkill) => v
               <span
                 key={index}
                 className="size-1.5 rounded-full bg-foreground opacity-15"
-                style={{ animationDelay: `${index * 140}ms` }}
+                style={{ animationDelay: `${index * 180}ms` }}
               />
             ))}
           </div>

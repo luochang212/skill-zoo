@@ -4,10 +4,12 @@ import { resolveResource } from "@tauri-apps/api/path";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { Banner } from "@/types/skills";
 
 const ASPECT = 250 / 420;
-const MAX_CARD_W = 560;
+const MAX_CARD_W = 460;
+const AUTOPLAY_MS = 7000;
 
 function getStyle(diff: number, cardW: number) {
   const abs = Math.abs(diff);
@@ -16,34 +18,34 @@ function getStyle(diff: number, cardW: number) {
   if (abs === 0) {
     return {
       x: 0,
-      scale: 1,
+      scale: 0.88,
       rotateY: 0,
       z: 120,
       opacity: 1,
       zIndex: 20,
-      shadow: "0 20px 50px rgba(0,0,0,0.35)",
+      shadow: "0 8px 24px rgba(0,0,0,0.16)",
     };
   }
   if (abs === 1) {
     return {
-      x: sign * cardW * 0.58,
-      scale: 0.76,
-      rotateY: sign * -28,
+      x: sign * cardW * 0.54,
+      scale: 0.82,
+      rotateY: sign * -8,
       z: -50,
       opacity: 0.6,
       zIndex: 10,
-      shadow: "0 8px 24px rgba(0,0,0,0.2)",
+      shadow: "0 4px 12px rgba(0,0,0,0.10)",
     };
   }
   if (abs === 2) {
     return {
       x: sign * cardW * 0.96,
       scale: 0.58,
-      rotateY: sign * -20,
+      rotateY: sign * -5,
       z: -110,
       opacity: 0.25,
       zIndex: 5,
-      shadow: "0 4px 12px rgba(0,0,0,0.15)",
+      shadow: "0 4px 12px rgba(0,0,0,0.08)",
     };
   }
   return {
@@ -67,6 +69,7 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
   const reduceMotion = useReducedMotion();
   const [current, setCurrent] = useState(0);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [imageResults, setImageResults] = useState<Record<string, boolean>>({});
   const [isHovered, setIsHovered] = useState(false);
   const [loading, setLoading] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -80,28 +83,27 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [banners.length]);
 
   useEffect(() => {
     let ignore = false;
     async function loadUrls() {
       setLoading(true);
-      try {
-        const urls = await Promise.all(
-          banners.map(async (b) => {
+      setImageUrls([]);
+      setCurrent(0);
+      const urls = await Promise.all(
+        banners.map(async (b) => {
+          try {
             const path = await resolveResource(b.image);
             return convertFileSrc(path);
-          }),
-        );
-        if (!ignore) {
-          setImageUrls(urls);
-        }
-      } catch {
-        // Banner image load failed, so proceed with an empty state
-      } finally {
-        if (!ignore) {
-          setLoading(false);
-        }
+          } catch {
+            return "";
+          }
+        }),
+      );
+      if (!ignore) {
+        setImageUrls(urls);
+        setLoading(false);
       }
     }
     if (banners.length > 0) {
@@ -119,9 +121,9 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
     if (banners.length <= 1 || isHovered || reduceMotion) return;
     const timer = setInterval(() => {
       setCurrent((prev) => (prev + 1) % banners.length);
-    }, 8000);
+    }, AUTOPLAY_MS);
     return () => clearInterval(timer);
-  }, [banners.length, isHovered, reduceMotion]);
+  }, [banners.length, isHovered, reduceMotion, current]);
 
   const goTo = useCallback((index: number) => {
     setCurrent(index);
@@ -135,7 +137,7 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
     setCurrent((prev) => (prev + 1) % banners.length);
   }, [banners.length]);
 
-  const cardW = Math.min(W * 0.72, MAX_CARD_W);
+  const cardW = Math.min(W * 0.6, MAX_CARD_W);
   const cardH = Math.round(cardW * ASPECT);
 
   const cardStates = useMemo(() => {
@@ -148,67 +150,86 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
 
   if (!banners.length) return null;
 
-  if (loading) {
-    return (
-      <div
-        className="w-full mb-6 bg-muted animate-pulse rounded-xl"
-        style={{ height: "clamp(260px, 42vw, 383px)" }}
-      />
-    );
-  }
-
   return (
     <div
-      ref={containerRef}
-      className="relative w-full select-none overflow-hidden"
-      style={{ height: `${Math.max(cardH + 50, 240)}px`, perspective: "1400px" }}
+      className="relative w-full select-none px-12"
+      aria-busy={loading || imageUrls.some((url) => url && imageResults[url] === undefined)}
+      style={{ height: `${Math.max(cardH + 80, 240)}px` }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="relative w-full h-full">
-        {cardStates.map(({ banner, index: i, diff, style }) => (
-          <div
-            key={i}
-            className="absolute top-0 rounded-xl overflow-hidden cursor-pointer"
-            style={{
-              left: "50%",
-              top: "50%",
-              width: `${cardW}px`,
-              height: `${cardH}px`,
-              marginLeft: `${-cardW / 2}px`,
-              marginTop: `${-cardH / 2}px`,
-              transform: `translateX(${style.x}px) scale(${style.scale}) rotateY(${style.rotateY}deg) translateZ(${style.z}px)`,
-              zIndex: style.zIndex,
-              opacity: style.opacity,
-              boxShadow: style.shadow,
-              transition: reduceMotion
-                ? "none"
-                : "transform 0.7s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.7s ease, box-shadow 0.7s ease",
-              transformStyle: "preserve-3d",
-            }}
-            onClick={() => {
-              if (diff === 0 && onBannerClick && banner.owner && banner.name) {
-                onBannerClick(banner.owner, banner.name, banner.branch);
-              } else {
-                goTo(i);
-              }
-            }}
-          >
-            <img
-              src={imageUrls[i]}
-              alt={banner.title}
-              className="w-full h-full object-cover"
-              draggable={false}
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-            {style.zIndex >= 10 && !banner.hideText && (
-              <div className="absolute bottom-4 left-4 right-4 text-white">
-                <h3 className="text-base font-semibold drop-shadow-md truncate">{banner.title}</h3>
-                <p className="text-xs text-white/80 drop-shadow-md truncate">{banner.subtitle}</p>
-              </div>
-            )}
-          </div>
-        ))}
+      <div
+        ref={containerRef}
+        className="relative mx-auto w-full max-w-[960px] h-[calc(100%-32px)] overflow-hidden"
+        style={{ perspective: "1400px" }}
+      >
+        {cardStates.map(({ banner, index: i, diff, style }) => {
+          const url = imageUrls[i];
+          const pending = loading || (!!url && imageResults[url] === undefined);
+          const loaded = !!url && imageResults[url] === true;
+          return (
+            <div
+              key={i}
+              className="absolute top-0 rounded-xl overflow-hidden cursor-pointer bg-muted"
+              style={{
+                left: "50%",
+                top: "50%",
+                width: `${cardW}px`,
+                height: `${cardH}px`,
+                marginLeft: `${-cardW / 2}px`,
+                marginTop: `${-cardH / 2}px`,
+                transform: `translateX(${style.x}px) scale(${style.scale}) rotateY(${style.rotateY}deg) translateZ(${style.z}px)`,
+                zIndex: style.zIndex,
+                opacity: style.opacity,
+                boxShadow: loaded ? style.shadow : "none",
+                transition: reduceMotion
+                  ? "none"
+                  : "transform 0.7s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.7s ease, box-shadow 0.7s ease",
+                transformStyle: "preserve-3d",
+              }}
+              onClick={() => {
+                if (diff === 0 && onBannerClick && banner.owner && banner.name) {
+                  onBannerClick(banner.owner, banner.name, banner.branch);
+                } else {
+                  goTo(i);
+                }
+              }}
+            >
+              {pending && <Skeleton className="absolute inset-0 h-full w-full rounded-xl" />}
+              {url && (
+                <img
+                  src={url}
+                  alt={banner.title}
+                  width={420}
+                  height={250}
+                  className={`w-full h-full object-cover transition-opacity duration-300 motion-reduce:transition-none ${loaded ? "opacity-100" : "opacity-0"}`}
+                  draggable={false}
+                  onLoad={() => setImageResults((results) => ({ ...results, [url]: true }))}
+                  onError={() => setImageResults((results) => ({ ...results, [url]: false }))}
+                />
+              )}
+              {loaded && (
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+              )}
+              {!pending && style.zIndex >= 10 && (!banner.hideText || !loaded) && (
+                <div
+                  className={`absolute bottom-4 left-4 right-4 ${loaded ? "text-white" : "text-foreground"}`}
+                >
+                  <h3
+                    className={`text-base font-semibold truncate ${loaded ? "drop-shadow-md" : ""}`}
+                  >
+                    {banner.title}
+                  </h3>
+                  <p
+                    className={`text-xs truncate ${loaded ? "text-white/80 drop-shadow-md" : "text-muted-foreground"}`}
+                  >
+                    {banner.subtitle}
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Navigation arrows */}
@@ -216,14 +237,14 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
         <>
           <button
             onClick={goPrev}
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full bg-black/35 text-white hover:bg-black/55 transition-colors z-30"
+            className="absolute left-0 top-[calc(50%-16px)] -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full bg-black/35 text-white hover:bg-black/55 transition-colors z-30"
             aria-label={t("browse.previousBanner")}
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
           <button
             onClick={goNext}
-            className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full bg-black/35 text-white hover:bg-black/55 transition-colors z-30"
+            className="absolute right-0 top-[calc(50%-16px)] -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full bg-black/35 text-white hover:bg-black/55 transition-colors z-30"
             aria-label={t("browse.nextBanner")}
           >
             <ChevronRight className="w-4 h-4" />
@@ -233,16 +254,34 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
 
       {/* Dots indicator */}
       {banners.length > 1 && (
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-30">
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center rounded-full bg-black/20 px-1 backdrop-blur-sm z-30">
           {banners.map((_, i) => (
             <button
               key={i}
               onClick={() => goTo(i)}
-              className={`h-1.5 rounded-full transition-all duration-300 motion-reduce:transition-none ${
-                i === current ? "w-5 bg-white" : "w-1.5 bg-white/50 hover:bg-white/70"
-              }`}
+              className="group flex h-6 items-center justify-center rounded-full px-1.5 focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2"
+              aria-current={i === current ? "true" : undefined}
               aria-label={t("browse.goToBanner", { index: i + 1 })}
-            />
+            >
+              <span
+                className={`h-1.5 overflow-hidden rounded-full transition-[width,background-color] duration-300 motion-reduce:transition-none ${
+                  i === current ? "w-6 bg-white/30" : "w-1.5 bg-white/50 group-hover:bg-white/80"
+                }`}
+              >
+                {i === current && (
+                  <span
+                    key={`${current}-${isHovered}-${reduceMotion}`}
+                    className="block h-full w-full origin-left rounded-full bg-white"
+                    style={{
+                      animation:
+                        !isHovered && !reduceMotion
+                          ? `banner-progress ${AUTOPLAY_MS}ms linear both`
+                          : "none",
+                    }}
+                  />
+                )}
+              </span>
+            </button>
           ))}
         </div>
       )}
