@@ -18,7 +18,7 @@ function getStyle(diff: number, cardW: number) {
   if (abs === 0) {
     return {
       x: 0,
-      scale: 0.88,
+      scale: 0.91,
       rotateY: 0,
       z: 120,
       opacity: 1,
