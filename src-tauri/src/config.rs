@@ -318,7 +318,7 @@ pub fn default_visibility(agent_id: &str) -> bool {
             | "kilo"
             | "antigravity"
             | "grok"
-            | "pi"
+            | "openclaw"
             | "kimi-code"
             | "dsh"
             | "zcode"
@@ -626,6 +626,16 @@ pub fn with_agent_snapshot<T>(snapshot: Arc<Vec<AgentConfig>>, run: impl FnOnce(
 mod upgrade_tests {
     use super::*;
     use crate::persistence::agents::{AgentRegistry, CustomAgent};
+
+    #[test]
+    fn default_visible_agents() {
+        let visible: Vec<_> = AGENTS
+            .iter()
+            .filter(|agent| default_visibility(&agent.id))
+            .map(|agent| agent.id.as_str())
+            .collect();
+        assert_eq!(visible, ["claude-code", "codex", "cursor", "hermes", "pi"]);
+    }
 
     #[test]
     fn shipped_collision_preserves_custom_identity_and_coexisting_names() {
