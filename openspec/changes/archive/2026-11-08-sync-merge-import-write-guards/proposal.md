@@ -2,7 +2,7 @@
 
 ## Why
 
-The skill lifecycle refactors (merge, external import, repository discovery) landed in commits `e24da33` and `57aa665` with behavior-level changes recorded only in working notes (`docs/reviews/2026-11-07-merge-refactor-notes.md`, `docs/reviews/2026-11-07-refactor-closeout-notes.md`). Per the local-protocol guardrails, behavior-level changes must sync the main specs or the specs go stale. This change records the decision and syncs the specs after the fact, following the same pattern as the archived `refactor-skill-archive-lifecycle` change.
+The skill lifecycle refactors (merge, external import, repository discovery) landed as behavior-level changes whose specs were not synced at the time. Per the local-protocol guardrails, behavior-level changes must sync the main specs or the specs go stale. This change records the decision and syncs the specs after the fact, following the same pattern as the archived `refactor-skill-archive-lifecycle` change.
 
 ## What Changes
 
