@@ -30,9 +30,7 @@ export function ThemeSettings() {
             variant={theme === opt.value ? "default" : "ghost"}
             className={cn(
               "min-w-[80px] gap-1.5",
-              theme === opt.value
-                ? "shadow-sm"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted",
+              theme !== opt.value && "text-muted-foreground hover:text-foreground hover:bg-muted",
             )}
             onClick={(e) => setTheme(opt.value, e)}
           >

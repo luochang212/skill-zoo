@@ -27,9 +27,8 @@ export function LanguageSettings() {
             variant={currentLang === opt.value ? "default" : "ghost"}
             className={cn(
               "min-w-[80px] gap-1.5",
-              currentLang === opt.value
-                ? "shadow-sm"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted",
+              currentLang !== opt.value &&
+                "text-muted-foreground hover:text-foreground hover:bg-muted",
             )}
             onClick={() => handleLanguageChange(opt.value)}
           >

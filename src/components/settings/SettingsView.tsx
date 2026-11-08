@@ -41,9 +41,9 @@ export function SettingsView({
                 </div>
                 <AppUpdateShortcut />
               </div>
-              <div className="rounded-xl border border-border bg-card/50 p-4 space-y-5">
+              <div className="rounded-xl border border-border bg-card/50 p-4 space-y-3">
                 <ThemeSettings />
-                <div className="border-t border-border/30">
+                <div className="border-t border-border/30 pt-3">
                   <LanguageSettings />
                 </div>
               </div>
