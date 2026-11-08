@@ -50,7 +50,7 @@ notify = "8"
 rand = "0.10"
 urlencoding = "2.1"
 arboard = { version = "3.6.1", default-features = false }
-rusqlite = { version = "0.40", features = ["bundled"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
 unicode-width = "0.2"
 socket2 = { version = "0.6", features = ["all"] }
 zstd = "0.14.3"
