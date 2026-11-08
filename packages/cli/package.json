@@ -1,6 +1,6 @@
 {
   "name": "skill-zoo",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Agent-native CLI for Skill Zoo",
   "type": "module",
   "bin": {
