@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.4.6] — 2026-11-08
+
+### Changed
+- Merging duplicate skills now verifies live ownership, content and link structure before moving anything, stages same-filesystem backups of the originals and existing cross-agent links, and commits the stores only after every save succeeds. A failed merge restores the originals, links and metadata instead of leaving the merge half-applied.
+- External import registration rejects duplicate sources and colliding link names before writing anything, and a failed import restores the previous registry while preserving pre-existing links and original import timestamps.
+- Archiving and restoring run through a guarded lifecycle service: restore resolves the physical source explicitly and keeps the original files untouched when it rejects unsupported records — external or plugin-owned items, and agent archives whose recorded home no longer exists.
+- The CLI archive path follows the same provenance rules: only store-managed skills update the agent lock, and unsupported cases are rejected without moving files.
+- Main-file and companion-file editing now share one draft implementation, so unsaved-change prompts and revert handling behave the same across the file views.
+- Skill card titles use a slightly softer text color.
+
+### Fixed
+- Re-importing the same external skill through a changed parent directory no longer removes the agent links it just recreated.
+- Refresh and update operations report cache-refresh failures instead of succeeding silently; background file changes wait for running refreshes and fall back to a full rebuild when an incremental update fails.
+- A failed cache save no longer leaves the in-memory cache diverging from disk: incremental batch commits restore the previous snapshot.
+- Skill scans agree on identity, origin and legacy lock metadata for nested skills regardless of which scan path found them.
+- CLI consistency no longer reports external imports as conflicts or mismatches, and treats same-name copies as identical only when every copy has a verified matching content hash — unavailable hashes fall back to a conservative conflict.
+
 ## [0.4.5] — 2026-11-07
 
 ### Added
