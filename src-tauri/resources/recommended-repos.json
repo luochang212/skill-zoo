@@ -12,27 +12,27 @@
     "description": "Research skills from a PhD advisor's decade of experience: idea evaluation, literature survey, paper drafting, figures, submission review, and rebuttal"
   },
   {
-    "owner": "deepseek-ai",
-    "name": "deepseek-harness",
-    "branch": "master",
-    "description": "DeepSeek Harness: Everything is a Plugin."
+    "owner": "zai-org",
+    "name": "ZCode",
+    "branch": "main",
+    "description": "Z.ai's coding agent harness. Powerful, intelligent, extensible."
   },
   {
-    "owner": "wheresryan22",
-    "name": "anatomy",
+    "owner": "patch-gg",
+    "name": "pixelfx",
     "branch": "main",
-    "description": "Create detailed, interactive isometric illustrations of machines and complex systems with SVG, optional WebGL shaders, and 3D effects"
+    "description": "244 pixel art effects, every one a small piece of code. Plus a Claude Code skill to make your own."
   },
   {
-    "owner": "mattpocock",
-    "name": "skills",
+    "owner": "DietrichGebert",
+    "name": "ponytail",
     "branch": "main",
-    "description": "Skills for Real Engineers. Straight from my .claude directory."
+    "description": "Makes your AI agent think like the laziest senior dev in the room. The best code is the code you never wrote."
   },
   {
     "owner": "luochang212",
     "name": "dive-into-langgraph",
     "branch": "skills-only",
-    "description": "Agent skills for LangGraph — ReAct agents, state graphs, memory, MCP servers, supervisor patterns, parallelization, RAG, and multi-agent workflows"
+    "description": "LangGraph 1.0 Tutorial"
   }
 ]
