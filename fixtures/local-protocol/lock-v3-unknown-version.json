@@ -1,0 +1,15 @@
+{
+  "version": 3,
+  "skills": {
+    "demo": {
+      "source": "owner/repo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/owner/repo",
+      "ref": "main",
+      "skillPath": "skills/demo",
+      "commitSha": null,
+      "skillFolderHash": "8293db63637957643abb559a59c1122ef387e21f61b60e8b0b3b2dfda73bae36"
+    }
+  },
+  "dismissed": {}
+}

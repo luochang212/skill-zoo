@@ -70,10 +70,13 @@ an import registry that cannot be read safely prevents archive mutations. Cache
 and metadata save failures retain ordinary rollback behavior; this does not
 extend the agent lifecycle journal to skill files or promise crash atomicity.
 
-The background commit-SHA baseline writer also acquires the shared local lease.
-It fills only a still-missing SHA on the exact lock entry that was checked;
-replacement installs or newer baselines are left unchanged. A busy lease defers
-this best-effort enrichment to a later check.
+An absent `commitSha` is an unknown installed version. Update checks do not
+write the current remote SHA into that entry: a remote lookup cannot prove what
+is installed. The desktop reports an unknown-baseline issue; an explicit update
+from the skill detail establishes a baseline from the downloaded archive's commit.
+Each updated skill keeps its original directory until its lock write succeeds;
+lock publication failure restores that directory and leaves its old baseline.
+This is ordinary error rollback, not crash or power-loss atomicity.
 
 ## Agent Link Semantics
 

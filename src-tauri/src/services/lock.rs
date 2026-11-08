@@ -133,26 +133,6 @@ impl SkillLock {
     }
 }
 
-impl SkillLock {
-    pub fn baseline_commit_sha(
-        skill_name: &str,
-        expected: &SkillLockEntry,
-        sha: &str,
-    ) -> Result<(), AppError> {
-        let _lease = crate::persistence::agent_transaction::AgentLease::acquire(
-            &config::get_app_config_dir(),
-        )?;
-        Self::update(|lock| {
-            if let Some(entry) = lock.skills.get_mut(skill_name) {
-                if entry == expected && entry.commit_sha.is_none() {
-                    entry.commit_sha = Some(sha.to_string());
-                }
-            }
-            Ok(())
-        })
-    }
-}
-
 impl SkillLockEntry {
     /// Parse owner/name from the "source" field (e.g. "anthropics/skills").
     pub fn parse_source_owner_name(&self) -> (Option<String>, Option<String>) {

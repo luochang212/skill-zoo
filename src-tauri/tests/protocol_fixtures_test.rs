@@ -136,3 +136,15 @@ fn fixture_path(name: &str) -> PathBuf {
         .join("local-protocol")
         .join(name)
 }
+
+#[test]
+fn unknown_installed_version_survives_lock_roundtrip() {
+    let lock: SkillLock = read_fixture_json("lock-v3-unknown-version.json");
+    assert!(lock.skills["demo"].commit_sha.is_none());
+    assert!(lock.skills["demo"].content_baseline().is_some());
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("lock.json");
+    lock.write_to(&path).unwrap();
+    let restored: SkillLock = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    assert_eq!(restored.skills["demo"], lock.skills["demo"]);
+}

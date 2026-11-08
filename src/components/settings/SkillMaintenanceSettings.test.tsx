@@ -700,6 +700,119 @@ describe("SkillMaintenanceSettings", () => {
     expect(screen.getByRole("switch", { name: "Show plugin skills" })).not.toBeChecked();
   });
 
+  it("keeps plugin discovery pending through refresh and reuses the returned skills", async () => {
+    const user = userEvent.setup();
+    let finish!: (value: unknown) => void;
+    const refresh = new Promise((resolve) => {
+      finish = resolve;
+    });
+    const normal = vi.mocked(invoke).getMockImplementation()!;
+    vi.mocked(invoke).mockImplementation((command, args) => {
+      if (command === "get_installed_skills" && (args as { force?: boolean })?.force)
+        return refresh;
+      return normal(command, args);
+    });
+    renderSettings();
+    const toggle = await screen.findByRole("switch", { name: "Show plugin skills" });
+    await user.click(toggle);
+    expect(toggle).toBeChecked();
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("get_installed_skills", { force: true }),
+    );
+    expect(toggle).toBeDisabled();
+    await act(async () => finish([{ id: "plugin:demo", directory: "demo", origin: "plugin" }]));
+    await waitFor(() => expect(toggle).toBeEnabled());
+    expect(toggle).toBeChecked();
+    expect(
+      vi.mocked(invoke).mock.calls.filter(([command]) => command === "get_installed_skills"),
+    ).toHaveLength(2);
+  });
+
+  it.each([false, true])(
+    "immediately toggles and rolls back if saving fails (initially %s)",
+    async (initial) => {
+      const user = userEvent.setup();
+      let rejectSave!: (reason: Error) => void;
+      const save = new Promise((_, reject) => {
+        rejectSave = reject;
+      });
+      const normal = vi.mocked(invoke).getMockImplementation()!;
+      vi.mocked(invoke).mockImplementation((command, args) => {
+        if (command === "get_settings")
+          return Promise.resolve({ plugins_discovery_enabled: String(initial) });
+        if (command === "update_setting") return save;
+        return normal(command, args);
+      });
+      renderSettings();
+      const toggle = await screen.findByRole("switch", { name: "Show plugin skills" });
+      await waitFor(() => expect(toggle).toHaveAttribute("aria-checked", String(initial)));
+      await user.click(toggle);
+      expect(toggle).toHaveAttribute("aria-checked", String(!initial));
+      expect(toggle).toBeDisabled();
+      await act(async () => rejectSave(new Error("save failed")));
+      await waitFor(() => expect(toggle).toBeEnabled());
+      expect(toggle).toHaveAttribute("aria-checked", String(initial));
+      expect(toast.error).toHaveBeenCalledExactlyOnceWith(expect.stringContaining("save failed"));
+      expect(invoke).not.toHaveBeenCalledWith("get_installed_skills", { force: true });
+    },
+  );
+
+  it.each([false, true])(
+    "keeps the saved preference if scanning and rereading settings fail (initially %s)",
+    async (initial) => {
+      const user = userEvent.setup();
+      let saved = false;
+      let failScan!: (reason: Error) => void;
+      const scan = new Promise((_, reject) => {
+        failScan = reject;
+      });
+      const normal = vi.mocked(invoke).getMockImplementation()!;
+      vi.mocked(invoke).mockImplementation((command, args) => {
+        if (command === "get_settings")
+          return saved
+            ? Promise.reject(new Error("settings unavailable"))
+            : Promise.resolve({ plugins_discovery_enabled: String(initial) });
+        if (command === "update_setting") {
+          saved = true;
+          return Promise.resolve(undefined);
+        }
+        if (command === "get_installed_skills" && (args as { force?: boolean })?.force) return scan;
+        return normal(command, args);
+      });
+      renderSettings();
+      const toggle = await screen.findByRole("switch", { name: "Show plugin skills" });
+      await waitFor(() => expect(toggle).toHaveAttribute("aria-checked", String(initial)));
+      await user.click(toggle);
+      await waitFor(() =>
+        expect(invoke).toHaveBeenCalledWith("get_installed_skills", { force: true }),
+      );
+      expect(toggle).toHaveAttribute("aria-checked", String(!initial));
+      expect(toggle).toBeDisabled();
+      await act(async () => failScan(new Error("scan failed")));
+      await waitFor(() => expect(toggle).toBeEnabled());
+      expect(toggle).toHaveAttribute("aria-checked", String(!initial));
+      expect(toast.error).toHaveBeenCalledExactlyOnceWith(expect.stringContaining("scan failed"));
+    },
+  );
+
+  it("rereads the actual cache size after clearing", async () => {
+    const user = userEvent.setup();
+    let size = 1024;
+    const normal = vi.mocked(invoke).getMockImplementation()!;
+    vi.mocked(invoke).mockImplementation((command, args) => {
+      if (command === "get_cache_size") return Promise.resolve(size);
+      if (command === "clear_download_cache") {
+        size = 2048;
+        return Promise.resolve(1024);
+      }
+      return normal(command, args);
+    });
+    renderSettings();
+    expect(await screen.findByText("(1 KB)")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /clear cache/i }));
+    expect(await screen.findByText("(2 KB)")).toBeInTheDocument();
+  });
+
   it("writes the non-SSOT preference when switched off", async () => {
     const user = userEvent.setup();
     renderSettings();

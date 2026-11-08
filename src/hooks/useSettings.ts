@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tansta
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { settingsApi } from "@/lib/api/settings";
+import { skillsApi } from "@/lib/api/skills";
+import { formatApiError } from "@/lib/api/errors";
 import { useAgentConfigs } from "@/lib/agents";
 import type { AgentPreferences, SkillCompanionItem, VisibleAgents } from "@/types/skills";
 
@@ -151,11 +153,20 @@ export function usePluginsDiscoveryEnabled() {
 export function useUpdatePluginsDiscoveryEnabled() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (enabled: boolean) =>
-      settingsApi.updateSetting("plugins_discovery_enabled", enabled ? "true" : "false"),
-    onSuccess: () => {
-      qc.setQueryData(PLUGINS_DISCOVERY_KEY, undefined);
-      qc.invalidateQueries({ queryKey: PLUGINS_DISCOVERY_KEY });
+    mutationFn: async (enabled: boolean) => {
+      await settingsApi.updateSetting("plugins_discovery_enabled", enabled ? "true" : "false");
+      await qc.cancelQueries({ queryKey: PLUGINS_DISCOVERY_KEY });
+      qc.setQueryData(PLUGINS_DISCOVERY_KEY, enabled);
+      return skillsApi.getInstalledSkills(true);
+    },
+    onSuccess: async (skills) => {
+      await qc.cancelQueries({ queryKey: ["skills", "installed"] });
+      qc.setQueryData(["skills", "installed"], skills);
+    },
+    // The preference may have been saved even if the filesystem refresh failed.
+    onError: (error) => {
+      toast.error(formatApiError(error));
+      return qc.invalidateQueries({ queryKey: PLUGINS_DISCOVERY_KEY });
     },
   });
 }

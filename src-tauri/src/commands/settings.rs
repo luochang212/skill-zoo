@@ -19,19 +19,36 @@ pub fn is_portable_build() -> bool {
     cfg!(feature = "portable")
 }
 
+// Completed archives are disposable; active downloads and unknown files are not.
+fn cached_zip_entries() -> Result<Vec<std::fs::DirEntry>, String> {
+    let entries = match std::fs::read_dir(crate::config::get_repo_zip_cache_dir()) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(vec![]),
+        Err(error) => return Err(error.to_string()),
+    };
+    let mut archives = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|e| e.to_string())?;
+        if entry.path().extension().is_some_and(|ext| ext == "zip")
+            && entry.file_type().map_err(|e| e.to_string())?.is_file()
+        {
+            archives.push(entry);
+        }
+    }
+    Ok(archives)
+}
+
 #[tauri::command]
 pub fn clear_download_cache() -> Result<u64, String> {
-    let cache_dir = crate::config::get_repo_zip_cache_dir();
-    if !cache_dir.exists() {
-        return Ok(0);
-    }
-    let mut freed: u64 = 0;
-    let entries = std::fs::read_dir(&cache_dir).map_err(|e| e.to_string())?;
-    for entry in entries.flatten() {
-        if let Ok(meta) = entry.metadata() {
-            if meta.is_file() && std::fs::remove_file(entry.path()).is_ok() {
-                freed += meta.len();
-            }
+    let mut freed = 0;
+    for entry in cached_zip_entries()? {
+        match entry.metadata().and_then(|meta| {
+            std::fs::remove_file(entry.path())?;
+            Ok(meta.len())
+        }) {
+            Ok(size) => freed += size,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(format!("{}: {error}", entry.path().display())),
         }
     }
     Ok(freed)
@@ -39,17 +56,12 @@ pub fn clear_download_cache() -> Result<u64, String> {
 
 #[tauri::command]
 pub fn get_cache_size() -> Result<u64, String> {
-    let cache_dir = crate::config::get_repo_zip_cache_dir();
-    if !cache_dir.exists() {
-        return Ok(0);
-    }
-    let mut total: u64 = 0;
-    let entries = std::fs::read_dir(&cache_dir).map_err(|e| e.to_string())?;
-    for entry in entries.flatten() {
-        if let Ok(meta) = entry.metadata() {
-            if meta.is_file() {
-                total += meta.len();
-            }
+    let mut total = 0;
+    for entry in cached_zip_entries()? {
+        match entry.metadata() {
+            Ok(meta) => total += meta.len(),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.to_string()),
         }
     }
     Ok(total)
@@ -1263,43 +1275,7 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
                 CheckedRemoteSkill::ok(None, format!("{owner}/{name}"))
             }
         });
-        let current_sha = entry.commit_sha.clone();
-
-        let has_update = match (&checked.latest_sha, &current_sha) {
-            (Some(latest), Some(current)) => latest != current,
-            _ => false,
-        };
-
-        let locally_modified = crate::services::lock::skill_folder_drifted(
-            &crate::config::get_agents_skills_dir().join(skill_name),
-            entry,
-        );
-
-        skills.push(SkillUpdateStatus {
-            skill_name: skill_name.clone(),
-            has_update,
-            current_sha,
-            latest_sha: checked.latest_sha,
-            repo: checked.repo,
-            locally_modified,
-            check_error_code: checked.check_error_code,
-            check_error: checked.check_error,
-        });
-    }
-
-    // For skills whose latest SHA we fetched but had no stored SHA,
-    // save the latest SHA now (they were up-to-date at install time).
-    for (skill_name, entry) in &lock.skills {
-        if let (
-            Some(CheckedRemoteSkill {
-                latest_sha: Some(latest),
-                ..
-            }),
-            None,
-        ) = (checked_skills.get(skill_name), entry.commit_sha.as_ref())
-        {
-            let _ = SkillLock::baseline_commit_sha(skill_name, entry, latest);
-        }
+        skills.push(skill_update_status(skill_name, entry, checked));
     }
 
     Ok(CheckUpdatesResult {
@@ -1310,9 +1286,56 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
     })
 }
 
+fn skill_update_status(
+    skill_name: &str,
+    entry: &SkillLockEntry,
+    mut checked: CheckedRemoteSkill,
+) -> SkillUpdateStatus {
+    let current_sha = entry.commit_sha.clone();
+    let has_update = match (&checked.latest_sha, &current_sha) {
+        (Some(latest), Some(current)) => latest != current,
+        _ => false,
+    };
+    if current_sha.is_none() && checked.latest_sha.is_some() && checked.check_error.is_none() {
+        checked.check_error_code = Some("missingBaseline".into());
+        checked.check_error = Some(
+            "Installed version is unknown. Open this skill and update it to establish a baseline."
+                .into(),
+        );
+    }
+    SkillUpdateStatus {
+        skill_name: skill_name.into(),
+        has_update,
+        current_sha,
+        latest_sha: checked.latest_sha,
+        repo: checked.repo,
+        locally_modified: crate::services::lock::skill_folder_drifted(
+            &crate::config::get_agents_skills_dir().join(skill_name),
+            entry,
+        ),
+        check_error_code: checked.check_error_code,
+        check_error: checked.check_error,
+    }
+}
+
 #[cfg(test)]
 mod skill_update_check_tests {
-    use super::missing_remote_path_error;
+    use super::*;
+
+    #[test]
+    fn unknown_installed_version_is_an_issue_not_a_remote_baseline() {
+        let entry: SkillLockEntry =
+            serde_json::from_value(serde_json::json!({"source":"owner/repo"})).unwrap();
+        let status = skill_update_status(
+            "demo",
+            &entry,
+            CheckedRemoteSkill::ok(Some("new".into()), "owner/repo".into()),
+        );
+        assert_eq!(status.check_error_code.as_deref(), Some("missingBaseline"));
+        assert_eq!(status.current_sha, None);
+        assert!(!status.has_update);
+        assert_eq!(entry.commit_sha, None);
+    }
 
     #[test]
     fn missing_remote_path_error_names_repo_branch_and_path() {
@@ -1320,5 +1343,39 @@ mod skill_update_check_tests {
             missing_remote_path_error("owner", "repo", Some("main"), "skills/demo"),
             "Skill path no longer exists in owner/repo@main: skills/demo"
         );
+    }
+}
+
+#[cfg(test)]
+mod maintenance_cache_tests {
+    #[test]
+    fn clearing_download_cache_preserves_active_downloads_and_unknown_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        crate::config::with_test_home(tmp.path(), || {
+            let dir = crate::config::get_repo_zip_cache_dir();
+            std::fs::create_dir_all(&dir).unwrap();
+            let active = tempfile::Builder::new()
+                .prefix(".repo-")
+                .suffix(".zip.tmp")
+                .tempfile_in(&dir)
+                .unwrap();
+            std::fs::write(active.path(), "in flight").unwrap();
+            std::fs::write(dir.join("owner--repo--default.zip"), "complete").unwrap();
+            std::fs::write(dir.join("unknown.txt"), "keep").unwrap();
+            #[cfg(unix)]
+            std::os::unix::fs::symlink(dir.join("unknown.txt"), dir.join("linked.zip")).unwrap();
+            let freed = super::clear_download_cache().unwrap();
+            assert!(active.path().exists(), "must not unlink an active download");
+            assert!(dir.join("unknown.txt").exists());
+            #[cfg(unix)]
+            assert!(dir.join("linked.zip").is_symlink());
+            assert!(!dir.join("owner--repo--default.zip").exists());
+            assert_eq!(freed, 8);
+            assert_eq!(super::get_cache_size().unwrap(), 0);
+            assert!(active
+                .into_temp_path()
+                .persist(dir.join("published.zip"))
+                .is_ok());
+        });
     }
 }

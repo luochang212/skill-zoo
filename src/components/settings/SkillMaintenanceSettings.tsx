@@ -1,5 +1,5 @@
 import { FolderInput, FolderOpen, History, Puzzle, RefreshCw, Trash2, Wrench } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -45,7 +45,10 @@ export function SkillMaintenanceSettings({
   const updatePluginsDiscovery = useUpdatePluginsDiscoveryEnabled();
   const { t } = useTranslation();
   const [clearingCache, setClearingCache] = useState(false);
-  const [cacheSize, setCacheSize] = useState<number | null>(null);
+  const { data: cacheSize } = useQuery({
+    queryKey: ["settings", "downloadCacheSize"],
+    queryFn: skillsApi.getCacheSize,
+  });
   const [updateManagerOpen, setUpdateManagerOpen] = useState(false);
   const [localImportsOpen, setLocalImportsOpen] = useState(false);
   const updateManagerButtonRef = useRef<HTMLButtonElement>(null);
@@ -61,15 +64,6 @@ export function SkillMaintenanceSettings({
     mutationFn: () => skillsApi.checkSkillUpdates(),
     onSuccess: (result) => qc.setQueryData(SKILL_UPDATE_CHECK_KEY, result),
   });
-
-  const refreshCacheSize = useCallback(async () => {
-    const size = await skillsApi.getCacheSize();
-    setCacheSize(size);
-  }, []);
-
-  useEffect(() => {
-    refreshCacheSize();
-  }, [refreshCacheSize]);
 
   const installedCount = skills?.length ?? 0;
 
@@ -286,15 +280,15 @@ export function SkillMaintenanceSettings({
                 setClearingCache(true);
                 try {
                   const start = Date.now();
-                  const freed = await skillsApi.clearDownloadCache();
+                  await skillsApi.clearDownloadCache();
                   const elapsed = Date.now() - start;
                   if (elapsed < 500) {
                     await new Promise((r) => setTimeout(r, 500 - elapsed));
                   }
-                  setCacheSize((prev) => Math.max(0, (prev ?? 0) - freed));
                 } catch {
                   toast.error(t("settings.maintenance.clearCacheFailed"));
                 } finally {
+                  await qc.invalidateQueries({ queryKey: ["settings", "downloadCacheSize"] });
                   setClearingCache(false);
                 }
               }}
@@ -327,16 +321,13 @@ export function SkillMaintenanceSettings({
           icon={<Puzzle className="h-4 w-4 text-blue-500" />}
           title={t("settings.pluginsDiscovery.title")}
           description={t("settings.pluginsDiscovery.desc")}
-          checked={pluginsDiscoveryEnabled ?? false}
-          onCheckedChange={(checked) =>
-            updatePluginsDiscovery.mutate(checked, {
-              onSuccess: async () => {
-                // Force the cache rebuild so the flip takes effect at once.
-                await skillsApi.getInstalledSkills(true);
-                qc.invalidateQueries({ queryKey: ["skills", "installed"] });
-              },
-            })
+          checked={
+            (updatePluginsDiscovery.isPending
+              ? updatePluginsDiscovery.variables
+              : pluginsDiscoveryEnabled) ?? false
           }
+          disabled={updatePluginsDiscovery.isPending}
+          onCheckedChange={(checked) => updatePluginsDiscovery.mutate(checked)}
         />
 
         <p className="text-[11px] text-muted-foreground">

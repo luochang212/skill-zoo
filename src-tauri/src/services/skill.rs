@@ -3568,6 +3568,42 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "read-only local plugin scan timing; run explicitly"]
+    fn plugin_scan_local_performance() {
+        let snapshot: Vec<_> = config::agents()
+            .iter()
+            .cloned()
+            .map(|mut agent| {
+                agent.skills_dir = config::agent_skills_dir(&agent);
+                agent
+            })
+            .collect();
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            set_plugin_discovery(true);
+            config::with_agent_snapshot(std::sync::Arc::new(snapshot), || {
+                let mut timings = Vec::new();
+                for _ in 0..7 {
+                    let started = std::time::Instant::now();
+                    let mut entries = Vec::new();
+                    SkillService::scan_plugin_skills_into(&mut entries);
+                    timings.push(started.elapsed().as_secs_f64() * 1000.0);
+                    println!(
+                        "plugin entries={}, scan_ms={:.2}",
+                        entries.len(),
+                        timings.last().unwrap()
+                    );
+                }
+                timings.sort_by(f64::total_cmp);
+                println!(
+                    "plugin scan median_ms={:.2}, max_ms={:.2}",
+                    timings[3], timings[6]
+                );
+            });
+        });
+    }
+
+    #[test]
     fn plugin_discovery_walks_agent_homes_with_one_generic_rule() {
         let tmp = tempfile::tempdir().unwrap();
         crate::config::with_test_home(tmp.path(), || {

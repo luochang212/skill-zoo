@@ -53,6 +53,15 @@ describe("desktop local protocol fixtures", () => {
     });
   });
 
+  it("preserves an unknown installed version without inventing a remote SHA", async () => {
+    const home = await makeTempHome();
+    await copyFixture("lock-v3-unknown-version.json", getPaths(home).agentLockFile);
+    const lock = await readLock(home);
+    expect(lock.skills.demo?.commitSha).toBeNull();
+    await writeLock(home, lock);
+    expect((await readLock(home)).skills.demo).toEqual(lock.skills.demo);
+  });
+
   it("preserves unknown lock fields when updating a known entry", async () => {
     const home = await makeTempHome();
     const paths = getPaths(home);

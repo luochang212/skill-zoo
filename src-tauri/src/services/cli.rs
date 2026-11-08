@@ -84,7 +84,7 @@ impl CliService {
         let repo_ref = github::parse_repo_ref(repo_url)?;
         let (owner, repo, branch) = (repo_ref.owner, repo_ref.name, repo_ref.branch);
 
-        let (_temp_dir, clone_path) =
+        let (_temp_dir, clone_path, archive_commit) =
             Self::download_repo_zip(&owner, &repo, branch.as_deref(), false).await?;
 
         // Discover skills in the cloned tree
@@ -169,11 +169,14 @@ impl CliService {
         // Persist metadata to lock file, including folder SHAs so future
         // update checks can detect changes even after a fresh install.
         //
-        // Fetch the repo tree to get the per-folder SHA. If that fails,
-        // commit_sha stays None and check_skill_updates will
-        // auto-baseline on the next successful check (one-cycle degradation).
+        // Bind baselines to the downloaded archive, never the branch's later state.
+        // A missing archive identity or failed lookup leaves the version unknown.
         let folder_shas: std::collections::HashMap<String, Option<String>> =
-            match Self::fetch_repo_tree(&owner, &repo, branch.as_deref()).await {
+            match if let Some(commit) = archive_commit.as_deref() {
+                Self::fetch_repo_tree(&owner, &repo, Some(commit)).await
+            } else {
+                Ok(None)
+            } {
                 Ok(Some(tree)) => installed_skills
                     .iter()
                     .map(|(name, skill_path)| {
@@ -186,7 +189,7 @@ impl CliService {
                 Ok(None) => {
                     eprintln!(
                         "install: tree not found for {}, \
-                         update detection will auto-baseline on next check",
+                         update baseline remains unknown",
                         Self::repo_ref_label(&owner, &repo, branch.as_deref())
                     );
                     std::collections::HashMap::new()
@@ -194,7 +197,7 @@ impl CliService {
                 Err(e) => {
                     eprintln!(
                         "install: tree fetch failed for {}: {e}, \
-                         update detection will auto-baseline on next check",
+                         update baseline remains unknown",
                         Self::repo_ref_label(&owner, &repo, branch.as_deref())
                     );
                     std::collections::HashMap::new()
@@ -336,7 +339,7 @@ impl CliService {
             if entry.commit_sha.is_none() {
                 if report_missing_baseline {
                     errors.push(format!(
-                        "{name}: Missing update baseline. Check updates before updating this skill."
+                        "{name}: Missing update baseline. Open this skill and update it to establish a baseline."
                     ));
                 }
                 continue;
@@ -446,13 +449,12 @@ impl CliService {
 
         let (groups, mut errors) = Self::group_known_updates_by_repo(to_update);
         let mut updated: Vec<String> = Vec::new();
-        let mut updated_shas: Vec<(String, String)> = Vec::new();
         let mut skipped_drifted = Vec::new();
 
         for group in &groups {
             let request =
                 Self::update_download_request(&group.owner, &group.repo, group.branch.as_deref());
-            let (_temp_dir, clone_path) = match Self::download_repo_zip(
+            let (_temp_dir, clone_path, archive_commit) = match Self::download_repo_zip(
                 &request.owner,
                 &request.repo,
                 request.branch.as_deref(),
@@ -472,6 +474,30 @@ impl CliService {
                 }
             };
 
+            let tree = match archive_commit {
+                Some(commit) => {
+                    Self::fetch_repo_tree(&group.owner, &group.repo, Some(&commit)).await
+                }
+                None => Err(AppError::BadRequest(
+                    "Downloaded archive has no commit identity; refusing to update.".into(),
+                )),
+            };
+            let tree = match tree {
+                Ok(Some(tree)) => tree,
+                result => {
+                    let message = match result {
+                        Err(error) => error.to_string(),
+                        _ => "Downloaded archive commit no longer exists.".into(),
+                    };
+                    errors.extend(
+                        group
+                            .skills
+                            .iter()
+                            .map(|skill| format!("{}: {message}", skill.name)),
+                    );
+                    continue;
+                }
+            };
             let discovered = Self::discover_skills_in_tree(&clone_path);
             for skill in &group.skills {
                 match Self::reinstall_skill_from_discovered(
@@ -480,10 +506,10 @@ impl CliService {
                     &group.repo,
                     &clone_path,
                     &discovered,
+                    &tree,
                 ) {
                     Ok(ReinstallOutcome::Updated) => {
                         updated.push(skill.name.clone());
-                        updated_shas.push((skill.name.clone(), skill.latest_sha.clone()));
                     }
                     Ok(ReinstallOutcome::SkippedDrifted) => {
                         skipped_drifted.push(skill.name.clone())
@@ -491,31 +517,6 @@ impl CliService {
                     Err(e) => errors.push(format!("{}: {e}", skill.name)),
                 }
             }
-        }
-
-        if !updated_shas.is_empty() {
-            let now = chrono::Utc::now().to_rfc3339();
-            // Hash outside the lock RMW: the closure must stay pure memory mutation.
-            let ssot_dir = config::get_agents_skills_dir();
-            let fresh_hashes: std::collections::HashMap<String, Option<String>> = updated_shas
-                .iter()
-                .map(|(name, _)| {
-                    (
-                        name.clone(),
-                        crate::services::lock::compute_skill_folder_hash(&ssot_dir.join(name)).ok(),
-                    )
-                })
-                .collect();
-            SkillLock::update(|lock| {
-                for (name, sha) in &updated_shas {
-                    if let Some(entry) = lock.skills.get_mut(name) {
-                        entry.updated_at = Some(now.clone());
-                        entry.commit_sha = Some(sha.clone());
-                        entry.skill_folder_hash = fresh_hashes.get(name).cloned().flatten();
-                    }
-                }
-                Ok(())
-            })?;
         }
 
         Ok(UpdateResult {
@@ -900,10 +901,16 @@ impl CliService {
         repo: &str,
         branch: Option<&str>,
         force: bool,
-    ) -> Result<(tempfile::TempDir, PathBuf), AppError> {
+    ) -> Result<(tempfile::TempDir, PathBuf, Option<String>), AppError> {
         let zip_path = Self::ensure_cached_zip(owner, repo, branch, force).await?;
+        Self::extract_repo_zip(&zip_path, repo)
+    }
 
-        let file = std::fs::File::open(&zip_path).map_err(AppError::Io)?;
+    fn extract_repo_zip(
+        zip_path: &Path,
+        repo: &str,
+    ) -> Result<(tempfile::TempDir, PathBuf, Option<String>), AppError> {
+        let file = std::fs::File::open(zip_path).map_err(AppError::Io)?;
         let zip_len = file.metadata().map_err(AppError::Io)?.len();
         let mut archive = zip::ZipArchive::new(file)
             .map_err(|e| AppError::Cli(format!("Invalid archive: {e}")))?;
@@ -915,6 +922,11 @@ impl CliService {
             config::MAX_EXTRACT_FILES,
         )?;
 
+        // git archive embeds its source commit in the ZIP comment.
+        let archive_commit = std::str::from_utf8(archive.comment())
+            .ok()
+            .filter(|sha| sha.len() == 40 && sha.bytes().all(|b| b.is_ascii_hexdigit()))
+            .map(str::to_owned);
         let temp_dir = tempfile::tempdir()?;
         archive
             .extract(temp_dir.path())
@@ -928,7 +940,7 @@ impl CliService {
             .ok_or_else(|| AppError::Cli("Archive has no root directory".into()))?;
         let root_dir = SkillService::normalize_extracted_repo_root(&root_dir, repo)?;
 
-        Ok((temp_dir, root_dir))
+        Ok((temp_dir, root_dir, archive_commit))
     }
 
     /// Walk a directory tree and find every directory containing a SKILL.md.
@@ -1048,11 +1060,8 @@ impl CliService {
                     .get(name)
                     .map(|e| e.extra.clone())
                     .unwrap_or_default();
-                // Prefer freshly fetched folder SHA; fall back to existing lock entry
-                let commit_sha = folder_shas
-                    .get(name)
-                    .and_then(|s| s.clone())
-                    .or_else(|| lock.skills.get(name).and_then(|e| e.commit_sha.clone()));
+                // An older installation's SHA cannot identify newly copied content.
+                let commit_sha = folder_shas.get(name).cloned().flatten();
 
                 lock.skills.insert(
                     name.clone(),
@@ -1080,9 +1089,16 @@ impl CliService {
         repo: &str,
         repo_root: &Path,
         discovered: &[(String, String, PathBuf)],
+        tree: &RepoTreeResponse,
     ) -> Result<ReinstallOutcome, AppError> {
         let name = &skill.name;
         let lock_skill_path = skill.entry.skill_path.as_deref();
+        let actual_sha = Self::get_folder_sha_from_tree(tree, lock_skill_path.unwrap_or(""));
+        if actual_sha.as_deref() != Some(&skill.latest_sha) {
+            return Err(AppError::BadRequest(format!(
+                "{name}: Remote skill changed since checking. Check updates again."
+            )));
+        }
         let skill_path =
             Self::find_discovered_skill_for_update(repo_root, name, lock_skill_path, discovered)
                 .ok_or_else(|| {
@@ -1107,11 +1123,27 @@ impl CliService {
         let tmp_path = tmp.path().to_path_buf();
 
         Self::copy_dir_contents(skill_path, &tmp_path)?;
+        let fresh_hash = crate::services::lock::compute_skill_folder_hash(&tmp_path)?;
         // Downloading and staging can take time; protect edits saved since preflight.
         if !skill.force && crate::services::lock::skill_folder_drifted(&dest, &skill.entry) {
             return Ok(ReinstallOutcome::SkippedDrifted);
         }
-        Self::replace_skill_dir_with_rollback(&dest, &tmp_path)?;
+        Self::replace_skill_dir_with_rollback(&dest, &tmp_path, || {
+            SkillLock::update(|lock| {
+                let entry = lock.skills.get_mut(name).ok_or_else(|| {
+                    AppError::NotFound(format!("Skill {name} no longer exists in the lock file"))
+                })?;
+                if entry != &skill.entry {
+                    return Err(AppError::BadRequest(format!(
+                        "{name}: Update state changed. Check updates again."
+                    )));
+                }
+                entry.updated_at = Some(chrono::Utc::now().to_rfc3339());
+                entry.commit_sha = Some(skill.latest_sha.clone());
+                entry.skill_folder_hash = Some(fresh_hash);
+                Ok(())
+            })
+        })?;
         Ok(ReinstallOutcome::Updated)
     }
 
@@ -1147,27 +1179,42 @@ impl CliService {
             .map(|(_, _, path)| path)
     }
 
-    fn replace_skill_dir_with_rollback(dest: &Path, tmp: &Path) -> Result<(), AppError> {
-        if std::fs::symlink_metadata(dest).is_err() {
-            return std::fs::rename(tmp, dest).map_err(AppError::Io);
-        }
-
-        let backup = Self::create_backup_path(dest)?;
-        std::fs::rename(dest, &backup).map_err(AppError::Io)?;
-
-        match std::fs::rename(tmp, dest) {
+    fn replace_skill_dir_with_rollback(
+        dest: &Path,
+        tmp: &Path,
+        commit: impl FnOnce() -> Result<(), AppError>,
+    ) -> Result<(), AppError> {
+        let backup = if std::fs::symlink_metadata(dest).is_ok() {
+            let backup = Self::create_backup_path(dest)?;
+            std::fs::rename(dest, &backup).map_err(AppError::Io)?;
+            Some(backup)
+        } else {
+            None
+        };
+        let replacement = std::fs::rename(tmp, dest).map_err(AppError::Io);
+        let replaced = replacement.is_ok();
+        let result = replacement.and_then(|()| commit());
+        match result {
             Ok(()) => {
-                let _ = std::fs::remove_dir_all(&backup);
+                if let Some(backup) = backup {
+                    let _ = std::fs::remove_dir_all(backup);
+                }
                 Ok(())
             }
-            Err(rename_error) => match std::fs::rename(&backup, dest) {
-                Ok(()) => Err(AppError::Io(rename_error)),
-                Err(restore_error) => Err(AppError::Cli(format!(
-                    "Failed to install updated skill at {}: {rename_error}. Original skill remains at {} and could not be restored automatically: {restore_error}",
-                    dest.display(),
-                    backup.display()
-                ))),
-            },
+            Err(error) => {
+                // Move the rejected replacement back into its staging directory before restoring.
+                if replaced {
+                    std::fs::rename(dest, tmp).map_err(|restore_error| AppError::Cli(format!(
+                        "Update failed: {error}. Could not remove replacement at {}: {restore_error}. Original remains at {}", dest.display(), backup.as_deref().unwrap_or(dest).display()
+                    )))?;
+                }
+                if let Some(backup) = backup {
+                    std::fs::rename(&backup, dest).map_err(|restore_error| AppError::Cli(format!(
+                        "Update failed: {error}. Original skill remains at {} and could not be restored automatically: {restore_error}", backup.display()
+                    )))?;
+                }
+                Err(error)
+            }
         }
     }
 
@@ -1482,6 +1529,7 @@ mod tests {
                 updated.skills["demo"].source.as_deref(),
                 Some("new-owner/new-repo")
             );
+            assert_eq!(updated.skills["demo"].commit_sha, None);
         });
     }
 
@@ -1729,7 +1777,7 @@ mod tests {
         assert_eq!(result.fail_count, 1);
         assert_eq!(
             result.errors,
-            vec!["demo: Missing update baseline. Check updates before updating this skill."]
+            vec!["demo: Missing update baseline. Open this skill and update it to establish a baseline."]
         );
     }
 
@@ -2287,7 +2335,7 @@ mod tests {
         std::fs::write(dest.join("SKILL.md"), "# Old").unwrap();
         std::fs::write(tmp.join("SKILL.md"), "# New").unwrap();
 
-        CliService::replace_skill_dir_with_rollback(&dest, &tmp).unwrap();
+        CliService::replace_skill_dir_with_rollback(&dest, &tmp, || Ok(())).unwrap();
 
         assert_eq!(
             std::fs::read_to_string(dest.join("SKILL.md")).unwrap(),
@@ -2304,7 +2352,7 @@ mod tests {
         std::fs::create_dir_all(&dest).unwrap();
         std::fs::write(dest.join("SKILL.md"), "# Old").unwrap();
 
-        let result = CliService::replace_skill_dir_with_rollback(&dest, &missing_tmp);
+        let result = CliService::replace_skill_dir_with_rollback(&dest, &missing_tmp, || Ok(()));
 
         assert!(result.is_err());
         assert_eq!(
@@ -2337,6 +2385,125 @@ mod tests {
             latest_sha: latest_sha.to_string(),
             force: false,
         }
+    }
+
+    fn test_update_tree(sha: &str) -> RepoTreeResponse {
+        RepoTreeResponse {
+            sha: "root".into(),
+            tree: vec![TreeEntry {
+                path: "skills/demo".into(),
+                entry_type: "tree".into(),
+                sha: sha.into(),
+            }],
+        }
+    }
+
+    #[test]
+    fn update_rejects_a_different_downloaded_snapshot_before_writing() {
+        let home = tempfile::tempdir().unwrap();
+        config::with_test_home(home.path(), || {
+            let dest = config::get_agents_skills_dir().join("demo");
+            std::fs::create_dir_all(&dest).unwrap();
+            std::fs::write(dest.join("SKILL.md"), "# original").unwrap();
+            let update = test_known_update("demo", "owner/repo", "checked-A");
+            SkillLock::update(|lock| {
+                lock.skills.insert("demo".into(), update.entry.clone());
+                Ok(())
+            })
+            .unwrap();
+            let repo = home.path().join("downloaded");
+            std::fs::create_dir_all(repo.join("skills/demo")).unwrap();
+            std::fs::write(repo.join("skills/demo/SKILL.md"), "# downloaded-B").unwrap();
+            let discovered = CliService::discover_skills_in_tree(&repo);
+            let result = CliService::reinstall_skill_from_discovered(
+                &update,
+                "owner",
+                "repo",
+                &repo,
+                &discovered,
+                &test_update_tree("downloaded-B"),
+            );
+            assert!(
+                result.is_err(),
+                "must reject a changed snapshot rather than record the checked SHA"
+            );
+            assert_eq!(
+                std::fs::read_to_string(dest.join("SKILL.md")).unwrap(),
+                "# original"
+            );
+            assert_eq!(SkillLock::read().unwrap().skills["demo"], update.entry);
+        });
+    }
+
+    #[test]
+    fn archive_identity_is_read_from_the_same_file_that_is_extracted() {
+        use std::io::Write;
+        for comment in [
+            "7fd1a60b01f91b314f59955a4e4d4e80d8edf11d",
+            "",
+            "not-a-commit",
+        ] {
+            let zip_file = tempfile::NamedTempFile::new().unwrap();
+            let mut archive = zip::ZipWriter::new(zip_file.reopen().unwrap());
+            archive.set_comment(comment).unwrap();
+            archive
+                .start_file(
+                    "repo-main/skills/demo/SKILL.md",
+                    zip::write::SimpleFileOptions::default(),
+                )
+                .unwrap();
+            archive.write_all(b"# snapshot").unwrap();
+            archive.finish().unwrap();
+            let (_temp, root, commit) =
+                CliService::extract_repo_zip(zip_file.path(), "repo").unwrap();
+            assert_eq!(commit.as_deref(), (comment.len() == 40).then_some(comment));
+            assert_eq!(
+                std::fs::read_to_string(root.join("skills/demo/SKILL.md")).unwrap(),
+                "# snapshot"
+            );
+        }
+    }
+
+    #[test]
+    fn update_restores_content_when_lock_publication_fails() {
+        let home = tempfile::tempdir().unwrap();
+        config::with_test_home(home.path(), || {
+            let dest = config::get_agents_skills_dir().join("demo");
+            std::fs::create_dir_all(&dest).unwrap();
+            std::fs::write(dest.join("SKILL.md"), "# original").unwrap();
+            let update = test_known_update("demo", "owner/repo", "new");
+            SkillLock::update(|lock| {
+                lock.skills.insert("demo".into(), update.entry.clone());
+                Ok(())
+            })
+            .unwrap();
+            let lock_path = config::get_agent_lock_file();
+            let original_lock = std::fs::read(&lock_path).unwrap();
+            let tmp_path = lock_path.with_file_name(format!(
+                "{}.tmp",
+                lock_path.file_name().unwrap().to_str().unwrap()
+            ));
+            std::fs::create_dir(&tmp_path).unwrap();
+            let repo = home.path().join("downloaded");
+            let source = repo.join("skills/demo");
+            std::fs::create_dir_all(&source).unwrap();
+            std::fs::write(source.join("SKILL.md"), "# replacement").unwrap();
+            let discovered = CliService::discover_skills_in_tree(&repo);
+            let result = CliService::reinstall_skill_from_discovered(
+                &update,
+                "owner",
+                "repo",
+                &repo,
+                &discovered,
+                &test_update_tree("new"),
+            );
+            assert!(result.is_err(), "a failed lock write must fail the update");
+            assert_eq!(
+                std::fs::read_to_string(dest.join("SKILL.md")).unwrap(),
+                "# original"
+            );
+            assert_eq!(std::fs::read(&lock_path).unwrap(), original_lock);
+        });
     }
 
     #[test]
@@ -2373,7 +2540,8 @@ mod tests {
                     "owner",
                     "repo",
                     &repo,
-                    &discovered
+                    &discovered,
+                    &test_update_tree("new")
                 )
                 .unwrap(),
                 ReinstallOutcome::SkippedDrifted
@@ -2393,7 +2561,8 @@ mod tests {
                     "owner",
                     "repo",
                     &repo,
-                    &discovered
+                    &discovered,
+                    &test_update_tree("new")
                 )
                 .unwrap(),
                 ReinstallOutcome::Updated
@@ -2402,6 +2571,9 @@ mod tests {
                 std::fs::read_to_string(dest.join("SKILL.md")).unwrap(),
                 "# upstream"
             );
+            let saved = &SkillLock::read().unwrap().skills["demo"];
+            assert_eq!(saved.commit_sha.as_deref(), Some("new"));
+            assert!(!crate::services::lock::skill_folder_drifted(&dest, saved));
         });
     }
 
