@@ -17,11 +17,11 @@
   },
   {
     "image": "banners/banner3.webp",
-    "title": "Awesome Claude Skills",
-    "subtitle": "Curated skills for Claude AI",
-    "owner": "ComposioHQ",
-    "name": "awesome-claude-skills",
-    "branch": "master",
+    "title": "Ponytail",
+    "subtitle": "Makes your AI agent think like the laziest senior dev in the room",
+    "owner": "DietrichGebert",
+    "name": "ponytail",
+    "branch": "main",
     "hideText": true
   }
 ]
