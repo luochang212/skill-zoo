@@ -157,16 +157,40 @@ describe("model configuration editor", () => {
     { contextWindow: 1200, maxOutputTokens: null },
     { maxOutputTokens: 300 },
     { contextWindow: 1200, maxOutputTokens: 300 },
-  ])("skips lookup when either saved limit exists: %j", async (limits) => {
+  ])("refreshes inherited limits from a lookup once the ID changes: %j", async (limits) => {
+    vi.mocked(translationApi.resolveModel).mockResolvedValue({
+      contextWindow: 2000,
+      maxOutputTokens: 500,
+    });
     const input = user();
     const config = { ...props(), model: { ...model, ...limits } };
+    render(<ModelEditorDialog {...config} />);
+    await tick();
+    // Saved values keep the dialog quiet until the ID itself changes.
+    expect(translationApi.resolveModel).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+    await input.clear(screen.getByLabelText("Model ID"));
+    await input.type(screen.getByLabelText("Model ID"), "model-b");
+    await tick();
+    expect(translationApi.resolveModel).toHaveBeenCalledWith(config.baseUrl, "model-b");
+    expect(screen.getByLabelText("Context window")).toHaveValue("2000");
+    expect(screen.getByLabelText("Maximum output tokens")).toHaveValue("500");
+    expect(toast.success).toHaveBeenCalled();
+  });
+  it("keeps inherited limits when the lookup finds nothing for the new ID", async () => {
+    vi.mocked(translationApi.resolveModel).mockResolvedValue(null);
+    const input = user();
+    const config = { ...props(), model: { ...model, contextWindow: 1200, maxOutputTokens: 300 } };
     render(<ModelEditorDialog {...config} />);
     await tick();
     expect(translationApi.resolveModel).not.toHaveBeenCalled();
     await input.clear(screen.getByLabelText("Model ID"));
     await input.type(screen.getByLabelText("Model ID"), "model-b");
     await tick();
-    expect(translationApi.resolveModel).not.toHaveBeenCalled();
+    expect(translationApi.resolveModel).toHaveBeenCalledWith(config.baseUrl, "model-b");
+    // A fruitless lookup must not wipe the user's saved values.
+    expect(screen.getByLabelText("Context window")).toHaveValue("1200");
+    expect(screen.getByLabelText("Maximum output tokens")).toHaveValue("300");
     expect(toast.success).not.toHaveBeenCalled();
   });
   it.each(["missing", "offline"] as const)(

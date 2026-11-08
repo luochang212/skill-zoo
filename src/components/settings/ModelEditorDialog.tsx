@@ -48,17 +48,26 @@ export function ModelEditorDialog({
   const [composing, setComposing] = useState(false);
   const [context, setContext] = useState(model.contextWindow?.toString() ?? "");
   const [output, setOutput] = useState(model.maxOutputTokens?.toString() ?? "");
-  const manual = useRef({
+  // Values typed this session are never cleared or overwritten. Values saved on
+  // the model give way only when a lookup succeeds for the new ID; values a
+  // lookup matched earlier in the session are stale on the next ID change.
+  const manual = useRef({ context: false, output: false });
+  const inherited = useRef({
     context: model.contextWindow != null,
     output: model.maxOutputTokens != null,
   });
+  // The model ID whose configuration the replaceable fields currently show.
+  const resolvedId = useRef<string | null>(
+    inherited.current.context || inherited.current.output ? model.id.trim() : null,
+  );
   const [error, setError] = useState<"modelId" | "contextWindow" | "maxOutputTokens" | null>(null);
   const identity = useMemo(() => ({}), [baseUrl, normalizedModelId, composing]);
   const activeIdentity = useRef(identity);
   activeIdentity.current = identity;
   useEffect(() => {
     let current = true;
-    if (composing || !normalizedModelId || context.trim() || output.trim()) return;
+    if (composing || !normalizedModelId || manual.current.context || manual.current.output) return;
+    if (resolvedId.current === normalizedModelId) return;
     const timer = setTimeout(() => {
       void translationApi
         .resolveModel(baseUrl, normalizedModelId)
@@ -66,10 +75,15 @@ export function ModelEditorDialog({
           // A→B→A and closing are different editing sessions even when the final ID is identical.
           if (!current || activeIdentity.current !== identity) return;
           if (result) {
-            if (!manual.current.context && result.contextWindow != null)
+            if (!manual.current.context && result.contextWindow != null) {
               setContext(String(result.contextWindow));
-            if (!manual.current.output && result.maxOutputTokens != null)
+              inherited.current.context = false;
+            }
+            if (!manual.current.output && result.maxOutputTokens != null) {
               setOutput(String(result.maxOutputTokens));
+              inherited.current.output = false;
+            }
+            resolvedId.current = normalizedModelId;
             toast.success(t("llm.configurationMatched"), { id: `${id}-model-config` });
           }
         })
@@ -166,8 +180,10 @@ export function ModelEditorDialog({
                   setModelId(event.target.value);
                   if (event.target.value.trim() === normalizedModelId) return;
                   setError(null);
-                  if (!manual.current.context) setContext("");
-                  if (!manual.current.output) setOutput("");
+                  // Only values a lookup matched in this session are stale when
+                  // the ID changes; hand-typed and saved values must survive.
+                  if (!manual.current.context && !inherited.current.context) setContext("");
+                  if (!manual.current.output && !inherited.current.output) setOutput("");
                 }}
               />
             </div>
