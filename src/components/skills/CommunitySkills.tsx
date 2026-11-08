@@ -209,15 +209,29 @@ export function CommunitySkills({ onOpen }: { onOpen: (skill: CatalogSkill) => v
         </div>
       </div>
       {isPending ? (
-        <div
-          aria-busy="true"
-          aria-label={t("common.loading")}
-          className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-3"
-        >
-          {Array.from({ length: columns * 3 }, (_, index) => (
-            <CatalogCardSkeleton key={index} showTrend={kind === "popular"} />
-          ))}
-        </div>
+        <>
+          <div
+            aria-busy="true"
+            aria-label={t("common.loading")}
+            className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-3"
+          >
+            {Array.from({ length: columns * 3 }, (_, index) => (
+              <CatalogCardSkeleton key={index} showTrend={kind === "popular"} />
+            ))}
+          </div>
+          <div
+            aria-hidden="true"
+            className="loading-dots mt-4 flex items-center justify-center gap-2"
+          >
+            {Array.from({ length: 5 }, (_, index) => (
+              <span
+                key={index}
+                className="size-1.5 rounded-full bg-foreground opacity-15"
+                style={{ animationDelay: `${index * 140}ms` }}
+              />
+            ))}
+          </div>
+        </>
       ) : isError ? (
         <div className="rounded-xl border border-dashed p-5 flex items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground" role="status">

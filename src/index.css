@@ -601,3 +601,35 @@ textarea,
     animation: skeleton-sweep 3.2s ease-in-out infinite;
   }
 }
+
+/* While the community catalog loads, five dots under the skeleton grid sweep
+   as one comet: a fast rise into the peak, then a slow trailing fade. Staggered
+   delays place each dot 10% of the cycle apart, so the tail spans three dots. */
+.loading-dots span {
+  animation: loading-dots-sweep 1.4s ease-in-out infinite;
+}
+
+@keyframes loading-dots-sweep {
+  0% {
+    opacity: 0.15;
+    transform: scale(1);
+  }
+  12% {
+    opacity: 0.7;
+    transform: scale(1.25);
+  }
+  45% {
+    opacity: 0.15;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0.15;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-dots span {
+    animation: none;
+  }
+}
