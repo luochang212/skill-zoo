@@ -324,10 +324,10 @@ function SkeletonToolbar({ viewMode, agentCount }: { viewMode: ViewMode; agentCo
 }
 
 function SkeletonGrid() {
-  const { ref, count } = useSkeletonCount(245, 112, 16);
+  const { ref, count } = useSkeletonCount(233, 112, 16);
   return (
     <div ref={ref} className="h-full overflow-hidden">
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,245px),1fr))] gap-4 pt-1 pb-3">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,233px),1fr))] gap-4 pt-1 pb-3">
         {Array.from({ length: count }).map((_, i) => (
           <div key={i} aria-hidden="true" className="skeleton-card h-[112px] px-4 pt-4 pb-3">
             <div className="flex h-7 items-center justify-between gap-4">
@@ -977,7 +977,7 @@ export const InstalledSkills = memo(function InstalledSkills({
                 <ScrollArea className="flex-1 pt-1">
                   <div className={cn("@container/main", !repoPanelExpanded && "pr-6")}>
                     {viewMode === "grid" ? (
-                      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,245px),1fr))] gap-4 pt-1 pb-3">
+                      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,233px),1fr))] gap-4 pt-1 pb-3">
                         {sorted.map((skill) => (
                           <SkillDragSource
                             key={skill.id}
