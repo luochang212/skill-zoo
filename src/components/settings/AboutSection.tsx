@@ -46,7 +46,7 @@ export function AboutSection() {
         <h3 className="text-sm font-medium">{t("settings.about.title")}</h3>
       </div>
 
-      <div className="rounded-xl border border-border bg-gradient-to-br from-card/80 to-card/40 p-5 shadow-sm">
+      <div className="rounded-xl border border-[#e8dfd2] bg-card/50 bg-[radial-gradient(ellipse_420px_160px_at_left_center,rgba(190,139,63,0.09),transparent)] p-5 dark:border-[#b58a50]/20">
         <div className="flex items-center gap-3">
           <img src={logoUrl} alt="Skill Zoo" className="h-10 w-10 rounded-xl" />
           <div className="flex-1 min-w-0">
