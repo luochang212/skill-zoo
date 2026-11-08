@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.8] — 2026-11-09
+
+### Added
+- The community catalog shows a quiet comet-sweep loading indicator under its skeleton grid while results load.
+
+### Changed
+- The discovery banner carousel keeps its height stable while images load, showing per-card skeletons and readable titles even when a banner image fails to load; the active dot carries a progress bar synced to autoplay.
+- Theme and language selectors drop the selected-option shadow, and the About section uses a calmer brand tint that balances in dark mode.
+
+### Fixed
+- The model configuration editor refreshes the limits lookup when the model ID changes: hand-typed values are never overwritten, saved limits give way only when a lookup succeeds for the new ID, and a fruitless lookup keeps the saved values.
+- New installations show Pi instead of OpenClaw among the default visible agents.
+
 ## [0.4.7] — 2026-11-08
 
 ### Changed
