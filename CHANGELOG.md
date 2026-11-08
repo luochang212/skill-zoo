@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.7] — 2026-11-08
+
+### Changed
+- Skill updates bind their version baseline to the downloaded archive's own commit instead of the branch's later state, recheck the remote folder hash immediately before replacing files, and keep the original directory until the metadata write succeeds — a failed update restores the original files.
+- Skills installed before version tracking keep their unknown version and report a missing-baseline issue instead of being silently matched to today's remote state; an explicit update from the skill detail establishes a baseline.
+- Clearing the download cache only removes completed archives: in-flight downloads, links and unknown files are preserved, and cleanup failures are reported with their paths instead of silently ignored.
+- Plugin visibility switches show the chosen state immediately while saving, restore the previous value when the save fails, and keep the saved value when a later scan fails.
+- Local skill cards use a slightly narrower minimum width (233px), fitting three columns at smaller window sizes.
+- Dependencies refreshed across the frontend, CLI and Rust crates, including i18next 27, react-i18next 18 and rusqlite 0.41.
+
 ## [0.4.6] — 2026-11-08
 
 ### Changed
