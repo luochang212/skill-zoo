@@ -115,22 +115,37 @@ describe("BannerCarousel motion preference", () => {
     expect(listeners.size).toBe(0);
   });
 
-  it("restarts the progress and autoplay together after navigation or hover", async () => {
+  it("keeps autoplay running on hover and whitens the active dot only over the dots", async () => {
     const view = await showCarousel();
     const progress = () =>
       view.container.querySelector('[aria-current="true"] > span > span') as HTMLElement;
+    const track = () => view.container.querySelector('[aria-current="true"] > span') as HTMLElement;
+    const dots = view.container.querySelector(".bottom-3") as HTMLElement;
+
     expect(progress().style.animation).toContain("7000ms");
+    expect(track().className).toContain("bg-white/30");
+
     act(() => vi.advanceTimersByTime(6000));
     fireEvent.click(screen.getByRole("button", { name: "Next banner" }));
     act(() => vi.advanceTimersByTime(1000));
     expect(activeTitle()).toBe("Second");
+
+    // Hovering the carousel neither pauses autoplay nor whitens the active dot.
     fireEvent.mouseEnter(view.container.firstElementChild!);
-    expect(progress().style.animation).toBe("none");
-    expect(vi.getTimerCount()).toBe(0);
-    fireEvent.mouseLeave(view.container.firstElementChild!);
-    expect(progress().style.animation).toContain("7000ms");
     act(() => vi.advanceTimersByTime(7000));
     expect(activeTitle()).toBe("First");
+    expect(progress().style.animation).toContain("7000ms");
+    expect(track().className).toContain("bg-white/30");
+
+    // Hovering the dots whitens the active dot while autoplay continues.
+    fireEvent.mouseEnter(dots);
+    expect(track().className).not.toContain("bg-white/30");
+    act(() => vi.advanceTimersByTime(7000));
+    expect(activeTitle()).toBe("Second");
+
+    fireEvent.mouseLeave(dots);
+    expect(track().className).toContain("bg-white/30");
+
     setReduced(true);
     expect(progress().style.animation).toBe("none");
     expect(vi.getTimerCount()).toBe(0);

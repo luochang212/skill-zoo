@@ -70,7 +70,7 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
   const [current, setCurrent] = useState(0);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [imageResults, setImageResults] = useState<Record<string, boolean>>({});
-  const [isHovered, setIsHovered] = useState(false);
+  const [dotsHovered, setDotsHovered] = useState(false);
   const [loading, setLoading] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const [W, setW] = useState(600);
@@ -118,12 +118,12 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
 
   // Auto-play
   useEffect(() => {
-    if (banners.length <= 1 || isHovered || reduceMotion) return;
+    if (banners.length <= 1 || reduceMotion) return;
     const timer = setInterval(() => {
       setCurrent((prev) => (prev + 1) % banners.length);
     }, AUTOPLAY_MS);
     return () => clearInterval(timer);
-  }, [banners.length, isHovered, reduceMotion, current]);
+  }, [banners.length, reduceMotion, current]);
 
   const goTo = useCallback((index: number) => {
     setCurrent(index);
@@ -155,8 +155,6 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
       className="relative w-full select-none px-12"
       aria-busy={loading || imageUrls.some((url) => url && imageResults[url] === undefined)}
       style={{ height: `${Math.max(cardH + 80, 240)}px` }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
     >
       <div
         ref={containerRef}
@@ -254,7 +252,11 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
 
       {/* Dots indicator */}
       {banners.length > 1 && (
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center rounded-full bg-black/20 px-1 backdrop-blur-sm z-30">
+        <div
+          className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center rounded-full bg-black/20 px-1 backdrop-blur-sm z-30"
+          onMouseEnter={() => setDotsHovered(true)}
+          onMouseLeave={() => setDotsHovered(false)}
+        >
           {banners.map((_, i) => (
             <button
               key={i}
@@ -265,18 +267,19 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
             >
               <span
                 className={`h-1.5 overflow-hidden rounded-full transition-[width,background-color] duration-300 motion-reduce:transition-none ${
-                  i === current ? "w-6 bg-white/30" : "w-1.5 bg-white/50 group-hover:bg-white/80"
+                  i === current
+                    ? `w-6 ${dotsHovered ? "bg-white" : "bg-white/30"}`
+                    : "w-1.5 bg-white/50 group-hover:bg-white/80"
                 }`}
               >
                 {i === current && (
                   <span
-                    key={`${current}-${isHovered}-${reduceMotion}`}
+                    key={`${current}-${reduceMotion}`}
                     className="block h-full w-full origin-left rounded-full bg-white"
                     style={{
-                      animation:
-                        !isHovered && !reduceMotion
-                          ? `banner-progress ${AUTOPLAY_MS}ms linear both`
-                          : "none",
+                      animation: !reduceMotion
+                        ? `banner-progress ${AUTOPLAY_MS}ms linear both`
+                        : "none",
                     }}
                   />
                 )}
