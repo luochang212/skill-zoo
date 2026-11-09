@@ -162,7 +162,7 @@ describe("SkillCompanionSettings", () => {
     renderSettings(1);
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("No common commands added yet.")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /Example: enter and save/ })).toBeInTheDocument();
   });
 
   it("adds and saves a skill command from its row", async () => {
@@ -173,6 +173,7 @@ describe("SkillCompanionSettings", () => {
 
     await user.click(await screen.findByRole("button", { name: "Manage" }));
     await user.click(screen.getByRole("button", { name: "Add common command" }));
+    expect(invoke).not.toHaveBeenCalledWith("save_skill_companion_items", expect.anything());
     const textarea = screen.getByLabelText("Skill command 1 content");
     await waitFor(() => expect(textarea).toHaveFocus());
     await user.type(textarea, "Think through the plan first");

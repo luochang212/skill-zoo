@@ -479,7 +479,6 @@
       "title": "Skill Companion",
       "summary": "Common Commands",
       "summaryDescription": "{{count}} common skill command(s) configured",
-      "empty": "No common commands added yet.",
       "manage": "Manage",
       "manageTitle": "Common Commands",
       "manageDescription": "Put common skill invocation phrases in the panel, then click to copy.",

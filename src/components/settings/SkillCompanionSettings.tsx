@@ -1,4 +1,5 @@
 import { Reorder, useDragControls } from "framer-motion";
+import { CommonCommandsEmptyState } from "./CommonCommandsEmptyState";
 import { domToPng } from "modern-screenshot";
 import {
   Activity,
@@ -886,9 +887,7 @@ function SkillCompanionManagerDialog({
 
         <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {items.length === 0 ? (
-            <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
-              {t("settings.skillCompanion.empty")}
-            </div>
+            <CommonCommandsEmptyState />
           ) : (
             <Reorder.Group
               as="div"
