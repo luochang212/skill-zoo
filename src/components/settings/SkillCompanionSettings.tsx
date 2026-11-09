@@ -395,7 +395,7 @@ function SkillUsageDialog({
           <DialogTitle>{t("settings.skillCompanion.usageTitle")}</DialogTitle>
           <DialogDescription>
             {agentSelection.isPending || configsQuery.isPending
-              ? t("loading")
+              ? t("common.loading")
               : agentSelection.isError || configsQuery.isError
                 ? t("settings.skillCompanion.usageSourceFailed")
                 : t("settings.skillCompanion.usageDescription", { agent: agentDisplayName })}

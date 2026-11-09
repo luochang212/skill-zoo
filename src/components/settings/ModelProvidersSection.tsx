@@ -228,7 +228,7 @@ export function ModelProvidersSection({
       className={cn("flex min-h-0 flex-col", (providers.isPending || providers.isError) && "p-4")}
     >
       {providers.isPending ? (
-        <p className="text-xs">{t("loading")}</p>
+        <p className="text-xs">{t("common.loading")}</p>
       ) : providers.isError ? (
         <div className="space-y-2 text-xs" role="status">
           <p>

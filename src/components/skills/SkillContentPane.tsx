@@ -547,7 +547,7 @@ export const SkillContentPane = memo(function SkillContentPane({
       : (isSkillMdActive ? dirty || savePending : isDirty || saveFileMutation.isPending)
         ? t("translation.saveFirst")
         : contentLoading
-          ? t("loading")
+          ? t("common.loading")
           : !displayContent
             ? t("skill.noContent")
             : new TextEncoder().encode(displayContent).length > 51200
@@ -857,7 +857,7 @@ export const SkillContentPane = memo(function SkillContentPane({
                   {contentLoading || awaitingCachedTranslation ? (
                     <div
                       role="status"
-                      aria-label={t("loading")}
+                      aria-label={t("common.loading")}
                       className="flex items-center justify-center py-12"
                     >
                       <LoaderCircle

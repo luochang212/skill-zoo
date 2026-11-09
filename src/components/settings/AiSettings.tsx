@@ -30,13 +30,13 @@ export function AiSettingsRows() {
     ([id]) => id === preferences.data?.targetLanguage,
   )?.[1];
   const providerSummary = providers.isPending
-    ? t("loading")
+    ? t("common.loading")
     : providers.isError
       ? t("translation.errors.configRead")
       : t("llm.rowSummary", { count: providers.data?.length ?? 0 });
   const translationSummary =
     preferences.isPending || providers.isPending
-      ? t("loading")
+      ? t("common.loading")
       : preferences.isError || providers.isError
         ? t("translation.errors.configRead")
         : selected && model
