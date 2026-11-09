@@ -1,5 +1,5 @@
 import { animate, motion } from "framer-motion";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 
@@ -257,7 +257,6 @@ export function CommonCommandsEmptyState() {
   const [time, setTime] = useState(0);
   const [hovered, setHovered] = useState(false);
   const controls = useRef<ReturnType<typeof animate> | null>(null);
-  const descriptionId = useId();
 
   useEffect(() => {
     if (reducedMotion) return;
@@ -288,11 +287,10 @@ export function CommonCommandsEmptyState() {
         viewBox="0 0 560 350"
         className="w-full max-w-[560px]"
         role="img"
-        aria-labelledby={descriptionId}
+        aria-label={t("settings.skillCompanion.guide.demoDescription")}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
       >
-        <title id={descriptionId}>{t("settings.skillCompanion.guide.demoDescription")}</title>
         <motion.g
           opacity={
             reducedMotion ? 1 : Math.min(progress(time, 0, 0.4), 1 - progress(time, 12.4, 0.6))
