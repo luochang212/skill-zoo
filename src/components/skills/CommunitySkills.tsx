@@ -188,18 +188,30 @@ export function CommunitySkills({ onOpen }: { onOpen: (skill: CatalogSkill) => v
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <h2 className="text-sm font-semibold">{t("browse.community")}</h2>
         <div
-          className="flex items-center gap-1 rounded-lg bg-muted p-1"
+          className="relative inline-grid grid-cols-2 rounded-lg bg-muted p-1"
           role="group"
           aria-label={t("browse.community")}
         >
+          {/* Single highlight knob sliding under the labels (technique from
+              genesis's sliding-pill): grid cells make the knob exactly one
+              cell wide, so translate-x-full travels one cell. Pure transform,
+              no layout work. */}
+          <span
+            aria-hidden="true"
+            className={cn(
+              "absolute inset-y-1 left-1 w-[calc(50%-0.25rem)] rounded-md bg-background shadow-sm",
+              "transition-transform duration-200 ease-out motion-reduce:transition-none",
+              kind === "trending" && "translate-x-full",
+            )}
+          />
           {(["popular", "trending"] as const).map((value) => (
             <button
               key={value}
               type="button"
               aria-pressed={kind === value}
               className={cn(
-                "flex h-8 items-center justify-center rounded-md px-3 text-xs font-medium transition-colors",
-                kind === value ? "bg-background shadow-sm" : "text-muted-foreground",
+                "relative z-10 flex h-8 items-center justify-center px-3 text-xs font-medium transition-colors",
+                kind === value ? "text-foreground" : "text-muted-foreground",
               )}
               onClick={() => switchKind(value)}
             >
