@@ -510,7 +510,10 @@ export default function App() {
                   <div
                     ref={detailOverlayRef}
                     tabIndex={-1}
-                    className="absolute inset-0 z-10 bg-background"
+                    // Must out-stack everything in the local page subtree
+                    // (e.g. the repo panel's z-20 GitHub toggle) or they bleed
+                    // through onto the detail view.
+                    className="absolute inset-0 z-50 bg-background"
                   >
                     {renderSkillDetail()}
                   </div>
