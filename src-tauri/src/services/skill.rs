@@ -2240,7 +2240,19 @@ impl SkillService {
             if !home.join("SKILL.md").is_file() {
                 return Ok(());
             }
-            std::fs::remove_dir_all(home).map_err(|e| crate::error::io(home, e))?;
+            // User-facing removals are recoverable: the directory goes to the
+            // OS trash (Finder / Recycle Bin / freedesktop trash), not a
+            // permanent delete. Test builds keep the plain delete so suites
+            // stay side-effect free on real trash folders.
+            #[cfg(feature = "test-helpers")]
+            std::fs::remove_dir_all(home).map_err(|e| error::io(home, e))?;
+            #[cfg(not(feature = "test-helpers"))]
+            trash::delete(home).map_err(|e| {
+                AppError::Io(std::io::Error::other(format!(
+                    "move {} to system trash: {e}",
+                    home.display()
+                )))
+            })?;
         }
 
         Ok(())

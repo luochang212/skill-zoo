@@ -195,11 +195,11 @@
   "removeDialog": {
     "title": "删除技能",
     "description": "确定要删除",
-    "warning": "编程工具关联和本地文件将同步移除。",
+    "warning": "编程工具关联将同步移除。技能文件夹会移入系统回收站，不会直接删除。",
     "batchDescription": "确认删除以下 {{count}} 个技能？",
     "batchPartialFailed": "{{count}} 个技能删除失败。",
     "externalImportNote": "已选中的导入技能仅会移除注册记录，源文件不会被删除。",
-    "mixedImportNote": "导入技能仅移除注册记录，源文件不会被删除。其余技能将同步移除编程工具关联和本地文件。"
+    "mixedImportNote": "导入技能仅移除注册记录，源文件不会被删除。其余技能将同步移除编程工具关联，技能文件夹会移入系统回收站。"
   },
   "driftDialog": {
     "title": "覆盖本地修改？",
