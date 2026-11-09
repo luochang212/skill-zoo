@@ -470,6 +470,12 @@
       }
     },
     "skillCompanion": {
+      "guide": {
+        "phrase": "先给出计划，再开始修改",
+        "chatPlaceholder": "向 chatbot 提问…",
+        "demoDescription": "示例：输入并保存短语，打开系统托盘的常用指令，点击短语复制，再粘贴到 chatbot。此演示不会修改你的剪贴板。",
+        "copied": "已复制到剪贴板"
+      },
       "title": "技能伴侣",
       "summary": "常用指令",
       "summaryDescription": "已配置 {{count}} 个常用技能指令",
