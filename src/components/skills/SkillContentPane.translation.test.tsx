@@ -212,17 +212,6 @@ it("uses one error toast and a toolbar retry action, retaining the original with
   await waitFor(() => expect(translationApi.translate).toHaveBeenCalledTimes(2));
   expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
 });
-it("shows stop during automatic repair and hides the action on successful completion", async () => {
-  await translate();
-  await act(async () => send({ type: "repairing", taskId }));
-  expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
-  await act(async () => send({ type: "completed", taskId, text: "# Repaired" }));
-  await screen.findByRole("heading", { name: "Repaired" });
-  expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
-});
-
 it("announces configuration read errors with a toast while keeping content free of banners", async () => {
   vi.mocked(translationApi.preferences).mockRejectedValue("configRead");
   render(

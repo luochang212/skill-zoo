@@ -76,7 +76,6 @@ export function useSkillTranslation(
     if (current) {
       setView((v) => ({ ...v, task: null }));
       void translationApi.cancel(current.id).catch(() => {});
-      toast.dismiss(`repair-${current.id}`);
     }
     return current;
   }, [getView, setView]);
@@ -165,11 +164,9 @@ export function useSkillTranslation(
         cacheVersion: v.cacheVersion + 1,
       }));
       const active = () => getView().task?.id === id;
-      const dismissRepair = () => toast.dismiss(`repair-${id}`);
       const notificationPrefix = skillName ? `${skillName} · ` : "";
       const fail = (code: string) => {
         if (!active()) return;
-        dismissRepair();
         toast.error(
           `${notificationPrefix}${t(`translation.errors.${code}`, { defaultValue: t("translation.failed") })}`,
           {
@@ -198,15 +195,7 @@ export function useSkillTranslation(
             fail(event.code);
             return;
           }
-          if (event.type === "repairing") {
-            toast.info(`${notificationPrefix}${t("translation.repairing")}`, {
-              id: `repair-${id}`,
-              duration: Infinity,
-            });
-            return;
-          }
           if (event.type === "completed") {
-            dismissRepair();
             setView((v) => ({
               ...v,
               status: "completed",

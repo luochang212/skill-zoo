@@ -490,27 +490,7 @@ describe("manual translation lifecycle", () => {
     await waitFor(() => expect(hook.result.current.text).toBe("stale"));
     await waitFor(() => expect(hook.result.current.status).toBe("completed"));
   });
-  it("announces the targeted repair round with a toast and dismisses it when the task settles", async () => {
-    const hook = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
-      wrapper,
-    });
-    await act(() => {
-      void hook.result.current.translate();
-    });
-    await waitFor(() => expect(send).toBeDefined());
-    await act(() => send({ type: "repairing", taskId: id }));
-    expect(toast.info).toHaveBeenCalledWith("Repairing translation…", {
-      id: `repair-${id}`,
-      duration: Infinity,
-    });
-    await act(() => {
-      send({ type: "completed", taskId: id, text: "fixed" });
-      finish();
-    });
-    expect(toast.dismiss).toHaveBeenCalledWith(`repair-${id}`);
-    await waitFor(() => expect(hook.result.current.text).toBe("fixed"));
-  });
-  it("keeps the preview and accepts repaired text when command resolution precedes channel delivery", async () => {
+  it("keeps the preview when command resolution precedes channel delivery", async () => {
     const hook = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
       wrapper,
     });
@@ -520,7 +500,6 @@ describe("manual translation lifecycle", () => {
     await waitFor(() => expect(translationApi.translate).toHaveBeenCalledOnce());
     await act(() => {
       send({ type: "preview", taskId: id, text: "部分译文" });
-      send({ type: "repairing", taskId: id });
     });
     await act(async () => {
       finish();
@@ -533,7 +512,6 @@ describe("manual translation lifecycle", () => {
     await waitFor(() => expect(hook.result.current.text).toBe("修复后的译文"));
     await waitFor(() => expect(hook.result.current.status).toBe("completed"));
     await waitFor(() => expect(hook.result.current.error).toBeNull());
-    expect(toast.dismiss).toHaveBeenCalledWith(`repair-${id}`);
   });
   it("allows retry after a failed event delivered after command resolution", async () => {
     const hook = renderHook(() => useSkillTranslation(input, { preferTranslations: true }), {
@@ -546,8 +524,8 @@ describe("manual translation lifecycle", () => {
     await act(async () => {
       finish();
     });
-    await act(() => send({ type: "failed", taskId: id, code: "fidelity" }));
-    await waitFor(() => expect(hook.result.current.error).toBe("fidelity"));
+    await act(() => send({ type: "failed", taskId: id, code: "timeout" }));
+    await waitFor(() => expect(hook.result.current.error).toBe("timeout"));
     await act(() => {
       void hook.result.current.translate();
     });
@@ -555,26 +533,6 @@ describe("manual translation lifecycle", () => {
     await waitFor(() => expect(hook.result.current.error).toBeNull());
     await act(() => send({ type: "completed", taskId: id, text: "重试成功" }));
     await waitFor(() => expect(hook.result.current.text).toBe("重试成功"));
-  });
-  it("keeps the background repair toast until the task settles", async () => {
-    const hook = renderHook(
-      (value: typeof input) => useSkillTranslation(value, { preferTranslations: true }),
-      {
-        wrapper,
-        initialProps: input,
-      },
-    );
-    await act(() => {
-      void hook.result.current.translate();
-    });
-    await waitFor(() => expect(send).toBeDefined());
-    await act(() => send({ type: "repairing", taskId: id }));
-    expect(toast.info).toHaveBeenCalled();
-    await act(() => hook.rerender({ ...input, path: "other.md" }));
-    expect(toast.dismiss).not.toHaveBeenCalled();
-    expect(translationApi.cancel).not.toHaveBeenCalled();
-    await act(() => send({ type: "completed", taskId: id, text: "fixed in background" }));
-    expect(toast.dismiss).toHaveBeenCalledWith(`repair-${id}`);
   });
   it("continues registration after unmount and restores the session on return", async () => {
     let registered!: () => void;
@@ -763,20 +721,15 @@ it("identifies parallel background tasks in error and repair toasts after naviga
   const a = tasks.get("skill-a")!;
   const b = tasks.get("skill-b")!;
   await act(() => {
-    a.send({ type: "repairing", taskId: a.id });
     b.send({ type: "failed", taskId: b.id, code: "network" });
-    a.send({ type: "failed", taskId: a.id, code: "fidelity" });
+    a.send({ type: "failed", taskId: a.id, code: "timeout" });
   });
-  expect(toast.info).toHaveBeenCalledWith(
-    "Alpha skill · Repairing translation…",
-    expect.objectContaining({ id: `repair-${a.id}` }),
-  );
   expect(toast.error).toHaveBeenCalledWith(
     `Beta skill · ${i18n.t("translation.errors.network")}`,
     expect.objectContaining({ id: `translation-error-${b.id}` }),
   );
   expect(toast.error).toHaveBeenCalledWith(
-    `Alpha skill · ${i18n.t("translation.errors.fidelity")}`,
+    `Alpha skill · ${i18n.t("translation.errors.timeout")}`,
     expect.objectContaining({ id: `translation-error-${a.id}` }),
   );
 });
