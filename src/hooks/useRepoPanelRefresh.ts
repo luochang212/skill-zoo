@@ -11,6 +11,7 @@ import {
 const PULL_THRESHOLD = 128;
 const PULL_MAX = 150;
 const MIN_REFRESH_MS = 700;
+const FRESH_TOP_MS = 400;
 
 export function useRepoPanelRefresh({
   viewportRef,
@@ -27,6 +28,7 @@ export function useRepoPanelRefresh({
   const pointerStart = useRef<number | null>(null);
   const busy = useRef(false);
   const mounted = useRef(false);
+  const lastScrollAt = useRef(0);
   const wheelTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const finishTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -106,7 +108,17 @@ export function useRepoPanelRefresh({
       },
       onPointerCancel: resetPull,
       onWheel(event: WheelEvent) {
-        if (disabled || busy.current || !atTop() || event.deltaY >= 0) return;
+        if (disabled || busy.current || event.deltaY >= 0) return;
+        const now = Date.now();
+        if (!atTop()) {
+          // Upward scrolling away from the top marks the gesture as one that
+          // may still carry momentum when it reaches the top.
+          lastScrollAt.current = now;
+          return;
+        }
+        // Momentum arriving at the top is scroll residue, not pull intent;
+        // only accumulate once the scroller has rested at the top briefly.
+        if (now - lastScrollAt.current < FRESH_TOP_MS) return;
         event.preventDefault();
         clearTimeout(wheelTimer.current);
         pull(distanceRef.current + Math.abs(event.deltaY) * 0.1);

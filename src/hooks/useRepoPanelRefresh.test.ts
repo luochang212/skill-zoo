@@ -29,18 +29,41 @@ describe("useRepoPanelRefresh", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it("only accumulates upward wheel movement at the top, and clears partial pulls", () => {
+  it("only accumulates upward wheel movement when the scroller rests at the top, and clears partial pulls", () => {
     const { result, wheel, viewportRef, onRefresh } = setup();
     viewportRef.current.scrollTop = 20;
     wheel(-1000);
     viewportRef.current.scrollTop = 0;
     wheel(1000);
     expect(result.current.distance).toBe(0);
+    // The scroller just left the top, so an arriving upward stream is treated
+    // as scroll momentum, not pull intent.
+    wheel(-1000);
+    expect(result.current.distance).toBe(0);
+    act(() => vi.advanceTimersByTime(500));
     wheel(-1000);
     expect(result.current.distance).toBe(100);
     act(() => vi.advanceTimersByTime(220));
     expect(result.current.distance).toBe(0);
     expect(onRefresh).not.toHaveBeenCalled();
+  });
+
+  it("does not treat scroll momentum arriving at the top as a pull, but a fresh flick still refreshes", () => {
+    const { result, wheel, viewportRef, onRefresh } = setup();
+    // An upward wheel stream crossing into the top carries momentum residue.
+    viewportRef.current.scrollTop = 40;
+    wheel(-450);
+    viewportRef.current.scrollTop = 0;
+    wheel(-450);
+    wheel(-450);
+    wheel(-450); // 135px worth — would have triggered a refresh before the gate
+    expect(result.current.distance).toBe(0);
+    expect(onRefresh).not.toHaveBeenCalled();
+    // A flick after the scroller has rested at the top still refreshes.
+    act(() => vi.advanceTimersByTime(500));
+    wheel(-1300);
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+    expect(result.current.refreshing).toBe(true);
   });
 
   it("triggers once per gesture and holds feedback until both request and minimum time finish", async () => {

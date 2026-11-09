@@ -105,7 +105,7 @@ export function RepoInfoPanel({ owner, name, collapsed, rotation, onToggle }: Re
 
               <ScrollArea
                 viewportRef={viewportRef}
-                className={`h-full overflow-hidden px-5 pt-4 pb-0 ${readmeLoading ? "[&_[data-radix-scroll-area-viewport]>div]:h-full" : ""}`}
+                className={`h-full overflow-hidden px-5 pt-4 pb-0 [&_[data-radix-scroll-area-viewport]]:overscroll-contain ${readmeLoading ? "[&_[data-radix-scroll-area-viewport]>div]:h-full" : ""}`}
               >
                 <div className={readmeLoading ? "flex h-full flex-col gap-4" : "space-y-4"}>
                   {/* Header */}
