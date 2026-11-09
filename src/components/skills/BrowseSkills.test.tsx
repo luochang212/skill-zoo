@@ -1,10 +1,32 @@
 import i18n from "@/i18n";
+import { useState } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BrowseSkills } from "@/components/skills/BrowseSkills";
+import type { DiscoverRepo } from "@/types/skills";
 
-vi.mock("@/components/skills/CommunitySkills", () => ({ CommunitySkills: () => null }));
+vi.mock("@/components/skills/CommunitySkills", () => ({
+  CommunitySkills: ({
+    onOpen,
+  }: {
+    onOpen: (skill: { source: string; skillId: string; name: string }) => void;
+  }) => (
+    <button
+      type="button"
+      data-testid="stub-community-card"
+      onClick={() => onOpen({ source: "owner/repo", skillId: "skill-key", name: "Example Skill" })}
+    >
+      stub community card
+    </button>
+  ),
+}));
+
+vi.mock("@/components/skills/RepoDetail", () => ({
+  RepoDetail: ({ repo }: { repo: { name?: string } | null }) => (
+    <div>repo-detail-stub:{repo?.name ?? ""}</div>
+  ),
+}));
 
 const mocks = vi.hoisted(() => ({
   refetchRepoSearch: vi.fn(),
@@ -30,6 +52,18 @@ const mocks = vi.hoisted(() => ({
     defaultBranch?: string;
     description?: string;
   }>,
+  repoSkills: undefined as
+    | undefined
+    | {
+        skills: Array<{
+          key: string;
+          name: string;
+          directory: string;
+          repoOwner: string;
+          repoName: string;
+          installStatus: "available";
+        }>;
+      },
   skillsResults: [] as Array<{
     key: string;
     name: string;
@@ -49,7 +83,7 @@ class ResizeObserverMock {
 
 vi.mock("@/hooks/useSkills", () => ({
   useBanners: () => ({ data: [] }),
-  useRepoSkillList: () => ({ data: undefined }),
+  useRepoSkillList: () => ({ data: mocks.repoSkills }),
   useInstallSkills: () => ({ mutate: vi.fn(), isPending: false }),
   useSkillPreview: () => ({ data: undefined, isLoading: false, isError: false }),
   useRecommendedRepos: () => ({
@@ -83,12 +117,20 @@ vi.mock("@/lib/api/skills", () => ({
   skillsApi: { searchRepo: mocks.searchRepo },
 }));
 
+// Same wiring as App.tsx: the selected repo swaps the discover view for the
+// repo detail page, which unmounts the preview panel outright.
+function Harness() {
+  const [selectedRepo, setSelectedRepo] = useState<DiscoverRepo | null>(null);
+  return <BrowseSkills selectedRepo={selectedRepo} onSelectRepo={setSelectedRepo} />;
+}
+
 describe("BrowseSkills", () => {
   beforeEach(() => {
     globalThis.ResizeObserver = ResizeObserverMock;
     vi.useRealTimers();
     mocks.recommendedRepos = [];
     mocks.recommendedLoading = false;
+    mocks.repoSkills = undefined;
     mocks.skillsResults = [];
     mocks.repoResult = undefined;
     mocks.repoSearchLoading = false;
@@ -268,5 +310,34 @@ describe("BrowseSkills", () => {
 
     expect(onSelectRepo).toHaveBeenCalledWith(mocks.repoResult);
     vi.useRealTimers();
+  });
+
+  it("jumps to the repo detail page from the community preview footer", async () => {
+    mocks.repoSkills = {
+      skills: [
+        {
+          key: "skill-key",
+          name: "Example Skill",
+          directory: "example",
+          repoOwner: "owner",
+          repoName: "repo",
+          installStatus: "available",
+        },
+      ],
+    };
+    mocks.searchRepo.mockResolvedValue({ owner: "owner", name: "repo", defaultBranch: "master" });
+    render(<Harness />);
+
+    await userEvent.click(screen.getByTestId("stub-community-card"));
+
+    // The preview footer identifies the repo, not the skill the user just clicked.
+    const repoButton = screen.getByRole("button", { name: "owner/repo" });
+    expect(screen.queryByRole("button", { name: "Example Skill" })).toBeNull();
+    await userEvent.click(repoButton);
+
+    expect(mocks.searchRepo).toHaveBeenCalledWith("owner/repo");
+    expect(screen.getByText("repo-detail-stub:repo")).toBeInTheDocument();
+    // The preview is closed, not carried over into the repo detail page.
+    expect(screen.queryByRole("button", { name: "Install" })).not.toBeInTheDocument();
   });
 });

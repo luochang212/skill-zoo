@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ArrowUpRight } from "lucide-react";
 import { useSkeletonCount } from "@/hooks/useSkeletonCount";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -26,6 +26,14 @@ interface SkillPreviewPanelProps {
   /** Shown under a resolution error so the user can pick a skill manually. */
   fallbackSkills?: DiscoverableSkill[];
   onPickFallback?: (skill: DiscoverableSkill) => void;
+  /** Replaces the skill name in the footer when the caller's context already
+   * identifies the skill but not the repository it belongs to. */
+  repoLabel?: string;
+  /** Makes the repo label clickable to open the repository detail page. */
+  onOpenRepo?: () => void;
+  /** False hides the load progress bar for callers whose content is usually
+   * cached, where the instant completion flash carries no information. */
+  showProgressBar?: boolean;
   onClose: () => void;
 }
 
@@ -135,15 +143,18 @@ export function SkillPreviewPanel({
   onInstall,
   fallbackSkills,
   onPickFallback,
+  repoLabel,
+  onOpenRepo,
+  showProgressBar = true,
   onClose,
 }: SkillPreviewPanelProps) {
   const { t } = useTranslation();
   const reduceMotion = useReducedMotion();
   const [hadLoading, setHadLoading] = useState(false);
   useEffect(() => {
-    if (!open || error !== undefined) setHadLoading(false);
+    if (!open || error !== undefined || !showProgressBar) setHadLoading(false);
     else if (loading) setHadLoading(true);
-  }, [open, loading, error]);
+  }, [open, loading, error, showProgressBar]);
   return (
     <AnimatePresence>
       {open && (
@@ -208,7 +219,7 @@ export function SkillPreviewPanel({
               </ScrollArea>
             )}
             <div className="relative shrink-0">
-              {(loading || hadLoading) && error === undefined && (
+              {(loading || hadLoading) && showProgressBar && error === undefined && (
                 <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-0.5">
                   {loading && <progress className="sr-only" aria-label={t("common.loading")} />}
                   <div
@@ -222,12 +233,24 @@ export function SkillPreviewPanel({
                 never pops in after the content resolves. */}
               {(installStatus !== undefined || installLoading) && (
                 <div className="flex shrink-0 items-center gap-4 border-t border-border/50 px-5 py-2.5">
-                  <span
-                    className="min-w-0 flex-1 truncate text-[13px] font-medium"
-                    title={skillName}
-                  >
-                    {skillName}
-                  </span>
+                  {repoLabel && onOpenRepo ? (
+                    <button
+                      type="button"
+                      className="group flex min-w-0 flex-1 items-center gap-1 text-left text-[13px] font-medium"
+                      title={repoLabel}
+                      onClick={onOpenRepo}
+                    >
+                      <span className="truncate group-hover:underline">{repoLabel}</span>
+                      <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" />
+                    </button>
+                  ) : (
+                    <span
+                      className="min-w-0 flex-1 truncate text-[13px] font-medium"
+                      title={skillName}
+                    >
+                      {skillName}
+                    </span>
+                  )}
                   <Button
                     size="sm"
                     className="h-7 shrink-0 text-xs"

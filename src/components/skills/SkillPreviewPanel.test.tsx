@@ -54,4 +54,31 @@ describe("skill preview panel install", () => {
     rerender(<SkillPreviewPanel {...base} installStatus="conflict" />);
     expect(screen.getByRole("button", { name: "Name conflict" })).toBeDisabled();
   });
+
+  it("replaces the footer label with the clickable repo name when the caller provides one", () => {
+    const onOpenRepo = vi.fn();
+    render(
+      <SkillPreviewPanel
+        {...base}
+        installStatus="available"
+        onInstall={vi.fn()}
+        repoLabel="owner/repo"
+        onOpenRepo={onOpenRepo}
+      />,
+    );
+    expect(screen.queryByText("test-skill")).toBeNull();
+    const repoButton = screen.getByRole("button", { name: "owner/repo" });
+    expect(repoButton).toHaveAttribute("title", "owner/repo");
+    repoButton.click();
+    expect(onOpenRepo).toHaveBeenCalledOnce();
+  });
+
+  it("suppresses the progress bar entirely when showProgressBar is false", () => {
+    const { container, rerender } = render(
+      <SkillPreviewPanel {...base} loading showProgressBar={false} />,
+    );
+    expect(container.querySelector(".translation-intent-progress")).toBeNull();
+    rerender(<SkillPreviewPanel {...base} showProgressBar={false} />);
+    expect(container.querySelector('[data-state="completed"]')).toBeNull();
+  });
 });

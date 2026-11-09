@@ -454,6 +454,8 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
         skillName={previewSkill?.name ?? ""}
         open={!!previewSkill}
         loading={previewLoading}
+        // Content is usually cached here; a flash of instant completion is noise.
+        showProgressBar={false}
         error={previewError ? null : undefined}
         content={previewContent}
         installStatus={

@@ -246,6 +246,16 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
     onSelectRepo(null);
   }, [onSelectRepo]);
 
+  // The community preview footer shows the repo it belongs to; clicking it
+  // jumps to the repo detail page (and closes the preview so it does not
+  // reappear when navigating back).
+  const handlePanelOpenRepo = useCallback(() => {
+    if (!previewTarget) return;
+    const [owner, name] = previewTarget.source.split("/");
+    setPreviewTarget(null);
+    if (owner && name) handleSkillSearchResult(owner, name);
+  }, [previewTarget, handleSkillSearchResult]);
+
   // Keyboard handler for the search input
   const handleSearchKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -449,6 +459,8 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
         skillName={previewSkill?.name ?? previewTarget?.name ?? ""}
         open={!!previewTarget}
         loading={!!previewTarget && (!previewRepoSkills || panelContentLoading)}
+        repoLabel={previewTarget?.source ?? ""}
+        onOpenRepo={handlePanelOpenRepo}
         error={
           previewMissing
             ? t("browse.catalogSkillMissing", { name: previewTarget?.skillId })
