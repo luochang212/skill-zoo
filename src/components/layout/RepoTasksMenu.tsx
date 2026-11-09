@@ -71,7 +71,11 @@ export function RepoTasksMenu() {
   };
 
   return (
-    <DropdownMenu>
+    // Non-modal: the menu is a notification surface, not a task barrier.
+    // Radix's default modal wraps the content in a scroll lock that blocks
+    // the wheel everywhere outside the popup while it is open; outside the
+    // menu the app must keep scrolling, and the menu scrolls its own list.
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
