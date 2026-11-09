@@ -690,7 +690,7 @@ describe("manual translation lifecycle", () => {
   );
 });
 
-it("identifies parallel background tasks in error and repair toasts after navigation", async () => {
+it("identifies parallel background tasks in error toasts after navigation", async () => {
   const tasks = new Map<string, { id: string; send: (e: TranslationEvent) => void }>();
   vi.mocked(translationApi.translate).mockImplementation((request, callback) => {
     tasks.set(request.skillId, { id: request.taskId, send: callback });
