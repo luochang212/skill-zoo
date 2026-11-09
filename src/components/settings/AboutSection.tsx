@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { getVersion } from "@tauri-apps/api/app";
 import { useState, useEffect } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AppUpdateSection } from "@/components/settings/AppUpdateSection";
 import { APP_UPDATE_SECTION_ID } from "@/components/settings/AppUpdateShortcut";
@@ -20,18 +21,20 @@ function buildIssueUrl(template: "bug_report" | "feature_request"): string {
   return `${base}?${params.toString()}`;
 }
 
-async function openFeedback(template: "bug_report" | "feature_request") {
-  try {
-    await openUrl(buildIssueUrl(template));
-  } catch (err) {
-    console.error("Failed to open URL with Tauri opener, falling back to window.open:", err);
-    window.open(buildIssueUrl(template), "_blank");
-  }
-}
-
 export function AboutSection() {
   const { t } = useTranslation();
   const [version, setVersion] = useState("");
+
+  // window.open is a no-op in the desktop webview (wry denies new windows
+  // without a handler), so an opener failure surfaces as a toast instead.
+  const openFeedback = async (template: "bug_report" | "feature_request") => {
+    try {
+      await openUrl(buildIssueUrl(template));
+    } catch (err) {
+      console.error("Failed to open URL with Tauri opener:", err);
+      toast.error(t("settings.feedback.openError"));
+    }
+  };
 
   useEffect(() => {
     getVersion()

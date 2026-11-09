@@ -33,6 +33,7 @@ tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+tauri-plugin-single-instance = "2"
 dirs = "7.0"
 reqwest = { version = "0.13", features = ["rustls", "json", "query", "stream"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync", "process"] }

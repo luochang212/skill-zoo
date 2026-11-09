@@ -38,6 +38,16 @@ pub fn run() {
     tauri::Builder::default()
         .manage(commands::translation::TranslationState::default())
         .manage(services::skill_usage_cache::SkillUsageCache::default())
+        // Single-instance must register before other plugins so a second
+        // launch forwards to the running instance instead of racing its
+        // writes (lock read-modify-write and same-name atomic-write temps).
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())

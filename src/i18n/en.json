@@ -582,7 +582,8 @@
       "description": "Help us improve Skill Zoo!",
       "reportBug": "Report a Bug",
       "requestFeature": "Request a Feature",
-      "hint": "Opens GitHub Issues in your browser with app info pre-filled."
+      "hint": "Opens GitHub Issues in your browser with app info pre-filled.",
+      "openError": "Could not open the browser. Please open GitHub Issues manually."
     },
     "customAgents": {
       "add": "Add Agent",
