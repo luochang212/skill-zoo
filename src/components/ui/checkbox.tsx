@@ -15,7 +15,16 @@ const Checkbox = React.forwardRef<
     )}
     {...props}
   >
-    <CheckboxPrimitive.Indicator className={cn("flex items-center justify-center text-current")}>
+    {/* forceMount keeps the indicator's box in the layout in both states:
+        mounting it on check shifts the root's baseline and jiggles inline
+        contexts (e.g. an inline-flex label) by ~2px. visibility preserves the
+        layout while hiding the check when unchecked. */}
+    <CheckboxPrimitive.Indicator
+      forceMount
+      className={cn(
+        "flex items-center justify-center text-current data-[state=unchecked]:invisible",
+      )}
+    >
       <Check className="h-3.5 w-3.5" />
     </CheckboxPrimitive.Indicator>
   </CheckboxPrimitive.Root>
