@@ -474,7 +474,15 @@
         "phrase": "Plan first, then make changes.",
         "chatPlaceholder": "Ask your chatbot…",
         "demoDescription": "Example: enter and save a phrase, open Common Commands in the system tray, click the phrase to copy it, then paste it into a chatbot. This demonstration does not change your clipboard.",
-        "copied": "Copied to clipboard"
+        "copied": "Copied to clipboard",
+        "tray": {
+          "open": "Open main window",
+          "website": "Open official website",
+          "recent": "Recently Used",
+          "quit": "Quit",
+          "add": "Add new item...",
+          "copyHint": "Click an item to copy"
+        }
       },
       "title": "Skill Companion",
       "summary": "Common Commands",
