@@ -360,3 +360,19 @@ At the default 1100 × 700 window size, existing full-page list and grid loading
 
 - **WHEN** the local grid, list or consistency page is loading at the default window size
 - **THEN** its main skeleton content fills the available region and does not scroll through dummy content
+
+### Requirement: 预览侧边栏的底部标签与进度条
+
+预览侧边栏（仓库详情页与社区技能卡片共用）的底部标签 MUST 按入口语义区分：从社区技能卡片进入时 MUST 显示技能所属仓库（owner/repo）而非技能名，并在调用方提供跳转回调时可点击进入对应仓库详情页；从仓库详情页进入时保持显示技能名。加载进度条 MUST 只在调用方声明需要时渲染；调用方声明不需要时，加载前后均 MUST NOT 出现进度条（含完成动画），骨架屏行为不受影响。
+
+#### Scenario: 社区卡片进入显示仓库标签
+- **WHEN** 用户从社区技能卡片打开预览侧边栏
+- **THEN** 底部 bar 左侧显示该技能所属仓库（owner/repo）而非技能名
+
+#### Scenario: 点击仓库标签跳转仓库详情页
+- **WHEN** 用户点击底部 bar 中的仓库标签
+- **THEN** 发现视图切换为该仓库的详情页，预览侧边栏被关闭，从详情页返回后不残留预览面板
+
+#### Scenario: 仓库详情页进入不闪进度条
+- **WHEN** 用户从仓库详情页打开预览侧边栏且内容立即可用或快速加载完成
+- **THEN** 加载进度条（含完成动画）不出现，骨架屏行为不变
