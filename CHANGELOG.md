@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.4.9] — 2026-11-10
+
+### Added
+- Repository loads can be cancelled from the header task menu: cancelling aborts the backend load, removes the entry at once, and never surfaces as a failure. A detail page left without content shows a quiet cancelled state with an explicit reload, and a cancelled refresh keeps previously loaded skills visible.
+- The community preview footer shows the repository it belongs to and jumps to its detail page on click.
+- The empty Common Commands state shows an animated walkthrough — typing and saving a phrase in the manager dialog, opening the tray submenu, copying, and pasting into a chatbot — over a branded Skill Zoo window, localized in both languages.
+
+### Changed
+- Launching a second app instance focuses the running window instead of racing its writes.
+- Translation sends the source file to the model verbatim in a single streaming request with an intent-based prompt, dropping the protection-marker pipeline that fought target-language grammar.
+- The repository detail bulk install bar tightens to a compact toolbar with a live-count primary button; row-level install buttons fold into checkbox selection, single-line descriptions fade out instead of clipping mid-word, and the loading skeleton mirrors the new row shape.
+- The discovery banner carousel keeps autoplaying through hover; hovering the dots still lights the active dot while playback continues.
+- Local skill cards, their skeleton grid and count hint go back to the 245px minimum width after 233px proved too narrow in practice.
+
+### Fixed
+- Trackpad scroll momentum at the top of a long README no longer triggers the repo panel pull-to-refresh on its own; fresh flicks, slow drags, and mouse wheels still pull as before.
+- The app scrolls normally outside the download task menu while the menu keeps scrolling its own list.
+- Checkboxes no longer shift inline labels by a couple of pixels when toggled.
+- Loading labels resolve through the canonical common.loading key, so screen readers and pending states no longer leak the raw key.
+- A failed feedback-window open surfaces as a toast instead of falling back to a dead window.
+
 ## [0.4.8] — 2026-11-09
 
 ### Added
