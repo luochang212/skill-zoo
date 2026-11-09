@@ -282,7 +282,7 @@ export function CommonCommandsEmptyState() {
   const phrase = t("settings.skillCompanion.guide.phrase");
 
   return (
-    <div className="flex min-h-full items-center justify-center px-6 py-8">
+    <div className="flex justify-center px-6 py-8">
       <svg
         viewBox="0 0 560 350"
         className="w-full max-w-[560px]"
