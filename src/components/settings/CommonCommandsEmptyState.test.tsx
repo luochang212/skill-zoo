@@ -56,19 +56,46 @@ describe("CommonCommandsEmptyState", () => {
     expect(submenu).toHaveAttribute("opacity", "1");
     advance(6.7);
     expect(screen.getByText("Copied to clipboard").parentElement).toHaveAttribute("opacity", "1");
+    advance(7.99);
+    expect(screen.getByText("Copied to clipboard").parentElement).toHaveAttribute("opacity", "1");
+    advance(8);
+    expect(screen.getByText("Copied to clipboard").parentElement).toHaveAttribute("opacity", "0");
     advance(9.5);
-    expect(screen.getByText("Chatbot")).toBeInTheDocument();
+    expect(screen.getByText("Chatbot", { selector: "text[x='280']" })).toBeInTheDocument();
     expect(screen.getAllByText("Plan first, then make changes.")).toHaveLength(3);
     advance(0);
     expect(screen.getByText("Ask your chatbot…")).toBeInTheDocument();
   });
 
-  it("pauses on the SVG and resumes the same animation on mouse leave", () => {
+  it("shows the command manager as a modal over the branded app, then closes it before opening the tray", () => {
+    const { container } = render(<CommonCommandsEmptyState />);
+    const app = container.querySelector('[data-scene="skill-zoo"]')!;
+    const dialog = app.querySelector('[data-scene="command-dialog"]')!;
+    expect(dialog).toHaveAttribute("opacity", "1");
+    expect(screen.getByText("Discover")).toBeInTheDocument();
+    expect(screen.getByText("Local")).toBeInTheDocument();
+    expect(
+      screen.getByText("Skill Zoo", { selector: "text[font-style='italic']" }),
+    ).toHaveAttribute("fill", expect.stringContaining("url(#"));
+    advance(3.5);
+    expect(dialog).toHaveAttribute("opacity", "0");
+    expect(app).toHaveAttribute("opacity", "1");
+    advance(5.5);
+    expect(screen.getByText("Open main window")).toBeInTheDocument();
+    expect(screen.getByText("Recently Used")).toBeInTheDocument();
+    expect(screen.getByText("Click an item to copy")).toBeInTheDocument();
+    expect(container.querySelector("image")).toHaveAttribute(
+      "href",
+      expect.stringContaining("tray-template.png"),
+    );
+  });
+
+  it("keeps playing the same animation while hovered", () => {
     render(<CommonCommandsEmptyState />);
     fireEvent.mouseEnter(screen.getByRole("img"));
-    expect(animation.pause).toHaveBeenCalledTimes(1);
+    expect(animation.pause).not.toHaveBeenCalled();
     fireEvent.mouseLeave(screen.getByRole("img"));
-    expect(animation.play).toHaveBeenCalledTimes(2);
+    expect(animation.pause).not.toHaveBeenCalled();
     expect(animate).toHaveBeenCalledTimes(1);
   });
 
@@ -76,13 +103,13 @@ describe("CommonCommandsEmptyState", () => {
     animation.reduced = true;
     render(<CommonCommandsEmptyState />);
     expect(animate).not.toHaveBeenCalled();
-    expect(screen.getByText("Chatbot")).toBeInTheDocument();
+    expect(screen.getByText("Chatbot", { selector: "text[x='280']" })).toBeInTheDocument();
     expect(
       screen.getByText("Plan first, then make changes.", { selector: "text[x='80']" }),
     ).toBeInTheDocument();
   });
 
-  it("stops on preference changes and unmount and preserves hover when restarting", () => {
+  it("stops on preference changes and unmount", () => {
     const { rerender, unmount } = render(<CommonCommandsEmptyState />);
     fireEvent.mouseEnter(screen.getByRole("img"));
     animation.reduced = true;
@@ -91,7 +118,6 @@ describe("CommonCommandsEmptyState", () => {
     animation.reduced = false;
     rerender(<CommonCommandsEmptyState />);
     expect(animate).toHaveBeenCalledTimes(2);
-    expect(animation.pause).toHaveBeenCalledTimes(2);
     unmount();
     expect(animation.stop).toHaveBeenCalledTimes(2);
   });
