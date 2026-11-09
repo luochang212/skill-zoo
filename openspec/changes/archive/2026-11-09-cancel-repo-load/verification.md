@@ -6,3 +6,7 @@
 - 规格：`openspec validate cancel-repo-load --strict` 通过；归档后主 specs 已同步。
 
 设计取舍记录：取消只包发现阶段，`rebuild_cache` 不被打断（design.md 决策 2）；临时 zip 清理沿用 `repo-zip-download` 既有的 future-drop 语义，未新增清理代码。
+
+---
+
+勘误（2026-11-09）：上面"RepoDetail（cancelled 空态…）"一条取证时点有误。该用例依赖的取消空态分支与 `repoLoadCancelled` 文案随 `7ebba5c`（repo-detail 批量安装栏）落地，不在本变更的提交时点树上——当时是按合并工作树整体跑测后把结果记进了本文件。本变更自身的三个用例（`useRepoTasks`、`RepoTasksMenu`）证据有效；`cargo` 数字对应本提交时点，有效。
