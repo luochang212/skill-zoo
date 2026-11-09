@@ -52,6 +52,7 @@
     "extracting": "Extracting...",
     "scanning": "Scanning skills..."
   },
+  "repoLoadCancelled": "Loading cancelled",
   "browse": {
     "community": "Community skills",
     "popular": "Hot",
@@ -80,7 +81,9 @@
     "selectAll": "Select all",
     "selectRow": "Select {{name}}",
     "selectedCount": "{{count}} selected",
-    "installSelected": "Install selected",
+    "selectedItems": "{{count}} selected",
+    "selectableTotal": "{{count}} total",
+    "installSelected": "Install selected ({{count}})",
     "recentlyViewed": "Recently Viewed",
     "clearHistory": "Clear",
     "archiveSelected": "Archive selected",

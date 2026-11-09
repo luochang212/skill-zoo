@@ -52,6 +52,7 @@
     "extracting": "正在解压...",
     "scanning": "正在扫描技能..."
   },
+  "repoLoadCancelled": "加载已取消",
   "browse": {
     "community": "社区技能",
     "popular": "最热",
@@ -80,7 +81,9 @@
     "selectAll": "全选",
     "selectRow": "选择 {{name}}",
     "selectedCount": "已选 {{count}} 个",
-    "installSelected": "批量安装",
+    "selectedItems": "已选 {{count}} 项",
+    "selectableTotal": "共 {{count}} 项",
+    "installSelected": "安装所选 ({{count}})",
     "recentlyViewed": "最近浏览",
     "clearHistory": "清空",
     "archiveSelected": "批量归档",

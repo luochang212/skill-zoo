@@ -371,6 +371,15 @@ textarea,
   }
 }
 
+/* ── Single-line text dissolve: descriptions fade out instead of an ellipsis
+   biting mid-word. Overflow clipping is the fallback when masks are missing. ── */
+.text-fade-right {
+  overflow: hidden;
+  white-space: nowrap;
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 2.5rem), transparent);
+  mask-image: linear-gradient(to right, black calc(100% - 2.5rem), transparent);
+}
+
 /*
   Radix ScrollArea injects a <div style="min-width:100%;display:table">
   inside the Viewport. display:table can expand past the container when

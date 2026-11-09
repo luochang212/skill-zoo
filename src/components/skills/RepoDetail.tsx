@@ -23,10 +23,18 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SkillInstallDialog } from "@/components/skills/SkillInstallDialog";
 import { SkillPreviewPanel } from "@/components/skills/SkillPreviewPanel";
-import { formatApiError } from "@/lib/api/errors";
+import { formatApiError, isCancelledError } from "@/lib/api/errors";
 import type { DiscoverRepo, DiscoverableSkill } from "@/types/skills";
 import { BackButton } from "@/components/ui/BackButton";
-import { AlertTriangle, Star, GitFork, ExternalLink, Check, RotateCw, Loader } from "lucide-react";
+import {
+  AlertTriangle,
+  Star,
+  GitFork,
+  ExternalLink,
+  RotateCw,
+  Loader,
+  CircleOff,
+} from "lucide-react";
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -255,7 +263,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
         <div
           className="flex-1 min-h-0 overflow-clip px-5 py-4"
           role="status"
-          aria-label={t("loading")}
+          aria-label={t("common.loading")}
         >
           <div className="flex flex-col gap-2">
             {Array.from({ length: 10 }).map((_, i) => (
@@ -268,7 +276,6 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
                   <Skeleton className="h-4 w-48" />
                   <Skeleton className="h-3 w-72" />
                 </div>
-                <Skeleton className="h-7 w-14 rounded-lg shrink-0" />
               </div>
             ))}
           </div>
@@ -276,10 +283,20 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
       ) : (
         <ScrollArea className="flex-1 min-h-0">
           <div className="px-5 py-4 pr-5 max-w-full">
-            {isError ? (
+            {isError && !isCancelledError(error) ? (
               <div className="flex flex-col items-center justify-center py-12 gap-3">
                 <AlertTriangle className="h-8 w-8 text-destructive/60" />
                 <p className="text-sm text-destructive">{formatApiError(error)}</p>
+                <Button size="sm" variant="outline" disabled={isLoadingRepo} onClick={refreshRepo}>
+                  {t("error.retry")}
+                </Button>
+              </div>
+            ) : isCancelledError(error) && skillList.length === 0 ? (
+              // A cancelled load is not a failure: with nothing to show it gets
+              // a quiet state, but previously loaded skills stay on screen.
+              <div className="flex flex-col items-center justify-center py-12 gap-3">
+                <CircleOff className="h-8 w-8 text-muted-foreground/50" />
+                <p className="text-sm text-muted-foreground">{t("repoLoadCancelled")}</p>
                 <Button size="sm" variant="outline" disabled={isLoadingRepo} onClick={refreshRepo}>
                   {t("error.retry")}
                 </Button>
@@ -328,7 +345,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
                           {skill.name}
                         </h4>
                         {skill.description && (
-                          <p className="text-[12px] text-muted-foreground/80 line-clamp-1 mt-0.5">
+                          <p className="text-[12px] text-muted-foreground/80 text-fade-right mt-0.5">
                             {skill.description}
                           </p>
                         )}
@@ -354,17 +371,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
                         >
                           {t("browse.nameConflict")}
                         </Badge>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="default"
-                          className="press-feedback h-7 text-xs rounded-lg shrink-0"
-                          disabled={isLoadingRepo || installMutation.isPending}
-                          onClick={() => handleInstallSingle(skill)}
-                        >
-                          {t("common.install")}
-                        </Button>
-                      )}
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -384,20 +391,28 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
         </ScrollArea>
       )}
 
-      {/* Floating action bar for multi-select */}
-      {selectedInstallable.length > 0 && (
-        <div className="border-t border-border bg-background/95 backdrop-blur-sm pl-5 pr-6 py-3 flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">
-            {t("browse.selectedCount", { count: selectedInstallable.length })}
-          </span>
+      {/* Compact bulk action bar */}
+      {installableSkills.length > 0 && (
+        <div className="border-t border-border/60 bg-background px-5 py-3 flex items-center justify-between">
+          <p className="text-xs">
+            <span className="font-medium text-foreground">
+              {t("browse.selectedItems", { count: selectedInstallable.length })}
+            </span>
+            <span className="text-muted-foreground"> / </span>
+            <span className="text-muted-foreground">
+              {t("browse.selectableTotal", { count: installableSkills.length })}
+            </span>
+          </p>
           <Button
             size="sm"
-            className="press-feedback h-7 text-xs rounded-lg"
-            disabled={isLoadingRepo || installMutation.isPending}
+            className="press-feedback h-8 px-3.5 text-xs rounded-lg shrink-0"
+            disabled={
+              isLoadingRepo || installMutation.isPending || selectedInstallable.length === 0
+            }
             onClick={handleInstallSelected}
           >
-            <Check className="h-3.5 w-3.5 mr-1.5" />
-            {t("browse.installSelected")}
+            {installMutation.isPending && <Loader className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+            {t("browse.installSelected", { count: selectedInstallable.length })}
           </Button>
         </div>
       )}
