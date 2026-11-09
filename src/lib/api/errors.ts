@@ -144,6 +144,12 @@ function cleanBadRequestMessage(message?: string): string {
   return message?.trim().replace(/^Bad request:\s*/i, "") ?? "";
 }
 
+// User-initiated cancellation (repo load, translation) is not an error to
+// render: callers branch on this before falling back to formatted copy.
+export function isCancelledError(error: unknown): boolean {
+  return asApiError(error)?.code === "cancelled";
+}
+
 function asApiError(error: unknown): ApiError | null {
   if (error instanceof Error) return asApiError(error.message);
   if (typeof error === "string") {

@@ -16,6 +16,7 @@ use crate::services::skill::{
 };
 use crate::services::skill_archive::{self, ArchiveSkillsResult, RestoreArchivedSkillsResult};
 use crate::store::AppState;
+use futures::future::Abortable;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -2383,16 +2384,29 @@ pub async fn get_repo_skills(
     }
     let force = force.unwrap_or(false);
 
-    let (mut skills, total) = SkillService::discover_from_repo_capped(
-        &owner,
-        &name,
-        branch.as_deref(),
-        1000,
-        force,
-        Some(&app),
-    )
-    .await
-    .map_err(CommandError::from)?;
+    // The user can cancel a load from the task menu. Only the discovery phase
+    // is abortable (network download, extraction, scan); once it completes, the
+    // remaining local bookkeeping runs to completion and cancellation wins no
+    // longer — cancelling a finished load is a no-op.
+    let cancel_key = repo_load_cancel_key(&owner, &name, branch.as_deref());
+    let (registration, handle) = state.repo_load_cancels.register(&cancel_key);
+    let discovery = Abortable::new(
+        SkillService::discover_from_repo_capped(
+            &owner,
+            &name,
+            branch.as_deref(),
+            1000,
+            force,
+            Some(&app),
+        ),
+        registration,
+    );
+    let discovered = match discovery.await {
+        Ok(result) => result.map_err(CommandError::from),
+        Err(_aborted) => Err(CommandError::cancelled()),
+    };
+    state.repo_load_cancels.finish(&cancel_key, &handle);
+    let (mut skills, total) = discovered?;
 
     SkillService::rebuild_cache(
         &state.skill_cache,
@@ -2419,6 +2433,32 @@ pub async fn get_repo_skills(
     }
 
     Ok(RepoSkillsResult { skills, total })
+}
+
+/// Identity of a repository load for cancellation, mirroring the frontend task
+/// key: an absent branch is the default branch (`HEAD`).
+fn repo_load_cancel_key(owner: &str, name: &str, branch: Option<&str>) -> String {
+    format!("{owner}/{name}@{}", branch.unwrap_or("HEAD"))
+}
+
+/// Abort an in-flight `get_repo_skills` load. Idempotent: cancelling an
+/// unknown (already finished) identity does nothing.
+#[tauri::command]
+pub fn cancel_repo_skills(
+    state: State<'_, AppState>,
+    owner: String,
+    name: String,
+    branch: Option<String>,
+) -> Result<(), CommandError> {
+    if let Some(branch) = branch.as_deref() {
+        github::validate_repo_segments(&owner, &name, branch).map_err(CommandError::bad_request)?;
+    } else {
+        github::validate_repo_segments(&owner, &name, "HEAD").map_err(CommandError::bad_request)?;
+    }
+    state
+        .repo_load_cancels
+        .cancel(&repo_load_cancel_key(&owner, &name, branch.as_deref()));
+    Ok(())
 }
 
 #[tauri::command]

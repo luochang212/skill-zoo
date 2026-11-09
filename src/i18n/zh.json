@@ -795,6 +795,7 @@
     "ready": "技能列表已准备好",
     "failedNotice": "{{repo}} 加载失败",
     "dismissRepo": "移除 {{repo}} 的记录",
+    "cancelRepo": "取消加载 {{repo}}",
     "defaultBranch": "默认分支",
     "clearAll": "清除全部"
   }

@@ -109,6 +109,9 @@ export const skillsApi = {
   getRepoSkills: (owner: string, name: string, branch?: string, force?: boolean) =>
     invoke<RepoSkillsResult>("get_repo_skills", { owner, name, branch, force }),
 
+  cancelRepoSkills: (owner: string, name: string, branch?: string) =>
+    invoke<void>("cancel_repo_skills", { owner, name, branch }),
+
   previewSkillMd: (owner: string, name: string, branch: string | undefined, skillDir: string) =>
     invoke<string>("preview_skill_md", { owner, name, branch, skillDir }),
 

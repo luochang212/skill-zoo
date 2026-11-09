@@ -10,7 +10,9 @@ import { RepoTasksProvider, useRepoTasks } from "./useRepoTasks";
 import type { DiscoverRepo, RepoSkillsResult } from "@/types/skills";
 
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
-vi.mock("@/lib/api/skills", () => ({ skillsApi: { getRepoSkills: vi.fn() } }));
+vi.mock("@/lib/api/skills", () => ({
+  skillsApi: { getRepoSkills: vi.fn(), cancelRepoSkills: vi.fn() },
+}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 function deferred() {
@@ -55,6 +57,7 @@ describe("repository session tasks", () => {
   beforeEach(() => {
     handlers.clear();
     vi.mocked(skillsApi.getRepoSkills).mockReset();
+    vi.mocked(skillsApi.cancelRepoSkills).mockReset();
     vi.mocked(listen)
       .mockReset()
       .mockImplementation(async (name, callback) => {
@@ -145,6 +148,31 @@ describe("repository session tasks", () => {
       await hook.result.current.refresh(repo);
     });
     await waitFor(() => expect(hook.result.current.tasks[0]?.query.isSuccess).toBe(true));
+    expect(skillsApi.getRepoSkills).toHaveBeenLastCalledWith("owner", "repo", undefined, true);
+  });
+
+  it("cancels a running load: the entry vanishes, no failure notice fires, and reload restarts fresh", async () => {
+    const request = deferred();
+    request.promise.catch(() => {});
+    vi.mocked(skillsApi.getRepoSkills).mockReturnValueOnce(request.promise).mockResolvedValue(data);
+    vi.mocked(skillsApi.cancelRepoSkills).mockResolvedValue(undefined);
+    const hook = setup(null);
+    act(() => hook.result.current.register(repo));
+    await waitFor(() => expect(skillsApi.getRepoSkills).toHaveBeenCalledOnce());
+
+    act(() => hook.result.current.cancel(repo));
+    expect(skillsApi.cancelRepoSkills).toHaveBeenCalledWith("owner", "repo", undefined);
+    expect(hook.result.current.tasks[0]?.dismissed).toBe(true);
+
+    await act(async () => {
+      request.reject(Object.assign(new Error("Load cancelled"), { code: "cancelled" }));
+    });
+    expect(toast.error).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await hook.result.current.refresh(repo);
+    });
+    await waitFor(() => expect(hook.result.current.tasks[0]?.dismissed).toBe(false));
     expect(skillsApi.getRepoSkills).toHaveBeenLastCalledWith("owner", "repo", undefined, true);
   });
 

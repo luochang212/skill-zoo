@@ -145,6 +145,18 @@ impl CommandError {
         }
     }
 
+    /// User-initiated cancellation. Not a failure: the frontend recognizes the
+    /// code and must not render it through the error copy table.
+    pub fn cancelled() -> Self {
+        Self {
+            code: "cancelled",
+            message: "Load cancelled".into(),
+            repo: None,
+            authenticated: None,
+            retry_at: None,
+        }
+    }
+
     pub fn to_json(self) -> String {
         serde_json::to_string(&self).unwrap_or(self.message)
     }

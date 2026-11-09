@@ -795,6 +795,7 @@
     "ready": "Skills ready to choose",
     "failedNotice": "{{repo}} could not be loaded",
     "dismissRepo": "Dismiss {{repo}}",
+    "cancelRepo": "Cancel loading {{repo}}",
     "defaultBranch": "Default branch",
     "clearAll": "Clear all"
   }

@@ -53,8 +53,12 @@ function RepoTaskIcon({
 
 export function RepoTasksMenu() {
   const { t } = useTranslation();
-  const { tasks, dismiss, refresh, onOpen } = useRepoTasks();
-  const visible = tasks.filter((task) => !task.dismissed || task.query.isFetching);
+  const { tasks, dismiss, cancel, refresh, onOpen } = useRepoTasks();
+  // Cancelled entries vanish at once; an ordinary dismissed entry stays until
+  // its load settles so a running download is never hidden mid-flight.
+  const visible = tasks.filter(
+    (task) => !task.dismissed || (!task.cancelled && task.query.isFetching),
+  );
   if (!visible.length) return null;
   const running = visible.filter((task) => task.query.isFetching || task.query.isPending).length;
   const failed = visible.some((task) => task.query.isError && !task.query.isFetching);
@@ -159,10 +163,26 @@ export function RepoTasksMenu() {
                   </DropdownMenuItem>
                 </div>
               )}
-              {!loading && (
+              {loading ? (
+                <DropdownMenuItem
+                  aria-label={t("repoTasks.cancelRepo", { repo: label })}
+                  onSelect={(event) => {
+                    // Keep the menu open so several tasks can be cancelled in
+                    // one pass; only row activation closes it.
+                    event.preventDefault();
+                    cancel(task.repo);
+                  }}
+                  className="absolute right-1 top-2 h-6 w-6 justify-center p-0 text-muted-foreground opacity-0 group-hover/task:opacity-100 group-focus-within/task:opacity-100 focus:opacity-100"
+                >
+                  <X aria-hidden="true" className="h-3.5 w-3.5" />
+                </DropdownMenuItem>
+              ) : (
                 <DropdownMenuItem
                   aria-label={t("repoTasks.dismissRepo", { repo: label })}
-                  onSelect={() => dismiss(task.repo)}
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    dismiss(task.repo);
+                  }}
                   className="absolute right-1 top-2 h-6 w-6 justify-center p-0 text-muted-foreground opacity-0 group-hover/task:opacity-100 group-focus-within/task:opacity-100 focus:opacity-100"
                 >
                   <X aria-hidden="true" className="h-3.5 w-3.5" />

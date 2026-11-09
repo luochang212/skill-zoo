@@ -30,6 +30,7 @@ interface RepoEntry {
   repo: DiscoverRepo;
   selectedKeys: Set<string>;
   dismissed: boolean;
+  cancelled: boolean;
 }
 
 export function repoTaskKey(repo: DiscoverRepo) {
@@ -54,7 +55,7 @@ function useSessionTasks(activeRepo: DiscoverRepo | null, onOpen: (repo: Discove
     setEntries((previous) =>
       previous.some((entry) => repoTaskKey(entry.repo) === repoTaskKey(repo))
         ? previous
-        : [...previous, { repo, selectedKeys: new Set(), dismissed: false }],
+        : [...previous, { repo, selectedKeys: new Set(), dismissed: false, cancelled: false }],
     );
   }, []);
 
@@ -134,7 +135,7 @@ function useSessionTasks(activeRepo: DiscoverRepo | null, onOpen: (repo: Discove
     }));
     setEntries((previous) =>
       previous.map((entry) =>
-        repoTaskKey(entry.repo) === key ? { ...entry, dismissed: false } : entry,
+        repoTaskKey(entry.repo) === key ? { ...entry, dismissed: false, cancelled: false } : entry,
       ),
     );
     // IPC keeps running if a query observer cancels; share that work until it settles.
@@ -167,6 +168,7 @@ function useSessionTasks(activeRepo: DiscoverRepo | null, onOpen: (repo: Discove
       repo: entry.repo,
       selectedKeys: entry.selectedKeys,
       dismissed: entry.dismissed,
+      cancelled: entry.cancelled,
       key: repoTaskKey(entry.repo),
       query,
       progress: query.isFetching ? (progress[repoTaskKey(entry.repo)] ?? null) : null,
@@ -187,6 +189,22 @@ function useSessionTasks(activeRepo: DiscoverRepo | null, onOpen: (repo: Discove
     }
   }, [tasks, activeKey, dismiss, t]);
 
+  const cancel = useCallback((repo: DiscoverRepo) => {
+    // Cancelling a finished load is a backend no-op; IPC failures surface as
+    // nothing — the entry vanishes now to reflect the user's intent, and the
+    // abort lands shortly after.
+    void skillsApi
+      .cancelRepoSkills(repo.owner, repo.name, repo.branch || undefined)
+      .catch(() => {});
+    setEntries((previous) =>
+      previous.map((entry) =>
+        repoTaskKey(entry.repo) === repoTaskKey(repo)
+          ? { ...entry, dismissed: true, cancelled: true }
+          : entry,
+      ),
+    );
+  }, []);
+
   const refresh = useCallback(
     (repo: DiscoverRepo) => {
       register(repo);
@@ -205,7 +223,7 @@ function useSessionTasks(activeRepo: DiscoverRepo | null, onOpen: (repo: Discove
     [qc, register, load],
   );
 
-  return { tasks, register, select, dismiss, refresh, onOpen };
+  return { tasks, register, select, dismiss, cancel, refresh, onOpen };
 }
 
 export type RepoTasksState = ReturnType<typeof useSessionTasks>;

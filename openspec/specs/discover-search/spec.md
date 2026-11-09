@@ -55,7 +55,7 @@ Installation and filesystem changes SHALL invalidate discovery installation stat
 
 ### Requirement: Global repository tasks provide continuation
 
-The app header SHALL expose active repository tasks and unviewed terminal tasks across views. It SHALL show loading stages, byte progress, failures with retry, and successful preparation with a direct action to the corresponding skill list. Completed or failed entries SHALL remain until viewed or dismissed. The task UI SHALL remain keyboard-operable and expose accessible progress names.
+The app header SHALL expose active repository tasks and unviewed terminal tasks across views. It SHALL show loading stages, byte progress, failures with retry, and successful preparation with a direct action to the corresponding skill list. Running repository loads SHALL offer cancellation from the task menu. Completed or failed entries SHALL remain until viewed or dismissed. The task UI SHALL remain keyboard-operable and expose accessible progress names.
 
 #### Scenario: Background repository becomes ready
 
@@ -148,3 +148,41 @@ Opening a community skill SHALL load its repository through existing session tas
 - **WHEN** multiple repository skills match a catalog slug
 - **THEN** no preview or installation is chosen automatically
 - **AND** a notice invites the user to choose from the repository list
+
+### Requirement: Running repository loads can be cancelled
+
+Each running repository load SHALL offer cancellation in the task menu using the same compact icon pattern as terminal dismissal, with an accessible name, without navigating to the repository. Activating it SHALL abort the backend load, remove the task entry immediately, and publish no cache entry.
+
+#### Scenario: Cancel from the task menu
+
+- **WHEN** the cancel control of a running task entry is activated
+- **THEN** the load stops, the entry disappears immediately, and the view does not navigate
+
+#### Scenario: Cancellation races completion
+
+- **WHEN** the load has already completed when the cancellation command arrives
+- **THEN** cancellation is a no-op and the completed result remains available
+
+### Requirement: Cancelled loads are not failures
+
+A cancelled load SHALL NOT be presented as a failure: no failure notification is shown. A repository detail page without previously loaded skills SHALL enter a quiet cancelled state with an explicit reload action instead of error styling; a page holding previously loaded skills SHALL keep them displayed over the cancelled error. Cancellation SHALL persist: neither returning to the repository page nor reopening it SHALL restart the load automatically.
+
+#### Scenario: Detail page of the cancelled repository
+
+- **WHEN** the user cancels the load of the repository they are currently viewing and no skills were loaded before
+- **THEN** the detail page leaves the loading state and shows a quiet cancelled state with an explicit reload action
+
+#### Scenario: Previously loaded skills survive a cancelled refresh
+
+- **WHEN** the user cancels a refresh of a repository whose skills were loaded earlier
+- **THEN** the detail page keeps showing the previously loaded skills instead of the cancelled state
+
+#### Scenario: Reload after cancellation
+
+- **WHEN** the user activates reload on a cancelled repository
+- **THEN** a fresh load starts from the beginning and progress is reported again
+
+#### Scenario: Cancelled load does not interrupt other work
+
+- **WHEN** a background repository load is cancelled from the task menu
+- **THEN** no failure notification appears and the current view is unchanged

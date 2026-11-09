@@ -11,7 +11,9 @@ import { RepoTasksMenu } from "./RepoTasksMenu";
 import type { RepoSkillsResult } from "@/types/skills";
 
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
-vi.mock("@/lib/api/skills", () => ({ skillsApi: { getRepoSkills: vi.fn() } }));
+vi.mock("@/lib/api/skills", () => ({
+  skillsApi: { getRepoSkills: vi.fn(), cancelRepoSkills: vi.fn() },
+}));
 
 const repo = { owner: "owner", name: "repo", branch: "dev" };
 const data: RepoSkillsResult = {
@@ -52,6 +54,7 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue(() => {});
   vi.mocked(skillsApi.getRepoSkills).mockReset();
+  vi.mocked(skillsApi.cancelRepoSkills).mockReset();
 });
 
 it("shows stages and bytes without a line or percentage and opens the correct branch", async () => {
@@ -95,6 +98,20 @@ it("shows stages and bytes without a line or percentage and opens the correct br
   expect(onOpen).toHaveBeenCalledWith(repo);
 });
 
+it("offers cancellation for a running load and removes the entry without navigating", async () => {
+  vi.mocked(skillsApi.getRepoSkills).mockReturnValue(new Promise(() => {}));
+  vi.mocked(skillsApi.cancelRepoSkills).mockResolvedValue(undefined);
+  const { onOpen, user } = setup();
+  await waitFor(() => expect(skillsApi.getRepoSkills).toHaveBeenCalledOnce());
+  await user.click(screen.getByRole("button", { name: /Download tasks:/ }));
+  await user.click(screen.getByRole("menuitem", { name: "Cancel loading owner/repo" }));
+  expect(skillsApi.cancelRepoSkills).toHaveBeenCalledWith("owner", "repo", "dev");
+  expect(onOpen).not.toHaveBeenCalled();
+  await waitFor(() =>
+    expect(screen.queryByRole("button", { name: /Download tasks:/ })).not.toBeInTheDocument(),
+  );
+});
+
 it("retains failures for retry and allows dismissing the completed entry", async () => {
   vi.mocked(skillsApi.getRepoSkills)
     .mockRejectedValueOnce(new Error("offline"))
@@ -107,13 +124,26 @@ it("retains failures for retry and allows dismissing the completed entry", async
   expect(skillsApi.getRepoSkills).toHaveBeenCalledTimes(2);
   expect(within(screen.getByRole("menu")).queryByText("Dismiss")).not.toBeInTheDocument();
   await user.click(screen.getByRole("menuitem", { name: "Dismiss owner/repo" }));
+  // The last entry leaves nothing to list, so the whole control unmounts.
   expect(screen.queryByRole("button", { name: /Download tasks:/ })).not.toBeInTheDocument();
   expect(onOpen).not.toHaveBeenCalled();
 });
 
-it("clears all settled notifications at once", async () => {
-  const repo2 = { owner: "other", name: "repo2", branch: "dev" };
+it("keeps the menu open when dismissing one of several entries", async () => {
+  const { user } = setupTwo();
+  await waitFor(() => expect(skillsApi.getRepoSkills).toHaveBeenCalledTimes(2));
+  await user.click(screen.getByRole("button", { name: /Download tasks:/ }));
+  await screen.findAllByText("Skills ready to choose");
+  await user.click(screen.getByRole("menuitem", { name: "Dismiss owner/repo" }));
+  // Dismissing one of several entries keeps the menu open for the next one.
+  // While the menu is open Radix aria-hides the trigger, so assert the menu.
+  expect(screen.getByRole("menu", { name: /Download tasks:/ })).toBeInTheDocument();
+  expect(screen.getAllByText("Skills ready to choose")).toHaveLength(1);
+});
+
+function setupTwo() {
   vi.mocked(skillsApi.getRepoSkills).mockResolvedValue(data);
+  const repo2 = { owner: "other", name: "repo2", branch: "dev" };
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   function StartTwo() {
     const { register } = useRepoTasks();
@@ -130,7 +160,12 @@ it("clears all settled notifications at once", async () => {
       </RepoTasksProvider>
     </QueryClientProvider>,
   );
-  const user = userEvent.setup();
+  return { user: userEvent.setup() };
+}
+
+it("clears all settled notifications at once", async () => {
+  vi.mocked(skillsApi.getRepoSkills).mockResolvedValue(data);
+  const { user } = setupTwo();
   await waitFor(() => expect(skillsApi.getRepoSkills).toHaveBeenCalledTimes(2));
   await user.click(screen.getByRole("button", { name: /Download tasks:/ }));
   await screen.findAllByText("Skills ready to choose");

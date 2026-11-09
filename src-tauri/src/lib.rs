@@ -179,6 +179,7 @@ pub fn run() {
             commands::skill::get_repo_metadata,
             commands::skill::get_repo_readme,
             commands::skill::get_repo_skills,
+            commands::skill::cancel_repo_skills,
             commands::skill::preview_skill_md,
             commands::skill::search_skills_sh,
             commands::skill::get_skill_audit,
