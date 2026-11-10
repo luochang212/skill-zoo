@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.10] — 2026-11-10
+
+### Changed
+- Removing a skill now moves its folder to the system trash (Finder / Recycle Bin / freedesktop trash) instead of deleting it irreversibly, so accidental removals are recoverable. Symlink cleanup and the SKILL.md identity guard are unchanged, and install-rollback cleanup still deletes plainly.
+- The community catalog toggle's highlight now slides between the two tabs as a single pill instead of crossfading per button; the transition respects reduced-motion preferences.
+
+### Fixed
+- Opening a skill's detail page from a repository view no longer paints the persistent GitHub toggle button on top of the detail overlay.
+
 ## [0.4.9] — 2026-11-10
 
 ### Added
