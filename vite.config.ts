@@ -8,7 +8,7 @@ export default defineConfig({
   base: "./",
   build: {
     // The app's browser floor: the oldest shipped engine is WKWebView on
-    // macOS 13.3 (see AGENTS.md, "Browser Support Floor"). Keep in sync with
+    // macOS 13.3 (see AGENTS.md). Keep in sync with
     // bundle.macOS.minimumSystemVersion in src-tauri/tauri.conf.json.
     target: "safari16.4",
     outDir: "../dist",
