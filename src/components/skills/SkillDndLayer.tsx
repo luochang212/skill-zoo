@@ -92,6 +92,19 @@ export function SkillDragSource({
       ref={ref}
       role="group"
       aria-label={skill.name}
+      // Cancel the mousedown that starts the browser's native selection
+      // gesture: with the card text selectable, WebKit auto-scrolls the
+      // nearest scroll container once a selection drag crosses its edge,
+      // which scrolled the list behind a skill drag. Cancel mousedown, not
+      // pointerdown: dnd-kit's 200ms long-press pickup re-reads the original
+      // pointerdown event at activation time and bails on defaultPrevented,
+      // so canceling that would kill long-press drags. Left button only, so
+      // right-click context menus survive.
+      onMouseDown={(event) => {
+        if (!disabled && event.button === 0) {
+          event.preventDefault();
+        }
+      }}
       className={cn(
         className,
         !disabled && "cursor-grab active:cursor-grabbing",
