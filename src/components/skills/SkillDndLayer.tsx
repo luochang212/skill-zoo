@@ -1,3 +1,4 @@
+import { AutoScroller, defaultPreset } from "@dnd-kit/dom";
 import { DragDropProvider, DragOverlay, useDraggable, useDroppable } from "@dnd-kit/react";
 import { Check, FileText } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -21,6 +22,10 @@ const DRAG_END_CLEANUP_DELAY_MS = 32;
 const STALE_DRAG_FEEDBACK_ATTR = "data-dnd-stale-after-drop";
 
 export type SkillDropTarget = { type: "star" } | { type: "agent"; agent: string };
+
+// Skills are dragged only onto tabs to link agents, never reordered,
+// so edge auto-scrolling (AutoScroller) has nothing to offer during a drag.
+const DND_PLUGINS = defaultPreset.plugins.filter((plugin) => plugin !== AutoScroller);
 
 export interface SkillDropControls {
   afterDropSettled: (callback: () => void) => void;
@@ -176,6 +181,7 @@ export function SkillDndLayer({
 
   return (
     <DragDropProvider
+      plugins={DND_PLUGINS}
       onDragStart={({ operation }) => {
         const skillId = getDraggedSkillId(String(operation.source?.id ?? ""));
         const sourceBounds = operation.source?.element?.getBoundingClientRect();
