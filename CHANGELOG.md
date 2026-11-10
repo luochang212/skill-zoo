@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.12] — 2026-11-11
+
+### Fixed
+- Holding a skill drag past the edge of the skill list no longer scrolls the list behind the drag. The residual scroll left after the v0.4.11 auto-scroll removal came from the browser's native selection gesture running underneath pointer drags; drag sources now cancel the left-button mousedown so that gesture never starts. Right-click menus and long-press drags are unaffected.
+
 ## [0.4.11] — 2026-11-10
 
 ### Fixed
