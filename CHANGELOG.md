@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.11] — 2026-11-10
+
+### Fixed
+- Dragging a skill onto an agent tab or the star action no longer auto-scrolls ancestor containers mid-drag; edge auto-scrolling is dropped from the drag preset because skills are dragged onto targets, never reordered.
+
 ## [0.4.10] — 2026-11-10
 
 ### Changed

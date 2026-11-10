@@ -25,3 +25,5 @@ site/.astro/
 site/test-results/
 site/playwright-report/
 adr/.decision-sequence
+# adrkit note buffer: transient candidate lines, promoted to records or deleted
+adr/notes.md
