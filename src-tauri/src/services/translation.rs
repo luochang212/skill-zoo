@@ -3,6 +3,8 @@ use sha2::{Digest, Sha256};
 pub const MAX_SOURCE_BYTES: usize = 51_200;
 const POLICY_VERSION: u32 = 7;
 
+// Deliberately excludes provider, model, and output parameters so a given
+// source + language shares one cache entry across models.
 pub fn cache_key(language: &str, source: &str) -> String {
     let bytes = serde_json::to_vec(&(POLICY_VERSION, language, source)).unwrap();
     Sha256::digest(bytes)

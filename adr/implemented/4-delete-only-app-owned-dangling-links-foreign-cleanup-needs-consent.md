@@ -18,7 +18,7 @@ paths:
 
 agent skill 目录里确实存在应用并未创建的链接。用户会把单个 skill 或整个 `~/.claude/skills` 目录软链到 dotfiles 仓库、`~/.agents/skills` 或 git submodule（[claude-code#36659](https://github.com/anthropics/claude-code/issues/36659)、[#38051](https://github.com/anthropics/claude-code/issues/38051)、[skills#293](https://github.com/vercel-labs/skills/issues/293)），而「悬空」往往是瞬时的：submodule 反初始化，或目标目录正在重组。删除这样的链接是静默且不可逆的。旧规则还会删掉 Skill Zoo 自己建的协议链接：一个指向别的 agent 主目录的 `origin=agent` 链接，在扫描期与外来链接无法区分，于是用户整理目录期间的一次扫描就删掉了应用自己创建的链接。
 
-生态证据表明悬空状态是一大类而非长尾：某个竞品专门带 `symlink_valid` 字段，正因为用户会移动或删除目标文件（见 `openspec/changes/archive/2026-10-14-research-competitor-skill-managers-co-design/evidence/dossiers/` 下的 OPC-Skiller 档案），而 dotfiles 工具（Tuckr）自带悬空链接检查器，只报告、不删除。没有主流管理器会静默删除它没创建的链接。
+生态证据表明悬空状态是一大类而非长尾：某个竞品专门带 `symlink_valid` 字段，正因为用户会移动或删除目标文件（见 `openspec/changes/archive/2026-10-14-research-competitor-skill-managers-co-design/evidence/dossiers/` 下的 OPC-Skiller 档案。注：该证据目录已随 openspec/ 工作流移除，档案仍在 Git 历史（c4c6c93 之前）中），而 dotfiles 工具（Tuckr）自带悬空链接检查器，只报告、不删除。没有主流管理器会静默删除它没创建的链接。
 
 ## Decision
 
