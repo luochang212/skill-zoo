@@ -60,7 +60,7 @@ jobs:
 
       - name: Check no rsplit('/') outside the model-ID helper (cross-platform regression guard)
         run: |
-          if grep -rn --exclude='model_catalog.rs' 'rsplit('\''/'\'')' src-tauri/src --include '*.rs' \
+          if grep -rn --include='*.rs' 'rsplit('\''/'\'')' src-tauri/src --exclude='model_catalog.rs' \
               | grep .; then
             echo "ERROR: rsplit('/') on a path breaks Windows. Use std::path::Path::file_name() for paths; model-ID namespace splitting is owned by model_id_last_segment in model_catalog.rs"
             exit 1
