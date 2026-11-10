@@ -58,17 +58,11 @@ jobs:
       - name: Rust lint
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --features test-helpers -- -D warnings
 
-      - name: Check no rsplit('/') on path variables (cross-platform regression guard)
+      - name: Check no rsplit('/') outside the model-ID helper (cross-platform regression guard)
         run: |
-          # Path variables must not be split on '/' (breaks on Windows). A
-          # full-line comment or a line carrying the model-ID marker is exempt:
-          # model IDs like "vendor/name" use '/' as a namespace separator on
-          # every platform, so splitting them is not a path bug.
-          if grep -rn 'rsplit('\''/'\'')' src-tauri/src --include '*.rs' \
-              | grep -v 'model ID namespace, not a filesystem path' \
-              | grep -v ':[[:space:]]*//' \
+          if grep -rn --exclude='model_catalog.rs' 'rsplit('\''/'\'')' src-tauri/src --include '*.rs' \
               | grep .; then
-            echo "ERROR: rsplit('/') on a path. Use std::path::Path::file_name() instead for cross-platform safety. Non-path string splitting needs the marker comment 'model ID namespace, not a filesystem path'"
+            echo "ERROR: rsplit('/') on a path breaks Windows. Use std::path::Path::file_name() for paths; model-ID namespace splitting is owned by model_id_last_segment in model_catalog.rs"
             exit 1
           fi
 

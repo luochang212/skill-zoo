@@ -64,8 +64,6 @@ export function GitHubTokenSettings({
     !saveToken.isPending &&
     value.trim() !== savedToken.data.trim();
 
-  // Live check of the saved token while the dialog is open (an infrequent
-  // surface, and GitHub's rate-limit endpoint is free).
   const verificationQuery = useGitHubTokenVerification({ enabled: open && hasToken });
   const setOpen = (next: boolean) => {
     if (!next) {
@@ -75,8 +73,6 @@ export function GitHubTokenSettings({
     (onOpenChange ?? setInternalOpen)(next);
   };
 
-  // A fresh verification wins, then the dialog's live check, then the expiry
-  // persisted at the last successful save so the state survives restarts.
   const expiry = hasToken
     ? describeExpiry(
         saveToken.data?.verification?.expiresAt ??
@@ -101,7 +97,6 @@ export function GitHubTokenSettings({
     statusWarning ? "text-amber-600 dark:text-amber-500" : "text-muted-foreground",
   );
 
-  // Row subtitle mirrors the maintenance row: state-driven, not a static label.
   const rowStatus = (() => {
     if (statusQuery.isPending) return t("settings.github.loading");
     if (statusQuery.isError) return t("settings.github.loadFailed");
@@ -133,7 +128,6 @@ export function GitHubTokenSettings({
         t("settings.github.active", { limit: saveToken.data.verification.limit }),
       );
     }
-    // Live check fired on open: its truth beats stale persisted metadata.
     if (verificationQuery.data?.authenticated) {
       return withExpiryTail(t("settings.github.active", { limit: verificationQuery.data.limit }));
     }

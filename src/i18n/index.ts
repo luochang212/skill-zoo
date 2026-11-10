@@ -18,14 +18,12 @@ i18n
     fallbackLng: "en",
     defaultNS: "translation",
     interpolation: {
-      escapeValue: false, // React already escapes
+      escapeValue: false,
     },
     detection: {
-      // Check localStorage first, then browser language
       order: ["localStorage", "navigator"],
       lookupLocalStorage: LANGUAGE_KEY,
       caches: ["localStorage"],
-      // Map browser language codes to our supported languages
       convertDetectedLanguage: (lng: string) => {
         if (lng.startsWith("zh")) return "zh";
         return "en";

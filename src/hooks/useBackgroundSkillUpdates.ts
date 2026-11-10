@@ -5,7 +5,6 @@ import i18n from "@/i18n";
 import { formatApiError } from "@/lib/api/errors";
 import type { UpdateAllResult } from "@/lib/api/skills";
 
-// App owns completion feedback so navigating away from Settings cannot lose it.
 export function useBackgroundSkillUpdates() {
   const queryClient = useQueryClient();
   const notified = useRef(new WeakSet<object>());
@@ -20,7 +19,6 @@ export function useBackgroundSkillUpdates() {
         notified.current.delete(mutation);
         return;
       }
-      // Rejections already receive the global mutation onError toast.
       if (action.type !== "success" || notified.current.has(mutation)) return;
       notified.current.add(mutation);
       const result = mutation.state.data as UpdateAllResult;

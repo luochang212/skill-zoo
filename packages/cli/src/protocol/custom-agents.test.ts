@@ -111,8 +111,6 @@ describe("desktop-owned custom agents", () => {
     await writeMetadata(home, { entries: { [installed!.id]: { starred: true, isMine: true } } });
     expect((await archiveSkillRefs(home, [installed!.id])).failed).toEqual([]);
     const [archived] = await listArchivedSkills(home);
-    // These writes represent the desktop's protocol-defined file-preserving
-    // removal, not a CLI-owned alternate registration schema.
     await writeExternalImports(home, { version: 1, imports: { [installed!.id]: {
       id: installed!.id, sourcePath: skillRoot, directory: installed!.directory,
       importedAt: installed!.installedAt, updatedAt: installed!.updatedAt,

@@ -1,5 +1,3 @@
-// src-tauri/src/persistence/metadata.rs
-
 use crate::config;
 use crate::error::AppError;
 use crate::persistence::atomic_write;
@@ -7,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
-/// User metadata for a single skill. It is never rebuilt, only mutated by user actions.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillMetadata {
@@ -15,17 +12,11 @@ pub struct SkillMetadata {
     pub is_mine: bool,
 }
 
-/// Persisted map of skill_id → user metadata.
-/// Stored in ~/.skill-zoo/metadata.json, independent of the scan cache.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetadataStore {
     pub entries: HashMap<String, SkillMetadata>,
 }
 
-/// Map a legacy provenance-derived skill ID to the canonical installation
-/// directory identity. `repo:{owner}/{repo}:{dir}` → `ssot:{dir}`; owner/repo
-/// cannot contain `:`, so the first `:` after the prefix preserves the full directory.
-/// Any other ID form is already canonical and returns None.
 pub fn canonicalize_legacy_skill_id(skill_id: &str) -> Option<String> {
     let rest = skill_id.strip_prefix("repo:")?;
     let (_owner_repo, dir) = rest.split_once(':')?;
@@ -44,9 +35,6 @@ impl MetadataStore {
         }
     }
 
-    /// Load from an explicit path. Applies the legacy-key migration and
-    /// persists the converged state. Public so protocol fixtures can load
-    /// arbitrary metadata files directly.
     pub fn load_from(path: &Path) -> Result<Self, AppError> {
         if !path.exists() {
             return Ok(Self::empty());
@@ -59,18 +47,12 @@ impl MetadataStore {
             .map_err(|e| AppError::Parse(format!("metadata.json: {e}")))?;
         if store.migrate_legacy_keys() {
             if let Err(e) = store.save_to(path) {
-                // Converge on disk when possible, but never block loading on
-                // it: the in-memory state is already migrated.
                 eprintln!("metadata.json: legacy key migration save failed: {e}");
             }
         }
         Ok(store)
     }
 
-    /// Rekey legacy provenance-derived IDs to the canonical installation
-    /// directory identity (`repo:{owner}/{repo}:{dir}` → `ssot:{dir}`),
-    /// OR-merging into existing canonical entries. Returns true when the
-    /// entries changed, so the caller can persist the converged state.
     fn migrate_legacy_keys(&mut self) -> bool {
         let pairs: Vec<(String, String)> = self
             .entries
@@ -145,7 +127,6 @@ impl MetadataStore {
         entry.is_mine = is_mine;
     }
 
-    /// Remove metadata for a skill that no longer exists.
     pub fn remove(&mut self, skill_id: &str) {
         self.entries.remove(skill_id);
     }
@@ -172,7 +153,6 @@ mod tests {
             canonicalize_legacy_skill_id("repo:owner/repo:demo"),
             Some("ssot:demo".to_string())
         );
-        // Nested directories survive: owner/repo cannot contain ':'.
         assert_eq!(
             canonicalize_legacy_skill_id("repo:owner/re.go:category/nested"),
             Some("ssot:category/nested".to_string())
@@ -209,7 +189,6 @@ mod tests {
         assert!(store.get("agent:codex:/a/demo").starred);
         assert!(!store.entries.contains_key("repo:owner/repo:demo"));
 
-        // Convergence: the migrated state is persisted verbatim.
         let reloaded = MetadataStore::load_from(&path).expect("reload metadata");
         assert_eq!(reloaded.entries, store.entries);
     }
@@ -262,7 +241,6 @@ mod tests {
         let path = dir.path().join("metadata.json");
         let original = r#"{"entries":{"repo:owner/repo:demo":{"starred":true,"isMine":true}}}"#;
         std::fs::write(&path, original).expect("write metadata");
-        // Block the atomic writer's temp file without relying on OS permissions.
         std::fs::create_dir(dir.path().join("metadata.json.tmp")).expect("block write");
 
         let store = MetadataStore::load_from(&path).expect("load despite write failure");

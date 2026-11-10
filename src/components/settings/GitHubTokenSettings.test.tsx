@@ -10,7 +10,6 @@ import { GitHubTokenSettings } from "./GitHubTokenSettings";
 
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn().mockResolvedValue(undefined) }));
 
-/** Saved credential fixture served by the dedicated settings commands. */
 let saved: { token: string; expiresAt: string | null };
 
 function statusResponse() {
@@ -67,7 +66,6 @@ describe("GitHubTokenSettings", () => {
     expect(await screen.findByText("Token configured")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /manage/i })).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    // Saved state arrives via the status command, not the generic settings read.
     expect(
       vi.mocked(invoke).mock.calls.some(([command]) => command === "get_github_credential_status"),
     ).toBe(true);
@@ -104,7 +102,6 @@ describe("GitHubTokenSettings", () => {
       .mocked(invoke)
       .mock.calls.find(([command]) => command === "verify_saved_github_token");
     expect(call).toBeDefined();
-    // Verification reads the saved token server-side without a token argument.
     expect(call?.[1]).toBeUndefined();
   });
 
@@ -124,7 +121,6 @@ describe("GitHubTokenSettings", () => {
       "Token no longer valid · GitHub rejected it, save a new one",
     );
     expect(line).toHaveClass("text-amber-600");
-    // The invalid verdict does not alter the saved credential.
     expect(saved.token).toBe("previous-token");
   });
 
@@ -140,8 +136,6 @@ describe("GitHubTokenSettings", () => {
     });
     renderSettings();
     await openDialog();
-    // A failed passive check is not the save flow's "Verification failed".
-    // The dialog just keeps the saved-state display.
     const dialog = await screen.findByRole("dialog");
     expect(await within(dialog).findByText("Token configured")).toBeInTheDocument();
     expect(within(dialog).queryByText(/Verification failed/)).not.toBeInTheDocument();
@@ -279,7 +273,6 @@ describe("GitHubTokenSettings", () => {
     renderSettings();
     const input = await openDialog();
     expect(screen.queryByRole("button", { name: /remove token|confirm removal/i })).toBeNull();
-    // Clearing edits the draft; saving commits the replacement.
     await user.clear(input);
     await user.type(input, "replacement-token");
     await user.click(screen.getByRole("button", { name: /^save$/i }));

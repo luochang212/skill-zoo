@@ -21,7 +21,6 @@ const imageUrl = new URL(basePath + 'screenshots/screenshot-1.webp', Astro.site)
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script is:inline define:vars={{ basePath }}>
-      // Keep old language links and root-language preferences working before paint.
       const url = new URL(location.href);
       const requested = url.searchParams.get('lang');
       let preferred = requested === 'zh' || requested === 'en' ? requested : null;

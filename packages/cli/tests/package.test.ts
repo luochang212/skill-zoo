@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 
 describe("npm package manifest", () => {
   it("ships WUI static assets", async () => {
-    // import.meta.dirname (Node 21.2+) avoids Vite /@fs/ prefix on import.meta.url
     const dir = typeof import.meta.dirname === "string"
       ? import.meta.dirname
       : path.dirname(fileURLToPath(import.meta.url));

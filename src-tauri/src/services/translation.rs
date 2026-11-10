@@ -3,8 +3,6 @@ use sha2::{Digest, Sha256};
 pub const MAX_SOURCE_BYTES: usize = 51_200;
 const POLICY_VERSION: u32 = 7;
 
-// Deliberately excludes provider, model, and output parameters so a given
-// source + language shares one cache entry across models.
 pub fn cache_key(language: &str, source: &str) -> String {
     let bytes = serde_json::to_vec(&(POLICY_VERSION, language, source)).unwrap();
     Sha256::digest(bytes)
@@ -44,8 +42,6 @@ mod tests {
         assert_eq!(base, cache_key("zh-CN", "hello"));
         assert_ne!(base, cache_key("zh-CN", "hello!"));
         assert_ne!(base, cache_key("ja", "hello"));
-        // The policy version participates in the key, so a prompt-contract change
-        // invalidates previously cached translations.
         let source = "abc";
         let bytes = serde_json::to_vec(&(7u32, "zh-CN", source)).unwrap();
         let expected: String = Sha256::digest(bytes)

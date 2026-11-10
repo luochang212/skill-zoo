@@ -458,7 +458,6 @@ export const InstalledSkills = memo(function InstalledSkills({
     onSelectCategory({ type: "consistency" });
   };
 
-  // Clear nav target when leaving consistency view so sidebar-click returns don't re-scroll
   useEffect(() => {
     if (category.type !== "consistency") {
       setConsistencyNavTarget(null);
@@ -494,10 +493,6 @@ export const InstalledSkills = memo(function InstalledSkills({
       ),
     [showNonSsot, skillsList, visibleAgentSet],
   );
-  // Plugin skills live only in their own sidebar category. The category is
-  // their sole surface for read-only inspections that must not vanish when the
-  // owning coding agent is hidden, so neither coding-agent visibility nor the
-  // SSOT filter gates it; their own Settings switch governs discovery.
   const pluginSkills = useMemo(() => skillsList.filter((s) => s.origin === "plugin"), [skillsList]);
   const consistencySkills = useMemo(
     () => visibleSkills.filter((s) => isInVisibleLocalScope(s, visibleAgentSet, false)),
@@ -559,7 +554,7 @@ export const InstalledSkills = memo(function InstalledSkills({
                 case "unassigned":
                   return !(s.repoOwner && s.repoName);
                 case "consistency":
-                  return true; // ConsistencyPanel handles its own rendering
+                  return true;
                 case "all":
                 default:
                   return true;
@@ -584,7 +579,6 @@ export const InstalledSkills = memo(function InstalledSkills({
           case "repo": {
             const aRepo = a.repoOwner && a.repoName ? `${a.repoOwner}/${a.repoName}` : "";
             const bRepo = b.repoOwner && b.repoName ? `${b.repoOwner}/${b.repoName}` : "";
-            // Empty values always last
             if (!aRepo && bRepo) return 1;
             if (aRepo && !bRepo) return -1;
             if (!aRepo && !bRepo) return 0;
@@ -608,8 +602,6 @@ export const InstalledSkills = memo(function InstalledSkills({
     [filtered, isArchiveView, sortDirection, sortField],
   );
 
-  // Plugin skills are read-only management objects: selection stays disabled
-  // so batch actions can never target them.
   const selectionDisabled = isArchiveView || category.type === "plugin";
   const visibleSelectedSkills = useMemo(
     () => sorted.filter((s) => !selectionDisabled && selectedIds.has(s.id)),
@@ -849,9 +841,7 @@ export const InstalledSkills = memo(function InstalledSkills({
             }),
           ),
         );
-      } catch {
-        // The global mutation handler reports the error.
-      }
+      } catch {}
     })();
   };
 
@@ -859,7 +849,6 @@ export const InstalledSkills = memo(function InstalledSkills({
 
   const renderContent = (draggedSkill: InstalledSkill | null) => (
     <div className="flex h-full relative">
-      {/* Sidebar */}
       <SkillSidebar
         skills={visibleSkills}
         plugins={pluginSkills}
@@ -873,10 +862,8 @@ export const InstalledSkills = memo(function InstalledSkills({
         draggedSkill={draggedSkill}
       />
 
-      {/* Main content */}
       <div className="flex flex-col flex-1 min-w-0">
         <div className="flex-1 min-h-0 p-6 pb-0 flex flex-col relative">
-          {/* Toolbar. Hidden in consistency view since it has its own panel */}
           {category.type !== "consistency" && (
             <div className="flex items-center gap-3 mb-6">
               <input
@@ -939,7 +926,6 @@ export const InstalledSkills = memo(function InstalledSkills({
             </div>
           )}
 
-          {/* Matching primary actions for the mine and import categories. */}
           {(category.type === "mine" || category.type === "import") && (
             <div className="mb-5">
               <button
@@ -959,7 +945,6 @@ export const InstalledSkills = memo(function InstalledSkills({
             </div>
           )}
 
-          {/* Consistency category. Show ConsistencyPanel instead of cards */}
           {category.type === "consistency" ? (
             <ConsistencyPanel
               duplicateGroups={duplicateGroups}
@@ -1072,7 +1057,6 @@ export const InstalledSkills = memo(function InstalledSkills({
           )}
         </div>
 
-        {/* Floating action bar */}
         {viewMode !== "grid" && visibleSelectedIds.length > 0 && (
           <div className="border-t border-border bg-background/95 backdrop-blur-sm pl-5 pr-6 py-3 flex items-center justify-between shrink-0">
             <span className="text-sm text-muted-foreground">

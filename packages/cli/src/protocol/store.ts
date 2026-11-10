@@ -18,9 +18,6 @@ const SUPPORTED_LOCK_VERSION = 3;
 const SUPPORTED_ARCHIVE_VERSION = 1;
 const SUPPORTED_EXTERNAL_IMPORTS_VERSION = 1;
 
-/** Read a desktop-owned state file and reject non-object documents (for
- *  example a literal `null`) with a clean error instead of a TypeError,
- *  matching the desktop's report-don't-swallow rule for malformed files. */
 async function readStateFile<T extends object>(filePath: string, fallback: T): Promise<T> {
   const value = await readJson<T>(filePath, fallback);
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -90,8 +87,6 @@ export async function readMetadata(home?: string): Promise<MetadataStore> {
     ...metadata,
     entries: metadata.entries ?? {},
   };
-  // Rekey legacy provenance-derived IDs to the canonical installation
-  // directory identity (mirrors the desktop's MetadataStore migration).
   const legacyKeys = Object.keys(store.entries).filter(
     (key) => canonicalizeLegacySkillId(key) !== null,
   );
@@ -121,12 +116,6 @@ export async function readMetadata(home?: string): Promise<MetadataStore> {
   return store;
 }
 
-/**
- * Map a legacy provenance-derived skill ID to the canonical installation
- * directory identity. `repo:{owner}/{repo}:{dir}` → `ssot:{dir}`; owner/repo
- * cannot contain `:`, so the first `:` after the prefix preserves the full directory.
- * Any other ID form is already canonical and returns null.
- */
 export function canonicalizeLegacySkillId(skillId: string): string | null {
   if (!skillId.startsWith("repo:")) {
     return null;

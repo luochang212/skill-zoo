@@ -145,8 +145,6 @@ impl CommandError {
         }
     }
 
-    /// User-initiated cancellation. Not a failure: the frontend recognizes the
-    /// code and must not render it through the error copy table.
     pub fn cancelled() -> Self {
         Self {
             code: "cancelled",
@@ -226,11 +224,6 @@ pub fn classify_download_error(repo: String, error: reqwest::Error) -> AppError 
     let msg = error.to_string().to_lowercase();
 
     if error.is_connect() {
-        // macOS DNS: "nodename nor servname provided, or not known"
-        // Linux glibc DNS: "Temporary failure in name resolution"
-        // Linux glibc DNS: "Name or service not known"
-        // BSD/macOS DNS: "No address associated with hostname"
-        // Windows DNS: "No such host is known"
         let is_dns = msg.contains("dns")
             || msg.contains("name resolution")
             || msg.contains("nodename nor servname")
@@ -246,9 +239,6 @@ pub fn classify_download_error(repo: String, error: reqwest::Error) -> AppError 
             };
         }
 
-        // When is_request() is also true, hyper combined the connect + request
-        // error. Check remaining keywords only against the connect-only case
-        // to avoid misclassifying HTTP-level errors as DNS.
         if !error.is_request()
             && (msg.contains("resolve")
                 || msg.contains("lookup")
@@ -262,7 +252,6 @@ pub fn classify_download_error(repo: String, error: reqwest::Error) -> AppError 
             };
         }
 
-        // TLS errors. These are distinct from plain "can't connect" errors.
         if msg.contains("tls")
             || msg.contains("ssl")
             || msg.contains("certificate")
@@ -283,8 +272,6 @@ pub fn classify_download_error(repo: String, error: reqwest::Error) -> AppError 
         };
     }
 
-    // We have an error after the connection was established.
-    // Check for TLS issues in the response phase too (e.g. incomplete handshake).
     if msg.contains("tls")
         || msg.contains("ssl")
         || msg.contains("certificate")
@@ -296,8 +283,6 @@ pub fn classify_download_error(repo: String, error: reqwest::Error) -> AppError 
         };
     }
 
-    // Preserve HTTP status when available because it helps distinguish
-    // "connected but body transfer failed" from other network errors.
     if let Some(status) = error.status() {
         eprintln!("  http_status={}", status.as_u16());
         return AppError::DownloadNetwork {
@@ -361,7 +346,6 @@ mod tests {
 
     #[test]
     fn command_error_maps_dns_connect_tls_variants() {
-        // Verify the DNS, connect, and TLS AppError variants map to expected codes.
         let source = reqwest::Client::new()
             .get("not a valid url")
             .build()
@@ -402,13 +386,6 @@ mod tests {
 
     #[tokio::test]
     async fn classify_download_error_handles_connect_failure() {
-        // Trigger a real connection failure against a loopback port with no
-        // listener, bypassing ambient proxy settings. A non-existent domain is
-        // NOT hermetic: fake-IP VPN resolvers answer every name with a local
-        // proxy address, and proxy env vars reroute the request entirely.
-        // The guard must stay well above 2s: on Windows the refusal can take
-        // ~2s to reach an overlapped connect, and a shorter timeout would win
-        // the race, turning the error into a timeout instead of a connect.
         let client = reqwest::Client::builder()
             .no_proxy()
             .timeout(std::time::Duration::from_secs(10))
@@ -421,9 +398,6 @@ mod tests {
         let command_error = CommandError::from(app_error);
 
         assert_eq!(command_error.repo.as_deref(), Some("test/repo"));
-        // Hyper wraps DNS errors in a combined connect+request error.
-        // When the OS-level DNS message isn't preserved, we classify as
-        // downloadConnect (general connectivity issue) rather than downloadDns.
         assert!(
             command_error.code == "downloadDns" || command_error.code == "downloadConnect",
             "unexpected code: {}",

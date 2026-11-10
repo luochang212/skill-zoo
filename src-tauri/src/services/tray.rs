@@ -217,7 +217,6 @@ pub fn setup_tray(app: &mut App) -> tauri::Result<()> {
     state.quit_item.lock().unwrap().replace(quit);
     state.companion_menu.lock().unwrap().replace(companion_menu);
     state.recent_menu.lock().unwrap().replace(recent_menu);
-    // Linux emits no tray mouse events; periodic refresh also covers menus left closed.
     let handle = app_handle.clone();
     tauri::async_runtime::spawn(async move {
         loop {
@@ -357,8 +356,6 @@ fn replace_companion_menu_items(
         .iter()
         .filter_map(|item| companion_menu_title(&item.content).map(|title| (item, title)))
         .collect();
-    // Always reachable: jumps to the manager dialog to add a new item. Built
-    // once here and appended in whichever branch runs below.
     let add_item = MenuItem::with_id(
         app,
         MENU_COMPANION_ADD,
@@ -689,17 +686,14 @@ mod tests {
             Some("Review this code".to_string())
         );
         assert_eq!(companion_menu_title(" \n\t"), None);
-        // 40 ASCII chars (width 40 > 36), truncated to first 33 (width 33 + 3 = 36)
         assert_eq!(
             companion_menu_title("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN"),
             Some("abcdefghijklmnopqrstuvwxyzABCDEFG...".to_string())
         );
-        // CJK text is double-width, truncated to first 16 chars (width 32 + 3 = 35)
         assert_eq!(
             companion_menu_title("这是一些中文测试文本用于验证截断功能是否正确工作"),
             Some("这是一些中文测试文本用于验证截断...".to_string())
         );
-        // Short text within width limit is not truncated
         assert_eq!(companion_menu_title("短文本"), Some("短文本".to_string()));
     }
 

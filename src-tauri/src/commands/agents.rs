@@ -132,9 +132,6 @@ fn real_skills(root: &Path) -> Result<Vec<PathBuf>, String> {
             skills.push(path.to_path_buf());
             return Ok(());
         }
-        // Unreadable directories are skipped, matching the scanner's behavior
-        // (services::skill::collect_files_recursive), so a permissions problem
-        // cannot block agent removal or path changes.
         let Ok(entries) = std::fs::read_dir(path) else {
             return Ok(());
         };
@@ -176,7 +173,6 @@ fn preview_path(state: &AppState, path: &Path, id: Option<&str>) -> Result<Agent
     );
     let mut owned_links = 0;
     if path.is_dir() {
-        // Best-effort count, like the link cleanup this previews.
         if let Ok(entries) = std::fs::read_dir(path) {
             for entry in entries.flatten() {
                 let path = entry.path();
@@ -468,7 +464,6 @@ fn commit_agent_change(
     if next.is_none() {
         visible.remove(&id);
     }
-    // Reappearing shipped defaults must not unexpectedly exceed the visible cap.
     let effective = config::resolve_agents(registry.clone());
     let saved_visible: std::collections::HashMap<String, bool> = settings
         .get("visible_agents")
@@ -486,7 +481,6 @@ fn commit_agent_change(
             );
         }
     }
-    // Keep dormant built-in preferences; never count them as active targets.
     let mut persisted_visible = visible.clone();
     for builtin in config::AGENTS
         .iter()
@@ -605,8 +599,6 @@ mod tests {
             let entry = SkillService::scan_skill_root(&skill, &root, Some(id)).unwrap();
             state.skill_cache.write().unwrap().upsert(entry.clone());
             {
-                // Metadata is disk-authoritative: persist the mark like the
-                // commands under test do.
                 let mut metadata = state.metadata.write().unwrap();
                 metadata.set_starred(&entry.id, true);
                 metadata.save().unwrap();
@@ -619,7 +611,6 @@ mod tests {
             for a in config::agents().iter().filter(|a| a.id != id).take(6) {
                 visible.insert(a.id.clone(), true);
             }
-            // Preserve a dormant built-in preference, but cap takes priority on reactivation.
             visible.insert("codex".into(), true);
             state.settings.lock().unwrap().set(
                 "visible_agents".into(),
@@ -740,7 +731,7 @@ mod tests {
         std::fs::write(locked.join("SKILL.md"), "# Locked").unwrap();
         std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o000)).unwrap();
         if std::fs::read_dir(&locked).is_ok() {
-            restore(&locked); // Privileged runners can read mode-000 directories.
+            restore(&locked);
             return;
         }
         let skills = real_skills(&root).unwrap();
@@ -977,7 +968,7 @@ mod tests {
             std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o555)).unwrap();
             if std::fs::write(root.join("permission-probe"), "probe").is_ok() {
                 std::fs::set_permissions(&root, original).unwrap();
-                return; // Privileged test runners cannot exercise this failure.
+                return;
             }
             let change = commit_agent_change(&state, Some(added.agent_id.clone()), None);
             std::fs::set_permissions(&root, original).unwrap();
@@ -1113,8 +1104,6 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path().join("skills");
         std::fs::create_dir_all(&root).unwrap();
-        // 64 Unicode scalar values are accepted; 65 are not, proving the limit
-        // counts characters rather than bytes.
         let limit = "工".repeat(64);
         assert!(validate(&limit, &root, None, &[], &[]).is_ok());
         assert!(validate(&format!("{limit}工"), &root, None, &[], &[]).is_err());

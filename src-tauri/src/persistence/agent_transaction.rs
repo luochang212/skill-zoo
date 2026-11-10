@@ -10,8 +10,6 @@ const FILES: &[&str] = &[
     "metadata.json",
 ];
 
-// Loopback ownership is released by the OS even after a crash. Unlike PID-file
-// reclamation, it cannot displace a newly acquired lease during stale recovery.
 pub struct AgentLease {
     _listener: std::net::TcpListener,
 }
@@ -45,10 +43,6 @@ impl AgentLease {
     }
 }
 
-// SO_REUSEADDR keeps a fast release-and-reacquire (desktop restart, or the
-// release test) immune to kernel linger state on the closed listener. A live
-// listener elsewhere still fails the bind, so the cross-process exclusivity
-// contract is unchanged.
 fn try_bind_lease_port(dir: &Path, port: u16) -> Result<std::net::TcpListener, AppError> {
     #[cfg(unix)]
     {
@@ -79,13 +73,6 @@ fn lease_bind_error(dir: &Path, error: std::io::Error) -> AppError {
     }
 }
 
-// Tests run many leases concurrently against distinct homes whose identities
-// hash into one shared 16k port range, so two tests occasionally land on the
-// same port and the loser's bind fails while the winner's test is still
-// finishing. Retry briefly in test builds: a live holder releases within
-// milliseconds, while a real lease leak outlasts the window and still fails.
-// Production keeps the single attempt because a conflict there means another
-// process owns the lease and must be reported immediately.
 fn bind_lease_port(dir: &Path, port: u16) -> Result<std::net::TcpListener, AppError> {
     let attempts = if cfg!(test) { 100 } else { 1 };
     let mut conflict = None;
@@ -145,7 +132,6 @@ pub fn recover(dir: &Path) -> Result<(), AppError> {
             "Upgrade Skill Zoo to recover this agent lifecycle".into(),
         ));
     }
-    // Validate the entire journal before changing any file.
     if journal
         .before
         .keys()
@@ -216,11 +202,8 @@ fn commit_with(
         return Err(original);
     }
     if checkpoint(journal.after.len() + 1).is_err() {
-        // A durable commit is success even when post-commit cleanup is
-        // interrupted. The next lease acquisition rolls the journal forward.
         return Ok(());
     }
-    // The commit marker is durable. Cleanup failure must not report a rollback.
     if let Err(e) = recover(dir) {
         eprintln!("Committed agent lifecycle requires recovery: {e}");
     }
@@ -238,8 +221,6 @@ mod tests {
 
         let tmp = tempfile::tempdir().unwrap();
         let after = BTreeMap::from([("settings.json".into(), Some("new state".into()))]);
-        // Interrupt the post-commit cleanup so the journal survives for the
-        // crash-recovery window this test observes.
         commit_with(tmp.path(), after, |stage| {
             if stage == 2 {
                 Err(AppError::BadRequest("interrupted cleanup".into()))
@@ -335,7 +316,6 @@ mod tests {
                 for (index, (name, _)) in entries.iter().enumerate() {
                     let path = tmp.path().join(name);
                     if index == fail_at {
-                        // A directory blocks both a file replacement and a file deletion.
                         std::fs::create_dir(&path).unwrap();
                     } else {
                         std::fs::write(&path, format!("partial:{name}")).unwrap();
@@ -363,7 +343,6 @@ mod tests {
                 std::fs::remove_dir(tmp.path().join(entries[fail_at].0)).unwrap();
                 recover(tmp.path()).unwrap();
                 assert!(!journal_path.exists());
-                // The normal no-journal retry is idempotent too.
                 recover(tmp.path()).unwrap();
                 for (name, content) in &entries {
                     assert_eq!(

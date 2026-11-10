@@ -21,12 +21,6 @@ impl SkillService {
         Self::merge_duplicates_inner(skill_name, cache, metadata)
     }
 
-    /// Merge all duplicates of a skill name into SSOT.
-    /// Copies first skill's files to SSOT, creates symlinks only for agents
-    /// that already had the skill, removes original non-SSOT directories,
-    /// and migrates metadata from old IDs to the new merged ID.
-    /// IMPORTANT: Caller must get user confirmation before calling this.
-    /// Returns an error if the duplicates have different content (cannot auto-merge).
     fn merge_duplicates_inner(
         skill_name: &str,
         cache: &RwLock<SkillCache>,
@@ -66,8 +60,6 @@ impl SkillService {
             )));
         }
 
-        // Filter out external imports and plugin skills. Their source files
-        // are owned by the user or by the plugin, not by Skill Zoo.
         let entries: Vec<SkillCacheEntry> = entries
             .into_iter()
             .filter(|entry| entry.origin != "external" && entry.origin != "plugin")
@@ -79,8 +71,6 @@ impl SkillService {
             )));
         }
 
-        // Refuse to merge if content differs (safety check. The frontend should
-        // already prevent this, but backend must enforce it too).
         if !Self::duplicates_have_verified_matching_content(&entries) {
             return Err(AppError::BadRequest(format!(
                 "Cannot merge: skills named '{skill_name}' do not all have verified matching content. Please resolve manually."
@@ -97,7 +87,6 @@ impl SkillService {
             .map_err(|e| AppError::Parse(e.to_string()))?
             .clone();
 
-        // Use the first entry's home_path as source
         let source_path = entries[0]
             .home_path
             .as_ref()
@@ -106,7 +95,6 @@ impl SkillService {
         let ssot_dir = config::get_agents_skills_dir();
         let dest_dir = ssot_dir.join(skill_name);
 
-        // Verify live files before deleting any original; cache hashes may be stale.
         let expected_hash = Self::compute_content_hash(source_path)
             .ok_or_else(|| AppError::BadRequest("Cannot verify merge source".into()))?;
         for entry in &entries {
@@ -181,8 +169,6 @@ impl SkillService {
         }
         if Self::compute_content_hash(&dest_dir.to_string_lossy()).as_ref() != Some(&expected_hash)
         {
-            // A source may have changed after validation. Keep the originals
-            // and remove only the destination this operation created.
             if created_dest {
                 let _ = std::fs::remove_dir_all(&dest_dir);
             }
@@ -194,7 +180,6 @@ impl SkillService {
         let mut files = MergeFiles::default();
         let result = (|| {
             let mut links = HashSet::new();
-            // Save links before moving their targets, while physical matching is reliable.
             for entry in &entries {
                 if entry.origin == "ssot" {
                     continue;
@@ -222,7 +207,6 @@ impl SkillService {
                 }
             }
             for (agent, directory) in links {
-                // Never claim a pre-existing link in rollback ownership.
                 let root = config::get_agent_skills_dir(&agent)
                     .ok_or_else(|| AppError::BadRequest(format!("Unknown agent: {agent}")))?;
                 let link = root.join(Self::agent_link_name(&directory));
@@ -339,7 +323,6 @@ impl SkillService {
     }
 }
 
-// Originals survive until both stores have committed. Failed recovery keeps backups.
 #[derive(Default)]
 struct MergeFiles {
     staged: Vec<(PathBuf, tempfile::TempDir)>,

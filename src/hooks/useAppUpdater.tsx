@@ -59,17 +59,13 @@ function readLastKnownUpdateVersion() {
 function writeLastKnownUpdateVersion(version: string) {
   try {
     localStorage.setItem(LAST_KNOWN_UPDATE_VERSION_KEY, version);
-  } catch {
-    // Cache failure should not block the update flow.
-  }
+  } catch {}
 }
 
 function clearLastKnownUpdateVersion() {
   try {
     localStorage.removeItem(LAST_KNOWN_UPDATE_VERSION_KEY);
-  } catch {
-    // Cache failure should not block the update flow.
-  }
+  } catch {}
 }
 
 interface AppUpdaterState {
@@ -93,9 +89,6 @@ export function AppUpdaterProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<AppUpdateError>(null);
   const updateRef = useRef<Update | null>(null);
   const busyRef = useRef(false);
-  // Request generation: every async flow bumps this when it starts and only
-  // applies its results while still the newest flow, so a stale startup check
-  // can never regress downloading/readyToRestart back to idle/available.
   const requestGenRef = useRef(0);
 
   useEffect(() => {
@@ -143,9 +136,7 @@ export function AppUpdaterProvider({ children }: { children: ReactNode }) {
                 setStatus("idle");
               }
             })
-            .catch(() => {
-              // Keep the cached update visible when the network is unavailable.
-            });
+            .catch(() => {});
           return;
         }
 

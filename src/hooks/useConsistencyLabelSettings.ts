@@ -20,9 +20,7 @@ function read(): ConsistencyLabelSettings {
         showMismatch: parsed.showMismatch ?? true,
       };
     }
-  } catch {
-    // corrupted data, fall through to defaults
-  }
+  } catch {}
   return { showDuplicate: true, showConflict: true, showMismatch: true };
 }
 
@@ -34,8 +32,6 @@ function write(settings: ConsistencyLabelSettings) {
 export function useConsistencyLabelSettings() {
   const [settings, setSettings] = useState<ConsistencyLabelSettings>(read);
 
-  // Sync across hook instances: when one component writes to localStorage,
-  // all other instances re-read via this custom event.
   useEffect(() => {
     const handler = () => setSettings(read());
     window.addEventListener(CHANGE_EVENT, handler);

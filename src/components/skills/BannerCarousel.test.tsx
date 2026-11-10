@@ -130,14 +130,12 @@ describe("BannerCarousel motion preference", () => {
     act(() => vi.advanceTimersByTime(1000));
     expect(activeTitle()).toBe("Second");
 
-    // Hovering the carousel neither pauses autoplay nor whitens the active dot.
     fireEvent.mouseEnter(view.container.firstElementChild!);
     act(() => vi.advanceTimersByTime(7000));
     expect(activeTitle()).toBe("First");
     expect(progress().style.animation).toContain("7000ms");
     expect(track().className).toContain("bg-white/30");
 
-    // Hovering the dots whitens the active dot while autoplay continues.
     fireEvent.mouseEnter(dots);
     expect(track().className).not.toContain("bg-white/30");
     act(() => vi.advanceTimersByTime(7000));

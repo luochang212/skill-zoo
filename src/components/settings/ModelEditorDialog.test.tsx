@@ -166,7 +166,6 @@ describe("model configuration editor", () => {
     const config = { ...props(), model: { ...model, ...limits } };
     render(<ModelEditorDialog {...config} />);
     await tick();
-    // Saved values keep the dialog quiet until the ID itself changes.
     expect(translationApi.resolveModel).not.toHaveBeenCalled();
     expect(toast.success).not.toHaveBeenCalled();
     await input.clear(screen.getByLabelText("Model ID"));
@@ -188,7 +187,6 @@ describe("model configuration editor", () => {
     await input.type(screen.getByLabelText("Model ID"), "model-b");
     await tick();
     expect(translationApi.resolveModel).toHaveBeenCalledWith(config.baseUrl, "model-b");
-    // A fruitless lookup must not wipe the user's saved values.
     expect(screen.getByLabelText("Context window")).toHaveValue("1200");
     expect(screen.getByLabelText("Maximum output tokens")).toHaveValue("300");
     expect(toast.success).not.toHaveBeenCalled();

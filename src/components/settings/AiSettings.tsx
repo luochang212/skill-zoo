@@ -17,7 +17,6 @@ import { TranslationSettings } from "./TranslationSettings";
 import { SettingsPickerContext } from "./SettingsSelect";
 
 type SettingsPage = "providers" | "translation";
-/** Two independent entry rows; configuration forms only mount inside the detail dialog. */
 export function AiSettingsRows() {
   const { t } = useTranslation();
   const providers = useSkillProviders();
@@ -137,7 +136,6 @@ export function AiSettingsDialog({
       setPickerOpen(false);
       return;
     }
-    // Match Usage habits: Dialog handles the later click, after the menu has closed.
     const capture = () => {
       pickerOpenAtPointerDown.current = pickerOpenRef.current;
     };

@@ -13,8 +13,6 @@ function getSnapshot() {
   return window.matchMedia?.(query).matches ?? false;
 }
 
-// Framer Motion's hook snapshots the initial preference; this subscription also
-// responds when the OS preference changes while the app is open.
 export function useReducedMotion() {
   return useSyncExternalStore(subscribe, getSnapshot, () => false);
 }

@@ -52,8 +52,6 @@ vi.mock("@/components/skills/SkillInstallDialog", () => ({
 
 vi.mock("@/hooks/useRepoTasks", () => ({
   useRepoTask: () => ({
-    // A refetch failure retains the previous results, so error and data can
-    // coexist — exactly the cancelled-refresh state.
     data: mocks.repoSkillsError
       ? mocks.repoSkillsStaleData
       : {
@@ -218,8 +216,6 @@ describe("RepoDetail discover status", () => {
   });
 
   it("returns to the loading skeleton while a cancelled load is being retried", () => {
-    // During the refetch of an errored query the error persists, data stays
-    // undefined and fetching turns true — the skeleton must win over both.
     mocks.repoSkillsError = { code: "cancelled", message: "Load cancelled" };
     mocks.repoSkillsFetching = true;
 
@@ -290,8 +286,6 @@ describe("skill preview install", () => {
     renderDetail();
     await user.click(await screen.findByRole("button", { name: "Available Skill" }));
     expect(mocks.installMutate).not.toHaveBeenCalled();
-    // Row-level install buttons are gone; the preview panel's footer button is
-    // the only per-skill install control left.
     const panelInstall = screen
       .getAllByRole("button", { name: "Install" })
       .find((button) => !button.hasAttribute("disabled"));

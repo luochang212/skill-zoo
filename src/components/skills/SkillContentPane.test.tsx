@@ -9,23 +9,6 @@ import { createTestQueryClient } from "@/test/utils";
 
 vi.mock("@tauri-apps/api/core");
 
-/**
- * Why this test exists (not a tautology):
- *
- * Tailwind CSS v4 compiles `-translate-x-full` to the INDIVIDUAL css property
- * `translate: var(--tw-translate-x) ...` and never to `transform`. The sidebar
- * previously declared `transition-[transform,opacity]`, so the transition never
- * covered the property that actually changed and the slide silently degraded to a
- * pure fade. Verified in a real browser against the repo's built CSS:
- * `.-translate-x-full{--tw-translate-x:-100%;translate:...}`,
- * `.transition-\[transform\,opacity\]{transition-property:transform,opacity}`,
- * `.transition-transform{transition-property:transform,translate,scale,rotate}`.
- *
- * So the guard is: the element that gets the translate utility must declare a
- * transition that covers `translate`, and the container whose width changes must
- * animate that width (otherwise it snaps to 0 in the same frame and the outgoing
- * slide is clipped, which is why collapsing looked like an instant vanish).
- */
 function renderPane(sidebarOpen: boolean) {
   return render(
     <QueryClientProvider client={createTestQueryClient()}>
@@ -94,11 +77,6 @@ describe("SkillContentPane sidebar animation", () => {
   });
 });
 
-/**
- * Regression (review S6): auxiliary file drafts used to live in a single slot
- * that was cleared on every file switch, silently discarding edits. Drafts are
- * now per-file and reported to the parent for leave protection.
- */
 const mockFileNodes = [
   { name: "SKILL.md", path: "SKILL.md", isDir: false, isSkillMd: true },
   { name: "README.md", path: "README.md", isDir: false, isSkillMd: false },
@@ -189,9 +167,6 @@ describe("SkillContentPane collapsed sidebar focus", () => {
 
     await user.click(screen.getByRole("button", { name: "Hide file sidebar" }));
 
-    // jsdom does not enforce inert semantics, but the attribute is the
-    // browser contract (Safari 16.4 floor supports it) that removes the
-    // collapsed tree from the tab order. The review found it missing.
     expect(paneContainer).toHaveAttribute("inert");
   });
 });

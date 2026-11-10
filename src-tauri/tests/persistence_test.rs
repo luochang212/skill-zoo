@@ -150,10 +150,8 @@ fn test_skill_cache_upsert_dedup_by_home_path() {
     assert_eq!(cache.skills().len(), 1);
     let entry = cache.find_by_id("repo:owner/demo:demo").expect("entry");
     assert_eq!(entry.name, "demo");
-    // installed_at preserved from stale entry
     assert_eq!(entry.installed_at, 1000);
     assert_eq!(entry.updated_at, 3000);
-    // stale id should no longer be in the index
     assert!(cache.find_by_id("ssot:demo").is_none());
 }
 
@@ -182,8 +180,6 @@ fn test_skill_cache_upsert_dedup_by_directory_fallback() {
 
 #[test]
 fn test_skill_cache_upsert_normalizes_home_path_to_forward_slashes() {
-    // On Windows the incoming home_path may have native backslash separators.
-    // upsert() must normalize it to forward slashes before storing in cache.
     let entry = SkillCacheEntry {
         id: "ssot:demo".to_string(),
         name: "demo".to_string(),
@@ -207,9 +203,6 @@ fn test_skill_cache_upsert_normalizes_home_path_to_forward_slashes() {
 
 #[test]
 fn test_skill_cache_from_entries_normalizes_home_path() {
-    // When cache is loaded from disk, old entries may contain backslash
-    // home_path values from pre-normalization versions. from_entries must
-    // normalize them so upsert's stale-dedup string comparison works.
     let entry = SkillCacheEntry {
         id: "ssot:demo".to_string(),
         name: "demo".to_string(),

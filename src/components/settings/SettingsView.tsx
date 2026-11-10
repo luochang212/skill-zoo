@@ -32,7 +32,6 @@ export function SettingsView({
       <ScrollArea className="flex-1">
         <div className="p-6">
           <div className="space-y-6">
-            {/* Appearance */}
             <div className="space-y-4">
               <div className="flex h-9 items-center justify-between gap-3 border-b border-border/40 pb-2">
                 <div className="flex min-w-0 items-center gap-2">
@@ -49,10 +48,8 @@ export function SettingsView({
               </div>
             </div>
 
-            {/* Skill Maintenance */}
             <SkillMaintenanceSettings onRequestGitHubTokenConfig={() => setGithubTokenOpen(true)} />
 
-            {/* Skill Companion */}
             <SkillCompanionSettings
               openUsageRequest={skillUsageOpenRequest}
               onOpenUsageRequestHandled={onSkillUsageOpenHandled}
@@ -60,10 +57,8 @@ export function SettingsView({
               onOpenManagerRequestHandled={onSkillCompanionOpenHandled}
             />
 
-            {/* Agent Paths */}
             <AgentPathsSettings />
 
-            {/* Advanced */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 border-b border-border/40 pb-2">
                 <PlugZap className="h-4 w-4 text-[#a66f82] dark:text-[#c49aaa]" />
@@ -74,7 +69,6 @@ export function SettingsView({
               <WindowBehaviorSettings />
             </div>
 
-            {/* About & Feedback */}
             <AboutSection />
           </div>
         </div>

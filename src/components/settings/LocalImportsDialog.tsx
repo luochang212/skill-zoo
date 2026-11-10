@@ -59,8 +59,6 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
 
   const [candidates, setCandidates] = useState<ExternalImportCandidate[]>([]);
   const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
-  // Removal deletes managed links and the registry entry, so it goes through
-  // the same confirmation step as every other destructive action in the app.
   const [pendingRemove, setPendingRemove] = useState<{ id: string; name: string } | null>(null);
   const [agents, setAgents] = useState<Set<string>>(new Set());
   const [scanning, setScanning] = useState(false);

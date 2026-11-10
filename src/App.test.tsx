@@ -255,8 +255,6 @@ describe("App local skill detail navigation", () => {
     renderApp();
 
     const user = userEvent.setup();
-    // The first list render waits on a chain of queries; under load jsdom can
-    // outlast findByRole's 1s default and strand the test on the skeletons.
     const firstSkillButton = await screen.findByRole(
       "button",
       { name: "Skill 0" },

@@ -87,7 +87,6 @@ function SkillInfoPopover({ skill }: { skill: InstalledSkill }) {
           onMouseLeave={onLeave}
           className="popover-enter absolute right-0 top-8 z-50 w-64 rounded-lg border border-border bg-popover shadow-lg px-3 py-2.5 text-xs space-y-1.5"
         >
-          {/* Repository */}
           {skill.repoOwner && skill.repoName && (
             <div className="flex items-center justify-between gap-3">
               <span className="text-[10px] text-muted-foreground uppercase tracking-wide shrink-0">
@@ -194,7 +193,6 @@ export function SkillHero({
 
   return (
     <div className="px-5 pt-4 pb-2">
-      {/* Name + repo link + actions row */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
           {onBack && <BackButton onClick={onBack} title={t("common.back")} />}

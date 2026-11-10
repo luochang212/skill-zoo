@@ -23,8 +23,6 @@ const STALE_DRAG_FEEDBACK_ATTR = "data-dnd-stale-after-drop";
 
 export type SkillDropTarget = { type: "star" } | { type: "agent"; agent: string };
 
-// Skills are dragged only onto tabs to link agents, never reordered,
-// so edge auto-scrolling (AutoScroller) has nothing to offer during a drag.
 const DND_PLUGINS = defaultPreset.plugins.filter((plugin) => plugin !== AutoScroller);
 
 export interface SkillDropControls {
@@ -36,9 +34,7 @@ function cleanupStaleDragFeedback() {
     element.setAttribute(STALE_DRAG_FEEDBACK_ATTR, "");
     try {
       element.hidePopover?.();
-    } catch {
-      // The feedback may already have left the popover top layer.
-    }
+    } catch {}
     element.removeAttribute("popover");
     element.removeAttribute("data-dnd-dragging");
   }
@@ -92,14 +88,6 @@ export function SkillDragSource({
       ref={ref}
       role="group"
       aria-label={skill.name}
-      // Cancel the mousedown that starts the browser's native selection
-      // gesture: with the card text selectable, WebKit auto-scrolls the
-      // nearest scroll container once a selection drag crosses its edge,
-      // which scrolled the list behind a skill drag. Cancel mousedown, not
-      // pointerdown: dnd-kit's 200ms long-press pickup re-reads the original
-      // pointerdown event at activation time and bails on defaultPrevented,
-      // so canceling that would kill long-press drags. Left button only, so
-      // right-click context menus survive.
       onMouseDown={(event) => {
         if (!disabled && event.button === 0) {
           event.preventDefault();

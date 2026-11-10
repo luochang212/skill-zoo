@@ -28,8 +28,6 @@ fn test_remove_skill_dir_non_existent_is_noop() {
 
 #[test]
 fn test_remove_skill_dir_refuses_directory_without_skill_md() {
-    // A stale cache entry may point at a path that now holds unrelated user
-    // data. The identity check must leave that directory alone.
     let tmp = tempfile::tempdir().expect("tempdir");
     let replaced = tmp.path().join("test-skill");
     fs::create_dir(&replaced).expect("create dir");

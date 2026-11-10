@@ -1,7 +1,3 @@
-//! Native Rust reimplementation of the `skills` CLI add / remove / update
-//! subcommands that Skill Zoo previously shelled out to via `npx`.
-//! Based on <https://github.com/vercel-labs/skills> v1.5.3 (MIT).
-
 use crate::config;
 use crate::error::{classify_download_error, AppError};
 use crate::services::github;
@@ -30,7 +26,6 @@ pub struct UpdateResult {
     pub fail_count: usize,
     pub errors: Vec<String>,
     pub updated: Vec<String>,
-    /// Batch-only: skills skipped because local modifications would be lost.
     pub skipped_drifted: Vec<String>,
 }
 
@@ -68,12 +63,6 @@ type RepoLockEntries = Vec<(String, SkillLockEntry)>;
 pub struct CliService;
 
 impl CliService {
-    // ─── Add / Install ──────────────────────────────────────────────
-
-    /// Install skills from a GitHub repository.
-    ///
-    /// Downloads the repo as ZIP, discovers skills, copies them into
-    /// `~/.agents/skills/<name>/`, and updates the lock file.
     pub async fn add_skills(
         repo_url: &str,
         skills: &[String],
@@ -87,13 +76,11 @@ impl CliService {
         let (_temp_dir, clone_path, archive_commit) =
             Self::download_repo_zip(&owner, &repo, branch.as_deref(), false).await?;
 
-        // Discover skills in the cloned tree
         let discovered = Self::discover_skills_in_tree(&clone_path);
         if discovered.is_empty() {
             return Err(AppError::Cli("No skills found in the repository.".into()));
         }
 
-        // Filter by requested names
         let to_install =
             Self::select_discovered_skills(&clone_path, &discovered, skills, install_all);
 
@@ -166,11 +153,6 @@ impl CliService {
             )));
         }
 
-        // Persist metadata to lock file, including folder SHAs so future
-        // update checks can detect changes even after a fresh install.
-        //
-        // Bind baselines to the downloaded archive, never the branch's later state.
-        // A missing archive identity or failed lookup leaves the version unknown.
         let folder_shas: std::collections::HashMap<String, Option<String>> =
             match if let Some(commit) = archive_commit.as_deref() {
                 Self::fetch_repo_tree(&owner, &repo, Some(commit)).await
@@ -278,12 +260,6 @@ impl CliService {
             .map_err(AppError::Io)
     }
 
-    // ─── Update ─────────────────────────────────────────────────────
-
-    /// Update a pre-filtered set of installed skills.
-    ///
-    /// Used by the command layer when it needs filesystem/cache context, for
-    /// example excluding agent-origin skills from "update all".
     pub async fn update_skill_names(skill_names: &[String]) -> Result<UpdateResult, AppError> {
         let lock = SkillLock::read()?;
         let to_update: Vec<(String, SkillLockEntry)> = skill_names
@@ -302,8 +278,6 @@ impl CliService {
     async fn update_skill_entries(
         mut to_update: Vec<(String, SkillLockEntry)>,
     ) -> Result<UpdateResult, AppError> {
-        // Batch updates never overwrite local modifications silently: drifted
-        // skills are skipped here and reported in the completion summary.
         let ssot_dir = config::get_agents_skills_dir();
         let mut skipped_drifted = Vec::new();
         to_update.retain(|(name, entry)| {
@@ -328,14 +302,9 @@ impl CliService {
         let mut errors: Vec<String> = Vec::new();
         let report_missing_baseline = to_update.len() == 1;
 
-        // Group skills by (owner, repo, branch/default) so each repo is fetched only once
         let mut by_repo: std::collections::HashMap<RepoUpdateKey, RepoLockEntries> =
             std::collections::HashMap::new();
         for (name, entry) in &to_update {
-            // Entries without a stored folder SHA cannot be safely compared.
-            // The update loop already skips them after a successful tree fetch;
-            // skipping them here also prevents stale legacy lock entries from
-            // turning unrelated repo errors into "update all" failures.
             if entry.commit_sha.is_none() {
                 if report_missing_baseline {
                     errors.push(format!(
@@ -422,7 +391,6 @@ impl CliService {
             ));
         };
 
-        // Only reinstall when we can confirm the SHA actually changed
         match old_sha {
             Some(old) if old != new_sha => Ok(Some(KnownSkillUpdate {
                 name: name.to_string(),
@@ -561,10 +529,6 @@ impl CliService {
         (groups, errors)
     }
 
-    // ─── Update check ────────────────────────────────────────────────
-
-    /// Fetch the repo tree from GitHub's Trees API.
-    /// Returns the tree data (with all folder SHAs), or None on rate-limit/error.
     pub async fn fetch_repo_tree(
         owner: &str,
         repo: &str,
@@ -590,7 +554,6 @@ impl CliService {
         resp: reqwest::Response,
         repo: &str,
     ) -> Result<Option<RepoTreeResponse>, AppError> {
-        // Preserve the missing repository/branch result used by callers.
         if resp.status().as_u16() != 404 {
             if let Some(error) = crate::services::github::response_error(&resp, repo) {
                 return Err(error);
@@ -603,27 +566,22 @@ impl CliService {
                 })?;
                 Ok(Some(json))
             }
-            _ => Ok(None), // repo not found, branch not found, etc., so skip
+            _ => Ok(None),
         }
     }
 
-    /// Get the folder SHA for a specific path from a repo tree.
     pub fn get_folder_sha_from_tree(tree: &RepoTreeResponse, path: &str) -> Option<String> {
         let normalized_path = normalize_repo_skill_path(path);
 
-        // Root-level skill
         if normalized_path.is_empty() {
             return Some(tree.sha.clone());
         }
 
-        // Find matching tree entry
         tree.tree
             .iter()
             .find(|e| e.entry_type == "tree" && e.path == normalized_path)
             .map(|e| e.sha.clone())
     }
-
-    // ─── Internal helpers ───────────────────────────────────────────
 
     fn sanitize_branch(branch: &str) -> String {
         branch.replace(['/', '\\'], "--")
@@ -830,12 +788,11 @@ impl CliService {
                             "total": total_size,
                         }),
                     );
-                    emit_threshold = downloaded + 256 * 1024; // emit every ~256KB
+                    emit_threshold = downloaded + 256 * 1024;
                 }
             }
         }
 
-        // Close the handle before publishing (Windows); TempPath cleans up on failure.
         file.into_temp_path()
             .persist(&cache_path)
             .map_err(|e| AppError::Io(e.error))?;
@@ -843,11 +800,6 @@ impl CliService {
         Ok(cache_path)
     }
 
-    /// Reject decompression bombs before extracting: the archive's total
-    /// declared uncompressed size must stay within
-    /// `max(zip_len * MAX_EXTRACT_RATIO, MIN_EXTRACT_LIMIT_BYTES)` bytes and the
-    /// entry count within `MAX_EXTRACT_FILES`. Scanning reads only the
-    /// central directory, so nothing is written when validation fails.
     pub(crate) fn validate_archive_scale<R: std::io::Read + std::io::Seek>(
         archive: &mut zip::ZipArchive<R>,
         zip_len: u64,
@@ -894,8 +846,6 @@ impl CliService {
         Ok(())
     }
 
-    /// Download a GitHub repo as ZIP and extract to a temp directory.
-    /// Returns (TempDir, root_path). TempDir must stay alive while root_path is used.
     async fn download_repo_zip(
         owner: &str,
         repo: &str,
@@ -922,7 +872,6 @@ impl CliService {
             config::MAX_EXTRACT_FILES,
         )?;
 
-        // git archive embeds its source commit in the ZIP comment.
         let archive_commit = std::str::from_utf8(archive.comment())
             .ok()
             .filter(|sha| sha.len() == 40 && sha.bytes().all(|b| b.is_ascii_hexdigit()))
@@ -943,7 +892,6 @@ impl CliService {
         Ok((temp_dir, root_dir, archive_commit))
     }
 
-    /// Walk a directory tree and find every directory containing a SKILL.md.
     fn discover_skills_in_tree(root: &Path) -> Vec<(String, String, PathBuf)> {
         SkillService::repo_skill_roots(root)
             .into_iter()
@@ -958,14 +906,6 @@ impl CliService {
             .collect()
     }
 
-    /// Recursively copy directory contents, skipping hidden / VCS /
-    /// Python cache directories and broken symlinks.
-    ///
-    /// Symlinks are never followed: directory symlinks (including loops and
-    /// links pointing outside the skill directory) are skipped, and file
-    /// symlinks are dereferenced only when their target resolves to a regular
-    /// file relative to the link's own directory. Nesting is capped at
-    /// [`Self::MAX_COPY_DEPTH`] to keep the recursion bounded.
     fn copy_dir_contents(src: &PathBuf, dest: &PathBuf) -> Result<(), AppError> {
         Self::copy_dir_contents_at_depth(src, dest, 0)
     }
@@ -999,10 +939,6 @@ impl CliService {
             let dest_path = dest.join(file_name);
 
             if is_symlink_or_junction(&path) {
-                // Never follow directory symlinks (external dirs, loops,
-                // escapes), which are skipped entirely. File symlinks are
-                // dereferenced against the link's own directory, never the
-                // process CWD.
                 let Ok(target) = std::fs::read_link(&path) else {
                     continue;
                 };
@@ -1027,8 +963,6 @@ impl CliService {
         Ok(())
     }
 
-    // ─── Lock file helpers ──────────────────────────────────────────
-
     fn update_lock_after_install(
         skills: &[(String, String)],
         owner: &str,
@@ -1040,7 +974,6 @@ impl CliService {
         let source = format!("{owner}/{repo}");
         let source_url = format!("https://github.com/{owner}/{repo}");
         let ssot_dir = config::get_agents_skills_dir();
-        // Hash outside the lock RMW: the closure must stay pure memory mutation.
         let folder_hashes: std::collections::HashMap<String, Option<String>> = skills
             .iter()
             .map(|(name, _)| {
@@ -1060,7 +993,6 @@ impl CliService {
                     .get(name)
                     .map(|e| e.extra.clone())
                     .unwrap_or_default();
-                // An older installation's SHA cannot identify newly copied content.
                 let commit_sha = folder_shas.get(name).cloned().flatten();
 
                 lock.skills.insert(
@@ -1124,7 +1056,6 @@ impl CliService {
 
         Self::copy_dir_contents(skill_path, &tmp_path)?;
         let fresh_hash = crate::services::lock::compute_skill_folder_hash(&tmp_path)?;
-        // Downloading and staging can take time; protect edits saved since preflight.
         if !skill.force && crate::services::lock::skill_folder_drifted(&dest, &skill.entry) {
             return Ok(ReinstallOutcome::SkippedDrifted);
         }
@@ -1202,7 +1133,6 @@ impl CliService {
                 Ok(())
             }
             Err(error) => {
-                // Move the rejected replacement back into its staging directory before restoring.
                 if replaced {
                     std::fs::rename(dest, tmp).map_err(|restore_error| AppError::Cli(format!(
                         "Update failed: {error}. Could not remove replacement at {}: {restore_error}. Original remains at {}", dest.display(), backup.as_deref().unwrap_or(dest).display()
@@ -1271,10 +1201,6 @@ mod tests {
         }
     }
 
-    // A well-behaved server consumes the request before responding. Writing
-    // the response first races hyper's client, which can reject the unexpected
-    // bytes or stall waiting for the exchange to settle. Returns false when
-    // the request head never fully arrived; the caller abandons that socket.
     fn consume_request(socket: &mut std::net::TcpStream) -> bool {
         use std::io::Read;
         let mut seen = Vec::new();
@@ -1323,8 +1249,6 @@ mod tests {
                     }
                     std::thread::sleep(std::time::Duration::from_millis(2));
                 }
-                // Dropping the sockets closes them before Content-Length is
-                // satisfied to produce a body error.
             });
             config::with_test_home(home.path(), || {
                 let rt = tokio::runtime::Builder::new_current_thread()
@@ -1334,11 +1258,6 @@ mod tests {
                 rt.block_on(async {
                     tokio::time::timeout(std::time::Duration::from_secs(15), async {
                         let cache_dir = config::get_repo_zip_cache_dir();
-                        // The hand-rolled server can rarely stall or trip
-                        // hyper's client before any data lands, while
-                        // production talks to GitHub. Retry those attempts
-                        // instead of failing: this test asserts temp-file
-                        // cleanup, not transport robustness.
                         let mut attempts = 0;
                         let mut download;
                         loop {
@@ -1555,12 +1474,10 @@ mod tests {
                 .content_baseline()
                 .expect("baseline written on install");
 
-            // Unmodified folder: no drift.
             assert!(!crate::services::lock::skill_folder_drifted(
                 &skill_dir, &entry
             ));
 
-            // A local edit moves the content away from the baseline.
             std::fs::write(skill_dir.join("SKILL.md"), "# demo edited\n").unwrap();
             assert!(crate::services::lock::skill_folder_drifted(
                 &skill_dir, &entry
@@ -2073,10 +1990,6 @@ mod tests {
 
     #[test]
     fn normalize_repo_skill_path_converts_windows_backslashes_to_forward_slashes() {
-        // Cross-platform contract: regardless of the host OS, a selector or
-        // path passed through `normalize_repo_skill_path` must end up with forward
-        // slashes so it is comparable to `lock_skill_path` output (which always
-        // uses '/'). This is the heart of the Windows install regression fix.
         assert_eq!(
             normalize_repo_skill_path("skills\\self-learning"),
             "skills/self-learning"
@@ -2089,12 +2002,10 @@ mod tests {
             normalize_repo_skill_path("skills/self-learning"),
             "skills/self-learning"
         );
-        // Mixed separators should also collapse cleanly.
         assert_eq!(
             normalize_repo_skill_path("skills\\sub\\dir/self-learning\\SKILL.md"),
             "skills/sub/dir/self-learning"
         );
-        // Root-level skill stays empty.
         assert_eq!(normalize_repo_skill_path("SKILL.md"), "");
         assert_eq!(normalize_repo_skill_path(""), "");
         assert_eq!(normalize_repo_skill_path("."), "");
@@ -2120,13 +2031,6 @@ mod tests {
 
     #[test]
     fn install_selection_matches_windows_backslash_selector_for_nested_skill() {
-        // Reproduces the original Windows-only bug: `scan_for_skills` produced a
-        // key with OS-native separators (backslashes on Windows), and that key
-        // was echoed back to `install_skills` as the selector. `lock_skill_path`
-        // always emits forward slashes, so the comparison failed and the user
-        // got "No matching skills found. Available: self-learning".
-        // This test feeds a backslash selector directly to ensure the matching
-        // layer tolerates it on every platform.
         let repo = tempfile::tempdir().unwrap();
         let nested = repo.path().join("skills").join("self-learning");
         std::fs::create_dir_all(&nested).unwrap();
@@ -2144,7 +2048,6 @@ mod tests {
         );
         assert_eq!(&selected[0].2, &nested);
 
-        // Sanity: forward-slash selector still matches (the non-Windows path).
         let requested_fwd = vec!["skills/self-learning".to_string()];
         let selected_fwd =
             CliService::select_discovered_skills(repo.path(), &discovered, &requested_fwd, false);
@@ -2526,7 +2429,6 @@ mod tests {
                 &update.entry
             ));
 
-            // The archive has finished downloading after the user's external edit.
             let repo = home.path().join("downloaded");
             let source = repo.join("skills/demo");
             std::fs::create_dir_all(&source).unwrap();
@@ -2598,7 +2500,6 @@ mod tests {
 
     #[test]
     fn archive_limits_reject_ratio_bomb() {
-        // 1 KiB archive claiming 10 MiB uncompressed, floor 1 MiB → limit 1 MiB.
         let err = CliService::check_archive_limits(1024, 10 * 1024 * 1024, 3, 4, 1024 * 1024, 100)
             .unwrap_err();
         assert!(err.to_string().contains("decompresses to"));
@@ -2612,10 +2513,8 @@ mod tests {
 
     #[test]
     fn archive_limits_accept_normal_and_floor_boundary() {
-        // Ratio within limit: limit = max(zip_len * 4, floor).
         CliService::check_archive_limits(1024 * 1024, 3 * 1024 * 1024, 10, 4, 1024 * 1024, 100)
             .unwrap();
-        // Exactly at the floor-derived limit passes; one byte over fails.
         CliService::check_archive_limits(0, 1024 * 1024, 1, 4, 1024 * 1024, 100).unwrap();
         assert!(
             CliService::check_archive_limits(0, 1024 * 1024 + 1, 1, 4, 1024 * 1024, 100).is_err()
@@ -2643,13 +2542,10 @@ mod tests {
 
     #[test]
     fn validate_archive_scale_rejects_real_ratio_bomb() {
-        // 1 MiB of compressible payload: the archive itself stays a few KiB,
-        // so a 4x ratio limit sits far below the declared 1 MiB total.
         let (mut archive, zip_len) = in_memory_zip(&[1024 * 1024]);
         let err = CliService::validate_archive_scale(&mut archive, zip_len, 4, 0, 100).unwrap_err();
         assert!(err.to_string().contains("decompresses to"));
 
-        // A generous ratio admits the same archive.
         let (mut archive, zip_len) = in_memory_zip(&[1024 * 1024]);
         CliService::validate_archive_scale(&mut archive, zip_len, 2000, 0, 100).unwrap();
     }

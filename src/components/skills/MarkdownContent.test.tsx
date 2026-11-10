@@ -9,7 +9,6 @@ vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
 
 describe("MarkdownContent badge rows", () => {
   it("marks a multi-badge paragraph as a badge row", () => {
-    // Real-world pattern: shield.io badges, one per line, soft-wrap into one <p>.
     const md = [
       "[![Release](https://img.shields.io/github/v/release/o/r?style=flat-square)](https://github.com/o/r/releases)",
       "[![Downloads](https://img.shields.io/github/downloads/o/r/total?style=flat-square)](https://github.com/o/r/releases)",

@@ -17,9 +17,6 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-// Hard-drive-download geometry (lucide) with the drive's LED dots completed
-// to four: the dots sweep while a task loads, and the icon stands still —
-// its plain original look — once the skill list is ready.
 function RepoTaskIcon({
   loading = false,
   className,
@@ -54,15 +51,12 @@ function RepoTaskIcon({
 export function RepoTasksMenu() {
   const { t } = useTranslation();
   const { tasks, dismiss, cancel, refresh, onOpen } = useRepoTasks();
-  // Cancelled entries vanish at once; an ordinary dismissed entry stays until
-  // its load settles so a running download is never hidden mid-flight.
   const visible = tasks.filter(
     (task) => !task.dismissed || (!task.cancelled && task.query.isFetching),
   );
   if (!visible.length) return null;
   const running = visible.filter((task) => task.query.isFetching || task.query.isPending).length;
   const failed = visible.some((task) => task.query.isError && !task.query.isFetching);
-  // Only settled entries count as read-notifications; running downloads stay.
   const clearable = visible.filter(
     (task) => !task.dismissed && !(task.query.isFetching || task.query.isPending),
   );
@@ -71,10 +65,6 @@ export function RepoTasksMenu() {
   };
 
   return (
-    // Non-modal: the menu is a notification surface, not a task barrier.
-    // Radix's default modal wraps the content in a scroll lock that blocks
-    // the wheel everywhere outside the popup while it is open; outside the
-    // menu the app must keep scrolling, and the menu scrolls its own list.
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button
@@ -120,8 +110,6 @@ export function RepoTasksMenu() {
               ? progress.total
               : undefined;
           const hasSkills = (task.query.data?.skills.length ?? 0) > 0;
-          // Entries carry identity (which repository), the header button carries
-          // the aggregate state; row text spells out per-task status.
           const entryIconClass = "mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground";
           return (
             <div key={task.key} className="group/task relative border-t border-border/60 py-1">
@@ -171,8 +159,6 @@ export function RepoTasksMenu() {
                 <DropdownMenuItem
                   aria-label={t("repoTasks.cancelRepo", { repo: label })}
                   onSelect={(event) => {
-                    // Keep the menu open so several tasks can be cancelled in
-                    // one pass; only row activation closes it.
                     event.preventDefault();
                     cancel(task.repo);
                   }}

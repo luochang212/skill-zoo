@@ -48,7 +48,6 @@ export interface SuppressedAgent extends AgentConfig { suppressedBy: string; }
 interface AgentSnapshot { agents: AgentConfig[]; suppressed: SuppressedAgent[]; }
 const snapshots = new Map<string, AgentSnapshot>();
 
-// Resolve existing ancestors too: a default root may not have been created yet.
 function resolvedRoot(input: string): string {
   try { return realpathSync.native(input); }
   catch { const parent = path.dirname(input); return parent === input ? input : path.join(resolvedRoot(parent), path.basename(input)); }
@@ -94,7 +93,6 @@ export function resolveAgentRegistry(home: string, custom: CustomAgent[], builti
   return { agents, suppressed };
 }
 
-// A command keeps a single registry snapshot for all of its per-skill lookups.
 export function getAgents(home?: string): AgentConfig[] {
   const resolvedHome = path.resolve(home ?? os.homedir());
   const cached = snapshots.get(resolvedHome);

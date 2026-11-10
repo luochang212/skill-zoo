@@ -34,7 +34,6 @@ export interface ArchivedSkill extends InstalledSkill {
 export interface DiscoverableSkill {
   key: string;
   name: string;
-  /** SKILL.md frontmatter name; catalog slugs (skills.sh) refer to this. */
   frontmatterName?: string;
   description?: string;
   directory: string;
@@ -258,7 +257,6 @@ export interface CatalogSkill {
   skillId: string;
   name: string;
   installs: number;
-  /** Weekly install counts from skills.sh; absent in older cached catalogs. */
   weeklyInstalls?: number[];
 }
 export interface SkillCatalog {

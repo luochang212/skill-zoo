@@ -2,11 +2,8 @@ use crate::error::AppError;
 use regex::Regex;
 use std::sync::LazyLock;
 
-/// GitHub's unauthenticated hourly quota; authenticated limits are higher.
 const GITHUB_ANONYMOUS_RATE_LIMIT: u32 = 60;
 
-/// Only GitHub API consumers use this builder; archive and external requests
-/// must never inherit the desktop token as a client-wide default header.
 pub fn github_get(client: &reqwest::Client, url: &str) -> reqwest::RequestBuilder {
     github_get_with_token(client, url, crate::config::github_token().as_deref())
 }
@@ -23,7 +20,6 @@ fn github_get_with_token(
     }
 }
 
-/// Classify API failures without treating generic proxy 403s as GitHub permissions.
 pub fn response_error(response: &reqwest::Response, repo: &str) -> Option<AppError> {
     let status = response.status().as_u16();
     let headers = response.headers();
@@ -75,9 +71,6 @@ pub struct GitHubTokenVerification {
     pub expires_at: Option<String>,
 }
 
-/// GitHub reports a PAT's expiry only via this response header (absent for
-/// tokens without an expiry). Accepted forms: RFC 3339, or the documented
-/// "YYYY-MM-DD HH:MM:SS UTC" rendering, normalized to RFC 3339 for the UI.
 fn parse_token_expiration(value: &str) -> Option<String> {
     if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(value.trim()) {
         return Some(dt.to_rfc3339());
@@ -140,7 +133,6 @@ async fn verify_github_token_at(
     struct Core {
         limit: u32,
     }
-    // Read headers before `.json()` consumes the response.
     let expires_at = response_token_expiration(&response);
     let rate: RateLimit = response
         .json()
@@ -266,7 +258,6 @@ mod tests {
                 assert_eq!(request.headers()["authorization"], "Bearer saved-token");
                 crate::config::set_github_credentials(None, None);
             }
-            // The shared client must not authenticate unrelated downloads.
             crate::config::set_github_credentials(Some("saved-token"), None);
             assert!(!client
                 .get("https://github.com/o/r/archive/HEAD.zip")
@@ -295,7 +286,6 @@ mod tests {
             let past = (chrono::Utc::now() - chrono::Duration::seconds(1)).to_rfc3339();
             crate::config::set_github_credentials(Some("saved-token"), Some(&past));
             assert!(!authorization(&client));
-            // Unknown or unreadable expiry keeps failing loudly with the token attached.
             crate::config::set_github_credentials(Some("saved-token"), None);
             assert!(authorization(&client));
             crate::config::set_github_credentials(Some("saved-token"), Some("not a date"));

@@ -32,7 +32,6 @@ interface RepoCardProps {
 
 function RepoCard({ repo, onClick, hideDescription }: RepoCardProps) {
   const handleClick = () => {
-    // Skip navigation if the user just finished selecting text
     const sel = window.getSelection();
     if (sel && sel.toString().length > 0) return;
     onClick();
@@ -92,15 +91,12 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
 
   const repos = recommendedRepos ?? [];
 
-  // Dedup recently viewed against recommended list
   const recommendedKeys = useMemo(() => new Set(repos.map((r) => `${r.owner}/${r.name}`)), [repos]);
   const recentToDisplay = useMemo(
     () => recentItems.filter((r) => !recommendedKeys.has(`${r.owner}/${r.name}`)),
     [recentItems, recommendedKeys],
   );
 
-  // Community card preview: resolve the catalog slug against the real repo
-  // skill list, then show the SKILL.md in the shared side panel.
   const [previewOwner, previewRepoName] = previewTarget
     ? previewTarget.source.split("/")
     : [undefined, undefined];
@@ -112,8 +108,6 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
     previewTarget && previewRepoSkills
       ? resolveCatalogSkill(previewRepoSkills.skills, previewTarget.skillId)
       : undefined;
-  // When resolution fails the panel lists the repo's skills; the picked one
-  // takes over the preview directly.
   const [manualSkill, setManualSkill] = useState<DiscoverableSkill | null>(null);
   useEffect(() => {
     setManualSkill(null);
@@ -147,7 +141,6 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
     previewSkill?.key ?? null,
   );
 
-  // Debounce search input
   useEffect(() => {
     const trimmed = search.trim();
     if (!trimmed) {
@@ -162,7 +155,6 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Route repository-shaped queries directly to GitHub repo lookup.
   const isRepoQuery = useMemo(
     () =>
       /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(debouncedSearch ?? "") ||
@@ -187,7 +179,6 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
   const hasResults = !!repoResult || skillsList.length > 0;
   const searchFailed = skillsShSearchError || (isRepoQuery && repoSearchError);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
@@ -198,7 +189,6 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Clear search state and navigate to a repo
   const navigateToRepo = useCallback(
     (repo: DiscoverRepo) => {
       setDropdownOpen(false);
@@ -222,9 +212,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
       try {
         const repo = await skillsApi.searchRepo(`${owner}/${name}`);
         navigateToRepo({ ...repo, branch: branch ?? repo.branch });
-      } catch {
-        // ignore because the repo was not found or the network failed
-      }
+      } catch {}
     },
     [repos, navigateToRepo],
   );
@@ -234,9 +222,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
       let repo: DiscoverRepo = { owner, name, description: undefined };
       try {
         repo = await skillsApi.searchRepo(`${owner}/${name}`);
-      } catch {
-        // Metadata only enriches the detail page. It should not block opening a search result.
-      }
+      } catch {}
       navigateToRepo(repo);
     },
     [navigateToRepo],
@@ -246,9 +232,6 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
     onSelectRepo(null);
   }, [onSelectRepo]);
 
-  // The community preview footer shows the repo it belongs to; clicking it
-  // jumps to the repo detail page (and closes the preview so it does not
-  // reappear when navigating back).
   const handlePanelOpenRepo = useCallback(() => {
     if (!previewTarget) return;
     const [owner, name] = previewTarget.source.split("/");
@@ -256,12 +239,8 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
     if (owner && name) handleSkillSearchResult(owner, name);
   }, [previewTarget, handleSkillSearchResult]);
 
-  // Keyboard handler for the search input
   const handleSearchKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      // IME guard: the Enter that confirms a candidate must not navigate. WebKit
-      // reports isComposing === false by then, so keyCode 229 is the check that
-      // actually holds on WKWebView / WebKitGTK.
       if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
 
       if (e.key === "Escape") {
@@ -274,7 +253,6 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
     [repoResult, dropdownOpen, isRepoQuery, navigateToRepo],
   );
 
-  // If user selected a repo, show RepoDetail
   if (selectedRepo) {
     return (
       <div className="flex flex-col h-full">
@@ -291,7 +269,6 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
     <div className="relative h-full">
       <ScrollArea className="h-full">
         <div className="mx-auto flex min-h-full max-w-6xl flex-col p-6 pb-10">
-          {/* Search bar with dropdown */}
           <div className="flex items-center gap-3 shrink-0">
             <div className="relative max-w-xl flex-1" ref={searchRef}>
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground z-10" />
@@ -311,7 +288,6 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
                 className="h-9 text-[13px] pl-8"
               />
 
-              {/* Search dropdown with two sections */}
               {dropdownOpen && search.trim() && (
                 <div className="absolute top-full left-0 right-0 mt-1 z-50">
                   <ScrollArea className="max-h-[300px] bg-popover border border-border rounded-lg shadow-lg">
@@ -341,7 +317,6 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
                       </div>
                     ) : (
                       <>
-                        {/* Repository section. Only shown when an exact owner/name match is found */}
                         {repoResult && (
                           <>
                             <button
@@ -364,7 +339,6 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
                           </>
                         )}
 
-                        {/* Skills section. skills.sh fuzzy search results */}
                         {skillsList.map((skill) => (
                           <button
                             key={skill.key}
@@ -396,14 +370,12 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
             </div>
           </div>
 
-          {/* Banner carousel */}
           {banners && banners.length > 0 && (
             <div className="mt-6 shrink-0">
               <BannerCarousel banners={banners} onBannerClick={handleBannerClick} />
             </div>
           )}
 
-          {/* Recently viewed repos */}
           {recentToDisplay.length > 0 && (
             <div className="mt-6 shrink-0">
               <div className="flex items-center justify-between mb-3">
@@ -425,7 +397,6 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
             </div>
           )}
 
-          {/* Recommended repos */}
           {reposError ? (
             <div className="mt-6 flex-1 flex flex-col items-center justify-center gap-3">
               <AlertTriangle className="h-8 w-8 text-destructive/60" />

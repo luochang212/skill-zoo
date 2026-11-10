@@ -18,7 +18,6 @@ describe("desktop-owned state file tolerance", () => {
 
     await expect(readMetadata(home)).resolves.toMatchObject({ entries: {} });
     await expect(readExternalImports(home)).resolves.toMatchObject({ imports: {} });
-    // A full scan must work over the tolerated-empty state files.
     await expect(scanInstalledSkills(home)).resolves.toHaveLength(1);
   });
 

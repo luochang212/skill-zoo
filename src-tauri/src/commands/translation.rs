@@ -191,7 +191,6 @@ impl TranslationState {
         if let Some(task) = runtime.tasks.get_mut(id) {
             task.cancelled = true;
             task.handle.abort();
-            // Before translate starts, removing the registration also prevents any later request.
             if task.registration.is_some() {
                 runtime.tasks.remove(id);
             }
@@ -225,7 +224,6 @@ impl TranslationState {
         if task.cancelled {
             return Err("cancelled".into());
         }
-        // This lock is the linearization point for cancellation and cache clearing.
         if write && epoch == runtime.cache_epoch {
             std::fs::create_dir_all(path.parent().unwrap()).map_err(|_| "cacheWrite")?;
             crate::persistence::atomic_write_private(path, text).map_err(|_| "cacheWrite")?;
@@ -301,7 +299,6 @@ fn read_source(state: &AppState, skill_id: &str, path: &str, source: &str) -> Re
             } else {
                 crate::persistence::ArchiveManifest::archive_skill_dir(&archived.archive_id)
             };
-            // Use the same path containment validation for archive files.
             let entry = crate::persistence::SkillCacheEntry {
                 id: archived.id.clone(),
                 name: archived.name.clone(),
@@ -370,7 +367,6 @@ fn cached_translation(
         "{}.md",
         translation::cache_key(&request.target_language, &request.source)
     ));
-    // This entry point only reads disk. A miss or error must never fall through to inference.
     match std::fs::read_to_string(path) {
         Ok(text) if !text.trim().is_empty() => Ok(Some(text)),
         Ok(_) => Ok(None),
@@ -446,8 +442,6 @@ async fn run_translation(
                 .iter()
                 .find(|m| m.id == request.model_id && m.enabled)
                 .ok_or("modelMissing")?;
-            // Direct translation: the source goes out verbatim and the model
-            // returns the finished file; no markers, no validation, no repair.
             let raw = tokio::time::timeout(
                 std::time::Duration::from_secs(180),
                 llm::stream(

@@ -134,10 +134,6 @@ fn discover_skill_usage_from_home(
     Ok(build_usage(count, events, now))
 }
 
-// ---------------------------------------------------------------------------
-// Registry: add a new agent by adding one entry here + one collector function.
-// ---------------------------------------------------------------------------
-
 type EventCollector = fn(
     home: &Path,
     whitelist: HashSet<String>,
@@ -174,10 +170,6 @@ static USAGE_COLLECTORS: &[UsageCollectorEntry] = &[
     },
 ];
 
-// ---------------------------------------------------------------------------
-// Per-agent event collectors
-// ---------------------------------------------------------------------------
-
 fn collect_claude_events(
     home: &Path,
     whitelist: HashSet<String>,
@@ -206,9 +198,6 @@ fn collect_codex_events(
     Ok((events, count))
 }
 
-/// Format-drift sentinel: session files that reference SKILL.md without
-/// yielding a single attributed event mean the rollout format moved under us
-/// again. Returns the files to report, or None when attribution is healthy.
 fn codex_drift_warning(
     skill_file_mentions: &[PathBuf],
     events: &[SkillUsageEvent],
@@ -227,8 +216,6 @@ fn codex_drift_warning(
     Some(names.join(", "))
 }
 
-/// The app has no logging subscriber today (no `log`/`tracing` dependency),
-/// so stderr — visible in the dev console and test output — is the channel.
 fn report_codex_drift(skill_file_mentions: &[PathBuf], events: &[SkillUsageEvent]) {
     if let Some(files) = codex_drift_warning(skill_file_mentions, events) {
         eprintln!(
@@ -248,8 +235,6 @@ fn collect_zcode_events(
     Ok((events, count))
 }
 
-/// When the in-memory cache yielded no whitelist, fall back to scanning the
-/// agent's installed-skills directory on disk so usage still resolves.
 fn effective_whitelist(
     _home: &Path,
     _agent_id: &str,
@@ -265,9 +250,6 @@ fn effective_whitelist(
     (effective, count)
 }
 
-/// Shared per-line aggregation: keep one event per (dedup id, normalized
-/// skill name) that survives the whitelist. Returns whether the line mentions
-/// SKILL.md at all, feeding the Codex drift sentinel.
 fn absorb_line(
     line: &str,
     parse_line: &impl Fn(&str) -> Option<ParsedSkillLine>,
@@ -299,11 +281,6 @@ fn absorb_line(
     mentions_skill_file
 }
 
-/// Walk the collected session files, parse each line, and keep one
-/// `SkillUsageEvent` per (dedup id, normalized skill name) that survives the
-/// whitelist. Agent-agnostic: the caller supplies the line parser. Also
-/// reports which files mention SKILL.md at all, feeding the Codex drift
-/// sentinel.
 fn aggregate_events(
     files: &[PathBuf],
     parse_line: impl Fn(&str) -> Option<ParsedSkillLine>,
@@ -313,14 +290,6 @@ fn aggregate_events(
     let mut seen = HashSet::new();
     let mut skill_file_mentions = Vec::new();
     for path in files {
-        // Stream each session log line by line rather than buffering the
-        // whole file into a `String`. A heavy Claude Code user can have
-        // multi-tens-of-MB JSONL logs; this bounds peak memory to one line
-        // plus the accumulated events. `BufRead::lines` splits lines exactly
-        // like `str::lines` (same CRLF / trailing-newline handling), so any
-        // valid UTF-8 file yields identical results. A line that fails to
-        // decode is skipped, which is strictly more robust than the old
-        // `read_to_string`, which dropped the entire file on one bad byte.
         let file = match std::fs::File::open(path) {
             Ok(file) => file,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
@@ -516,11 +485,6 @@ fn parse_claude_skill_line(line: &str) -> Option<ParsedSkillLine> {
     }
 }
 
-/// Codex records skill usage in two ways:
-/// 1. AI-initiated: a tool call reading `skills/<name>/SKILL.md`, carried as
-///    a legacy `function_call` or a current `custom_tool_call`.
-/// 2. User-initiated: `$skill-name` prefix in user messages, carried as a
-///    legacy `event_msg` or a current user-role `response_item`.
 fn parse_codex_skill_line(line: &str) -> Option<ParsedSkillLine> {
     let value: serde_json::Value = serde_json::from_str(line).ok()?;
     match value.get("type")?.as_str()? {
@@ -530,8 +494,6 @@ fn parse_codex_skill_line(line: &str) -> Option<ParsedSkillLine> {
     }
 }
 
-/// `response_item` records carry both tool calls and — since the rollout
-/// format retired the mirrored `event_msg` user message — user messages.
 fn parse_codex_response_item(value: &serde_json::Value) -> Option<ParsedSkillLine> {
     let payload = value.get("payload")?;
     match payload.get("type").and_then(|t| t.as_str())? {
@@ -549,8 +511,6 @@ fn parse_codex_exec_command(
     if payload.get("name").and_then(|n| n.as_str()) != Some("exec_command") {
         return None;
     }
-    // `arguments` is itself a JSON-encoded string:
-    // {"cmd":"sed -n '1,Np' …/skills/<name>/SKILL.md", ...}
     let arguments_str = payload.get("arguments").and_then(|a| a.as_str())?;
     let args_value: serde_json::Value = serde_json::from_str(arguments_str).ok()?;
     let cmd = args_value.get("cmd").and_then(|c| c.as_str())?;
@@ -567,11 +527,6 @@ fn parse_codex_exec_command(
     })
 }
 
-/// Current rollouts carry shell usage as `custom_tool_call` records named
-/// `exec`, whose `input` is a raw string embedding the command, for example
-/// `text(await tools.exec_command({cmd:"cat …/skills/<name>/SKILL.md"}))`.
-/// The name check keeps patch-style custom calls — which may legitimately
-/// mention a SKILL.md path inside a diff — from counting as usage.
 fn parse_codex_custom_tool_call(
     value: &serde_json::Value,
     payload: &serde_json::Value,
@@ -593,8 +548,6 @@ fn parse_codex_custom_tool_call(
     })
 }
 
-/// Current user messages: `response_item` records with `role: "user"` whose
-/// content is a list of `{type: "input_text", text: …}` blocks.
 fn parse_codex_user_role_message(
     value: &serde_json::Value,
     payload: &serde_json::Value,
@@ -614,9 +567,6 @@ fn parse_codex_user_role_message(
     finish_codex_user_message(value, payload, &text)
 }
 
-/// Legacy user messages: `event_msg` records with a `user_message` payload.
-/// Detect `$skill-name` prefix. Example:
-/// `"$github-research-assistant 介绍一下当前路径下的仓库"`
 fn parse_codex_user_message(value: &serde_json::Value) -> Option<ParsedSkillLine> {
     let payload = value.get("payload")?;
     if payload.get("type").and_then(|t| t.as_str()) != Some("user_message") {
@@ -626,10 +576,6 @@ fn parse_codex_user_message(value: &serde_json::Value) -> Option<ParsedSkillLine
     finish_codex_user_message(value, payload, text)
 }
 
-/// Shared tail for both user-message carriers: the `$skill` extraction plus
-/// the dedup id. Rollouts may deliver one user message through both carriers
-/// (mirrored duplicates), and neither current shape carries a session id, so
-/// the id falls back to a text fingerprint that collapses the mirror pair.
 fn finish_codex_user_message(
     value: &serde_json::Value,
     payload: &serde_json::Value,
@@ -651,7 +597,6 @@ fn finish_codex_user_message(
     })
 }
 
-/// Extract skill name from `$skill-name ...` prefix in a user message.
 fn extract_dollar_skill(text: &str) -> Option<String> {
     let rest = text.strip_prefix('$')?;
     let name = rest
@@ -667,9 +612,6 @@ fn extract_dollar_skill(text: &str) -> Option<String> {
 static SKILL_FILE_RE: std::sync::LazyLock<regex::Regex> =
     std::sync::LazyLock::new(|| regex::Regex::new(r"(?i)skills/([^/]+)/SKILL\.md").unwrap());
 
-/// Pull skill names out of command text like `…/skills/<name>/SKILL.md`,
-/// regardless of prefix (absolute, relative, or `~`). One command may read
-/// several skill files at once; each contributes its own event.
 fn extract_skill_names_from_cmd(text: &str) -> Vec<String> {
     let mut names = Vec::new();
     let mut seen = HashSet::new();
@@ -684,17 +626,10 @@ fn extract_skill_names_from_cmd(text: &str) -> Vec<String> {
     names
 }
 
-// ---------------------------------------------------------------------------
-// ZCode collector. It queries SQLite directly. The database mirrors
-// OpenCode's table family, but tool names are Claude-Code-style PascalCase.
-// ---------------------------------------------------------------------------
-
 fn query_zcode_skill_events(
     db_path: &Path,
     whitelist: &HashSet<String>,
 ) -> Result<Vec<SkillUsageEvent>, String> {
-    // ZCode may be running and the db is WAL-mode, so open read-only: the
-    // collector must never take write locks. Only an absent store means no usage.
     if !db_path
         .try_exists()
         .map_err(|_| "Could not read ZCode usage database")?
@@ -712,7 +647,6 @@ fn query_zcode_skill_events(
     let mut events = Vec::new();
     let mut seen: HashSet<(String, String)> = HashSet::new();
 
-    // 1. Explicit `Skill` tool calls (AI-initiated).
     {
         let mut stmt = conn
             .prepare(
@@ -762,9 +696,6 @@ fn query_zcode_skill_events(
         }
     }
 
-    // 2. Slash-command skill invocations typed by the user (ZCode writes no
-    //    command-name markers): user-message text parts starting with
-    //    `/skill-name`.
     {
         let mut stmt = conn.prepare(
         "SELECT m.session_id,
@@ -818,7 +749,6 @@ fn query_zcode_skill_events(
     Ok(events)
 }
 
-/// Extract skill name from a `/skill-name …` first line in a user message.
 fn extract_slash_skill(text: &str) -> Option<String> {
     let first_line = text.lines().next()?;
     let rest = first_line.strip_prefix('/')?;
@@ -832,11 +762,6 @@ fn extract_slash_skill(text: &str) -> Option<String> {
     Some(name)
 }
 
-// ---------------------------------------------------------------------------
-// DeepSeek Harness collector. Session logs are Zstandard-compressed JSONL;
-// decompress per file and scan lines for the skill-content injection marker.
-// ---------------------------------------------------------------------------
-
 fn collect_dsh_events(
     home: &Path,
     whitelist: HashSet<String>,
@@ -847,16 +772,11 @@ fn collect_dsh_events(
     collect_dsh_session_files(&home.join(".dsh").join("sessions"), &mut files)?;
     let mut events = Vec::new();
     let mut seen = HashSet::new();
-    // Mirrors `aggregate_events`' file loop. The line-error policy differs on
-    // purpose: decompressor errors are persistent, so this loop breaks the
-    // file where `aggregate_events` continues (recoverable UTF-8 skips).
     for path in &files {
         let Some(reader) = open_session_reader(path)? else {
             continue;
         };
         for line in reader.lines() {
-            // A stream error from a decompressor is persistent: retrying it
-            // would loop forever, so stop this file on the first failure.
             let Ok(line) = line else {
                 break;
             };
@@ -872,12 +792,6 @@ fn collect_dsh_events(
     Ok((events, count))
 }
 
-/// DeepSeek Harness stores one log per session under
-/// `sessions/<project>/<session>/`, with the format version in the filename
-/// (`session.v4.jsonl.zstd`) and two observed nesting layouts. The version
-/// only matters to full-fidelity consumers: the line scan reads
-/// self-describing records, so any `session*.jsonl` / `session*.jsonl.zstd`
-/// is collected regardless of nesting.
 fn collect_dsh_session_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
@@ -903,10 +817,6 @@ fn is_dsh_session_file(path: &Path) -> bool {
     name.starts_with("session") && (name.ends_with(".jsonl") || name.ends_with(".jsonl.zstd"))
 }
 
-/// Open a session file as a line stream, decompressing Zstandard files on the
-/// fly. Multiframe files (one frame per durable append batch) are read to the
-/// end. Errors surface as per-line failures, so a corrupt file simply
-/// contributes no lines.
 fn open_session_reader(path: &Path) -> Result<Option<Box<dyn std::io::BufRead>>, String> {
     let file = match std::fs::File::open(path) {
         Ok(file) => file,
@@ -923,11 +833,6 @@ fn open_session_reader(path: &Path) -> Result<Option<Box<dyn std::io::BufRead>>,
     }
 }
 
-/// A skill load is recorded as a user message whose text starts with the
-/// injected `<skill_content name="…">` block; the name is the skill. Skill
-/// catalogs (`<available_skills>`), assistant prose, and the paired
-/// `tool/ptc-dispatch` records do not match the marker or the record type and
-/// are ignored, so each load counts exactly once.
 fn parse_dsh_skill_line(line: &str) -> Option<ParsedSkillLine> {
     let value: serde_json::Value = serde_json::from_str(line).ok()?;
     if value.get("type")?.as_str()? != "user/message" {
@@ -1219,10 +1124,6 @@ mod tests {
 
     #[test]
     fn aggregate_keeps_valid_lines_around_garbage() {
-        // A non-JSON line in the middle must not stop iteration: the valid
-        // line after it must still be captured, and a trailing newline must
-        // not produce a phantom event. Guards against a stop-at-first-error
-        // or off-by-one regression in the line iterator.
         let temp = tempfile::tempdir().unwrap();
         let project_dir = temp.path().join(".claude/projects/demo");
         std::fs::create_dir_all(&project_dir).unwrap();
@@ -1245,9 +1146,6 @@ mod tests {
 
     #[test]
     fn aggregate_skips_invalid_utf8_line() {
-        // The one genuine behavior change vs the old read_to_string: a line
-        // that is not valid UTF-8 is skipped instead of poisoning the whole
-        // file. The valid line after it must still be captured.
         let temp = tempfile::tempdir().unwrap();
         let project_dir = temp.path().join(".claude/projects/demo");
         std::fs::create_dir_all(&project_dir).unwrap();
@@ -1271,7 +1169,6 @@ mod tests {
 
     #[test]
     fn parses_codex_skill_read() {
-        // Codex activates a skill by reading its SKILL.md via exec_command.
         let args = serde_json::json!({
             "cmd": "sed -n '1,220p' /Users/demo/.agents/skills/coding-philosophy-cce/SKILL.md"
         });
@@ -1379,9 +1276,6 @@ mod tests {
 
     #[test]
     fn parses_codex_custom_tool_call_skill_reads() {
-        // Current rollouts carry shell usage as a custom tool call named
-        // `exec` whose input embeds the command; one command may read
-        // several skill files.
         let input = "text(ALL_TOOLS.filter(x=>/exec_command/.test(x.name)));\n\
                      text(await tools.exec_command({cmd:\"cat /Users/alex/.codex/skills/diagnosing-bugs/SKILL.md \
                      /Users/alex/.codex/skills/coding-philosophy-cce/SKILL.md\"}))";
@@ -1407,8 +1301,6 @@ mod tests {
 
     #[test]
     fn codex_parser_ignores_patch_call_mentioning_skill_file() {
-        // A patch-style custom call may legitimately mention a SKILL.md path
-        // inside a diff; it is not usage.
         let patch = serde_json::json!({
             "timestamp": "2026-11-04T03:52:29.204Z",
             "type": "response_item",
@@ -1443,9 +1335,6 @@ mod tests {
 
     #[test]
     fn codex_mirrored_user_message_counted_once() {
-        // Current rollouts can deliver one user message through both carriers
-        // (legacy event + user-role record); the text fingerprint collapses
-        // the mirror pair.
         let temp = tempfile::tempdir().unwrap();
         let session_dir = temp.path().join(".codex/sessions/2026/11/04");
         std::fs::create_dir_all(&session_dir).unwrap();
@@ -1484,7 +1373,6 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let session_dir = temp.path().join(".codex/sessions/2026/07/08");
         std::fs::create_dir_all(&session_dir).unwrap();
-        // Mix: old-style exec_command + new-style $skill-name
         let args = serde_json::json!({
             "cmd": "sed -n '1,200p' /Users/demo/.agents/skills/coding-philosophy-cce/SKILL.md"
         });
@@ -1541,9 +1429,6 @@ mod tests {
 
     #[test]
     fn discovers_codex_prose_mention_without_events() {
-        // A file that mentions SKILL.md in prose but yields no attributable
-        // event exercises the drift-sentinel wiring; the warning itself shows
-        // on stderr under --nocapture.
         let temp = tempfile::tempdir().unwrap();
         let session_dir = temp.path().join(".codex/sessions/2026/11/04");
         std::fs::create_dir_all(&session_dir).unwrap();
@@ -1719,7 +1604,6 @@ mod tests {
         );
         assert_eq!(extract_slash_skill("no slash"), None);
         assert_eq!(extract_slash_skill("/"), None);
-        // Only the first line counts.
         assert_eq!(extract_slash_skill("先说点别的\n/code-review"), None);
     }
 
@@ -1773,7 +1657,6 @@ mod tests {
             .to_string()
                 + "\n"
         };
-        // Layout 1: file directly in the session dir, current version.
         let direct = temp.path().join(
             ".dsh/sessions/--tmp-proj--/11111111-1111-1111-1111-111111111111/session.v4.jsonl.zstd",
         );
@@ -1783,8 +1666,6 @@ mod tests {
             zstd::stream::encode_all(injection("worth-fix", 1).as_bytes(), 3).unwrap(),
         )
         .unwrap();
-        // Layout 2: nested one level deeper, older version filename, and a
-        // multiframe file (two independently compressed frames concatenated).
         let nested = temp.path().join(
             ".dsh/sessions/--tmp-proj--/22222222-2222-2222-2222-222222222222/session-22222222-2222-2222-2222-222222222222/session.v3.jsonl.zstd",
         );
@@ -1793,13 +1674,11 @@ mod tests {
             zstd::stream::encode_all(injection("demo-a", 2).as_bytes(), 3).unwrap();
         multiframe.extend(zstd::stream::encode_all(injection("demo-b", 3).as_bytes(), 3).unwrap());
         std::fs::write(&nested, multiframe).unwrap();
-        // Uncompressed fallback still parses.
         let plain = temp
             .path()
             .join(".dsh/sessions/--tmp-proj--/33333333-3333-3333-3333-333333333333/session.jsonl");
         std::fs::create_dir_all(plain.parent().unwrap()).unwrap();
         std::fs::write(&plain, injection("worth-fix", 4)).unwrap();
-        // A corrupt compressed file must be skipped, not fatal.
         let corrupt = temp.path().join(
             ".dsh/sessions/--tmp-proj--/44444444-4444-4444-4444-444444444444/session.v4.jsonl.zstd",
         );

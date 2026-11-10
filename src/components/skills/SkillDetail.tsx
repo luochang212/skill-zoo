@@ -99,7 +99,6 @@ export function SkillDetail({
     setUpdateUpToDate(false);
   }, [clearUpdateTimer]);
 
-  // Auto-navigate back when skill disappears (deleted externally)
   useEffect(() => {
     if (!skillLoading && !isError && !skill && onBack) onBack();
   }, [skill, skillLoading, isError, onBack]);
@@ -109,7 +108,6 @@ export function SkillDetail({
     clearUpdateStatus();
   }, [skill?.id, clearUpdateStatus]);
 
-  // Clean up timer on unmount
   useEffect(() => {
     return clearUpdateTimer;
   }, [clearUpdateTimer]);
@@ -142,7 +140,6 @@ export function SkillDetail({
       if (currentSkillIdRef.current === updateSkillId) {
         clearUpdateStatus();
       }
-      // Other error toasts are handled by the global mutation onError handler.
       if (apiErrorCode(error) === "skillLocallyModified") {
         setDriftConfirmOpen(true);
       }
@@ -170,7 +167,6 @@ export function SkillDetail({
 
   return (
     <div className="flex flex-col h-full" data-selectable>
-      {/* Header stays available even while SKILL.md content is loading. */}
       {skill ? (
         <SkillHero
           skill={skill}
@@ -273,7 +269,6 @@ export function SkillDetail({
         />
       )}
 
-      {/* Configure dialog */}
       {skill && (
         <ConfigureDialog
           open={configureOpen}
@@ -284,7 +279,6 @@ export function SkillDetail({
         />
       )}
 
-      {/* Remove confirmation dialog */}
       <Dialog open={removeConfirmOpen} onOpenChange={setRemoveConfirmOpen}>
         <DialogContent className="sm:max-w-[380px]">
           <DialogHeader>
@@ -308,7 +302,6 @@ export function SkillDetail({
         </DialogContent>
       </Dialog>
 
-      {/* Archive confirmation dialog */}
       <Dialog open={archiveConfirmOpen} onOpenChange={setArchiveConfirmOpen}>
         <DialogContent className="sm:max-w-[380px]">
           <DialogHeader>
@@ -334,7 +327,6 @@ export function SkillDetail({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {/* Local-modification confirmation dialog */}
       <Dialog open={driftConfirmOpen} onOpenChange={setDriftConfirmOpen}>
         <DialogContent className="sm:max-w-[380px]">
           <DialogHeader>

@@ -65,24 +65,20 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
   const installMutation = useInstallSkills();
   const removeMutation = useRemoveSkill();
 
-  // Use GitHub API metadata when available, fall back to static data
   const description = metadata?.description ?? repo.description;
   const stars = metadata?.stars;
   const forks = metadata?.forks;
 
-  // Install dialog state
   const [installSkills, setInstallSkills] = useState<DiscoverableSkill[] | null>(null);
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
   const [pendingRemove, setPendingRemove] = useState<DiscoverableSkill | null>(null);
   const [previewSkill, setPreviewSkill] = useState<DiscoverableSkill | null>(null);
 
-  // Unified loading state: covers initial load, refresh, and backend progress
   const isLoadingRepo = isFetching || isLoading;
   const refreshRepo = () => {
     void refresh().catch(() => {});
   };
 
-  // Debounced progress display (0.5s to avoid flash for cached repos)
   const [showLoadStage, setShowLoadStage] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
@@ -187,7 +183,6 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
 
   return (
     <div className="flex flex-col h-full relative" data-selectable>
-      {/* Hero */}
       <div className="px-5 pt-4 pb-3 border-b border-border">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
@@ -292,8 +287,6 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
                 </Button>
               </div>
             ) : isCancelledError(error) && skillList.length === 0 ? (
-              // A cancelled load is not a failure: with nothing to show it gets
-              // a quiet state, but previously loaded skills stay on screen.
               <div className="flex flex-col items-center justify-center py-12 gap-3">
                 <CircleOff className="h-8 w-8 text-muted-foreground/50" />
                 <p className="text-sm text-muted-foreground">{t("repoLoadCancelled")}</p>
@@ -376,7 +369,6 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
                   ))}
                 </div>
 
-                {/* Truncation warning */}
                 {isTruncated && (
                   <div className="flex items-center gap-2 mt-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40">
                     <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
@@ -391,7 +383,6 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
         </ScrollArea>
       )}
 
-      {/* Compact bulk action bar */}
       {installableSkills.length > 0 && (
         <div className="border-t border-border/60 bg-background px-5 py-3 flex items-center justify-between">
           <p className="text-xs">
@@ -417,7 +408,6 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
         </div>
       )}
 
-      {/* Remove confirmation dialog */}
       <Dialog open={removeConfirmOpen} onOpenChange={setRemoveConfirmOpen}>
         <DialogContent className="sm:max-w-[380px]">
           <DialogHeader>
@@ -449,7 +439,6 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Install dialog */}
       {installSkills && (
         <SkillInstallDialog
           open={!!installSkills}
@@ -469,7 +458,6 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
         skillName={previewSkill?.name ?? ""}
         open={!!previewSkill}
         loading={previewLoading}
-        // Content is usually cached here; a flash of instant completion is noise.
         showProgressBar={false}
         error={previewError ? null : undefined}
         content={previewContent}

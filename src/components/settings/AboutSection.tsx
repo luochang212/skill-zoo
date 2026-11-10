@@ -25,8 +25,6 @@ export function AboutSection() {
   const { t } = useTranslation();
   const [version, setVersion] = useState("");
 
-  // window.open is a no-op in the desktop webview (wry denies new windows
-  // without a handler), so an opener failure surfaces as a toast instead.
   const openFeedback = async (template: "bug_report" | "feature_request") => {
     try {
       await openUrl(buildIssueUrl(template));

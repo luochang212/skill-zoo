@@ -112,7 +112,6 @@ export function openBrowser(url: string): void {
   const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
   const child = spawn(command, args, { detached: true, stdio: "ignore" });
   child.on("error", () => {
-    // Opening the browser is a convenience; the server URL is already printed.
   });
   child.unref();
 }
@@ -140,11 +139,6 @@ function defaultAssetDir(): string {
   return candidates.find((candidate) => existsSync(path.join(candidate, "index.html"))) ?? candidates[0]!;
 }
 
-/// Every API call binds the exclusive cross-process lease, but the web UI
-/// fires concurrent requests (for example inspect + content when a skill is
-/// selected). Queue acquisitions inside this server so they take turns
-/// instead of rejecting each other; the lease still excludes the desktop and
-/// other processes.
 function createLeaseGate(home?: string) {
   let tail: Promise<unknown> = Promise.resolve();
   return async function withLease<T>(run: () => Promise<T>): Promise<T> {
@@ -304,8 +298,6 @@ async function handleApi(
 async function serveStatic(response: ServerResponse, assetDir: string, requestPath: string): Promise<void> {
   const relativePath = requestPath === "/" ? "index.html" : decodeURIComponent(requestPath.slice(1));
   const normalized = path.normalize(relativePath);
-  // Exact escape check: a leading ".." segment, not merely a ".." prefix of a
-  // longer name like "..hidden".
   const escapes = normalized === ".." || normalized.startsWith(`..${path.sep}`);
   if (escapes || path.isAbsolute(normalized)) {
     writeJson(response, 403, { ok: false, error: "Forbidden" });

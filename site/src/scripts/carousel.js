@@ -1,5 +1,4 @@
 export function initCarousel() {
-  // ── 3D Cover Flow carousel ──
   const ASPECT = 2200 / 1400;
   const isMobile = () => window.innerWidth < 768;
   const carousel = document.getElementById("carousel");
@@ -107,7 +106,6 @@ export function initCarousel() {
     }
   });
 
-  // Carousel touch/swipe
   let touchStartX = 0,
     touchStartY = 0,
     touchMoved = false;

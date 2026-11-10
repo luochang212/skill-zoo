@@ -124,7 +124,6 @@ it("retains failures for retry and allows dismissing the completed entry", async
   expect(skillsApi.getRepoSkills).toHaveBeenCalledTimes(2);
   expect(within(screen.getByRole("menu")).queryByText("Dismiss")).not.toBeInTheDocument();
   await user.click(screen.getByRole("menuitem", { name: "Dismiss owner/repo" }));
-  // The last entry leaves nothing to list, so the whole control unmounts.
   expect(screen.queryByRole("button", { name: /Download tasks:/ })).not.toBeInTheDocument();
   expect(onOpen).not.toHaveBeenCalled();
 });
@@ -135,8 +134,6 @@ it("keeps the menu open when dismissing one of several entries", async () => {
   await user.click(screen.getByRole("button", { name: /Download tasks:/ }));
   await screen.findAllByText("Skills ready to choose");
   await user.click(screen.getByRole("menuitem", { name: "Dismiss owner/repo" }));
-  // Dismissing one of several entries keeps the menu open for the next one.
-  // While the menu is open Radix aria-hides the trigger, so assert the menu.
   expect(screen.getByRole("menu", { name: /Download tasks:/ })).toBeInTheDocument();
   expect(screen.getAllByText("Skills ready to choose")).toHaveLength(1);
 });

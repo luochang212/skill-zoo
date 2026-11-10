@@ -361,9 +361,6 @@ async function checkSkillAgentLinks(
     }
 
     if (!(await isSymlinkOrJunction(linkPath))) {
-      // A real agent-native directory with the same name is a content consistency
-      // issue, not a doctor repair target. Consistency reports decide whether it
-      // is a duplicate or conflict without moving user files.
       continue;
     }
 

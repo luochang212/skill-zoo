@@ -388,7 +388,6 @@ describe("SkillCompanionSettings", () => {
         ),
       ),
     ).toBeInTheDocument();
-    // Repository branding belongs only in the exported screenshot.
     expect(screen.getByText("luochang212/skill-zoo")).not.toBeVisible();
     expect(screen.getAllByText("code-review").length).toBeGreaterThan(0);
   });
@@ -465,10 +464,8 @@ describe("SkillCompanionSettings", () => {
 
     await user.click(await screen.findByRole("button", { name: "View" }));
 
-    // Default agent is Codex, so the usage description mentions it
     expect(await screen.findByText("Statistics on skill usage from Codex")).toBeInTheDocument();
 
-    // Codex leads the agent menu, Claude Code follows it
     await user.click(screen.getByRole("button", { name: "Select agent" }));
     expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
       "Codex",
@@ -493,9 +490,7 @@ describe("SkillCompanionSettings", () => {
 
     await user.click(await screen.findByRole("button", { name: "View" }));
 
-    // The persisted agent is Codex, so the usage description should mention it
     expect(await screen.findByText("Statistics on skill usage from Codex")).toBeInTheDocument();
-    // Codex's usage data should be requested
     await waitFor(() =>
       expect(invoke).toHaveBeenCalledWith("get_skill_usage", { agentId: "codex" }),
     );

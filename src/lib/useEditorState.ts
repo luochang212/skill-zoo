@@ -2,10 +2,6 @@ import { useState, useCallback } from "react";
 import { useFileDrafts } from "./useFileDrafts";
 import { useSkillContent, useSaveSkillContent, useInstalledSkills } from "@/hooks/useSkills";
 
-/**
- * Tracks unsaved state the editor itself cannot see (auxiliary file drafts
- * owned by SkillContentPane) so skill switches confirm before discarding it.
- */
 export function useEditorState(externalUnsaved?: { current: boolean }) {
   const [open, setOpen] = useState(false);
   const [skillId, setSkillId] = useState<string>("");
@@ -27,7 +23,6 @@ export function useEditorState(externalUnsaved?: { current: boolean }) {
   const saveMutation = useSaveSkillContent();
   const { data: installedSkills, isLoading: skillsLoading } = useInstalledSkills();
 
-  // Resolve the full skill object from installed skills list
   const skill =
     open && skillId && installedSkills
       ? (installedSkills.find((s) => s.id === skillId) ?? null)

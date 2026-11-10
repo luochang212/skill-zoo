@@ -74,8 +74,6 @@ describe("wui server", () => {
     await writeSkill(path.join(paths.agentsSkillsDir, "demo"), "name: Demo\ndescription: Demo skill");
     const handle = await startWuiServer({ home, port: 0, token: "test-token" });
     try {
-      // The web UI loads a skill detail with inspect + content in parallel;
-      // both must succeed even though each API call binds the exclusive lease.
       const [inspect, content] = await Promise.all([
         getJson<{ ok: boolean; data?: unknown; error?: string }>(
           handle,

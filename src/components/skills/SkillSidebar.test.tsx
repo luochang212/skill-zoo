@@ -61,8 +61,6 @@ describe("SkillSidebar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Repos/ }));
 
-    // Not merely invisible: must leave the DOM so it also leaves the tab order
-    // and the accessibility tree. max-h-0/opacity-0 kept it focusable in Chrome.
     expect(screen.queryByRole("button", { name: "Owner/Repo" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Unassigned" })).not.toBeInTheDocument();
   });

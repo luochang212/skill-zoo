@@ -4,17 +4,10 @@ use std::sync::{Arc, LazyLock, OnceLock, RwLock};
 
 pub const MAX_DOWNLOAD_BYTES: u64 = 5 * 1024 * 1024 * 1024;
 
-/// Extraction bomb guards, applied to a downloaded repo archive before it is
-/// unpacked. Legitimate repos rarely exceed ~4x decompressed-to-compressed
-/// ratio while bombs exceed it by orders of magnitude; `MIN_EXTRACT_LIMIT_BYTES`
-/// floors the derived limit so ~1:1 media-heavy archives are not rejected.
 pub const MAX_EXTRACT_RATIO: u64 = 4;
 pub const MIN_EXTRACT_LIMIT_BYTES: u64 = 1024 * 1024 * 1024;
-/// Caps many-tiny-entries bombs whose byte ratio stays under the limit.
 pub const MAX_EXTRACT_FILES: usize = 100_000;
 
-/// Directories to skip when scanning for skills.
-/// Matches the upstream `npx skills` CLI: <https://github.com/vercel-labs/skills>
 pub const SKIP_DIRS: &[&str] = &["node_modules", ".git", "dist", "build", "__pycache__"];
 
 pub fn http_client() -> &'static reqwest::Client {
@@ -27,10 +20,6 @@ pub fn http_client() -> &'static reqwest::Client {
     })
 }
 
-/// Saved desktop GitHub credentials: the token plus the expiry GitHub reported
-/// for it. `expires_at` is `None` when GitHub reports no expiry or the stored
-/// value cannot be read, which keeps the token attached. Only a token that is
-/// *known* to be expired falls back to anonymous requests.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GitHubCredentials {
     pub token: String,
@@ -59,8 +48,6 @@ impl GitHubCredentials {
 static GITHUB_CREDENTIALS: LazyLock<RwLock<Option<GitHubCredentials>>> =
     LazyLock::new(|| RwLock::new(None));
 
-/// The bearer token to attach to GitHub API requests: the saved token while it
-/// is present and not past its recorded expiry, `None` otherwise (anonymous).
 pub fn github_token() -> Option<String> {
     #[cfg(test)]
     if let Some(credentials) = TEST_GITHUB_CREDENTIALS.with(|v| v.borrow().clone()) {
@@ -297,8 +284,6 @@ pub static AGENTS: LazyLock<Vec<AgentConfig>> = LazyLock::new(|| {
     ]
 });
 
-/// Visible-agent cap. Preference saves only guard growth past it
-/// (`commands::settings::exceeds_visible_agent_cap`); registration checks it directly.
 pub const MAX_VISIBLE_AGENTS: usize = 7;
 
 pub fn default_visibility(agent_id: &str) -> bool {
@@ -339,7 +324,6 @@ pub struct AgentPathInfo {
 pub fn get_all_agent_paths() -> Vec<AgentPathInfo> {
     let mut paths = Vec::new();
 
-    // SSOT path first
     let ssot_dir = get_agents_skills_dir();
     paths.push(AgentPathInfo {
         agent: "ssot".to_string(),
@@ -349,7 +333,6 @@ pub fn get_all_agent_paths() -> Vec<AgentPathInfo> {
         suppressed_by: None,
     });
 
-    // Per-agent paths use one snapshot, including informational suppressed defaults.
     let snapshot = agents();
     for agent in snapshot.iter() {
         if let Some(dir) = agent_skills_dir(agent) {
@@ -431,8 +414,6 @@ pub fn get_agent_skills_dir(agent_id: &str) -> Option<PathBuf> {
     agent_skills_dir(snapshot.iter().find(|a| a.id == agent_id)?)
 }
 
-// Replacing the snapshot happens only after durable registry changes. Readers
-// clone an Arc, never the list or its strings on the per-skill lookup path.
 static AGENT_SNAPSHOT: LazyLock<RwLock<Arc<Vec<AgentConfig>>>> =
     LazyLock::new(|| RwLock::new(Arc::new(AGENTS.clone())));
 
@@ -555,7 +536,6 @@ pub(crate) fn overlaps(a: &Path, b: &Path) -> bool {
     if a.starts_with(b) || b.starts_with(a) {
         return true;
     }
-    // Existing ancestor identities also recognize case aliases when leaf roots are missing.
     let ancestors: std::collections::HashMap<_, _> = a
         .ancestors()
         .filter_map(|parent| {
@@ -587,8 +567,6 @@ thread_local! {
     static TEST_SNAPSHOT: std::cell::RefCell<Option<Arc<Vec<AgentConfig>>>> = const { std::cell::RefCell::new(None) };
 }
 
-/// Isolate production-path filesystem tests without changing HOME or global
-/// registry state belonging to other test threads.
 #[cfg(any(test, feature = "test-helpers"))]
 pub fn with_test_home<T>(home: &std::path::Path, run: impl FnOnce() -> T) -> T {
     struct Restore(Option<PathBuf>, Option<Arc<Vec<AgentConfig>>>);
@@ -609,8 +587,6 @@ thread_local! {
     static OPERATION_AGENTS: std::cell::RefCell<Option<Arc<Vec<AgentConfig>>>> = const { std::cell::RefCell::new(None) };
 }
 
-/// Pin one immutable registry for a synchronous scan, including nested path
-/// lookups. This scope never spans an await or holds a registry lock over I/O.
 pub fn with_agent_snapshot<T>(snapshot: Arc<Vec<AgentConfig>>, run: impl FnOnce() -> T) -> T {
     struct Restore(Option<Arc<Vec<AgentConfig>>>);
     impl Drop for Restore {
@@ -680,7 +656,6 @@ mod upgrade_tests {
                 Some(custom.id.as_str())
             );
             assert_eq!(std::fs::read(&path).unwrap(), before);
-            // Removing a registration re-enables the shipped target without aliasing its ID.
             publish_agents(AgentRegistry::default());
             assert!(get_agent_skills_dir("codex").is_some());
             assert!(get_agent_skills_dir(&custom.id).is_none());
@@ -715,7 +690,7 @@ mod upgrade_tests {
             let alias = tmp.path().join(".CODEX");
             if !alias.exists() {
                 return;
-            } // Case-sensitive test volumes have no such alias.
+            }
             publish_agents(AgentRegistry {
                 version: 1,
                 agents: vec![CustomAgent {

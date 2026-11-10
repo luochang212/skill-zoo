@@ -7,7 +7,6 @@ pub use skill_zoo_lib::services::lock::{SkillLock, SkillLockEntry};
 #[allow(unused_imports)]
 pub use skill_zoo_lib::services::skill::SkillService;
 
-/// Build a test SkillCacheEntry with sensible defaults.
 #[allow(dead_code)]
 pub fn make_cache_entry(id: &str, name: &str, directory: &str) -> SkillCacheEntry {
     SkillCacheEntry {
@@ -30,7 +29,6 @@ pub fn make_cache_entry(id: &str, name: &str, directory: &str) -> SkillCacheEntr
     }
 }
 
-/// Build a test SkillLockEntry with sensible defaults.
 #[allow(dead_code)]
 pub fn make_lock_entry(source: &str) -> SkillLockEntry {
     SkillLockEntry {

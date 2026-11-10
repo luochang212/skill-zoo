@@ -19,10 +19,8 @@ function makeAbsoluteUrl(
   branch?: string | null,
 ): string {
   if (!owner || !name) return url;
-  // Already absolute
   if (/^https?:\/\//i.test(url)) return url;
   const ref = branch || "HEAD";
-  // Path relative to repo root
   const clean = url.startsWith("./") ? url.slice(2) : url;
   const base = clean.startsWith("/") ? clean.slice(1) : clean;
   return `https://raw.githubusercontent.com/${owner}/${name}/${ref}/${base}`;
@@ -75,9 +73,7 @@ function parseFrontmatter(raw: string): ParsedSkillMd {
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
       return { frontmatter: parsed as Record<string, unknown>, body };
     }
-  } catch {
-    // Invalid YAML. Fall through to return no frontmatter
-  }
+  } catch {}
 
   return { frontmatter: null, body: raw };
 }
@@ -130,7 +126,6 @@ function FrontmatterCard({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-// Minimal hast shape. This avoids pulling in @types/hast just for this transform.
 interface HastNode {
   type: string;
   tagName?: string;
@@ -139,9 +134,6 @@ interface HastNode {
   children?: HastNode[];
 }
 
-// Count badge images in a subtree, or -1 if it holds text or non-badge elements.
-// A badge child is an <img> or an <a> wrapping only images; whitespace text between
-// them is allowed.
 function countBadgeImages(node: HastNode): number {
   if (node.type === "text") {
     return (node.value ?? "").trim() === "" ? 0 : -1;
@@ -162,9 +154,6 @@ function countBadgeImages(node: HastNode): number {
   return -1;
 }
 
-// rehype plugin: tag image-only paragraphs (≥2 badges) so CSS lays them out as a
-// tight flex row. Without this, badges inherit the paragraph's line-height and leave
-// large vertical gaps whenever they wrap.
 function rehypeBadgeRows() {
   const walk = (node: HastNode) => {
     for (const child of node.children ?? []) {

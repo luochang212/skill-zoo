@@ -17,8 +17,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
 use std::path::Path;
 
-/// Write `data` to `path` atomically: write to a temp file first, then rename.
-/// On same-filesystem rename is atomic, so a crash never leaves a half-written file.
 pub(crate) fn atomic_write(path: &Path, data: impl AsRef<[u8]>) -> std::io::Result<()> {
     let tmp_path = temp_sibling(path);
     {
@@ -29,23 +27,16 @@ pub(crate) fn atomic_write(path: &Path, data: impl AsRef<[u8]>) -> std::io::Resu
     std::fs::rename(&tmp_path, path)
 }
 
-/// Sibling temp file for the atomic writers, shared by name so the two
-/// variants cannot leave differently-named leftovers for the same target.
 fn temp_sibling(path: &Path) -> std::path::PathBuf {
     let tmp_name = format!("{}.tmp", path.file_name().unwrap().to_str().unwrap());
     path.with_file_name(&tmp_name)
 }
 
-/// Owner-only [`atomic_write`] for files that carry credential content
-/// (settings.json and lifecycle journals): the file is created `0600`
-/// regardless of umask.
 #[cfg(unix)]
 pub(crate) fn atomic_write_private(path: &Path, data: impl AsRef<[u8]>) -> std::io::Result<()> {
     use std::os::unix::fs::OpenOptionsExt;
 
     let tmp_path = temp_sibling(path);
-    // `open(O_CREAT)` applies the mode only to newly created files, so a
-    // stale temp file left by a crashed write would keep its old permissions.
     if let Err(e) = std::fs::remove_file(&tmp_path) {
         if e.kind() != std::io::ErrorKind::NotFound {
             return Err(e);
@@ -64,21 +55,15 @@ pub(crate) fn atomic_write_private(path: &Path, data: impl AsRef<[u8]>) -> std::
     std::fs::rename(&tmp_path, path)
 }
 
-/// Windows files inherit user-profile ACLs; no explicit mode is needed.
 #[cfg(not(unix))]
 pub(crate) fn atomic_write_private(path: &Path, data: impl AsRef<[u8]>) -> std::io::Result<()> {
     atomic_write(path, data)
 }
 
-/// Normalize a path string to forward slashes for cross-platform consistency.
-/// The backslash separator (native on Windows) is converted to '/'; on Unix
-/// this is a no-op. This ensures String-based comparisons behave identically
-/// on all platforms.
 pub fn normalize_path_separators(path: &str) -> String {
     path.replace('\\', "/")
 }
 
-/// A single entry in the skills cache. It is a filesystem scan result without user metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillCacheEntry {
@@ -96,15 +81,12 @@ pub struct SkillCacheEntry {
     pub home_agent: Option<String>,
     #[serde(default)]
     pub apps: HashMap<String, bool>,
-    /// Where an origin="plugin" entry came from, relative to the owning agent's
-    /// home directory, e.g. "plugins/cache/mp/plugin/1.0.0/skills/demo".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub plugin_source: Option<String>,
     pub installed_at: i64,
     pub updated_at: i64,
 }
 
-/// JSON snapshot of filesystem scan results. User metadata (starred, is_mine) is stored separately in MetadataStore.
 #[derive(Debug, Clone)]
 pub struct SkillCache {
     skills: Vec<SkillCacheEntry>,
@@ -168,9 +150,6 @@ impl SkillCache {
     }
 
     pub fn upsert(&mut self, entry: SkillCacheEntry) {
-        // Normalize home_path to forward slashes so String-based dedup is
-        // reliable across platforms. Old entries with native separators are
-        // cleaned up on the next full rebuild (app restart).
         let mut entry = entry;
         if let Some(ref home) = entry.home_path {
             let normalized = normalize_path_separators(home);
@@ -184,10 +163,6 @@ impl SkillCache {
             self.skills[index].installed_at = installed_at;
             return;
         }
-        // When the same skill is re-scanned under different conditions
-        // (e.g. lock file temporarily unavailable), its computed ID can
-        // change. Remove any stale entry that represents the same physical
-        // skill directory so the cache doesn't accumulate duplicates.
         let stale_index = if let Some(ref home) = entry.home_path {
             self.skills
                 .iter()
@@ -269,14 +244,12 @@ impl<'de> Deserialize<'de> for SkillCache {
     }
 }
 
-/// Key-value settings. Replaces the `settings` SQLite table.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     pub values: HashMap<String, String>,
 }
 
 impl Settings {
-    /// Plugin skill discovery, off unless explicitly switched on.
     pub fn plugins_discovery_enabled(&self) -> bool {
         self.get("plugins_discovery_enabled")
             .map(|value| value == "true")
@@ -331,7 +304,6 @@ mod credential_file_permissions_tests {
     fn credential_bearing_writes_are_owner_only() {
         let home = tempfile::tempdir().unwrap();
         crate::config::with_test_home(home.path(), || {
-            // settings.json carries the saved token.
             let settings = Settings {
                 values: HashMap::new(),
             };
@@ -339,8 +311,6 @@ mod credential_file_permissions_tests {
             let settings_path = config::get_app_config_dir().join("settings.json");
             assert!(owner_only(&settings_path));
 
-            // A stale loose temp file from a crashed write must not leak its
-            // permissions into the next save.
             let tmp_path = settings_path.with_file_name("settings.json.tmp");
             std::fs::write(&tmp_path, b"stale").unwrap();
             std::fs::set_permissions(&tmp_path, std::fs::Permissions::from_mode(0o666)).unwrap();
@@ -348,10 +318,6 @@ mod credential_file_permissions_tests {
             assert!(owner_only(&settings_path));
             assert!(!tmp_path.exists());
 
-            // Agent lifecycle snapshots embed settings.json content; a
-            // successful commit leaves the restored file owner-only (the
-            // journal itself is removed by cleanup and is covered in
-            // agent_transaction's own tests).
             let tx_dir = home.path().join("tx");
             std::fs::create_dir(&tx_dir).unwrap();
             agent_transaction::commit(

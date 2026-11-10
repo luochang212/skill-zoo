@@ -139,8 +139,6 @@ describe("SkillDetail", () => {
     expect(screen.queryByTitle("Update from Git")).not.toBeInTheDocument();
     expect(screen.queryByTitle("Remove skill")).not.toBeInTheDocument();
     expect(screen.queryByTitle("Archive")).not.toBeInTheDocument();
-    // Linking agents is a write operation the backend refuses for plugin
-    // skills, so the affordance must not be offered at all.
     expect(screen.queryByTitle("Configure coding agents")).not.toBeInTheDocument();
     expect(onUpdate).not.toHaveBeenCalled();
   });

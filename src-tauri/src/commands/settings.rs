@@ -19,7 +19,6 @@ pub fn is_portable_build() -> bool {
     cfg!(feature = "portable")
 }
 
-// Completed archives are disposable; active downloads and unknown files are not.
 fn cached_zip_entries() -> Result<Vec<std::fs::DirEntry>, String> {
     let entries = match std::fs::read_dir(crate::config::get_repo_zip_cache_dir()) {
         Ok(entries) => entries,
@@ -107,10 +106,6 @@ pub fn save_skill_usage_screenshot(data_url: String) -> Result<String, String> {
     Ok(path.to_string_lossy().to_string())
 }
 
-/// The GitHub credential keys: hidden from the generic read (the UI asks
-/// `get_github_credential_status` instead) and writable only through
-/// `save_github_credentials`, which keeps the runtime slot in sync. One list
-/// backs both the read filter and the write guard.
 const CREDENTIAL_KEYS: &[&str] = &["github_token", "github_token_expires_at"];
 
 fn visible_settings(values: &HashMap<String, String>) -> HashMap<String, String> {
@@ -127,7 +122,6 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<HashMap<String, String
     Ok(visible_settings(&settings.values))
 }
 
-/// Credential summary for settings rows; the editor reads the token separately.
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitHubCredentialStatus {
@@ -201,18 +195,12 @@ pub fn update_setting(
     Ok(())
 }
 
-/// The credential keys are owned by the credential save command: a generic
-/// write would persist without refreshing the runtime slot, pairing a new
-/// token with a stale expiry. Fail loudly instead of silently bypassing it.
 fn credential_key_violation(key: &str) -> Option<String> {
     CREDENTIAL_KEYS.contains(&key).then(|| {
         "GitHub credentials must be changed through the save_github_credentials command".to_string()
     })
 }
 
-/// Owns the GitHub credential keys: token and expiry persist in one settings
-/// write, so runtime authentication can never pair a new token with a stale
-/// expiry, and the runtime slot refreshes only after the save succeeds.
 #[tauri::command]
 pub fn save_github_credentials(
     state: State<'_, AppState>,
@@ -264,12 +252,6 @@ pub async fn verify_github_token(
     crate::services::github::verify_github_token(&token).await
 }
 
-/// Live verification of the *saved* token for the credential dialog. The
-/// token is read here, server-side, and never crosses the bridge. Only the
-/// verification result does.
-/// The saved token for live verification, present only when a non-blank token
-/// exists, matching the "configured" view `credential_status` reports, so a
-/// whitespace-only legacy value is never sent to GitHub.
 fn verifiable_saved_token(values: &HashMap<String, String>) -> Option<String> {
     values
         .get("github_token")
@@ -416,7 +398,6 @@ mod tests {
         let status = super::credential_status(&values);
         assert!(status.has_token);
         assert!(status.expires_at.is_none());
-        // The serialized status carries no token material.
         let json = serde_json::to_string(&status).unwrap();
         assert!(!json.contains("secret"));
 
@@ -468,7 +449,6 @@ mod tests {
                 );
                 assert_eq!(persisted.get("other").map(String::as_str), Some("value"));
 
-                // A passed expiry stays persisted and stops authenticating.
                 let past = (chrono::Utc::now() - chrono::Duration::days(1)).to_rfc3339();
                 super::persist_github_credentials(&mut settings, "test-token", &past).unwrap();
                 assert!(crate::config::github_token().is_none());
@@ -480,7 +460,6 @@ mod tests {
                     Some(past.as_str())
                 );
 
-                // Blank input removes both keys and runtime credentials.
                 super::persist_github_credentials(&mut settings, " \n", "").unwrap();
                 assert!(crate::config::github_token().is_none());
                 let persisted = crate::persistence::Settings::load().unwrap();
@@ -505,7 +484,6 @@ mod tests {
                             ("github_token_expires_at".into(), future.clone()),
                         ]),
                     };
-                    // An existing directory at the file path makes atomic replacement fail.
                     std::fs::create_dir_all(
                         crate::config::get_app_config_dir().join("settings.json"),
                     )
@@ -618,10 +596,6 @@ fn has_visible_agent(visible_agents: &HashMap<String, bool>) -> bool {
     })
 }
 
-/// The visible-agent cap only guards growth. A preference saved before the
-/// limit existed can already exceed it; rejecting those updates as well would
-/// leave the owner unable to toggle anything off (each toggle shrinks by one,
-/// never enough), so only updates that grow past the cap are refused.
 fn exceeds_visible_agent_cap(old_count: usize, new_count: usize) -> bool {
     new_count > MAX_VISIBLE_AGENTS && new_count > old_count
 }
@@ -678,10 +652,6 @@ fn persist_agent_preferences(
     Ok(())
 }
 
-/// Best-effort removal of app-owned skill links from the directories of agents
-/// that just became hidden. Never fails: returns whether cleanup could not
-/// complete, so the caller can surface a concise notice instead of blocking
-/// the visibility change. Details go to stderr for diagnosis.
 fn cleanup_hidden_agent_links(
     hidden_agents: &[&str],
     agent_dirs: &[std::path::PathBuf],
@@ -745,8 +715,6 @@ pub fn update_agent_preferences(
         let settings = state.settings.lock().map_err(|e| e.to_string())?;
         crate::services::skill::SkillService::get_visible_agents(&settings)
     };
-    // A dialog opened before registration may omit the new ID. Preserve its
-    // committed preference rather than resetting it to a visible default.
     let visible_agents = merge_registered_visibility(&visible_agents, &old_visible);
     if !has_visible_agent(&visible_agents) {
         return Err("At least one agent must remain visible".to_string());
@@ -761,8 +729,6 @@ pub fn update_agent_preferences(
 
     let normalized_order = normalize_agent_order(&visible_agents, &agent_order);
 
-    // The visibility preference is the contract: persist it first and let it
-    // be the only hard failure. Link cleanup below is best-effort hygiene.
     {
         let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
         persist_agent_preferences(
@@ -928,12 +894,8 @@ mod agent_preferences_tests {
     #[test]
     fn visible_agent_cap_only_blocks_growth() {
         let max = MAX_VISIBLE_AGENTS;
-        // A pre-cap state toggling one agent off still exceeds the cap but
-        // shrinks, so it must be accepted (issue #10 deadlock).
         assert!(!exceeds_visible_agent_cap(max + 2, max + 1));
-        // Growing past the cap is rejected.
         assert!(exceeds_visible_agent_cap(max, max + 1));
-        // Same-size updates (reorder) and in-cap growth pass.
         assert!(!exceeds_visible_agent_cap(max + 2, max + 2));
         assert!(!exceeds_visible_agent_cap(max - 1, max));
     }
@@ -1075,8 +1037,6 @@ mod agent_preferences_tests {
     }
 }
 
-// ────────────── Check skill updates ──────────────
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillUpdateStatus {
@@ -1154,7 +1114,6 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
 
     let lock = SkillLock::read().map_err(|e| e.to_string())?;
 
-    // Group skills by (owner, repo, branch) to minimize API calls
     let mut skills_by_repo: HashMap<UpdateRepoKey, UpdateRepoEntries> = HashMap::new();
 
     for (skill_name, entry) in &lock.skills {
@@ -1177,7 +1136,6 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
 
     let mut checked_skills: HashMap<String, CheckedRemoteSkill> = HashMap::new();
 
-    // Randomize repo order for fairness when rate-limited
     let mut repos: Vec<(String, String, Option<String>)> = skills_by_repo.keys().cloned().collect();
     repos.shuffle(&mut rand::rng());
 
@@ -1195,7 +1153,6 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
             Ok(Some(tree)) => {
                 checked_repos += 1;
 
-                // One API call → all skills in this repo get their folder SHA
                 for (skill_name, entry) in skills_in_repo {
                     let skill_path = entry.skill_path.as_deref().unwrap_or("");
                     let folder_sha = CliService::get_folder_sha_from_tree(&tree, skill_path);
@@ -1211,7 +1168,6 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
                 }
             }
             Ok(None) => {
-                // Repo not found or branch doesn't exist, so skip and continue
                 checked_repos += 1;
 
                 for (skill_name, _) in skills_in_repo {
@@ -1229,7 +1185,6 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
                 }
             }
             Err(error @ crate::error::AppError::RateLimited { .. }) => {
-                // Actually rate limited, so stop further requests
                 rate_limited = true;
                 let message = crate::error::CommandError::from(error).to_json();
                 rate_limit_message = Some(message.clone());
@@ -1241,7 +1196,6 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
                 }
             }
             Err(error) => {
-                // Non-quota failures affect only this repository.
                 let error = crate::error::CommandError::from(error);
                 let code = error.code;
                 let message = error.to_json();
@@ -1255,7 +1209,6 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
         }
     }
 
-    // Build per-skill status
     let mut skills: Vec<SkillUpdateStatus> = Vec::new();
     for (skill_name, entry) in &lock.skills {
         let (Some(owner), Some(name)) = entry.parse_source_owner_name() else {

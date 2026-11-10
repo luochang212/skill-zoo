@@ -2,8 +2,6 @@ use skill_zoo_lib::{commands::skill::get_repo_readme, config, services::cli::Cli
 use std::{io::Write, process::Command};
 use zip::write::SimpleFileOptions;
 
-// Run the real command in a subprocess: reqwest caches its proxy configuration,
-// so changing proxy environment variables inside a shared test process is unsafe.
 #[test]
 fn zip_readme_retries_after_credentials_change() {
     const CHILD: &str = "SKILL_ZOO_README_RECOVERY_CHILD";
@@ -40,8 +38,6 @@ fn zip_readme_retries_after_credentials_change() {
             String::from_utf8_lossy(&output.stderr)
         );
         println!("{}", String::from_utf8_lossy(&output.stdout));
-        // One failed read before the credential change and one after it. The
-        // fresh API cache control below must not make any further requests.
         attempts.assert();
         return;
     }
@@ -63,13 +59,11 @@ fn zip_readme_retries_after_credentials_change() {
 
             let read = || get_repo_readme("owner".into(), "repo".into(), None, None);
             assert_eq!(read().await.unwrap(), "# Old ZIP README");
-            // Disk README fallback should survive even if its ZIP is removed.
             std::fs::remove_file(&zip_path).unwrap();
             config::set_github_credentials(Some("test-token-not-a-real-credential"), None);
             assert_eq!(read().await.unwrap(), "# Old ZIP README");
             println!("ZIP fallback survives removal; credential change read completed");
 
-            // A normal fresh API entry must retain its seven-day cache lifetime.
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()

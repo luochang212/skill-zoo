@@ -97,8 +97,6 @@ fn test_refuses_to_write_future_archive_version() {
 
 #[test]
 fn test_archive_id_handles_nested_directory() {
-    // `make_archive_id` must extract the leaf name via Path::file_name()
-    // for nested paths, regardless of platform.
     let id =
         ArchiveManifest::make_archive_id("repo:owner/repo:nested-skill", "skills/nested-skill");
     assert!(

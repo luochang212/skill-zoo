@@ -39,8 +39,6 @@ export function SkillMaintenanceSettings({
   const qc = useQueryClient();
   const { data: showNonSsot } = useShowNonSsot();
   const updateShowNonSsot = useUpdateShowNonSsot();
-  // Flipping discovery retracts or repopulates plugin entries immediately:
-  // the forced refetch rebuilds the cache, which purges when discovery is off.
   const { data: pluginsDiscoveryEnabled } = usePluginsDiscoveryEnabled();
   const updatePluginsDiscovery = useUpdatePluginsDiscoveryEnabled();
   const { t } = useTranslation();
@@ -170,7 +168,6 @@ export function SkillMaintenanceSettings({
       </div>
 
       <div className="space-y-4">
-        {/* Check / Update manager */}
         <div className="group flex items-center justify-between rounded-xl border border-border bg-card/50 p-4 transition-colors hover:bg-muted/50">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-background ring-1 ring-border">
@@ -218,7 +215,6 @@ export function SkillMaintenanceSettings({
           </div>
         </div>
 
-        {/* Local imports */}
         <div className="flex items-center justify-between rounded-xl border border-border bg-card/50 p-4 transition-colors hover:bg-muted/50">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-background ring-1 ring-border">
@@ -242,7 +238,6 @@ export function SkillMaintenanceSettings({
           </Button>
         </div>
 
-        {/* Clear cache */}
         <div className="flex items-center justify-between rounded-xl border border-border bg-card/50 p-4 transition-colors hover:bg-muted/50 group">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-background ring-1 ring-border">

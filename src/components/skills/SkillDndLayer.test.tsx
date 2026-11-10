@@ -27,18 +27,6 @@ function fireMouse(element: Element, type: string, button = 0) {
   return event;
 }
 
-// The left-button mousedown must stay default-canceled: with selectable card
-// text, WebKit starts a native selection gesture behind the drag and
-// auto-scrolls the nearest scroll container once it crosses the container's
-// edge. That autoscroll is platform behavior and cannot be simulated here,
-// so this suite pins the app-side contract around the gesture:
-//
-// - mousedown is canceled, so the selection gesture never starts;
-// - pointerdown is NOT canceled, because dnd-kit's 200ms long-press pickup
-//   re-reads the original pointerdown at activation time and bails on
-//   defaultPrevented (a pointerdown-level preventDefault killed long-press
-//   drags);
-// - non-primary buttons pass through, keeping right-click menus alive.
 describe("SkillDragSource", () => {
   it("cancels left-button mousedown so the native selection gesture never starts", () => {
     render(

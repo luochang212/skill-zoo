@@ -87,8 +87,6 @@ export async function scanCacheEntries(home?: string): Promise<SkillCacheEntry[]
     await scanDirRecursive(home, scanRoot, scanRoot, lock, seenIds, entries);
   }
   await scanExternalImports(home, seenIds, entries);
-  // Registered external references win over agent ownership even when a new
-  // custom root encloses their source. Return one record per physical source.
   const externalHomes = new Set(entries.filter((e) => e.origin === "external").map((e) => e.homePath));
   if (externalHomes.size === 0) return entries;
   const externalIdentities = new Set(await Promise.all([...externalHomes].map((home) => directoryIdentity(home ?? undefined))));
@@ -179,8 +177,6 @@ async function scanDirRecursive(
       continue;
     }
 
-    // Skip the app's own temp/backup dirs (.name.install.*, .name.update.*,
-    // .name.backup.*). Dot-prefixed namespaces like `.system` are real skills.
     const isTempDir =
       entryName.startsWith(".") &&
       [".install.", ".update.", ".backup."].some((marker) => entryName.includes(marker));
@@ -239,8 +235,6 @@ export function makeSkillId(
   agentId?: string,
 ): string {
   if (origin === "ssot") {
-    // Identity is anchored to the installation directory; provenance must
-    // not leak into the ID, or metadata detaches when the source drifts.
     return `ssot:${directory}`;
   }
 
@@ -284,11 +278,6 @@ export async function computeContentHash(root: string): Promise<string | null> {
   return hasher.digest("hex");
 }
 
-/// The desktop hashes the raw OS relative path (no separator normalization)
-/// and sorts `PathBuf`s, which order component-by-component rather than by
-/// whole-string bytes ("a/file" sorts before "a-x/file"). Match both so the
-/// shared cache digest stays identical across runtimes; the pinned vector in
-/// fixtures/local-protocol/content-hash-vector asserts it.
 function comparePathComponents(left: string, right: string): number {
   const leftParts = left.split(path.sep);
   const rightParts = right.split(path.sep);
@@ -302,9 +291,6 @@ function comparePathComponents(left: string, right: string): number {
   return leftParts.length - rightParts.length;
 }
 
-/// UTF-8 byte order equals code point order, which is what Rust's component
-/// comparison uses; JS string comparison is UTF-16 code-unit order and
-/// disagrees for astral characters.
 function compareByCodePoints(left: string, right: string): number {
   const a = Array.from(left);
   const b = Array.from(right);
@@ -319,8 +305,6 @@ function compareByCodePoints(left: string, right: string): number {
   return a.length - b.length;
 }
 
-// Match the desktop: reject the whole hash beyond depth 20, never hash a
-// truncated tree that could make different skills appear identical.
 async function collectFiles(dir: string, root: string, depth: number, files: string[]): Promise<boolean> {
   if (depth > 20) {
     return false;
@@ -377,7 +361,6 @@ export async function parseSkillMd(skillMdPath: string, fallbackName: string): P
         description = yamlValueToString(meta.description);
       }
     } catch {
-      // Match the desktop app's permissive parsing: bad YAML falls back to the directory name.
     }
   }
 
@@ -484,9 +467,6 @@ async function detectAgents(
       continue;
     }
 
-    // Scan roots and custom registry paths already identify the owning root.
-    // Match desktop's component-based check; realpath on both sides for every
-    // skill/agent pair turns a warm scan into thousands of redundant I/O calls.
     if (homePath && isInsideRoot(homePath, agentDir)) {
       apps[agent.id] = true;
       continue;

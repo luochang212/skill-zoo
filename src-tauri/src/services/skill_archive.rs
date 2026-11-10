@@ -78,7 +78,6 @@ fn format_archive_app_error(action: &str, error: impl std::fmt::Display) -> Stri
     format!("{action} failed: {detail} ({message})")
 }
 
-// The lease precedes the refresh lock, matching install/update lock order.
 struct ArchiveWrite<'a> {
     state: &'a AppState,
     imports: ExternalImports,
@@ -182,7 +181,6 @@ fn recovery_error(message: String, errors: Vec<String>) -> String {
     }
 }
 
-// Only these owned sources may move. Wire/storage origins remain unchanged.
 #[derive(Debug)]
 enum ArchiveOwner {
     Store,
@@ -345,7 +343,6 @@ pub fn read_archived_skill_md(archive_id: String) -> Result<String, String> {
         .cloned()
         .ok_or_else(|| format!("Archived skill not found: {archive_id}"))?;
 
-    // External imports keep source files at their original location.
     let skill_md = if archived_skill.origin == "external" {
         archived_skill
             .home_path
@@ -453,8 +450,6 @@ fn archive_skill_inner(write: &ArchiveWrite<'_>, skill_id: String) -> Result<(),
         if !enabled {
             continue;
         }
-        // A native home is an entity, not an agent link. It is moved below;
-        // nested native skills may also have no flat link at all.
         if archived_skill.home_agent.as_deref() == Some(agent.as_str()) {
             let flat_path = config::get_agent_skills_dir(agent)
                 .map(|root| root.join(SkillService::agent_link_name(&skill.directory)));
@@ -656,8 +651,6 @@ fn restore_archived_skill_inner(
 
     write
         .edit_metadata(|metadata| {
-            // Manifest IDs are historical records; map a legacy provenance-derived
-            // ID to the canonical installation identity before touching metadata.
             let metadata_key = crate::persistence::metadata::canonicalize_legacy_skill_id(
                 &archived_skill.original_skill_id,
             )
@@ -723,8 +716,6 @@ fn restore_archived_skill_inner(
         }
     }
 
-    // Scan after symlinks are created so detect_agents finds the restored links.
-    // External imports use the import registry to preserve origin = "external".
     let retained = write.imports.imports.get(&archived_skill.original_skill_id);
     let entry = if let Some(import) = retained {
         SkillService::scan_external_import(import)
@@ -1349,14 +1340,11 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let home = dir.path();
         crate::config::with_test_home(home, || {
-            // Archived skill files under the archive skills dir.
             let archive_id = "demo-abc123";
             let archive_skill_dir = ArchiveManifest::archive_skill_dir(archive_id);
             std::fs::create_dir_all(&archive_skill_dir).expect("create archive dir");
             std::fs::write(archive_skill_dir.join("SKILL.md"), "# Demo").expect("write skill");
 
-            // Manifest entry keeps the historical provenance-derived ID and
-            // the user flags snapshotted at archive time.
             let archived_skill = ArchivedSkill {
                 id: archive_id.to_string(),
                 archive_id: archive_id.to_string(),
@@ -1401,10 +1389,8 @@ mod tests {
 
             let restored =
                 restore_one(&state, archive_id.to_string()).expect("restore archived skill");
-            // The restored skill scans under the canonical identity.
             assert_eq!(restored, "ssot:demo");
 
-            // The historical legacy ID must land on the canonical key.
             let metadata = state.metadata.read().expect("metadata lock");
             assert!(
                 metadata.get("ssot:demo").starred,

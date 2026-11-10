@@ -62,7 +62,6 @@ export function useRepoPanelRefresh({
       try {
         await onRefresh();
       } catch {
-        // Request errors belong to the query layer; always release the gesture.
       } finally {
         if (mounted.current) {
           finishTimer.current = setTimeout(
@@ -111,13 +110,9 @@ export function useRepoPanelRefresh({
         if (disabled || busy.current || event.deltaY >= 0) return;
         const now = Date.now();
         if (!atTop()) {
-          // Upward scrolling away from the top marks the gesture as one that
-          // may still carry momentum when it reaches the top.
           lastScrollAt.current = now;
           return;
         }
-        // Momentum arriving at the top is scroll residue, not pull intent;
-        // only accumulate once the scroller has rested at the top briefly.
         if (now - lastScrollAt.current < FRESH_TOP_MS) return;
         event.preventDefault();
         clearTimeout(wheelTimer.current);

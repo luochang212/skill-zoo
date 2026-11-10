@@ -10,8 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { invalidateAgentState } from "@/hooks/useSettings";
 
-// The suggested label is the directory's own name; the conventional `skills`
-// leaf is skipped so `~/.hermes/skills` suggests "hermes".
 export function suggestName(path: string): string {
   const segments = path.split(/[\\/]/).filter((segment) => segment && segment !== ".");
   const last = segments[segments.length - 1];
@@ -39,8 +37,6 @@ export function CustomAgentEditor({
   const id = useId();
   const [name, setName] = useState(agent?.label ?? "");
   const [path, setPath] = useState(agent?.path ?? "");
-  // Once the user touches the name field, later directory changes must not
-  // overwrite their label; editing an existing agent starts frozen.
   const [nameEdited, setNameEdited] = useState(Boolean(agent));
   const [create, setCreate] = useState(false);
   const [preview, setPreview] = useState<AgentPreview>();
@@ -118,8 +114,6 @@ export function CustomAgentEditor({
     return () => onBusyChange(false);
   }, [busy, onBusyChange]);
   useEffect(() => {
-    // Adding starts at the directory (the name follows it); editing starts at
-    // the label so a stray keystroke cannot dirty the registered path.
     if (!review && !discard) (agent ? nameRef : pathRef).current?.focus();
   }, [review, discard, agent]);
   useEffect(() => {

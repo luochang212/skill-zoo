@@ -18,7 +18,6 @@ export function WindowBehaviorSettings() {
       onCheckedChange={(checked) =>
         updateCloseToTray.mutate(checked, {
           onSuccess: () => {
-            // First-time enablers otherwise wonder where the window went.
             if (checked) toast.success(t("settings.windowBehavior.closeToTrayEnabledToast"));
           },
         })

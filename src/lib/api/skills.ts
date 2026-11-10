@@ -98,8 +98,6 @@ export const skillsApi = {
 
   getAgentConfigs: () => invoke<AgentConfig[]>("get_agent_configs"),
 
-  // ── Discover (repo-driven) ──
-
   getBanners: () => invoke<Banner[]>("get_banners"),
 
   getRecommendedRepos: () => invoke<DiscoverRepo[]>("get_recommended_repos"),
@@ -121,17 +119,11 @@ export const skillsApi = {
   getRepoReadme: (owner: string, name: string, branch?: string, force?: boolean) =>
     invoke<string>("get_repo_readme", { owner, name, branch, force }),
 
-  // ── Discover (skills.sh) ──
-
   searchSkillsSh: (query: string, limit?: number) =>
     invoke<DiscoverableSkill[]>("search_skills_sh", { query, limit }),
 
-  // ── Security Audit (skills.sh) ──
-
   getSkillAudit: (owner: string, repo: string, slug: string) =>
     invoke<SkillAudit[]>("get_skill_audit", { owner, repo, slug }),
-
-  // ── Star / Create ──
 
   setSkillStarred: (skillId: string, starred: boolean) =>
     invoke<void>("set_skill_starred", { skillId, starred }),
@@ -142,12 +134,8 @@ export const skillsApi = {
   createSkill: (name: string, content: string) =>
     invoke<InstalledSkill>("create_skill", { name, content }),
 
-  // ── Duplicates ──
-
   mergeDuplicatesToSsot: (skillName: string) =>
     invoke<void>("merge_duplicates_to_ssot", { skillName }),
-
-  // ── Cache ──
 
   clearDownloadCache: () => invoke<number>("clear_download_cache"),
 

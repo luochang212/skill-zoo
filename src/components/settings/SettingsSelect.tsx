@@ -12,7 +12,6 @@ export const SettingsPickerContext = createContext<((open: boolean) => void) | u
   undefined,
 );
 
-/** Uses the same picker, keyboard navigation and checkmark treatment as Usage habits. */
 export function SettingsSelect({
   id,
   label,

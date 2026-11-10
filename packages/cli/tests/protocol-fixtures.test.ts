@@ -78,12 +78,9 @@ describe("desktop local protocol fixtures", () => {
     expect(reread.skills.demo?.skillPath).toBe("skills/new-demo");
     expect(root["futureTop"]).toBe("keep-me");
     expect(entry?.["futureOptional"]).toBe("keep-me");
-    // The desktop's content baseline round-trips untouched: the CLI reads and
-    // preserves it without interpreting it.
     expect(reread.skills.demo?.skillFolderHash).toBe(
       "8293db63637957643abb559a59c1122ef387e21f61b60e8b0b3b2dfda73bae36",
     );
-    // Fixtures represent desktop protocol state and must never be rewritten.
     expect(await fs.readFile(fixturePath("lock-v3-full.json"), "utf8")).toBe(fixtureBefore);
   });
 
@@ -156,7 +153,6 @@ describe("desktop local protocol fixtures", () => {
     );
     const metadata = await readMetadata(home);
 
-    // Legacy repo keys merge (OR) into canonical ssot keys.
     expect(metadata.entries["ssot:demo"]).toEqual({ starred: true, isMine: true });
     expect(metadata.entries["ssot:category/nested"]).toEqual({ starred: false, isMine: true });
     expect(metadata.entries["ssot:kept"]).toEqual({ starred: true, isMine: false });
@@ -170,7 +166,6 @@ describe("desktop local protocol fixtures", () => {
     expect(metadata.entries["ssot:foo:bar"]).toEqual({ starred: true, isMine: true });
     expect(await fs.readFile(fixturePath("metadata-legacy-repo-keys.json"), "utf8")).toBe(original);
 
-    // The migration converges on disk.
     const persisted = JSON.parse(await fs.readFile(paths.metadataFile, "utf8"));
     expect(persisted.entries).toEqual(metadata.entries);
   });
@@ -206,7 +201,6 @@ describe("desktop local protocol fixtures", () => {
 });
 
 function fixturePath(name: string): string {
-  // import.meta.dirname (Node 21.2+) avoids Vite /@fs/ prefix on import.meta.url
   const dir = typeof import.meta.dirname === "string"
     ? import.meta.dirname
     : path.dirname(fileURLToPath(import.meta.url));

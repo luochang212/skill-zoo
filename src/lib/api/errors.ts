@@ -93,8 +93,6 @@ export function formatApiError(error: unknown): string {
   ) {
     return translateError("error.downloadTls", repo);
   }
-  // Synthetic keys thrown by the GitHub token mutation; the settings panel
-  // shows the same strings inline, so the toast must not leak the raw key.
   if (raw === "githubTokenVerificationFailed") {
     return i18n.t("settings.github.verifyFailed");
   }
@@ -144,8 +142,6 @@ function cleanBadRequestMessage(message?: string): string {
   return message?.trim().replace(/^Bad request:\s*/i, "") ?? "";
 }
 
-// User-initiated cancellation (repo load, translation) is not an error to
-// render: callers branch on this before falling back to formatted copy.
 export function isCancelledError(error: unknown): boolean {
   return asApiError(error)?.code === "cancelled";
 }
@@ -154,7 +150,6 @@ function asApiError(error: unknown): ApiError | null {
   if (error instanceof Error) return asApiError(error.message);
   if (typeof error === "string") {
     const trimmed = error.trim();
-    // Update history keeps the skill-name prefix used to identify failed skills.
     const detailStart = trimmed.indexOf(": {");
     if (!trimmed.startsWith("{") && detailStart >= 0) {
       return asApiError(trimmed.slice(detailStart + 2));

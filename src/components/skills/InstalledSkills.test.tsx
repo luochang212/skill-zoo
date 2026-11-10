@@ -32,8 +32,6 @@ const mocks = vi.hoisted(() => ({
   skills: [] as InstalledSkill[],
   archivedSkills: [] as InstalledSkill[],
   visibleAgentOrder: ["claude-code", "codex"] as string[],
-  // Test stub for the settings query; individual tests flip it to exercise
-  // the SSOT-only view.
   showNonSsot: true,
   starSkill: vi.fn(),
   toggleSymlink: vi.fn(),
@@ -708,7 +706,6 @@ describe("InstalledSkills visible agent filtering", () => {
     mocks.skills = [skill({ id: "alpha", name: "Alpha" })];
     const view = renderInstalledSkills();
 
-    // Row view is what renders per-row selection checkboxes.
     await user.click(
       view.container.querySelector("button.inline-flex.items-center.bg-muted") as HTMLButtonElement,
     );
@@ -722,7 +719,6 @@ describe("InstalledSkills visible agent filtering", () => {
     renderInstalledSkills();
 
     const search = await screen.findByLabelText("Search installed...");
-    // Not placeholder-only: the name must come from an attribute.
     expect(search).toHaveAttribute("aria-label", "Search installed...");
   });
 });
@@ -742,8 +738,6 @@ describe("InstalledSkills plugin category", () => {
   });
 
   it("keeps plugin skills out of All and lists them in the Plugins tab", () => {
-    // Claude Code is hidden and the SSOT filter is on, yet plugin skills stay
-    // inspectable: their own Settings switch governs them.
     mocks.visibleAgentOrder = ["codex"];
     mocks.showNonSsot = false;
     mocks.skills = [
@@ -769,7 +763,6 @@ describe("InstalledSkills plugin category", () => {
     renderInstalledSkills({ type: "plugin" });
     expect(screen.getByRole("button", { name: "plugin-skill" })).toBeInTheDocument();
 
-    // Codex has no plugin skills: the tab empties under that filter.
     act(() => {
       screen.getByRole("button", { name: "Codex" }).click();
     });

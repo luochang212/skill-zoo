@@ -56,8 +56,6 @@ pub struct CheckedSkillUpdate {
 
 const MAX_IMAGE_PREVIEW_BYTES: u64 = 25 * 1024 * 1024;
 
-/// Validate that a skill directory name does not contain path traversal or
-/// other dangerous components.
 pub(crate) fn validate_skill_directory(directory: &str) -> Result<(), String> {
     if directory.is_empty() {
         return Err("Skill directory cannot be empty".into());
@@ -125,9 +123,6 @@ fn is_path_under_roots(path: &Path, roots: &[PathBuf], must_exist: bool) -> bool
 }
 
 fn link_points_to_import_source(link_path: &Path, source_path: &Path) -> bool {
-    // Canonical match plus raw-target match (so dangling symlinks whose target
-    // is absent still compare by raw path). Reuses the services-level helpers so
-    // this stays consistent with toggle_symlink's notion of a match.
     crate::services::skill::symlink_target_matches(link_path, source_path)
         || crate::services::skill::raw_symlink_target_matches(link_path, source_path)
 }
@@ -298,9 +293,6 @@ fn external_import_info(import: &ExternalImportEntry) -> ExternalImportInfo {
     }
 }
 
-/// Strip the Windows verbatim path prefix (`\\?\`) inserted by
-/// `Path::canonicalize()`. Also handles the UNC variant `\\?\UNC\`
-/// by restoring it to `\\`. On non-Windows this is a no-op.
 fn strip_verbatim_prefix(path: String) -> String {
     path.strip_prefix("\\\\?\\UNC\\")
         .map(|rest| format!("\\\\{}", rest))
@@ -535,7 +527,6 @@ async fn import_external_skills_for_state(
             existing_id.unwrap_or_else(|| make_external_import_id(source_path, &imports));
         match imports.imports.get_mut(&import_id) {
             Some(import) => {
-                // Agent links are flat: changing only the parent path reuses the same link.
                 if SkillService::agent_link_name(&import.directory)
                     != SkillService::agent_link_name(&selection.directory)
                 {
@@ -587,9 +578,6 @@ async fn import_external_skills_for_state(
     let mut created_links: Vec<(String, PathBuf, String)> = Vec::new();
     for (selection, source_path) in &prepared {
         for agent in &agents {
-            // Distinguish links we actually create from ones that already point at
-            // this source (toggle_symlink is a no-op for the latter). Only the former
-            // go into created_links, so rollback never removes a pre-existing link.
             let preexisting = external_import_link_path(&selection.directory, agent)
                 .ok()
                 .map(|link| {
@@ -620,7 +608,6 @@ async fn import_external_skills_for_state(
         .map(|id| SkillService::scan_external_import(&imports.imports[id]))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| rollback(e.to_string(), &created_links))?;
-    // Commit the derived cache once, before retiring any previous links.
     SkillService::upsert_cache_entries(&state.skill_cache, entries)
         .map_err(|e| rollback(e.to_string(), &created_links))?;
 
@@ -636,8 +623,6 @@ async fn import_external_skills_for_state(
         );
     }
 
-    // Start watching external source directories so file changes
-    // trigger incremental cache refreshes automatically.
     {
         let mut seen = std::collections::HashSet::new();
         for (_, source_path) in &prepared {
@@ -845,15 +830,11 @@ pub async fn get_installed_skills(
                 discovery_off && cache.iter().any(|s| s.origin == "plugin"),
             )
         };
-        // A switched-off discovery must fully retract: stale plugin entries in
-        // an otherwise warm cache fall through to the rebuild, whose
-        // replace_all purges them.
         if !is_empty && !has_stale_plugins {
             return SkillService::read_all_skills(&state.skill_cache, &state.metadata)
                 .map_err(|e| e.to_string());
         }
     }
-    // Cache is empty (app just started) or force=true: rebuild from filesystem
     SkillService::rebuild_cache(
         &state.skill_cache,
         &state.metadata,
@@ -923,7 +904,6 @@ pub async fn update_skill(
     let started_at = chrono::Utc::now().to_rfc3339();
     let requested_skills = vec![skill.directory.clone()];
 
-    // No update needed
     if lock_entry.commit_sha.as_deref() == Some(&new_sha) {
         let result = crate::services::cli::UpdateResult {
             success_count: 0,
@@ -946,7 +926,6 @@ pub async fn update_skill(
         });
     }
 
-    // Perform update
     let known_update = KnownSkillUpdate {
         name: skill.directory.clone(),
         entry: lock_entry,
@@ -954,7 +933,6 @@ pub async fn update_skill(
         force: force == Some(true),
     };
 
-    // A locally modified skill is never overwritten without an explicit decision.
     if force != Some(true) {
         let ssot_dir = crate::config::get_agents_skills_dir();
         if crate::services::lock::skill_folder_drifted(
@@ -1299,7 +1277,6 @@ fn remove_lock_entry_for_skill(skill: &SkillCacheEntry) {
     if skill.origin != "ssot" {
         return;
     }
-    // Mirror archive's lookup order: full directory first, leaf name as legacy fallback.
     if let Err(e) = SkillLock::update(|lock| {
         let key = if lock.skills.contains_key(&skill.directory) {
             skill.directory.clone()
@@ -1546,8 +1523,6 @@ pub fn toggle_symlink(
             eprintln!("Failed to monitor recreated agent root: {error}");
         }
     }
-    // Update the in-memory cache so the frontend sees the new agent status
-    // immediately without a full cache rebuild.
     let new_apps = SkillService::detect_agents(&skill.directory, &skill.home_path);
     if let Ok(mut cache) = state.skill_cache.write() {
         if let Some(mut entry) = cache.find_by_id(&skill_id).cloned() {
@@ -1599,7 +1574,6 @@ pub fn batch_unlink_skills(
             }
         };
 
-        // A native agent directory is the skill's source, never a removable link.
         if skill.home_agent.as_deref() == Some(agent.as_str())
             || !skill.apps.get(&agent).copied().unwrap_or(false)
         {
@@ -1813,8 +1787,6 @@ pub fn open_skills_dir(app_handle: tauri::AppHandle, agent: String) -> Result<()
     open_directory(&app_handle, &dir)
 }
 
-// ────────────── Banners ──────────────
-
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct BannerEntry {
     pub image: String,
@@ -1842,8 +1814,6 @@ pub fn get_banners(app: tauri::AppHandle) -> Result<Vec<BannerEntry>, String> {
         serde_json::from_str(&json_str).map_err(|e| format!("Invalid banners JSON: {e}"))?;
     Ok(entries)
 }
-
-// ────────────── Discover (repo-driven) ──────────────
 
 #[derive(Debug, Clone, serde::Deserialize)]
 struct RecommendedRepoEntry {
@@ -2028,8 +1998,7 @@ pub async fn search_repo(query: String) -> Result<DiscoverRepo, String> {
     }
 }
 
-/// Cache entry keyed by "owner/name", stored in ~/.skill-zoo/repo-metadata-cache.json
-const REPO_METADATA_CACHE_TTL: u64 = 7 * 86400; // 7 days in seconds
+const REPO_METADATA_CACHE_TTL: u64 = 7 * 86400;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct RepoMetadataCacheEntry {
@@ -2085,7 +2054,6 @@ pub async fn get_repo_metadata(
     let mut cache = load_repo_metadata_cache();
     let stale_cache = cache.get(&key).map(|entry| entry.data.clone());
 
-    // Check disk cache
     if !force {
         if let Some(entry) = cache.get(&key) {
             let now = std::time::SystemTime::now()
@@ -2098,10 +2066,8 @@ pub async fn get_repo_metadata(
         }
     }
 
-    // Fetch from GitHub
     match fetch_github_repo_metadata(&owner, &name).await {
         Ok(data) => {
-            // Persist on success
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
@@ -2126,9 +2092,7 @@ pub async fn get_repo_metadata(
     }
 }
 
-// ── README cache ──
-
-const REPO_README_CACHE_TTL: u64 = 7 * 86400; // 7 days
+const REPO_README_CACHE_TTL: u64 = 7 * 86400;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct RepoReadmeCacheEntry {
@@ -2155,8 +2119,6 @@ fn save_readme_cache(cache: &std::collections::HashMap<String, RepoReadmeCacheEn
     }
 }
 
-// Returns Ok(content) on success, Err(()) on 404 or network/timeout errors.
-// Neither is cached, since repos may add a README later.
 fn repo_ref_cache_key(branch: Option<&str>) -> &str {
     branch.unwrap_or("default")
 }
@@ -2209,8 +2171,6 @@ fn read_repo_readme_from_zip_path(zip_path: &Path) -> Result<String, ()> {
 
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i).map_err(|_| ())?;
-        // An entry name that fails to decode can never be a root README path,
-        // so skip it rather than fail the lookup.
         let Ok(name) = entry.name() else {
             continue;
         };
@@ -2354,8 +2314,6 @@ pub async fn get_repo_readme(
                         key,
                         RepoReadmeCacheEntry {
                             content: content.clone(),
-                            // Keep offline content without claiming API freshness,
-                            // so credential-save invalidation can retry GitHub.
                             fetched_at: 0,
                         },
                     );
@@ -2384,10 +2342,6 @@ pub async fn get_repo_skills(
     }
     let force = force.unwrap_or(false);
 
-    // The user can cancel a load from the task menu. Only the discovery phase
-    // is abortable (network download, extraction, scan); once it completes, the
-    // remaining local bookkeeping runs to completion and cancellation wins no
-    // longer — cancelling a finished load is a no-op.
     let cancel_key = repo_load_cancel_key(&owner, &name, branch.as_deref());
     let (registration, handle) = state.repo_load_cancels.register(&cancel_key);
     let discovery = Abortable::new(
@@ -2435,14 +2389,10 @@ pub async fn get_repo_skills(
     Ok(RepoSkillsResult { skills, total })
 }
 
-/// Identity of a repository load for cancellation, mirroring the frontend task
-/// key: an absent branch is the default branch (`HEAD`).
 fn repo_load_cancel_key(owner: &str, name: &str, branch: Option<&str>) -> String {
     format!("{owner}/{name}@{}", branch.unwrap_or("HEAD"))
 }
 
-/// Abort an in-flight `get_repo_skills` load. Idempotent: cancelling an
-/// unknown (already finished) identity does nothing.
 #[tauri::command]
 pub fn cancel_repo_skills(
     state: State<'_, AppState>,
@@ -2483,8 +2433,6 @@ pub async fn preview_skill_md(
     let mut archive =
         zip::ZipArchive::new(file).map_err(|e| CommandError::from(AppError::from(e)))?;
 
-    // A valid root SKILL.md makes the repository a single-skill source. Check
-    // it before nested path matching so a same-named nested skill cannot win.
     for i in 0..archive.len() {
         let mut entry = archive
             .by_index(i)
@@ -2542,8 +2490,6 @@ fn valid_root_preview_content(content: Vec<u8>, repo_name: &str) -> Option<Strin
     String::from_utf8(content).ok()
 }
 
-// ────────────── Discover (skills.sh) ──────────────
-
 #[derive(Debug, Clone, serde::Deserialize)]
 struct SkillsShApiResponse {
     #[allow(dead_code)]
@@ -2566,7 +2512,6 @@ struct SkillsShApiSkill {
 
 fn parse_skills_sh_source(source: &str) -> Option<(&str, &str)> {
     let (owner, repo) = source.split_once('/')?;
-    // A dotted owner is a domain source; dots are valid in repository names.
     if owner.contains('.') || github::validate_repo_segments(owner, repo, "HEAD").is_err() {
         return None;
     }
@@ -2611,7 +2556,6 @@ pub async fn search_skills_sh(
         .await
         .map_err(|e| format!("Failed to parse skills.sh response: {e}"))?;
 
-    // Classify against the current filesystem-derived cache.
     let cache = visible_discover_conflict_cache(&state)?;
     let lock = SkillLock::read().map_err(|e| e.to_string())?;
 
@@ -2641,8 +2585,6 @@ pub async fn search_skills_sh(
 
     Ok(skills)
 }
-
-// ────────────── Security Audit (skills.sh) ──────────────
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -2727,8 +2669,6 @@ pub async fn get_skill_audit(
         .collect())
 }
 
-// ────────────── Star / Unstar / Create ──────────────
-
 #[tauri::command]
 pub fn set_skill_starred(
     state: State<'_, AppState>,
@@ -2777,19 +2717,16 @@ pub async fn create_skill(
     std::fs::write(&skill_md_path, &content)
         .map_err(|e| format!("Failed to write SKILL.md: {e}"))?;
 
-    // Scan and insert into cache incrementally
     let entry = SkillService::scan_single_skill(&name).map_err(|e| e.to_string())?;
     let entry_id = entry.id.clone();
     SkillService::upsert_cache_entry(&state.skill_cache, entry).map_err(|e| e.to_string())?;
 
-    // Mark as mine in metadata
     {
         let mut metadata = state.metadata.write().map_err(|e| e.to_string())?;
         metadata.set_is_mine(&entry_id, true);
         metadata.save().map_err(|e| e.to_string())?;
     }
 
-    // Return with metadata merged
     let skills = SkillService::read_all_skills(&state.skill_cache, &state.metadata)
         .map_err(|e| e.to_string())?;
     skills
@@ -2991,7 +2928,6 @@ mod tests {
             serde_json::from_str(&lease_command_error(AppError::OperationInProgress)).unwrap();
         assert_eq!(error["code"], "operationInProgress");
         assert!(error["repo"].is_null());
-        // Install uses the structured CommandError directly.
         assert_eq!(
             CommandError::from(AppError::OperationInProgress).code,
             "operationInProgress"
@@ -3109,7 +3045,6 @@ mod tests {
                 "ssot",
             )]);
             let mut entry = test_lock_entry("owner/repo", "old-ssot");
-            // A baseline that no longer matches the folder content.
             entry.skill_folder_hash =
                 Some("8293db63637957643abb559a59c1122ef387e21f61b60e8b0b3b2dfda73bae36".into());
             let mut lock = SkillLock {
@@ -3142,7 +3077,6 @@ mod tests {
             assert!(errors.is_empty());
             assert!(skipped.is_empty());
 
-            // Unknown baselines never block the batch.
             let mut lock = lock;
             lock.skills.get_mut("ssot-skill").unwrap().skill_folder_hash = Some(String::new());
             let (entries, errors, skipped) =
@@ -3208,8 +3142,6 @@ mod tests {
         let agent_home = root.path().join(".codex").join("skills").join("demo");
         std::fs::create_dir_all(&ssot_home).expect("create ssot skill");
         std::fs::create_dir_all(&agent_home).expect("create agent skill");
-        // Skill directories per the recognition rule: remove_skill_dir only
-        // deletes directories that still hold a SKILL.md.
         std::fs::write(ssot_home.join("SKILL.md"), "# Demo").expect("write ssot skill");
         std::fs::write(agent_home.join("SKILL.md"), "# Demo").expect("write agent skill");
 
@@ -3341,7 +3273,6 @@ mod tests {
 
     #[test]
     fn strip_verbatim_prefix_no_prefix_passthrough() {
-        // Paths without the verbatim prefix are returned unchanged.
         assert_eq!(
             strip_verbatim_prefix("/home/user/skills".into()),
             "/home/user/skills"
@@ -3354,7 +3285,6 @@ mod tests {
 
     #[test]
     fn strip_verbatim_prefix_local_verbatim() {
-        // Local verbatim: \\?\C:\... → C:\...
         assert_eq!(
             strip_verbatim_prefix("\\\\?\\C:\\Users\\demo\\.claude\\skills".into()),
             "C:\\Users\\demo\\.claude\\skills"
@@ -3363,7 +3293,6 @@ mod tests {
 
     #[test]
     fn strip_verbatim_prefix_unc_verbatim() {
-        // UNC verbatim: \\?\UNC\server\share\... → \\server\share\...
         assert_eq!(
             strip_verbatim_prefix("\\\\?\\UNC\\server\\share\\skills\\demo".into()),
             "\\\\server\\share\\skills\\demo"

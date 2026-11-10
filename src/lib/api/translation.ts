@@ -74,7 +74,6 @@ export const translationApi = {
   cancel: (taskId: string) => invoke<void>("cancel_translation", { taskId }),
   translate: (request: TranslationRequest, onEvent: (event: TranslationEvent) => void) => {
     const channel = new Channel<TranslationEvent>();
-    // Tauri Channel exposes onmessage; it is not a DOM EventTarget.
     // oxlint-disable-next-line unicorn/prefer-add-event-listener
     channel.onmessage = onEvent;
     return invoke<void>("translate_skill", { request, channel });

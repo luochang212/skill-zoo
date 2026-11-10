@@ -29,10 +29,6 @@ import {
 } from "./store.js";
 import type { BatchFailure, Change, ExternalImportEntry } from "./types.js";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 export type ImportStatus = "valid" | "source-missing" | "skill-missing";
 
 export interface ExternalImportInfo {
@@ -76,10 +72,6 @@ export interface ImportCleanResult {
   failed: BatchFailure[];
   changes: Change[];
 }
-
-// ---------------------------------------------------------------------------
-// listExternalImports
-// ---------------------------------------------------------------------------
 
 export async function listExternalImports(home?: string): Promise<ExternalImportInfo[]> {
   const imports = await readExternalImports(home);
@@ -150,13 +142,11 @@ async function detectLinkedAgents(
     const linkPath = path.join(agentDir, agentLinkName(directory));
     if (!(await isSymlinkOrJunction(linkPath))) continue;
 
-    // Try pathsEqual first (works for valid symlinks)
     if (await pathsEqual(linkPath, sourcePath)) {
       linked.push(agent.id);
       continue;
     }
 
-    // Fallback for dangling symlinks: compare readlink target
     try {
       const rawTarget = await fs.readlink(linkPath);
       const resolvedTarget = path.resolve(path.dirname(linkPath), rawTarget);
@@ -164,7 +154,6 @@ async function detectLinkedAgents(
         linked.push(agent.id);
       }
     } catch {
-      // Can't readlink, skip
     }
   }
   return linked;
@@ -175,10 +164,6 @@ function byStatusThenName(a: ExternalImportInfo, b: ExternalImportInfo): number 
   const diff = order[a.status] - order[b.status];
   return diff !== 0 ? diff : a.name.localeCompare(b.name);
 }
-
-// ---------------------------------------------------------------------------
-// scanExternalImportFolder
-// ---------------------------------------------------------------------------
 
 export async function scanExternalImportFolder(
   home: string | undefined,
@@ -199,13 +184,11 @@ export async function scanExternalImportFolder(
       const resolved = path.resolve(entry.sourcePath);
       knownSources.add(resolved);
     } catch {
-      // If the stored path can't be resolved, skip it
     }
   }
 
   const candidates: ExternalImportCandidate[] = [];
 
-  // Check if root itself has a SKILL.md (single-skill case)
   const rootSkillMd = path.join(root, "SKILL.md");
   if (await pathExists(rootSkillMd)) {
     const dirName = path.basename(root);
@@ -270,10 +253,6 @@ async function assertOutsideSkillRoots(home: string | undefined, target: string)
   }
 }
 
-// ---------------------------------------------------------------------------
-// importExternalSkills
-// ---------------------------------------------------------------------------
-
 export async function importExternalSkills(
   home: string | undefined,
   sourcePaths: string[],
@@ -308,20 +287,14 @@ export async function importExternalSkills(
   const existingImports = await readExternalImports(home);
   assertWritableSchema(lock, manifest, existingImports);
 
-  // Build a map of canonical source paths to existing import IDs (for reuse
-  // on re-import). Canonical identity, not string equality, so the same
-  // folder reached through a symlinked parent resolves to one import — this
-  // is how the desktop dedupes.
   const resolvedToId = new Map<string, string>();
   for (const entry of Object.values(existingImports.imports)) {
     try {
       resolvedToId.set(await realpathOrOriginal(entry.sourcePath), entry.id);
     } catch {
-      // skip unresolvable paths
     }
   }
 
-  // If dry-run, we still want to plan but not write
   if (options.dryRun) {
     for (const sourcePath of sourcePaths) {
       const absSource = path.resolve(sourcePath);
@@ -347,7 +320,6 @@ export async function importExternalSkills(
     return { added, failed, changes };
   }
 
-  // Real execution with rollback
   const snapshots = await Promise.all([
     snapshotFile(paths.externalImportsFile),
     snapshotFile(paths.skillsCacheFile),
@@ -370,8 +342,6 @@ export async function importExternalSkills(
           await assertAgentLinkAvailable(path.join(dir, agentLinkName(directory)), absSource);
         }
         const now = Math.floor(Date.now() / 1000);
-        // Re-importing a registered source keeps the original import date,
-        // matching the desktop's in-place update.
         const existingEntry = existingImports.imports[importId];
 
         const entry: ExternalImportEntry = {
@@ -403,17 +373,14 @@ export async function importExternalSkills(
     }
     await rebuildCache(home);
   } catch (error) {
-    // Rollback: remove created links, restore snapshots
     await Promise.all(createdLinks.map((linkPath) => removeAgentLink(linkPath).catch(() => undefined)));
     await Promise.all(snapshots.map((snap) => restoreSnapshot(snap).catch(() => undefined)));
-    // Also clean up the in-memory map for entries we added
     for (const id of newImportIds) {
       delete existingImports.imports[id];
     }
     throw error;
   }
 
-  // Build changes for reporting
   for (const id of added) {
     const entry = existingImports.imports[id];
     if (!entry) continue;
@@ -456,10 +423,6 @@ function generateImportId(sourcePath: string): string {
   const random = crypto.randomBytes(4).toString("hex");
   return `external:${slug}-${random}`;
 }
-
-// ---------------------------------------------------------------------------
-// removeExternalImport
-// ---------------------------------------------------------------------------
 
 export async function removeExternalImport(
   home: string | undefined,
@@ -515,7 +478,6 @@ export async function removeExternalImport(
     await writeExternalImports(home, imports);
     await rebuildCache(home);
   } catch (error) {
-    // Rollback: restore file snapshots and re-create removed symlinks
     await Promise.all(snapshots.map((snap) => restoreSnapshot(snap).catch(() => undefined)));
     await Promise.all(
       removedLinks.map((linkPath) =>
@@ -532,10 +494,6 @@ export async function removeExternalImport(
   };
 }
 
-// ---------------------------------------------------------------------------
-// cleanExternalImportLinks
-// ---------------------------------------------------------------------------
-
 export async function cleanExternalImportLinks(
   home: string | undefined,
   importId?: string,
@@ -546,7 +504,6 @@ export async function cleanExternalImportLinks(
   const manifest = await readArchiveManifest(home);
   assertWritableSchema(lock, manifest, imports);
 
-  // Determine which imports to target
   const targets: ExternalImportEntry[] = [];
   if (importId) {
     const entry = imports.imports[importId];
@@ -555,7 +512,6 @@ export async function cleanExternalImportLinks(
     }
     targets.push(entry);
   } else {
-    // Target all imports whose source is invalid
     for (const entry of Object.values(imports.imports)) {
       const info = await buildImportInfo(home, entry);
       if (info.status !== "valid") {
@@ -591,7 +547,6 @@ export async function cleanExternalImportLinks(
     return { cleaned, failed, changes };
   }
 
-  // Real execution
   for (const entry of targets) {
     try {
       const linkedAgents = await detectLinkedAgents(home, entry.directory, entry.sourcePath);
@@ -611,10 +566,6 @@ export async function cleanExternalImportLinks(
 
   return { cleaned, failed, changes };
 }
-
-// ---------------------------------------------------------------------------
-// Batch helper (used by CLI layer)
-// ---------------------------------------------------------------------------
 
 export function importsBatchExitCode(succeeded: unknown[], failed: unknown[]): number {
   if (failed.length > 0 && succeeded.length > 0) return 2;

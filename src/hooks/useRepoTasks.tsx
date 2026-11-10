@@ -138,7 +138,6 @@ function useSessionTasks(activeRepo: DiscoverRepo | null, onOpen: (repo: Discove
         repoTaskKey(entry.repo) === key ? { ...entry, dismissed: false, cancelled: false } : entry,
       ),
     );
-    // IPC keeps running if a query observer cancels; share that work until it settles.
     const request = skillsApi
       .getRepoSkills(repo.owner, repo.name, repo.branch || undefined, force)
       .finally(() => inFlight.current.delete(key));
@@ -179,8 +178,6 @@ function useSessionTasks(activeRepo: DiscoverRepo | null, onOpen: (repo: Discove
     for (const task of tasks) {
       if (task.query.isFetching || task.query.isPending) continue;
       if (task.query.isSuccess && task.key === activeKey) dismiss(task.repo);
-      // Completion stays quiet: the persistent header entry is the signal.
-      // Only failures interrupt, and never for the page being viewed.
       if (!task.query.isError || task.key === activeKey || task.dismissed) continue;
       const notice = `${task.key}:${task.query.errorUpdatedAt}`;
       if (notified.current.has(notice)) continue;
@@ -190,9 +187,6 @@ function useSessionTasks(activeRepo: DiscoverRepo | null, onOpen: (repo: Discove
   }, [tasks, activeKey, dismiss, t]);
 
   const cancel = useCallback((repo: DiscoverRepo) => {
-    // Cancelling a finished load is a backend no-op; IPC failures surface as
-    // nothing — the entry vanishes now to reflect the user's intent, and the
-    // abort lands shortly after.
     void skillsApi
       .cancelRepoSkills(repo.owner, repo.name, repo.branch || undefined)
       .catch(() => {});

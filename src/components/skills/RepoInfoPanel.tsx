@@ -43,7 +43,6 @@ export function RepoInfoPanel({ owner, name, collapsed, rotation, onToggle }: Re
 
   return (
     <>
-      {/* Persistent GitHub toggle button */}
       <motion.button
         className="group motion-reduce:transform-none! absolute right-[17px] bottom-[18px] w-[40px] h-[40px] rounded-full bg-background/60
                    backdrop-blur-md border border-border/50 shadow-lg flex items-center
@@ -65,7 +64,6 @@ export function RepoInfoPanel({ owner, name, collapsed, rotation, onToggle }: Re
         </motion.div>
       </motion.button>
 
-      {/* Expanded: info panel */}
       <AnimatePresence>
         {!collapsed && (
           <motion.div
@@ -108,7 +106,6 @@ export function RepoInfoPanel({ owner, name, collapsed, rotation, onToggle }: Re
                 className={`h-full overflow-hidden px-5 pt-4 pb-0 [&_[data-radix-scroll-area-viewport]]:overscroll-contain ${readmeLoading ? "[&_[data-radix-scroll-area-viewport]>div]:h-full" : ""}`}
               >
                 <div className={readmeLoading ? "flex h-full flex-col gap-4" : "space-y-4"}>
-                  {/* Header */}
                   <div>
                     <h3 className="text-xl font-bold tracking-tight truncate">
                       <button
@@ -159,7 +156,6 @@ export function RepoInfoPanel({ owner, name, collapsed, rotation, onToggle }: Re
                     )}
                   </div>
 
-                  {/* Stats row */}
                   {!metaLoading && !metaError && (
                     <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
                       {metadata?.stars != null && (
@@ -185,7 +181,6 @@ export function RepoInfoPanel({ owner, name, collapsed, rotation, onToggle }: Re
                     </div>
                   )}
 
-                  {/* Meta badges */}
                   {!metaLoading && !metaError && (
                     <div className="flex flex-wrap items-center gap-1.5">
                       {metadata?.language && (
@@ -210,7 +205,6 @@ export function RepoInfoPanel({ owner, name, collapsed, rotation, onToggle }: Re
                     </div>
                   )}
 
-                  {/* README */}
                   {readmeLoading ? (
                     <div className="flex-1 min-h-0 overflow-clip space-y-3">
                       <div className="flex items-center gap-2 pb-2 border-b border-border/50">

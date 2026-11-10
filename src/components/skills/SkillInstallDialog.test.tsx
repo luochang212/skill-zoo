@@ -66,8 +66,6 @@ describe("SkillInstallDialog", () => {
     const user = userEvent.setup();
     const { onInstall } = renderDialog(false);
 
-    // First visible agent is preselected; the master checkbox stays unchecked
-    // until every agent is selected.
     const selectAll = screen.getByRole("checkbox", { name: "Select all" });
     expect(selectAll).not.toBeChecked();
 

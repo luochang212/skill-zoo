@@ -8,14 +8,10 @@ use std::sync::Mutex;
 
 pub const SUPPORTED_LOCK_VERSION: i32 = 3;
 
-/// Recursion cap for baseline hashing, mirroring the install copy depth cap.
 const MAX_HASH_DEPTH: usize = 20;
 
-/// Files written by file browsers, not by the user's edits.
 const IGNORED_BASELINE_FILES: &[&str] = &[".DS_Store", "Thumbs.db"];
 
-/// Process-wide mutex serializing all lock-file read-modify-write so concurrent
-/// `SkillLock::update` calls don't lose fields to interleaved writes.
 static LOCK_WRITE: Mutex<()> = Mutex::new(());
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -59,11 +55,6 @@ fn default_version() -> i32 {
 }
 
 impl SkillLock {
-    /// Atomically read-modify-write the lock file under an exclusive guard.
-    ///
-    /// Runs under a process-wide mutex, so concurrent callers serialize. The
-    /// closure must be pure memory mutation with no await, no IO, and no reentrant
-    /// `read`/`write`/`update` (the mutex is non-reentrant).
     pub fn update<F, R>(f: F) -> Result<R, AppError>
     where
         F: FnOnce(&mut SkillLock) -> Result<R, AppError>,
@@ -100,7 +91,6 @@ impl SkillLock {
         self.write_to(&config::get_agent_lock_file())
     }
 
-    /// The lifecycle caller holds the local lease; keep recovery inside the writer mutex too.
     pub(crate) fn restore_snapshot(snapshot: Option<&Self>) -> Result<(), AppError> {
         let _guard = LOCK_WRITE.lock().map_err(|e| {
             AppError::Io(std::io::Error::other(format!("lock mutex poisoned: {e}")))
@@ -134,7 +124,6 @@ impl SkillLock {
 }
 
 impl SkillLockEntry {
-    /// Parse owner/name from the "source" field (e.g. "anthropics/skills").
     pub fn parse_source_owner_name(&self) -> (Option<String>, Option<String>) {
         let src = match &self.source {
             Some(s) => s.as_str(),
@@ -147,9 +136,6 @@ impl SkillLockEntry {
         )
     }
 
-    /// The stored content baseline, or `None` when it is unknown: missing,
-    /// empty, or a legacy value (older writers stored 40-char git SHAs) that
-    /// this app's SHA-256 algorithm could not have produced.
     pub fn content_baseline(&self) -> Option<&str> {
         match self.skill_folder_hash.as_deref() {
             Some(hash)
@@ -162,7 +148,6 @@ impl SkillLockEntry {
         }
     }
 
-    /// Get source_url if present; derive from source field as fallback.
     pub fn effective_url(&self) -> Option<String> {
         if let Some(url) = &self.source_url {
             if !url.is_empty() {
@@ -177,7 +162,6 @@ impl SkillLockEntry {
         None
     }
 
-    /// Extract (owner, repo_name, source_url) from this lock entry.
     pub fn to_repo_info(&self) -> (Option<String>, Option<String>, Option<String>) {
         let (owner, name) = self.parse_source_owner_name();
         let url = self.effective_url();
@@ -185,11 +169,6 @@ impl SkillLockEntry {
     }
 }
 
-/// Deterministic content baseline over an installed skill folder, as documented
-/// in `docs/local-protocol.md`: SHA-256 over `relative-path + 0x00 + bytes` for
-/// every regular file, ordered by relative path. Symbolic links are skipped,
-/// never followed, and so are OS metadata files (`.DS_Store`, `Thumbs.db`), so
-/// only real content moves the baseline.
 pub fn compute_skill_folder_hash(dir: &Path) -> Result<String, AppError> {
     use sha2::Digest;
 
@@ -218,9 +197,6 @@ pub fn compute_skill_folder_hash(dir: &Path) -> Result<String, AppError> {
     Ok(digest.iter().map(|b| format!("{:02x}", b)).collect())
 }
 
-/// Whether the folder's current content differs from the entry's stored
-/// baseline. Unknown baselines and unreadable folders judge as "not drifted":
-/// drift must never be claimed without evidence.
 pub fn skill_folder_drifted(dir: &Path, entry: &SkillLockEntry) -> bool {
     let Some(baseline) = entry.content_baseline() else {
         return false;

@@ -86,7 +86,6 @@ fn test_merge_rejects_invalid_destination_without_deleting_originals() {
 fn test_desktop_lease_write_preserves_metadata_committed_by_cli() {
     let tmp = tempfile::tempdir().unwrap();
     config::with_test_home(tmp.path(), || {
-        // The CLI committed a star after this desktop session started.
         MetadataStore {
             entries: HashMap::from([(
                 "ssot:demo".to_string(),
@@ -109,8 +108,6 @@ fn test_desktop_lease_write_preserves_metadata_committed_by_cli() {
             },
         );
 
-        // Desktop stars another skill under the shared lease; the lease
-        // holder must reload disk state before writing the whole map.
         {
             let _lease = state.acquire_local_lease().unwrap();
             let mut metadata = state.metadata.write().unwrap();
@@ -127,10 +124,6 @@ fn test_desktop_lease_write_preserves_metadata_committed_by_cli() {
     });
 }
 
-/// The copy skips symlinked files while the content hash counts them, so a
-/// skill containing symlinked files cannot pass destination verification.
-/// The failed copy must be rolled back: leaving it behind would make the next
-/// merge fail as "already occupied" with nothing in the UI to recover from.
 #[cfg(unix)]
 #[test]
 fn test_merge_rolls_back_partial_destination_for_symlinked_sources() {

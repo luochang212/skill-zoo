@@ -1,9 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-/**
- * Central mapping of which query keys each mutation should invalidate.
- * Adding a new dependent query requires changing only this map.
- */
 const SKILL_LIST_INVALIDATION = [
   ["skills", "installed"],
   ["skills", "archived"],

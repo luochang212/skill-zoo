@@ -118,14 +118,11 @@ export function SkillSidebar({
     }
 
     const nextRepos = Array.from(repoMap.values()).toSorted((a, b) => {
-      // Missing time → end
       if (!a.maxUpdatedAt && !b.maxUpdatedAt)
         return a.owner.localeCompare(b.owner) || a.name.localeCompare(b.name);
       if (!a.maxUpdatedAt) return 1;
       if (!b.maxUpdatedAt) return -1;
-      // Descending by maxUpdatedAt
       if (b.maxUpdatedAt !== a.maxUpdatedAt) return b.maxUpdatedAt - a.maxUpdatedAt;
-      // Tiebreak: alphabetical
       return a.owner.localeCompare(b.owner) || a.name.localeCompare(b.name);
     });
 
@@ -156,7 +153,6 @@ export function SkillSidebar({
   return (
     <TooltipProvider delayDuration={300}>
       <div className="w-[220px] h-full shrink-0 border-r border-border/60 bg-sidebar flex flex-col overflow-hidden">
-        {/* Header */}
         <div className="px-4 py-4">
           <span className="text-sm font-medium tracking-wide uppercase text-muted-foreground">
             {t("sidebar.title")}
@@ -164,7 +160,6 @@ export function SkillSidebar({
         </div>
 
         <ScrollArea className="flex-1">
-          {/* All */}
           <button
             onClick={() => onSelectCategory({ type: "all" })}
             className={cn(
@@ -181,7 +176,6 @@ export function SkillSidebar({
             <CountBadge count={allCount} />
           </button>
 
-          {/* Star */}
           <button
             ref={starDropRef}
             onClick={() => onSelectCategory({ type: "starred" })}
@@ -206,7 +200,6 @@ export function SkillSidebar({
             {!draggedSkill && <CountBadge count={starCount} />}
           </button>
 
-          {/* Plugins */}
           {pluginCount > 0 && (
             <button
               onClick={() => onSelectCategory({ type: "plugin" })}
@@ -225,7 +218,6 @@ export function SkillSidebar({
             </button>
           )}
 
-          {/* Import */}
           {importedCount > 0 && (
             <button
               onClick={() => onSelectCategory({ type: "import" })}
@@ -244,7 +236,6 @@ export function SkillSidebar({
             </button>
           )}
 
-          {/* My Skills */}
           <button
             onClick={() => onSelectCategory({ type: "mine" })}
             className={cn(
@@ -261,7 +252,6 @@ export function SkillSidebar({
             <CountBadge count={mySkillsCount} />
           </button>
 
-          {/* Consistency */}
           {consistencyCount > 0 && (
             <button
               onClick={() => onSelectCategory({ type: "consistency" })}
@@ -280,7 +270,6 @@ export function SkillSidebar({
             </button>
           )}
 
-          {/* Archive */}
           <button
             onClick={() => onSelectCategory({ type: "archived" })}
             className={cn(
@@ -297,7 +286,6 @@ export function SkillSidebar({
             <CountBadge count={archiveCount} />
           </button>
 
-          {/* Repos */}
           <div>
             <button
               onClick={() => setReposExpanded((v) => !v)}
@@ -317,11 +305,6 @@ export function SkillSidebar({
                 <ChevronDown className="h-4 w-4 shrink-0 ml-1 mr-1.5" />
               )}
             </button>
-            {/* Collapsed entries are unmounted, not merely zero-height: the old
-                max-h-0/opacity-0 kept them focusable and exposed in the AX tree
-                (Chrome reported role=button, ignored=false for invisible rows).
-                Not rendering also removes the arbitrary max-height cap that
-                silently clipped long repo lists. */}
             <div
               className={cn(
                 "grid transition-[grid-template-rows] duration-200 ease-in-out motion-reduce:transition-none",

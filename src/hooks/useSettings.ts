@@ -34,10 +34,6 @@ export function useGitHubToken(enabled: boolean) {
   });
 }
 
-/**
- * Saved-state view of the GitHub credential (existence + expiry, never the
- * token itself, because the backend filters credential keys out of `get_settings`).
- */
 export function useGitHubCredentialStatus() {
   return useQuery({
     queryKey: CREDENTIAL_STATUS_KEY,
@@ -46,12 +42,6 @@ export function useGitHubCredentialStatus() {
   });
 }
 
-/**
- * Live check of the saved token, fired while the credential dialog is open.
- * This is an infrequent operation, and GitHub's /rate_limit endpoint is free. The
- * saved token never crosses the bridge: the backend verifies it server-side
- * and only the result is returned.
- */
 export function useGitHubTokenVerification({ enabled }: { enabled: boolean }) {
   return useQuery({
     queryKey: GITHUB_TOKEN_VERIFICATION_KEY,
@@ -88,8 +78,6 @@ export function useSaveGitHubToken() {
         hasToken: Boolean(token),
         expiresAt: token ? (verification?.expiresAt ?? null) : null,
       });
-      // Keep the dialog's live-check cache in agreement with the fresh save,
-      // so a quick reopen shows the just-verified result without refetching.
       if (verification) {
         qc.setQueryData(GITHUB_TOKEN_VERIFICATION_KEY, verification);
       } else {
@@ -97,8 +85,6 @@ export function useSaveGitHubToken() {
       }
       qc.invalidateQueries({ queryKey: CREDENTIAL_STATUS_KEY });
       if (verification) {
-        // Cancel old-credential reads before retrying. Fresh disk caches remain
-        // reusable; stale fallbacks retain their old timestamp and retry GitHub.
         const filters = {
           predicate: (query: { queryKey: readonly unknown[] }) =>
             query.queryKey[0] === "repos" &&
@@ -119,11 +105,6 @@ export function useVisibleAgents() {
   });
 }
 
-/**
- * Whether the local view includes skills outside the SSOT store. On by
- * default, so a fresh view lists everything discovered; turning it off
- * narrows the list to the skills Skill Zoo manages.
- */
 export function useShowNonSsot() {
   return useQuery({
     queryKey: SHOW_NON_SSOT_KEY,
@@ -163,7 +144,6 @@ export function useUpdatePluginsDiscoveryEnabled() {
       await qc.cancelQueries({ queryKey: ["skills", "installed"] });
       qc.setQueryData(["skills", "installed"], skills);
     },
-    // The preference may have been saved even if the filesystem refresh failed.
     onError: (error) => {
       toast.error(formatApiError(error));
       return qc.invalidateQueries({ queryKey: PLUGINS_DISCOVERY_KEY });
@@ -174,10 +154,6 @@ export function useUpdatePluginsDiscoveryEnabled() {
 const CLOSE_TO_TRAY_KEY = ["settings", "closeToTray"] as const;
 const CLOSE_TO_TRAY_SETTING = "close_to_tray";
 
-/**
- * Whether closing the main window hides it into the tray instead of quitting.
- * Off by default: closing the window exits the app, as it always has.
- */
 export function useCloseToTray() {
   return useQuery({
     queryKey: CLOSE_TO_TRAY_KEY,
@@ -261,7 +237,6 @@ export function useSkillUsage(agent: string, { enabled = true }: { enabled?: boo
   return useQuery({
     queryKey: skillUsageKey(agent),
     queryFn: () => settingsApi.getSkillUsage(agent),
-    // Rust owns freshness and scan deduplication for both the dialog and tray.
     staleTime: 0,
     refetchInterval: 30_000,
     retry: false,
@@ -343,12 +318,10 @@ export function useUpdateAgentPreferences() {
   });
 }
 
-/** Helper: get visible agents from query data, with fallback to all visible */
 export function getVisibleAgentsOrDefault(data: VisibleAgents | undefined): VisibleAgents {
   return data ?? EMPTY_VISIBLE_AGENTS;
 }
 
-/** Helper: filter an array of agent strings by visibility */
 export function filterVisibleAgents(
   agents: string[],
   visibleAgents: VisibleAgents | undefined,
@@ -357,7 +330,6 @@ export function filterVisibleAgents(
   return agents.filter((agent) => va[agent] !== false);
 }
 
-/** Combined hook: visible agent order in one call */
 export function useVisibleAgentOrder(): string[] {
   const { data: agentConfigs } = useAgentConfigs();
   const { data: visibleAgents } = useVisibleAgents();
@@ -366,16 +338,6 @@ export function useVisibleAgentOrder(): string[] {
   return filterVisibleAgents(mergeAgentOrder(agentOrder ?? [], knownAgents), visibleAgents);
 }
 
-/**
- * Shared agent-preference actions for the settings page list and the manager
- * dialog. Both surfaces drag to reorder visible agents; centralising "how to
- * commit a new order" here (merge hidden → normalize → mutate) keeps that
- * error-prone sequence in one place so the two UIs can't drift. `save` covers
- * the dialog's visibility-toggle path, which changes `visibleAgents`, not order.
- *
- * Callers supply the data they already hold (props or own queries); the hook
- * only owns the commit logic, so it never becomes a second source of truth.
- */
 export function useAgentPreferences({
   visibleAgents,
   agentOrder,

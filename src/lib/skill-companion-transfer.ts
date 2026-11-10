@@ -5,9 +5,7 @@ const EXPORT_VERSION = 1;
 
 export interface SkillCompanionImportSuccess {
   ok: true;
-  /** Entries that survived dedupe, in import order, with their original text. */
   contents: string[];
-  /** Import entries skipped as duplicates, both against the current list and within the import itself. */
   duplicates: number;
 }
 
@@ -17,7 +15,6 @@ export interface SkillCompanionImportRejected {
 
 export type SkillCompanionImportResult = SkillCompanionImportSuccess | SkillCompanionImportRejected;
 
-/** The identity two entries compare by when deduplicating: trimmed, whitespace runs collapsed. */
 export function normalizeSkillCompanionContent(content: string) {
   return content.split(/\s+/).filter(Boolean).join(" ");
 }
@@ -51,7 +48,6 @@ export function parseSkillCompanionImport(
   let duplicates = 0;
   for (const content of parsed.items) {
     const key = normalizeSkillCompanionContent(content);
-    // Blank entries are noise (e.g. hand-edited exports), not duplicates.
     if (key.length === 0) continue;
     if (seen.has(key)) {
       duplicates += 1;

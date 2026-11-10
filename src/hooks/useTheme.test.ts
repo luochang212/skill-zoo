@@ -5,7 +5,6 @@ import { applyTheme, subscribeToSystemTheme, useTheme } from "@/hooks/useTheme";
 
 vi.mock("@tauri-apps/api/core");
 
-/** Minimal matchMedia stub: jsdom has no matchMedia, so `?.` silently no-ops. */
 function installMatchMedia(initialDark: boolean) {
   const listeners = new Set<() => void>();
   let dark = initialDark;
@@ -102,7 +101,6 @@ describe("subscribeToSystemTheme", () => {
 
     act(() => media.changeTo(true));
 
-    // The OS went dark; an explicit "light" selection must not follow it.
     expect(document.documentElement.classList.contains("dark")).toBe(false);
     unsubscribe();
   });
@@ -110,8 +108,6 @@ describe("subscribeToSystemTheme", () => {
   it("takes effect on a view that never mounts the settings hook", () => {
     const media = installMatchMedia(false);
     localStorage.setItem("theme", "system");
-    // Deliberately no useTheme consumer: this is the regression. The old listener
-    // lived in useTheme, which only the settings view mounts.
     const unsubscribe = subscribeToSystemTheme();
 
     act(() => media.changeTo(true));
@@ -156,8 +152,6 @@ describe("useTheme view transition", () => {
     });
 
     expect(startViewTransition).toHaveBeenCalledTimes(1);
-    // The browser snapshots the "new" state right after the callback returns, so
-    // the callback itself must have already written the theme to the DOM.
     expect(seen[0]).toContain("dark");
   });
 });

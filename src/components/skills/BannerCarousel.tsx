@@ -116,7 +116,6 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
     };
   }, [banners]);
 
-  // Auto-play
   useEffect(() => {
     if (banners.length <= 1 || reduceMotion) return;
     const timer = setInterval(() => {
@@ -230,7 +229,6 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
         })}
       </div>
 
-      {/* Navigation arrows */}
       {banners.length > 1 && (
         <>
           <button
@@ -250,7 +248,6 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
         </>
       )}
 
-      {/* Dots indicator */}
       {banners.length > 1 && (
         <div
           className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center rounded-full bg-black/20 px-1 backdrop-blur-sm z-30"

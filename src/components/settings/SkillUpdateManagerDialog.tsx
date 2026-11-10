@@ -107,14 +107,9 @@ export function SkillUpdateManagerDialog({
   const history = historyQuery.data ?? [];
   const historyBusy = deleteHistory.isPending || clearHistory.isPending;
 
-  // Re-seed the selection only when the dialog opens or the candidate set
-  // actually changes. Keying on the array identity would wipe the user's
-  // choices whenever a background refetch recreates the parent's array.
   const updateNames = updates.map((update) => update.skillName).join("\n");
   useEffect(() => {
     if (!open) return;
-    // Batch updates never silently overwrite local modifications, so drifted
-    // candidates start unselected and are updated individually via force.
     setSelected(
       new Set(updates.filter((update) => !update.locallyModified).map((u) => u.skillName)),
     );
@@ -391,7 +386,6 @@ export function SkillUpdateManagerDialog({
           </div>
         )}
 
-        {/* Per-skill confirmation before overwriting local modifications */}
         <Dialog
           open={driftConfirmItem != null}
           onOpenChange={(nextOpen) => {

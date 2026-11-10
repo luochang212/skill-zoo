@@ -48,15 +48,11 @@ export function ModelEditorDialog({
   const [composing, setComposing] = useState(false);
   const [context, setContext] = useState(model.contextWindow?.toString() ?? "");
   const [output, setOutput] = useState(model.maxOutputTokens?.toString() ?? "");
-  // Values typed this session are never cleared or overwritten. Values saved on
-  // the model give way only when a lookup succeeds for the new ID; values a
-  // lookup matched earlier in the session are stale on the next ID change.
   const manual = useRef({ context: false, output: false });
   const inherited = useRef({
     context: model.contextWindow != null,
     output: model.maxOutputTokens != null,
   });
-  // The model ID whose configuration the replaceable fields currently show.
   const resolvedId = useRef<string | null>(
     inherited.current.context || inherited.current.output ? model.id.trim() : null,
   );
@@ -72,7 +68,6 @@ export function ModelEditorDialog({
       void translationApi
         .resolveModel(baseUrl, normalizedModelId)
         .then((result) => {
-          // A→B→A and closing are different editing sessions even when the final ID is identical.
           if (!current || activeIdentity.current !== identity) return;
           if (result) {
             if (!manual.current.context && result.contextWindow != null) {
@@ -155,7 +150,6 @@ export function ModelEditorDialog({
         <form
           className="flex min-h-0 flex-col"
           onSubmit={(event) => {
-            // 回车不确认参数，避免输入法选字或快速输入提前关闭弹窗并取消自动匹配。
             event.preventDefault();
             event.stopPropagation();
           }}
@@ -180,8 +174,6 @@ export function ModelEditorDialog({
                   setModelId(event.target.value);
                   if (event.target.value.trim() === normalizedModelId) return;
                   setError(null);
-                  // Only values a lookup matched in this session are stale when
-                  // the ID changes; hand-typed and saved values must survive.
                   if (!manual.current.context && !inherited.current.context) setContext("");
                   if (!manual.current.output && !inherited.current.output) setOutput("");
                 }}

@@ -51,15 +51,12 @@ interface SkillContentPaneProps {
   directory?: string;
   skillId?: string;
   skillName?: string;
-  // SKILL.md save controls (passed through from parent)
   onSave?: () => void;
   savePending?: boolean;
   dirty?: boolean;
   readOnly?: boolean;
   enableReadOnlyFileTree?: boolean;
-  /** Hide the file-tree sidebar entirely (used by the create page, which only produces SKILL.md). */
   hideFileTree?: boolean;
-  /** Reports whether any auxiliary file has an unsaved draft, so the parent can gate leave paths. */
   onUnsavedDraftsChange?: (hasUnsaved: boolean) => void;
 }
 
@@ -153,7 +150,6 @@ function mergeLoadedChildren(
   });
 }
 
-// Synced scroll helpers for split view
 function getScrollRatio(el: HTMLElement) {
   const maxScroll = el.scrollHeight - el.clientHeight;
   return maxScroll > 0 ? el.scrollTop / maxScroll : 0;
@@ -188,7 +184,6 @@ export const SkillContentPane = memo(function SkillContentPane({
   const queryClient = useQueryClient();
   const fileTreeDisabled = hideFileTree || (readOnly && !enableReadOnlyFileTree);
 
-  // ── Split pane state (for overview/edit/split) ──
   const [splitPct, setSplitPct] = useState(SPLIT_DEFAULT);
   const [dragging, setDragging] = useState(false);
   const panesRef = useRef<HTMLDivElement>(null);
@@ -196,9 +191,8 @@ export const SkillContentPane = memo(function SkillContentPane({
   const previewViewportRef = useRef<HTMLDivElement | null>(null);
   const syncSourceRef = useRef<{ source: "edit" | "preview"; time: number } | null>(null);
 
-  // ── Sidebar + file selection state ──
   const [sidebarOpen, setSidebarOpen] = useState(!readOnly && !hideFileTree);
-  const [sidebarWidth, setSidebarWidth] = useState(208); // px, matches w-52
+  const [sidebarWidth, setSidebarWidth] = useState(208);
   const [sidebarDragging, setSidebarDragging] = useState(false);
   const sidebarRowRef = useRef<HTMLDivElement>(null);
   const sidebarPaneRef = useRef<HTMLDivElement>(null);
@@ -206,8 +200,6 @@ export const SkillContentPane = memo(function SkillContentPane({
   const navigationRequest = useRef(0);
   const [documentFragment, setDocumentFragment] = useState("");
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
-  // One draft per auxiliary file: switching files must never discard edits
-  // made in another file.
   const {
     drafts: fileDrafts,
     reset: resetDrafts,
@@ -220,13 +212,8 @@ export const SkillContentPane = memo(function SkillContentPane({
   const [nodes, setNodes] = useState<SkillFileNode[]>([]);
   const [loadingDirPaths, setLoadingDirPaths] = useState<Set<string>>(() => new Set());
   const [errorDirPaths, setErrorDirPaths] = useState<Set<string>>(() => new Set());
-  // Ref mirror of loadingDirPaths for synchronous dedup checks. This avoids
-  // relying on React's eager state computation, which may be skipped when
-  // pending updates are queued (causing the second directory load to be
-  // silently dropped).
   const loadingDirPathsRef = useRef<Set<string>>(new Set());
 
-  // ── File tree root query (default-open sidebar, lazy contents) ──
   const {
     data: rootNodes,
     isLoading: rootLoading,
@@ -234,7 +221,6 @@ export const SkillContentPane = memo(function SkillContentPane({
     refetch: refetchRootNodes,
   } = useSkillFileChildren(fileTreeDisabled ? null : (directory ?? null), null, skillId);
 
-  // ── Resolve selected node from already loaded nodes ──
   const selectedNode =
     findNodeByPath(nodes, selectedFilePath) ??
     (selectedFilePath
@@ -248,7 +234,6 @@ export const SkillContentPane = memo(function SkillContentPane({
   const isSkillMdActive = selectedNode?.isSkillMd ?? true;
   const isImageActive = isImageFile(selectedNode);
 
-  // ── Reset lazy tree when switching skills ──
   useLayoutEffect(() => {
     sessionRef.current += 1;
     navigationRequest.current += 1;
@@ -262,7 +247,6 @@ export const SkillContentPane = memo(function SkillContentPane({
     setSidebarOpen(!fileTreeDisabled);
   }, [skillId, directory, fileTreeDisabled, resetDrafts]);
 
-  // ── Seed root nodes and auto-select SKILL.md ──
   useEffect(() => {
     if (rootNodes) {
       setNodes((current) => mergeLoadedChildren(rootNodes, current));
@@ -275,7 +259,6 @@ export const SkillContentPane = memo(function SkillContentPane({
     }
   }, [rootNodes, fileTreeDisabled]);
 
-  // ── Auto-select SKILL.md if it arrives via a loaded child directory ──
   useEffect(() => {
     if (selectedFilePath === null && nodes.length > 0) {
       const skillMd = findSkillMd(nodes);
@@ -283,7 +266,6 @@ export const SkillContentPane = memo(function SkillContentPane({
     }
   }, [nodes, selectedFilePath]);
 
-  // ── Report unsaved auxiliary drafts to the parent for leave protection ──
   const onUnsavedDraftsChangeRef = useRef(onUnsavedDraftsChange);
   useEffect(() => {
     onUnsavedDraftsChangeRef.current = onUnsavedDraftsChange;
@@ -294,7 +276,6 @@ export const SkillContentPane = memo(function SkillContentPane({
     return () => onUnsavedDraftsChangeRef.current?.(false);
   }, [hasUnsavedDrafts]);
 
-  // ── Non-SKILL.md file content ──
   const {
     data: fileData,
     isLoading: fileLoading,
@@ -319,7 +300,6 @@ export const SkillContentPane = memo(function SkillContentPane({
 
   const saveFileMutation = useSaveSkillFileContent();
 
-  // ── Routing: what actually drives the editor ──
   const displayContent = isSkillMdActive
     ? (previewContent ?? content)
     : (fileDraft ?? fileData ?? "");
@@ -413,7 +393,6 @@ export const SkillContentPane = memo(function SkillContentPane({
     previewViewportRef.current?.scrollTo({ top: 0 });
   };
 
-  // ── Tab change: only forward to parent for SKILL.md ──
   const handleTabChange = useCallback(
     (tab: ContentTab) => {
       onTabChange(tab);
@@ -421,7 +400,6 @@ export const SkillContentPane = memo(function SkillContentPane({
     [onTabChange],
   );
 
-  // ── Drag-to-resize split pane ──
   const onDividerDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setDragging(true);
@@ -445,14 +423,11 @@ export const SkillContentPane = memo(function SkillContentPane({
     };
   }, [dragging]);
 
-  // ── Sidebar resize drag ──
   const SIDEBAR_MIN = 120;
   const SIDEBAR_MAX = 400;
   const toggleSidebar = useCallback(() => {
     const next = !sidebarOpen;
     setSidebarOpen(next);
-    // Collapsing with focus inside the tree would strand it on hidden
-    // content; move it back to the toggle.
     if (!next && sidebarPaneRef.current?.contains(document.activeElement)) {
       sidebarToggleRef.current?.focus();
     }
@@ -480,7 +455,6 @@ export const SkillContentPane = memo(function SkillContentPane({
     };
   }, [sidebarDragging]);
 
-  // ── Synced scroll for split view ──
   const SYNC_GRACE_MS = 100;
   const onEditScroll = useCallback(() => {
     const s = syncSourceRef.current;
@@ -502,7 +476,6 @@ export const SkillContentPane = memo(function SkillContentPane({
     applyScrollRatio(edit, getScrollRatio(preview));
   }, []);
 
-  // ── Preview content for non-SKILL.md files ──
   const isMd =
     selectedNode?.name.toLowerCase().endsWith(".md") ||
     selectedNode?.name.toLowerCase().endsWith(".mdx");
@@ -569,13 +542,10 @@ export const SkillContentPane = memo(function SkillContentPane({
     translation.showTranslation &&
     !!translation.text.trim();
   const renderedContent = showTranslated ? translation.text : displayContent;
-  // A pending cache lookup holds the loading state so a hit renders the
-  // translation on the first paint instead of flashing the original.
   const awaitingCachedTranslation = translation.cachePending;
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
-      {/* ── Tab toggle bar (full width) ── */}
       <div
         className="relative px-3 py-2 shrink-0 border-b border-border flex items-center gap-2"
         role="group"
@@ -584,7 +554,6 @@ export const SkillContentPane = memo(function SkillContentPane({
         {translationAvailable && (
           <SkillTranslationProgress key={translation.identity} status={translation.status} />
         )}
-        {/* Sidebar toggle */}
         {!fileTreeDisabled && (
           <button
             ref={sidebarToggleRef}
@@ -600,7 +569,6 @@ export const SkillContentPane = memo(function SkillContentPane({
           </button>
         )}
 
-        {/* View/Edit/Split pill */}
         {readOnly || isViewOnlyFile ? (
           <span className="inline-flex items-center bg-muted rounded-xl p-0.5 gap-0.5">
             <span className="px-2.5 py-1 h-6 text-[11px] rounded-lg font-medium inline-flex items-center gap-1 bg-background text-foreground shadow-sm">
@@ -665,7 +633,6 @@ export const SkillContentPane = memo(function SkillContentPane({
           />
         )}
 
-        {/* Save button. Shown when dirty; hidden in overview mode for SKILL.md */}
         {!readOnly &&
           !isViewOnlyFile &&
           (isSkillMdActive ? dirty && effectiveActiveTab !== "overview" : isDirty) && (
@@ -680,7 +647,6 @@ export const SkillContentPane = memo(function SkillContentPane({
             </button>
           )}
 
-        {/* Updated timestamp. Shown whenever the save button is absent */}
         {updatedAt &&
           (readOnly ||
             isViewOnlyFile ||
@@ -691,16 +657,11 @@ export const SkillContentPane = memo(function SkillContentPane({
           )}
       </div>
 
-      {/* ── Below tab bar: sidebar + content side by side ── */}
       <div
         ref={sidebarRowRef}
         className="flex-1 min-h-0 flex min-w-0"
         style={sidebarDragging ? { userSelect: "none" } : undefined}
       >
-        {/* Collapsible sidebar. The width transition is what makes the slide
-            visible: without it the container snapped to 0 in the same frame and
-            clipped the outgoing translate. Disabled while dragging so resizing
-            keeps up with the pointer. */}
         <div
           ref={sidebarPaneRef}
           inert={!sidebarOpen}
@@ -742,7 +703,6 @@ export const SkillContentPane = memo(function SkillContentPane({
           </div>
         </div>
 
-        {/* Sidebar resize divider */}
         {sidebarOpen && (
           <div
             onMouseDown={onSidebarDividerDown}
@@ -755,9 +715,7 @@ export const SkillContentPane = memo(function SkillContentPane({
           />
         )}
 
-        {/* ── Content area ── */}
         {isBinary || imageError ? (
-          /* Binary file notice */
           <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground">
             <FileX className="h-8 w-8 opacity-40" />
             <p className="text-sm">
@@ -781,14 +739,12 @@ export const SkillContentPane = memo(function SkillContentPane({
             {t("markdown.openError")}
           </p>
         ) : (
-          /* Animated dual-pane layout */
           <div
             ref={panesRef}
             className="flex-1 min-h-0 min-w-0 flex overflow-hidden"
             role="tabpanel"
             style={dragging ? { userSelect: "none" } : undefined}
           >
-            {/* Left pane shows the editor (visible in edit & split) */}
             <div
               className="h-full min-w-0 overflow-hidden transition-[width] duration-300 ease-in-out motion-reduce:transition-none"
               style={{
@@ -812,7 +768,6 @@ export const SkillContentPane = memo(function SkillContentPane({
               />
             </div>
 
-            {/* Divider (visible in split) */}
             <div
               className={cn(
                 "shrink-0 cursor-col-resize group relative overflow-hidden transition-[width,background-color] duration-150",
@@ -832,7 +787,6 @@ export const SkillContentPane = memo(function SkillContentPane({
               aria-valuemax={100 - SPLIT_MIN}
             />
 
-            {/* Right pane shows the preview (visible in view & split) */}
             <div
               className="h-full min-w-0 overflow-hidden transition-[width] duration-300 ease-in-out motion-reduce:transition-none"
               style={{

@@ -66,7 +66,6 @@ function waitForScrollToSettle(element: Element, onSettled: () => void) {
     frame = requestAnimationFrame(check);
   };
 
-  // Let smooth scrolling begin before checking whether the target has settled.
   frame = requestAnimationFrame(() => {
     frame = requestAnimationFrame(check);
   });
@@ -298,9 +297,7 @@ function MergeConfirmDialog({
 interface ConsistencyPanelProps {
   duplicateGroups: DuplicateGroup[];
   nameMismatches: NameMismatch[];
-  /** When set, opens this tab and scrolls to the target element */
   initialTab?: ConsistencyTab;
-  /** The group name (duplicates/conflicts) or skill ID (mismatches) to scroll to */
   scrollToId?: string;
 }
 
@@ -329,7 +326,6 @@ export function ConsistencyPanel({
     toggleMismatch,
   } = useConsistencyLabelSettings();
 
-  // Close menu on outside click
   useEffect(() => {
     if (!menuOpen) return;
     function handleClickOutside(e: MouseEvent) {
@@ -341,7 +337,6 @@ export function ConsistencyPanel({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [menuOpen]);
 
-  // Navigate to a specific tab + scroll to target when triggered from a badge click
   useEffect(() => {
     if (!initialTab || !scrollToId) return;
     setTab(initialTab);
@@ -400,7 +395,6 @@ export function ConsistencyPanel({
 
   return (
     <div className="flex-1 flex flex-col min-h-0" data-selectable>
-      {/* Tabs */}
       <div className="flex gap-1 mb-4 items-center">
         <button
           onClick={() => setTab("duplicates")}
@@ -453,7 +447,6 @@ export function ConsistencyPanel({
 
         <div className="flex-1" />
 
-        {/* Settings gear button + dropdown */}
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setMenuOpen((v) => !v)}
@@ -467,7 +460,6 @@ export function ConsistencyPanel({
             <Settings className="h-3.5 w-3.5" />
           </button>
 
-          {/* Dropdown menu */}
           {menuOpen && (
             <div className="absolute right-0 top-full mt-1 bg-background border shadow-md rounded-lg p-1 w-44 z-50">
               <div className="px-2 py-1.5 text-[12px] text-foreground/60 font-medium">
@@ -503,7 +495,6 @@ export function ConsistencyPanel({
         </div>
       </div>
 
-      {/* Tab content */}
       <ScrollArea className="flex-1 -mr-6">
         <div className="pr-6 pb-6">
           {resolvedTab === "duplicates" && (
@@ -580,7 +571,6 @@ export function ConsistencyPanel({
         />
       )}
 
-      {/* Batch merge all duplicates dialog */}
       {batchMergeOpen && (
         <Dialog open onOpenChange={(open) => !open && setBatchMergeOpen(false)}>
           <DialogContent className="sm:max-w-md" data-selectable>
@@ -629,11 +619,7 @@ export function ConsistencyPanel({
                   mergeableGroups
                     .reduce(
                       (chain, group) =>
-                        chain.then(() =>
-                          mergeMutation.mutateAsync(group.name).catch(() => {
-                            /* error already toasted globally by mutation onError */
-                          }),
-                        ),
+                        chain.then(() => mergeMutation.mutateAsync(group.name).catch(() => {})),
                       Promise.resolve(),
                     )
                     .finally(() => {

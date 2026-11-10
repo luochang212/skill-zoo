@@ -2,7 +2,6 @@ import { basePath } from '../lib/paths';
 
 export function initDownloads() {
   const labels = JSON.parse(document.getElementById("install-messages").textContent);
-  // ── Download + Install Modal ──
   const REPO = "luochang212/skill-zoo";
   const DL_BTN = document.getElementById("dl-btn");
   const MODAL = document.getElementById("install-modal");
@@ -45,8 +44,6 @@ export function initDownloads() {
 
   function getDownloadUrl(os, version) {
     const v = version || cachedVersion;
-    // Never fabricate an asset URL for an unknown version; send the user
-    // to the releases list instead.
     if (!v) return RELEASES_URL;
     const base = `https://github.com/${REPO}/releases/download/${v}`;
     if (os === "macos") return `${base}/Skill-Zoo-${v}-macOS.dmg`;
@@ -76,7 +73,6 @@ export function initDownloads() {
     return `https://github.com/${REPO}/releases/download/${v}/Skill-Zoo-${v}-Linux-${arch}.${ext}`;
   }
 
-
   function buildStepsHTML(os) {
     if (os === "macos") {
       return [
@@ -102,7 +98,6 @@ export function initDownloads() {
         })
         .join("");
     }
-    // Windows
     return [
       { key: "install-win-step1" },
       { key: "install-win-step2" },
@@ -141,17 +136,13 @@ export function initDownloads() {
   }
 
   function refreshModal(os) {
-    // Tabs
     OS_TABS.querySelectorAll(".modal-os-tab").forEach((t) => {
       t.classList.toggle("active", t.dataset.os === os);
     });
-    // Filename row
     DL_FILENAME.textContent = getFilename(os, cachedVersion);
     downloadURL = getDownloadUrl(os, cachedVersion);
     DL_MANUAL.href = downloadURL;
-    // Steps
     MODAL_STEPS.innerHTML = buildStepsHTML(os);
-    // Alt
     MODAL_ALT.innerHTML = buildAltHTML(os);
   }
 
@@ -166,14 +157,12 @@ export function initDownloads() {
     document.body.style.overflow = "";
   }
 
-  // OS tab clicks
   OS_TABS.addEventListener("click", (e) => {
     const tab = e.target.closest(".modal-os-tab");
     if (!tab) return;
     refreshModal(tab.dataset.os);
   });
 
-  // Close on overlay click or close button
   MODAL.addEventListener("click", (e) => {
     if (e.target === MODAL) closeModal();
   });
@@ -182,7 +171,6 @@ export function initDownloads() {
     if (e.key === "Escape" && !MODAL.hasAttribute("hidden")) closeModal();
   });
 
-  // Init: detect OS, pre-fetch version, update button label
   (async () => {
     const os = detectOS();
     PLATFORM_SPAN.textContent =
@@ -192,7 +180,6 @@ export function initDownloads() {
     if (v) cachedVersion = v;
   })();
 
-  // Download button click
   DL_BTN.addEventListener("click", async (e) => {
     e.preventDefault();
     const os = detectOS();
@@ -202,8 +189,6 @@ export function initDownloads() {
     downloadURL = getDownloadUrl(os, cachedVersion);
     openModal(os);
 
-    // Auto-download only with a known version; an unknown version leaves
-    // the modal's manual link on the releases list instead.
     if (downloadURL && cachedVersion) {
       const a = document.createElement("a");
       a.href = downloadURL;

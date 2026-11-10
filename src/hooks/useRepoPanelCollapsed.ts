@@ -6,10 +6,8 @@ function read(): boolean {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw !== null) return JSON.parse(raw) as boolean;
-  } catch {
-    // corrupted data, fall through to default
-  }
-  return false; // default: expanded
+  } catch {}
+  return false;
 }
 
 export function useRepoPanelCollapsed() {
@@ -22,7 +20,6 @@ export function useRepoPanelCollapsed() {
     rotationRef.current += expanding ? 360 : -360;
   }, [collapsed]);
 
-  // Persist to localStorage after state commits, not during state computation
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(collapsed));
   }, [collapsed]);

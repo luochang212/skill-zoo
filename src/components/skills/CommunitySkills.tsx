@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { CatalogKind, CatalogSkill } from "@/types/skills";
 
-// Give different authors room on the first screen without inventing a quality ranking.
 export function diversifySkills(skills: CatalogSkill[]) {
   const groups = new Map<string, CatalogSkill[]>();
   for (const skill of skills) {
@@ -27,10 +26,6 @@ export function diversifySkills(skills: CatalogSkill[]) {
 
 const BATCH = 9;
 
-// Eight weekly install counts as a watermark-style area sparkline, anchored
-// to the card's empty bottom-right corner: a smooth curve over a gradient
-// that fades downward, with the latest week marked by a dot. Purely
-// decorative; the install number above carries the meaning.
 function TrendSparkline({ values }: { values: number[] }) {
   const gradientId = useId();
   if (values.length < 2) return null;
@@ -45,8 +40,6 @@ function TrendSparkline({ values }: { values: number[] }) {
   const first = points[0];
   const last = points[points.length - 1];
   if (!first || !last) return null;
-  // Catmull-Rom through the points, emitted as cubic beziers: the curve
-  // reads like a chart, not a join-the-dots zigzag.
   let line = `M ${first[0]},${first[1]}`;
   for (let i = 0; i < points.length - 1; i++) {
     const prev = points[Math.max(0, i - 1)];
@@ -91,7 +84,6 @@ function TrendSparkline({ values }: { values: number[] }) {
   );
 }
 
-// Only Hot cards have the additional 104 × 30 trend slot.
 function CatalogCardSkeleton({ showTrend }: { showTrend: boolean }) {
   return (
     <div aria-hidden="true" className="skeleton-card h-full flex flex-col p-4">
@@ -111,7 +103,6 @@ function CatalogCardSkeleton({ showTrend }: { showTrend: boolean }) {
           className="mt-auto h-[30px] w-[104px] self-end text-primary"
           aria-hidden="true"
         >
-          {/* A neutral chart silhouette reserves the slot without implying real values. */}
           <path
             d="M3 24 C18 24 20 18 34 19 S51 12 65 14 S83 8 101 6 L101 30 L3 30 Z"
             fill="currentColor"
@@ -138,10 +129,6 @@ export function CommunitySkills({ onOpen }: { onOpen: (skill: CatalogSkill) => v
   const [entranceStart, setEntranceStart] = useState(0);
   const { data, isPending, isError, refetch } = useSkillCatalog(kind);
   const skills = diversifySkills(data?.skills ?? []);
-  // The catalog is bounded at 600 entries upstream and already in memory, so
-  // the sentinel only widens a render window, well ahead of the viewport —
-  // scrolling never waits. What is shaped is the arrival, not a delay: each
-  // batch fades in with a stagger so new cards read as newly arrived.
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const node = sentinelRef.current;
@@ -192,10 +179,6 @@ export function CommunitySkills({ onOpen }: { onOpen: (skill: CatalogSkill) => v
           role="group"
           aria-label={t("browse.community")}
         >
-          {/* Single highlight knob sliding under the labels (technique from
-              genesis's sliding-pill): grid cells make the knob exactly one
-              cell wide, so translate-x-full travels one cell. Pure transform,
-              no layout work. */}
           <span
             aria-hidden="true"
             className={cn(

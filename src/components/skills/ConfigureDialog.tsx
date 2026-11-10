@@ -36,16 +36,13 @@ export function ConfigureDialog({
   const visibleAgentOrder = useVisibleAgentOrder();
   const { data: agentConfigs } = useAgentConfigs();
 
-  // Find symlinks for this skill
   const skillSymlinks = symlinks?.filter((s) => s.skillId === skillId) ?? [];
 
-  // Build a map of agent -> symlink status
   const symlinkMap = new Map<string, SymlinkStatus>();
   for (const link of skillSymlinks) {
     symlinkMap.set(link.agent, link);
   }
 
-  // Check if a specific agent is currently being toggled
   const pendingAgent = toggleSymlink.isPending
     ? (toggleSymlink.variables as { agent: string } | undefined)?.agent
     : undefined;

@@ -138,8 +138,6 @@ impl StagedAgentSymlinkRemoval {
 pub struct DiscoverableSkill {
     pub key: String,
     pub name: String,
-    /// SKILL.md frontmatter name when it differs from the directory name;
-    /// catalog slugs (skills.sh) refer to this, not the folder name.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub frontmatter_name: Option<String>,
     pub description: Option<String>,
@@ -190,7 +188,6 @@ pub struct SkillFileNode {
     pub children: Option<Vec<SkillFileNode>>,
 }
 
-/// Uniform refusal for write operations addressed at plugin-owned skills.
 pub fn plugin_read_only_error(skill_name: &str, plugin_source: Option<&str>) -> String {
     match plugin_source {
         Some(source) => {
@@ -307,23 +304,14 @@ impl From<SkillCacheEntry> for InstalledSkill {
             content_hash: e.content_hash,
             home_agent: e.home_agent,
             plugin_source: e.plugin_source,
-            starred: false, // set by get_cached_skills from metadata
-            is_mine: false, // set by get_cached_skills from metadata
+            starred: false,
+            is_mine: false,
             installed_at: e.installed_at,
             updated_at: e.updated_at,
         }
     }
 }
 
-/// Check whether `path` is a symlink (Unix/macOS) or a junction/symlink (Windows).
-///
-/// Rust's `Path::is_symlink()` only matches `IO_REPARSE_TAG_SYMLINK`. On Windows we
-/// create junction points (reparse tag `IO_REPARSE_TAG_MOUNT_POINT`) because they do
-/// not require admin privileges or Developer Mode. This function returns `true` for
-/// both, so all link-handling code treats junctions identically.
-///
-/// Uses `junction::exists()` on Windows to check specifically for junction reparse
-/// points rather than all reparse points (e.g. OneDrive placeholders, DFS links).
 #[inline]
 pub fn is_symlink_or_junction(path: &std::path::Path) -> bool {
     if path.is_symlink() {
@@ -339,7 +327,6 @@ pub fn is_symlink_or_junction(path: &std::path::Path) -> bool {
     }
 }
 
-/// Compare two paths by canonicalizing both. Returns false if either fails.
 fn canonical_paths_eq(a: &std::path::Path, b: &std::path::Path) -> bool {
     a.canonicalize()
         .ok()
@@ -347,10 +334,6 @@ fn canonical_paths_eq(a: &std::path::Path, b: &std::path::Path) -> bool {
         .is_some_and(|(a, b)| a == b)
 }
 
-/// Check whether a symlink/junction at `link_path` resolves to `expected_target`.
-///
-/// Resolves relative targets against the symlink's parent directory. Falls back
-/// to canonicalized path comparison when `read_link` fails (Windows junctions).
 fn resolve_link_target(
     link_path: &std::path::Path,
     target: std::path::PathBuf,
@@ -365,10 +348,6 @@ fn resolve_link_target(
     }
 }
 
-/// A link in an agent skills directory counts as app-owned when its stored
-/// target (lexically resolved, no filesystem access, so dangling links still
-/// classify) points into the SSOT store or equals a known skill home.
-/// Foreign and unclassifiable links must be left in place when hiding agents.
 pub(crate) fn is_app_owned_link(
     link_path: &std::path::Path,
     ssot_root: &std::path::Path,
@@ -464,15 +443,12 @@ fn external_source_under_ssot(source_path: &Path) -> bool {
     let Ok(source_path) = source_path.canonicalize() else {
         return false;
     };
-    // Existing imports keep ownership when a shipped agent starts covering them.
-    // New import authoring still rejects agent roots in commands::skill.
     config::get_agents_skills_dir()
         .canonicalize()
         .ok()
         .is_some_and(|root| source_path == root || source_path.starts_with(root))
 }
 
-/// A `SKILL.md` directory found in an agent's plugin tree.
 #[derive(Clone)]
 struct DiscoveredPlugin {
     agent_id: String,
@@ -481,10 +457,6 @@ struct DiscoveredPlugin {
     path: PathBuf,
 }
 
-/// Imperfect, documented heuristic: when one agent's tree holds several copies
-/// of the same skill name (versioned caches do), keep only the newest copy;
-/// distinct names never collapse, and different agents stay independent.
-/// Equal mtimes resolve by path, so a tie still yields exactly one entry.
 fn keep_newest_duplicates(discovered: Vec<DiscoveredPlugin>) -> Vec<DiscoveredPlugin> {
     let mut newest: HashMap<(&str, &str), &DiscoveredPlugin> = HashMap::new();
     for plugin in &discovered {
@@ -531,24 +503,17 @@ impl SkillService {
         Self::duplicates_have_verified_matching_content(entries)
     }
 
-    /// Check which agents can access this skill:
-    /// - If the skill's homePath is under an agent directory (origin=agent),
-    ///   that agent is marked as available directly.
-    /// - For all other agents, only a symlink pointing to this skill's
-    ///   homePath counts. A same-named real directory is a separate skill.
     pub fn detect_agents(skill_dir: &str, home_path: &Option<String>) -> HashMap<String, bool> {
         let mut enabled = HashMap::new();
         let home = home_path.as_ref().map(std::path::Path::new);
         for agent in config::agents().iter() {
             if let Some(agent_dir) = config::agent_skills_dir(agent) {
-                // If homePath is directly under this agent dir, it's natively available
                 if let Some(h) = home {
                     if h.starts_with(&agent_dir) {
                         enabled.insert(agent.id.to_string(), true);
                         continue;
                     }
                 }
-                // Otherwise, only count if there's a symlink pointing to homePath
                 let symlink_path = agent_dir.join(Self::agent_link_name(skill_dir));
                 if is_symlink_or_junction(&symlink_path) {
                     let matched = home.is_some_and(|h| symlink_target_matches(&symlink_path, h));
@@ -561,7 +526,6 @@ impl SkillService {
         enabled
     }
 
-    /// Determine origin of a skill based on where it exists on disk
     fn detect_origin(skill_dir: &str) -> &'static str {
         let agents_dir = config::get_agents_skills_dir();
         let ssot_path = agents_dir.join(skill_dir);
@@ -572,7 +536,6 @@ impl SkillService {
         }
     }
 
-    /// Determine the physical (non-symlink) home path of a skill.
     fn detect_home_path(skill_dir: &str, origin: &str) -> Option<String> {
         let agents_dir = config::get_agents_skills_dir();
         if origin == "ssot" {
@@ -602,7 +565,6 @@ impl SkillService {
         None
     }
 
-    /// Determine which agent a skill's home_path belongs to.
     fn detect_home_agent(home_path: &Option<String>, origin: &str) -> Option<String> {
         if origin == "ssot" {
             return None;
@@ -618,9 +580,6 @@ impl SkillService {
         None
     }
 
-    /// Construct the canonical skill ID string used across cache and duplicate detection.
-    /// Identity is anchored to the installation directory; provenance must not
-    /// leak into the ID, or metadata detaches when the source drifts.
     fn make_skill_id(origin: &str, dir: &str, agent_id: Option<&str>) -> String {
         if origin == "ssot" {
             format!("ssot:{dir}")
@@ -632,7 +591,6 @@ impl SkillService {
         }
     }
 
-    /// Compute a SHA-256 hash of all files in the skill directory.
     fn compute_content_hash(home_path: &str) -> Option<String> {
         use sha2::{Digest, Sha256};
         let root = std::path::Path::new(home_path);
@@ -652,8 +610,6 @@ impl SkillService {
             hasher.update(rel_path.to_str()?);
             hasher.update(b"\0");
             let full_path = root.join(rel_path);
-            // Stream instead of buffering whole files: one oversized file in a
-            // skill folder must not spike memory on every cache rebuild.
             match std::fs::File::open(&full_path) {
                 Ok(mut file) => {
                     use std::io::Read;
@@ -670,9 +626,6 @@ impl SkillService {
                         }
                     }
                     if failed {
-                        // Match the historical contract: an unreadable file
-                        // contributes its path only, without content or the
-                        // trailing separator.
                         continue;
                     }
                 }
@@ -684,10 +637,6 @@ impl SkillService {
         Some(result.iter().map(|b| format!("{:02x}", b)).collect())
     }
 
-    /// Collect regular files for the cache content hash. Returns false when
-    /// the tree exceeds the scan depth cap, mirroring the install copy and
-    /// baseline-hash caps; the caller then produces no hash at all instead of
-    /// a partial one.
     fn collect_files_recursive(
         dir: &std::path::Path,
         root: &std::path::Path,
@@ -726,12 +675,6 @@ impl SkillService {
         true
     }
 
-    // ──────────────────────────────────────────────
-    //  Read path: return cached skills
-    // ──────────────────────────────────────────────
-
-    /// Return installed skills from the JSON cache with metadata merged.
-    /// Does not perform filesystem I/O.
     pub fn get_cached_skills(
         cache: &SkillCache,
         metadata: &MetadataStore,
@@ -747,7 +690,6 @@ impl SkillService {
         Ok(skills)
     }
 
-    /// Read cache + metadata, merge into InstalledSkill list.
     pub fn read_all_skills(
         skill_cache: &RwLock<SkillCache>,
         metadata: &RwLock<MetadataStore>,
@@ -763,12 +705,6 @@ impl SkillService {
         })
     }
 
-    // ──────────────────────────────────────────────
-    //  Write path: rebuild cache from filesystem truth
-    // ──────────────────────────────────────────────
-
-    /// Replace the in-memory metadata with the disk state so refreshes observe
-    /// user marks committed by the CLI after this desktop session started.
     fn reload_metadata(metadata: &RwLock<MetadataStore>) -> Result<(), AppError> {
         let mut m = metadata
             .write()
@@ -777,8 +713,6 @@ impl SkillService {
         Ok(())
     }
 
-    /// Rebuild the skill cache from filesystem + CLI + lock file.
-    /// Returns skills with metadata merged.
     pub async fn rebuild_cache(
         cache: &RwLock<SkillCache>,
         metadata: &RwLock<MetadataStore>,
@@ -786,8 +720,6 @@ impl SkillService {
     ) -> Result<Vec<InstalledSkill>, AppError> {
         let _refresh_guard = refresh_lock.lock().await;
 
-        // Run the heavy filesystem scan on the blocking thread pool so
-        // the async runtime stays free to handle incoming Tauri commands.
         let snapshot = config::agents();
         let entries = tokio::task::spawn_blocking(move || {
             config::with_agent_snapshot(snapshot, || {
@@ -815,9 +747,6 @@ impl SkillService {
         Self::get_cached_skills(&new_cache, &m)
     }
 
-    /// Scan newly installed SSOT skills and commit them to the cache as one
-    /// serialized update. This prevents an overlapping full rebuild from
-    /// replacing fresh entries with an older filesystem snapshot.
     pub async fn refresh_installed_skills(
         cache: &RwLock<SkillCache>,
         metadata: &RwLock<MetadataStore>,
@@ -843,7 +772,6 @@ impl SkillService {
         Self::read_all_skills(cache, metadata)
     }
 
-    /// Scan filesystem for skill directories and push into entries.
     fn scan_filesystem_into(entries: &mut Vec<SkillCacheEntry>) {
         let mut scan_dirs: Vec<(PathBuf, Option<String>)> = Vec::new();
         let agents_dir = config::get_agents_skills_dir();
@@ -906,18 +834,7 @@ impl SkillService {
         }
     }
 
-    /// Scan skills exposed by coding-agent plugins as read-only entries with
-    /// `origin="plugin"`, using one generic rule for every registered agent:
-    /// walk the agent's home directory (everything except its flat skills
-    /// directory, other agents' skills directories and the SSOT store),
-    /// skipping junk directories, bounded in depth; any directory directly
-    /// containing a `SKILL.md` is a plugin skill. No layout or vendor format
-    /// knowledge. The same rule serves built-ins and custom registrations.
-    /// See the plugin-skill-visibility capability.
     fn scan_plugin_skills_into(entries: &mut Vec<SkillCacheEntry>) {
-        // Honored before any filesystem work: when disabled the scan produces
-        // nothing and the rebuild's replace_all purges previously discovered
-        // entries, so a switched-off feature has zero runtime presence.
         let enabled = Settings::load()
             .map(|settings| settings.plugins_discovery_enabled())
             .unwrap_or(false);
@@ -934,8 +851,6 @@ impl SkillService {
                     .then_some((agent.id.as_str(), home, skills_dir))
             })
             .collect();
-        // Nested homes (for example `.gemini/antigravity` inside `.gemini`):
-        // the deepest home owns the skills it contains, so claim deepest-first.
         homes.sort_by_key(|home| std::cmp::Reverse(home.1.components().count()));
 
         let ssot_dir = config::get_agents_skills_dir();
@@ -972,11 +887,6 @@ impl SkillService {
         }
     }
 
-    /// Depth-first walk of one agent's home for directories that directly
-    /// contain a `SKILL.md`. Prunes the shared junk list, the app's own
-    /// temp/backup directories, the SSOT store and every agent's flat skills
-    /// directory (those belong to the regular scans). Skills nested inside
-    /// another discovered skill are not visited: a skill folder is a leaf.
     fn collect_plugin_skill_dirs(
         agent_id_of: &str,
         dir: &Path,
@@ -1010,8 +920,6 @@ impl SkillService {
                 continue;
             }
             if path.join("SKILL.md").is_file() {
-                // Claim before recording so a shallower agent's walk skips
-                // skills already owned by a deeper nested home.
                 if claimed.insert(path.canonicalize().unwrap_or_else(|_| path.clone())) {
                     let mtime = std::fs::metadata(&path)
                         .and_then(|m| m.modified())
@@ -1029,7 +937,6 @@ impl SkillService {
         }
     }
 
-    /// Build one read-only plugin skill cache entry from its physical folder.
     fn build_plugin_skill_entry(
         id: &str,
         directory: &str,
@@ -1052,9 +959,6 @@ impl SkillService {
         let (installed_at, updated_at) = Self::resolve_timestamps(None, &home_path, now);
         let mut apps = HashMap::new();
         apps.insert(agent_id.to_string(), true);
-        // No content hash: it feeds duplicate, consistency and merge checks,
-        // which plugin skills are excluded from. Hashing thousands of plugin
-        // files on every rebuild would be pure overhead.
         let content_hash = None;
         Some(SkillCacheEntry {
             id: id.to_string(),
@@ -1076,12 +980,6 @@ impl SkillService {
         })
     }
 
-    /// Resolve timestamps for a skill cache entry.
-    ///
-    /// Priority:
-    /// 1. Lock file timestamps (RFC3339 strings → unix seconds), used for GitHub-installed skills
-    /// 2. Filesystem metadata (created/modified time), used for local skills without lock entries
-    /// 3. Fallback to `now`
     fn resolve_timestamps(
         lock_entry: Option<&SkillLockEntry>,
         skill_home_path: &str,
@@ -1093,7 +991,6 @@ impl SkillService {
                 .map(|dt| dt.timestamp())
         };
 
-        // Try lock file timestamps first
         if let Some(entry) = lock_entry {
             let installed_at = entry
                 .installed_at
@@ -1108,7 +1005,6 @@ impl SkillService {
             return (installed_at, updated_at);
         }
 
-        // No lock entry, so fall back to filesystem metadata
         let fs_installed = std::fs::metadata(skill_home_path)
             .ok()
             .and_then(|m| m.created().ok())
@@ -1127,9 +1023,6 @@ impl SkillService {
         (installed_at, updated_at)
     }
 
-    /// True when a directory name matches the app's own temp/backup naming
-    /// (`.{name}.{install|update|backup}.`). Dot-prefixed namespaces such as
-    /// `.system` are real skill directories and must not be skipped.
     pub(crate) fn is_app_temp_dir(name: &str) -> bool {
         name.starts_with('.')
             && [".install.", ".backup.", ".update."]
@@ -1152,20 +1045,12 @@ impl SkillService {
         for entry in dir_entries.flatten() {
             let path = entry.path();
             if is_symlink_or_junction(&path) {
-                // Clean up broken app-owned links whose target no longer
-                // exists. Foreign and unclassifiable dangling links (user
-                // links to unmounted volumes, other tools' links) must be
-                // left in place: deleting them is irreversible data loss,
-                // while a leftover app link is only clutter.
                 if !path.exists() {
                     if is_app_owned_link(&path, &config::get_agents_skills_dir(), &[]) {
                         let _ = Self::safe_remove(&path);
                     }
                     continue;
                 }
-                // If the symlink target is an external import source, scan it
-                // here with origin = "external". Otherwise it's a symlink to
-                // SSOT which is already scanned from the SSOT root, so skip it.
                 if let Some(target) = directory_identity(&path) {
                     if let Some(import) = imports_by_source.get(&target) {
                         if let Ok(ext_entry) = Self::scan_external_import(import) {
@@ -1184,10 +1069,6 @@ impl SkillService {
                 .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or("unknown");
-            // Skip the app's own temp/backup dirs (`.name.install.*`,
-            // `.name.update.*`, `.name.backup.*`) left behind by crashed or
-            // failed operations. Dot-prefixed namespaces like `.system` are
-            // real skills and stay.
             if crate::config::SKIP_DIRS.contains(&dir_name) || Self::is_app_temp_dir(dir_name) {
                 continue;
             }
@@ -1209,7 +1090,7 @@ impl SkillService {
                     continue;
                 };
                 if !seen_ids.insert(entry.id.clone()) {
-                    continue; // Already seen this ID, skip
+                    continue;
                 }
                 entries.push(entry);
             } else {
@@ -1257,8 +1138,6 @@ impl SkillService {
     }
 
     pub fn extract_frontmatter(content: &str) -> Option<String> {
-        // Strip a leading UTF-8 BOM first: U+FEFF is not White_Space, so
-        // `trim` alone keeps it and `starts_with("---")` would fail.
         let content = content.strip_prefix('\u{feff}').unwrap_or(content).trim();
         if content.starts_with("---") {
             let parts: Vec<&str> = content.splitn(3, "---").collect();
@@ -1271,7 +1150,6 @@ impl SkillService {
 
     const MAX_SCAN_DEPTH: usize = 20;
 
-    /// Convert a YAML value to a string, handling numbers, booleans, and null.
     fn yaml_value_to_string(v: &serde_yaml::Value) -> String {
         if let Some(s) = v.as_str() {
             return s.to_string();
@@ -1494,7 +1372,6 @@ impl SkillService {
         }
         .await;
 
-        // Notify frontend that loading is done, regardless of success or failure
         let _ = app_handle.map(|h| {
             h.emit(
                 "repo-load-done",
@@ -1505,7 +1382,6 @@ impl SkillService {
         result
     }
 
-    /// Repository candidate traversal shared by browsing and installation.
     pub(crate) fn repo_skill_roots(root: &Path) -> Vec<PathBuf> {
         fn visit(dir: &Path, depth: usize, skills: &mut Vec<PathBuf>) {
             if depth > SkillService::MAX_SCAN_DEPTH || !dir.is_dir() {
@@ -1559,7 +1435,6 @@ impl SkillService {
                 let key = if relative.as_os_str().is_empty() {
                     ".".into()
                 } else {
-                    // Repository keys use forward slashes on every platform.
                     relative.to_string_lossy().replace('\\', "/")
                 };
                 DiscoverableSkill {
@@ -1592,11 +1467,6 @@ impl SkillService {
         Ok((skills, total))
     }
 
-    // ──────────────────────────────────────────────
-    //  User data: starred / is_mine  (moved to MetadataStore)
-    // ──────────────────────────────────────────────
-
-    /// Find a skill by id in the cache (read-only).
     pub fn find_in_cache(
         cache: &RwLock<SkillCache>,
         skill_id: &str,
@@ -1691,9 +1561,6 @@ impl SkillService {
         }
     }
 
-    /// Scan a single skill directory and return a cache entry for it.
-    /// Used for incremental cache updates after install/update.
-    /// Looks in SSOT first, then agent directories, to handle both origins.
     pub fn scan_single_skill(skill_dir: &str) -> Result<SkillCacheEntry, AppError> {
         let origin = Self::detect_origin(skill_dir);
         let home_path = Self::detect_home_path(skill_dir, origin).ok_or_else(|| {
@@ -1715,10 +1582,6 @@ impl SkillService {
         Self::scan_skill_root(Path::new(&home_path), &scan_root, home_agent.as_deref())
     }
 
-    /// Scan concrete skill roots without guessing by directory name.
-    ///
-    /// Used by the filesystem watcher for incremental refresh. Each tuple is
-    /// `(skill_root, scan_root, agent_id)`, where `agent_id=None` means SSOT.
     pub fn scan_skill_roots_batch(
         skill_roots: &[(PathBuf, PathBuf, Option<String>)],
     ) -> Result<Vec<SkillCacheEntry>, AppError> {
@@ -1786,9 +1649,6 @@ impl SkillService {
         let content_hash = Self::compute_content_hash(&import.source_path);
         let apps = Self::detect_agents(&import.directory, &home_path);
 
-        // External references keep their original spelling and ownership.
-        // On case-insensitive filesystems an enclosing registered root may
-        // have another spelling even after canonicalization.
         let mut apps = apps;
         for agent in config::agents().iter() {
             if apps.get(&agent.id) == Some(&true) {
@@ -1861,7 +1721,6 @@ impl SkillService {
                 AppError::Parse(format!("Invalid skill path: {}", skill_root.display()))
             })?
             .to_string();
-        // Normalize to forward slashes for cross-platform consistency.
         let relative_dir = relative_dir.replace('\\', "/");
 
         let lock_entry = lock.and_then(|lock| {
@@ -1934,7 +1793,6 @@ impl SkillService {
         Self::scan_skill_root(skill_root, scan_root, agent_id)
     }
 
-    /// Insert or replace a cache entry and persist.
     pub fn upsert_cache_entry(
         cache: &RwLock<SkillCache>,
         entry: SkillCacheEntry,
@@ -1942,7 +1800,6 @@ impl SkillService {
         Self::upsert_cache_entries(cache, vec![entry])
     }
 
-    /// Commit an incremental batch once, restoring memory if persistence fails.
     pub fn upsert_cache_entries(
         cache: &RwLock<SkillCache>,
         entries: Vec<SkillCacheEntry>,
@@ -1953,7 +1810,6 @@ impl SkillService {
         commit_cache_entries(&mut current, entries, SkillCache::save)
     }
 
-    /// Remove a cache entry by skill_id and persist.
     pub fn remove_cache_entry(cache: &RwLock<SkillCache>, skill_id: &str) -> Result<(), AppError> {
         let mut c = cache
             .write()
@@ -1962,7 +1818,6 @@ impl SkillService {
         c.save()
     }
 
-    /// Returns (entries, failed_dirs). The caller decides how to handle failures.
     pub fn scan_skills_batch(skill_dirs: &[String]) -> (Vec<SkillCacheEntry>, Vec<String>) {
         let mut entries = Vec::with_capacity(skill_dirs.len());
         let mut failed = Vec::new();
@@ -1974,10 +1829,6 @@ impl SkillService {
         }
         (entries, failed)
     }
-
-    // ──────────────────────────────────────────────
-    //  Visible agents / settings
-    // ──────────────────────────────────────────────
 
     pub fn get_visible_agents(settings: &Settings) -> HashMap<String, bool> {
         let mut map: HashMap<String, bool> = config::agents()
@@ -2014,18 +1865,12 @@ impl SkillService {
         }
     }
 
-    // ──────────────────────────────────────────────
-    //  Symlink status
-    // ──────────────────────────────────────────────
-
     pub fn get_symlink_status(cache: &SkillCache, settings: &Settings) -> Vec<SymlinkStatus> {
         let agents_dir = config::get_agents_skills_dir();
         let visible_agents = Self::get_visible_agents(settings);
         let mut statuses = Vec::new();
 
         for skill in cache.skills() {
-            // Plugin skills are read-only and have no link affordance, so they
-            // must not inflate the matrix with one row per agent.
             if skill.origin == "plugin" {
                 continue;
             }
@@ -2066,15 +1911,8 @@ impl SkillService {
         statuses
     }
 
-    // ──────────────────────────────────────────────
-    //  Symlink toggle
-    // ──────────────────────────────────────────────
-
     pub(crate) fn safe_remove(path: &std::path::Path) -> Result<(), AppError> {
         if is_symlink_or_junction(path) {
-            // On Unix: symlinks are files, remove_file works.
-            // On Windows: junctions are directories, remove_file fails, so must use remove_dir.
-            // Both remove_file and remove_dir only delete the link itself, never the target.
             #[cfg(unix)]
             {
                 std::fs::remove_file(path).map_err(|e| error::io(path, e))
@@ -2110,7 +1948,6 @@ impl SkillService {
         #[cfg(windows)]
         {
             if target_path.is_dir() {
-                // Junction points do not require admin privileges or Developer Mode.
                 junction::create(target_path, symlink_path)
                     .map_err(|e| error::io(symlink_path, e))?;
             } else {
@@ -2202,23 +2039,9 @@ impl SkillService {
         Ok(())
     }
 
-    /// Remove a skill's physical directory and all symlinks pointing to it
-    /// across agent directories. This is the shared deletion logic used by
-    /// both the "remove skill" command and the dedup merge.
-    ///
-    /// - Deletes the entity directory at `home_path` (must not be a symlink).
-    ///   The directory is deleted only if it still contains `SKILL.md`; a
-    ///   real directory without it is treated as "the skill is already gone"
-    ///   and left untouched, so a stale cache path can never recurse into
-    ///   unrelated user data.
-    /// - Removes symlinks in all agent directories that reference this skill name.
-    /// - Does NOT delete real (non-symlink) directories in agent dirs. Those
-    ///   are user data that requires explicit consent.
     pub fn remove_skill_dir(skill_name: &str, home_path: &str) -> Result<(), AppError> {
         let home = std::path::Path::new(home_path);
 
-        // Clean up symlinks while the entity directory still exists, so target
-        // matching can canonicalize the link target reliably.
         for agent in config::agents().iter() {
             if let Some(agent_dir) = config::agent_skills_dir(agent) {
                 let symlink_path = agent_dir.join(Self::agent_link_name(skill_name));
@@ -2230,20 +2053,10 @@ impl SkillService {
             }
         }
 
-        // Delete the entity directory
         if home.exists() && !is_symlink_or_junction(home) {
-            // Identity check before recursing: `home_path` comes from the
-            // cache, which is an async derivative of the filesystem. Per the
-            // skill recognition rule a skill directory contains SKILL.md; if
-            // it is gone, the path no longer holds this skill and whatever
-            // replaced it must not be trusted to a recursive delete.
             if !home.join("SKILL.md").is_file() {
                 return Ok(());
             }
-            // User-facing removals are recoverable: the directory goes to the
-            // OS trash (Finder / Recycle Bin / freedesktop trash), not a
-            // permanent delete. Test builds keep the plain delete so suites
-            // stay side-effect free on real trash folders.
             #[cfg(feature = "test-helpers")]
             std::fs::remove_dir_all(home).map_err(|e| error::io(home, e))?;
             #[cfg(not(feature = "test-helpers"))]
@@ -2353,13 +2166,6 @@ impl SkillService {
         Self::stage_agent_symlink_removal_in_dirs(agent_dirs, known_home_paths)
     }
 
-    // ──────────────────────────────────────────────
-    //  Merge
-    // ──────────────────────────────────────────────
-
-    // ────────────── File tree listing ──────────────
-
-    /// List one directory level for a concrete skill directory.
     pub fn list_skill_file_children_at(
         skill_dir: &std::path::Path,
         parent_path: Option<&str>,
@@ -2690,8 +2496,6 @@ mod tests {
 
         assert_eq!(skills.len(), 1);
         assert_eq!(skills[0].key, ".");
-        // The catalog slug (skills.sh) is the frontmatter name, which may
-        // differ from the directory name.
         assert_eq!(
             skills[0].frontmatter_name.as_deref(),
             Some("identity-skill")
@@ -2736,18 +2540,14 @@ mod tests {
     fn scan_keeps_foreign_dangling_links_but_cleans_app_owned_ones() {
         let root = tempfile::tempdir().expect("tempdir");
         let home = root.path();
-        // A real SSOT skill so the scan has real work to do.
         let demo = home.join(".agents").join("skills").join("demo");
         std::fs::create_dir_all(&demo).expect("create ssot skill");
         std::fs::write(demo.join("SKILL.md"), "# Demo").expect("write skill");
 
         let claude = home.join(".claude").join("skills");
         std::fs::create_dir_all(&claude).expect("create agent dir");
-        // Foreign dangling link: the app never links outside SSOT; a user may
-        // (unmounted volume, renamed target). Scans must not delete it.
         std::os::unix::fs::symlink(home.join("elsewhere").join("notes"), claude.join("foreign"))
             .expect("foreign link");
-        // App-owned dangling link: target is inside SSOT but was deleted.
         std::os::unix::fs::symlink(
             home.join(".agents").join("skills").join("deleted"),
             claude.join("app-owned"),
@@ -2778,7 +2578,6 @@ mod tests {
     fn scan_single_skill_fails_cleanly_for_symlinked_ssot_dir() {
         let root = tempfile::tempdir().expect("tempdir");
         let home = root.path();
-        // The user replaced an SSOT entry with a symlink to a real skill dir.
         let real = home.join("elsewhere").join("demo");
         std::fs::create_dir_all(&real).expect("create real dir");
         std::fs::write(real.join("SKILL.md"), "# Demo").expect("write skill");
@@ -3035,7 +2834,6 @@ mod tests {
 
         assert_eq!(staged.moved_links.len(), 1);
         staged.rollback().unwrap();
-        // 悬空目标无法 canonicalize，用原始路径比对验证回滚
         assert!(raw_symlink_target_matches(&agent_dir.join("gone"), &home));
     }
 
@@ -3048,7 +2846,6 @@ mod tests {
         let dir = root.path().join("links");
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::create_dir_all(&home).unwrap();
-        // 悬空：SSOT 目标不存在，前缀仍应命中
         std::os::unix::fs::symlink(ssot_root.join("pdf-tools"), dir.join("ssot")).unwrap();
         std::os::unix::fs::symlink(&home, dir.join("local")).unwrap();
         std::os::unix::fs::symlink(root.path().join("elsewhere"), dir.join("foreign")).unwrap();
@@ -3068,7 +2865,6 @@ mod tests {
             &ssot_root,
             std::slice::from_ref(&home)
         ));
-        // 缓存退化：无已知 homePath 时仅 SSOT 前缀命中
         assert!(!super::is_app_owned_link(
             &dir.join("local"),
             &ssot_root,
@@ -3091,7 +2887,6 @@ mod tests {
             std::slice::from_ref(&home),
         )
         .unwrap();
-        // 模拟外部进程（如 openclaw 的 watcher）在原位重建了链接
         SkillService::create_link_to_target(&home, &agent_dir.join("mine")).unwrap();
 
         let error = staged.rollback().unwrap_err().to_string();
@@ -3322,7 +3117,6 @@ mod tests {
         }
     }
 
-    /// Plugin discovery is off by default; scan tests opt in explicitly.
     fn set_plugin_discovery(enabled: bool) {
         crate::persistence::Settings {
             values: [("plugins_discovery_enabled".to_string(), enabled.to_string())]
@@ -3503,12 +3297,10 @@ mod tests {
             SkillService::extract_frontmatter("---\nname: demo\n---\nbody"),
             Some("name: demo".to_string())
         );
-        // BOM with no frontmatter still yields None.
         assert_eq!(
             SkillService::extract_frontmatter("\u{feff}# no frontmatter"),
             None
         );
-        // Interior BOM is content, not a marker, so it must not be stripped.
         assert_eq!(
             SkillService::extract_frontmatter("---\u{feff}\nname: demo\n---\nbody"),
             Some("\u{feff}\nname: demo".to_string())
@@ -3517,9 +3309,6 @@ mod tests {
 
     #[test]
     fn discover_rejects_archive_scale_limits_before_extraction() {
-        // Entry-flood bomb at production thresholds: the 1 GiB byte floor
-        // makes a ratio bomb impractical to build in a test, so the wiring is
-        // proven through the entry-count guard (MAX_EXTRACT_FILES + 1).
         let tmp = tempfile::tempdir().unwrap();
         let zip_bytes = {
             let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
@@ -3558,7 +3347,6 @@ mod tests {
     fn reload_metadata_pulls_disk_state_into_memory() {
         let tmp = tempfile::tempdir().unwrap();
         config::with_test_home(tmp.path(), || {
-            // Simulate the CLI committing a user mark after desktop started.
             MetadataStore {
                 entries: HashMap::from([(
                     "ssot:demo".to_string(),
@@ -3624,24 +3412,20 @@ mod tests {
             let home = tmp.path().join("custom-tool");
             std::fs::create_dir_all(&skills_dir).unwrap();
 
-            // Real-world shapes observed across agents, all found by the same rule:
             std::fs::create_dir_all(home.join("marketplace/skills/beta")).unwrap();
             std::fs::write(home.join("marketplace/skills/beta/SKILL.md"), "# beta").unwrap();
             std::fs::create_dir_all(home.join("bundled/skills/grok-like")).unwrap();
             std::fs::write(home.join("bundled/skills/grok-like/SKILL.md"), "# grok").unwrap();
-            // WorkBuddy connector shape: the SKILL.md sits inside skills/ itself.
             std::fs::create_dir_all(home.join("connectors/connector-one/skills")).unwrap();
             std::fs::write(
                 home.join("connectors/connector-one/skills/SKILL.md"),
                 "# connector",
             )
             .unwrap();
-            // Duplicate name across copies (versioned-cache shape): only one survives.
             for copy in ["cache/mp/plug/1.0.0", "cache/mp/plug/0.9.0"] {
                 std::fs::create_dir_all(home.join(copy).join("skills/alpha")).unwrap();
                 std::fs::write(home.join(copy).join("skills/alpha/SKILL.md"), "# alpha").unwrap();
             }
-            // Junk and already-covered surfaces never surface:
             std::fs::create_dir_all(home.join("node_modules/pkg")).unwrap();
             std::fs::write(home.join("node_modules/pkg/SKILL.md"), "# junk").unwrap();
             std::fs::create_dir_all(skills_dir.join("flat")).unwrap();
@@ -3663,12 +3447,9 @@ mod tests {
             assert_eq!(names("marketplace/skills/beta"), 1);
             assert_eq!(names("bundled/skills/grok-like"), 1);
             assert_eq!(names("connectors/connector-one/skills"), 1);
-            // Same-name duplicates collapse to one; the stale copy never doubles it.
             assert_eq!(names("skills/alpha"), 1);
             assert!(!entries.iter().any(|e| e.id.contains("node_modules")));
-            // The agent's own flat skills directory belongs to the regular scan.
             assert!(!entries.iter().any(|e| e.id.contains("skills/flat")));
-            // Entries belong to the discovering agent.
             assert!(
                 entries
                     .iter()
@@ -3708,7 +3489,6 @@ mod tests {
                 ("agent-b".to_string(), "alpha".to_string()),
             ]
         );
-        // The surviving alpha is the newest copy.
         let alpha = kept
             .iter()
             .find(|p| p.agent_id == "agent-a" && p.name == "alpha")
@@ -3728,19 +3508,15 @@ mod tests {
             )
             .unwrap();
 
-            // Default (no setting recorded): no walk, nothing produced.
             let mut entries = Vec::new();
             SkillService::scan_plugin_skills_into(&mut entries);
             assert!(entries.is_empty());
 
-            // Switched on: discovery runs.
             set_plugin_discovery(true);
             let mut entries = Vec::new();
             SkillService::scan_plugin_skills_into(&mut entries);
             assert_eq!(entries.len(), 1);
 
-            // Switched off again: no filesystem walk happens and nothing is
-            // produced, so the rebuild's replace_all purges previous entries.
             set_plugin_discovery(false);
             let mut entries = Vec::new();
             SkillService::scan_plugin_skills_into(&mut entries);
@@ -3764,7 +3540,6 @@ mod tests {
             assert_eq!(entries.len(), 1);
             let entry = entries.remove(0);
 
-            // Conflict/duplicate scope excludes plugin skills entirely.
             let visible_agents = HashMap::from([("claude-code".to_string(), true)]);
             assert!(!SkillService::is_visible_local_skill(
                 &entry,
@@ -3772,12 +3547,10 @@ mod tests {
                 false
             ));
 
-            // Write resolution refuses plugin-owned folders.
             let cache = crate::persistence::SkillCache::from_entries(vec![entry.clone()]);
             let error = ManagedSkill::resolve(&cache, &entry.id, true)
                 .expect_err("plugin writes must be refused");
             assert!(error.to_string().contains("read-only"));
-            // Read-only viewing still resolves.
             ManagedSkill::resolve(&cache, &entry.id, false).expect("read resolve");
         });
     }
@@ -3792,8 +3565,6 @@ mod tests {
             path: PathBuf::from(path),
         };
 
-        // Copies made in the same second share an mtime; the category must
-        // still list the skill once, and the choice must be deterministic.
         let kept = keep_newest_duplicates(vec![mk("/z/alpha"), mk("/a/alpha")]);
         assert_eq!(kept.len(), 1);
         assert_eq!(kept[0].path, PathBuf::from("/a/alpha"));
@@ -3809,8 +3580,6 @@ mod tests {
             entry.home_path = Some(tmp.path().join("plugins/x").to_string_lossy().to_string());
             let cache = SkillCache::from_entries(vec![entry]);
 
-            // Plugin skills have no link affordance, so they must not inflate
-            // the link matrix with a row per agent.
             let statuses = SkillService::get_symlink_status(
                 &cache,
                 &crate::persistence::Settings {

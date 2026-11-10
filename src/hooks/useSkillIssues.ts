@@ -7,9 +7,7 @@ export interface SkillIssues {
   isDuplicate?: boolean;
   hasConflict?: boolean;
   isMismatch?: boolean;
-  /** For duplicate/conflict: the group name (= skill name) to scroll to in ConsistencyPanel */
   duplicateGroupName?: string;
-  /** For mismatch: the skill ID to scroll to in ConsistencyPanel */
   mismatchSkillId?: string;
 }
 

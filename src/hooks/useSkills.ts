@@ -294,9 +294,6 @@ export function useSkillContent(directory: string | null, skillId?: string | nul
     queryKey: ["skills", "content", skillId, directory],
     queryFn: () => skillsApi.readSkillText(skillId!, "SKILL.md"),
     enabled: !!directory && !!skillId,
-    // Cache content for 30s so reopening a recently-viewed skill doesn't
-    // re-read SKILL.md from disk on every open. In-app saves invalidate via
-    // the "saveSkillContent" key prefix, so edits stay fresh.
     staleTime: 30 * 1000,
   });
 }
@@ -368,8 +365,6 @@ export function useSaveSkillFileContent() {
     },
   });
 }
-
-// ── Discover (repo-driven) ──
 
 export function useBanners() {
   return useQuery({
@@ -461,8 +456,6 @@ export function useRepoSkillList(owner: string | null, name: string | null) {
   });
 }
 
-// ── Discover (skills.sh) ──
-
 export function useSearchSkillsSh(query: string | null, limit?: number) {
   return useQuery({
     queryKey: ["skills.sh", "search", query, limit],
@@ -471,8 +464,6 @@ export function useSearchSkillsSh(query: string | null, limit?: number) {
     staleTime: 5 * 60 * 1000,
   });
 }
-
-// ── Security Audit (skills.sh) ──
 
 export function useSkillAudit(owner?: string, repo?: string, slug?: string) {
   return useQuery({
@@ -483,8 +474,6 @@ export function useSkillAudit(owner?: string, repo?: string, slug?: string) {
     retry: 2,
   });
 }
-
-// ── Star / Create ──
 
 export function useStarSkill() {
   return useStarMutation((skillId) => skillsApi.setSkillStarred(skillId, true), true);
@@ -522,8 +511,6 @@ export function useCreateSkill() {
     onSuccess: () => invalidateFor(qc, "createSkill"),
   });
 }
-
-// ── Duplicates ──
 
 export function useMergeDuplicates() {
   const qc = useQueryClient();

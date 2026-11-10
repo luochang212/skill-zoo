@@ -1,4 +1,3 @@
-//! LLM connections are separate from the desktop-owned skill protocol.
 use super::atomic_write_private;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -22,7 +21,6 @@ pub struct Model {
     pub context_window: Option<u32>,
 }
 
-// Intentionally no Debug: this structure holds credentials.
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Provider {
@@ -69,7 +67,6 @@ pub struct ProviderUpdate {
     pub enabled: bool,
     pub protocol: Protocol,
     pub base_url: String,
-    /// None means unchanged; an empty string explicitly clears the secret.
     pub api_key: Option<String>,
     pub models: Vec<Model>,
 }
@@ -220,7 +217,6 @@ pub fn upsert(path: &Path, update: ProviderUpdate) -> Result<Vec<ProviderSummary
     Ok(file.providers.iter().map(ProviderSummary::from).collect())
 }
 
-/// Recovery never overwrites a future schema. A unique private backup survives restart.
 pub fn recover(path: &Path) -> Result<(), String> {
     match load(path) {
         Err(e) if e == "configCorrupt" => {}

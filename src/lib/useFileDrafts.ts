@@ -2,7 +2,6 @@ import { useCallback, useRef, useState } from "react";
 
 type SaveCheckpoint = { session: number; path: string; content: string | undefined };
 
-/** Draft ownership and save acknowledgement shared by main and auxiliary files. */
 export function useFileDrafts() {
   const [drafts, setDrafts] = useState(() => new Map<string, string>());
   const current = useRef(drafts);
@@ -16,7 +15,6 @@ export function useFileDrafts() {
 
   const change = useCallback((path: string, content: string, baseline?: string, saving = false) => {
     const next = new Map(current.current);
-    // An in-flight save will replace the baseline, so retain even a revert.
     if (content === baseline && !saving) next.delete(path);
     else next.set(path, content);
     current.current = next;

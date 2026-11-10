@@ -21,7 +21,6 @@ import { RepoTasksMenu } from "@/components/layout/RepoTasksMenu";
 import { RepoTasksProvider } from "@/hooks/useRepoTasks";
 import { InstalledSkills } from "@/components/skills/InstalledSkills";
 import { SkillDetail } from "@/components/skills/SkillDetail";
-// Landing view stays eager; secondary pages load on first navigation.
 const BrowseSkills = lazy(() =>
   import("@/components/skills/BrowseSkills").then((m) => ({ default: m.BrowseSkills })),
 );
@@ -98,9 +97,6 @@ class ErrorBoundary extends Component<EBProps, EBState> {
   }
 }
 
-// Module-scope handler: it captures no component state, so it doesn't need to
-// live inside App (and be recreated every render). Starts a window drag unless
-// the pointer is over an interactive element; double-click toggles maximize.
 async function handleDragMouseDown(e: React.MouseEvent) {
   if (e.buttons !== 1) return;
   const target = e.target as HTMLElement;
@@ -127,8 +123,6 @@ export default function App() {
     null,
   );
   const detailOverlayRef = useRef<HTMLDivElement>(null);
-  // Unsaved auxiliary file drafts reported by SkillContentPane; the ref feeds
-  // the switch confirm, the state drives archive/close protection.
   const auxDraftsDirtyRef = useRef(false);
   const [auxDraftsDirty, setAuxDraftsDirty] = useState(false);
   const handleUnsavedDraftsChange = useCallback((hasUnsaved: boolean) => {
@@ -136,8 +130,6 @@ export default function App() {
     setAuxDraftsDirty(hasUnsaved);
   }, []);
   const [pendingClose, setPendingClose] = useState(false);
-  // Deferred navigation from the tray, applied after the user discards
-  // unsaved editor drafts in the close confirmation dialog.
   const pendingNavRef = useRef<(() => void) | null>(null);
   const editor = useEditorState(auxDraftsDirtyRef);
 
@@ -167,8 +159,6 @@ export default function App() {
   useEffect(() => {
     const theme = (localStorage.getItem("theme") as string | null) ?? "system";
     applyTheme(theme as "light" | "dark" | "system");
-    // App-level so an OS light/dark switch is honoured on every view, not only
-    // while the settings view (the sole useTheme consumer) is mounted.
     return subscribeToSystemTheme();
   }, []);
 
@@ -178,9 +168,6 @@ export default function App() {
     });
   }, [i18n.language]);
 
-  // Listen for navigation requests from the tray menu (e.g. "设置" → settings view).
-  // Tray navigation closes any open skill detail first, otherwise the detail
-  // overlay keeps rendering and hides the requested view behind hidden tabs.
   const handleTrayNavigateRef = useRef<(apply: () => void) => void>(() => {});
   const handleTrayNavigate = useCallback(
     (apply: () => void) => {
@@ -365,7 +352,6 @@ export default function App() {
     />
   );
 
-  // Determine what to render in main area
   const renderMain = () => {
     const detail = renderSkillDetail();
     if (detail) return detail;
@@ -510,9 +496,6 @@ export default function App() {
                   <div
                     ref={detailOverlayRef}
                     tabIndex={-1}
-                    // Must out-stack everything in the local page subtree
-                    // (e.g. the repo panel's z-20 GitHub toggle) or they bleed
-                    // through onto the detail view.
                     className="absolute inset-0 z-50 bg-background"
                   >
                     {renderSkillDetail()}

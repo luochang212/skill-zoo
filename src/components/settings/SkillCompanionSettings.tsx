@@ -277,7 +277,6 @@ function SkillUsageDialog({
   const agentConfigs = configsQuery.data;
   const usageAgents = useMemo(() => {
     const tracked = (agentConfigs ?? []).filter((a) => a.hasUsageTracking);
-    // Codex leads the usage sources and is the default; Claude Code follows it.
     return [...tracked.filter((a) => a.id === "codex"), ...tracked.filter((a) => a.id !== "codex")];
   }, [agentConfigs]);
   const agent = useMemo(() => {
@@ -298,11 +297,6 @@ function SkillUsageDialog({
   const [isCapturing, setIsCapturing] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownOpenRef = useRef(false);
-  // Tracks whether the dropdown was open at the moment of the last pointerdown.
-  // The Dialog defers its outside-click detection to the `click` event
-  // (deferPointerDownOutside), but the DropdownMenu closes immediately on
-  // `pointerdown`. By the time the Dialog checks, the dropdown is already
-  // closed, so we capture the state here to bridge that timing gap.
   const dropdownOpenAtPointerDownRef = useRef(false);
 
   const handleDropdownOpenChange = useCallback((nextOpen: boolean) => {
@@ -310,8 +304,6 @@ function SkillUsageDialog({
     setDropdownOpen(nextOpen);
   }, []);
 
-  // Capture-phase listener fires before any DismissableLayer bubble-phase
-  // handlers, so we record the dropdown state before it gets cleared.
   useEffect(() => {
     if (!open) return;
     const handlePointerDown = () => {
@@ -344,10 +336,6 @@ function SkillUsageDialog({
       toast.error(t("settings.skillCompanion.screenshotFailed"));
       return;
     }
-    // Capture the inner content wrapper (natural auto-height), not the dialog's
-    // fixed viewport. The dialog shell is overflow:hidden at 640px, so skills
-    // past the fold would otherwise be clipped. Using the inner wrapper avoids
-    // flex-inflated scrollHeight when content is shorter than the dialog.
     const target =
       dialog.querySelector<HTMLElement>("[data-screenshot-content]") ??
       dialog.querySelector<HTMLElement>("[data-screenshot-scroll]") ??
@@ -537,7 +525,6 @@ function SkillUsageDialog({
                 )}
                 <SkillUsageBars period={period} agentDisplayName={agentDisplayName} />
                 <p className="flex items-center justify-between gap-3 border-t border-border/30 pt-3 text-[11px] leading-5 text-muted-foreground">
-                  {/* Intentional non-i18n metadata label for a compact product signature. */}
                   <span className="shrink-0 whitespace-nowrap">{`▸ Skill preferences · ${activeSkillCount} skills · ${dateRange.start} ~ ${dateRange.end}`}</span>
                   <span
                     data-screenshot-only
@@ -832,8 +819,6 @@ function SkillCompanionManagerDialog({
     saveList(itemsRef.current, undefined, () => setItems(savedItems));
   };
 
-  // Buttons that mutate the list are disabled while editing, so the dialog state
-  // equals the saved state whenever exporting is possible.
   const exportItems = async () => {
     try {
       await settingsApi.copyTextToClipboard(buildSkillCompanionExport(itemsRef.current));
@@ -963,7 +948,6 @@ function SkillCompanionManagerDialog({
             </div>
           )}
         </div>
-        {/* Portal-mounted nested dialog; invisible to the flex layout. */}
         <SkillCompanionImportDialog
           open={importOpen}
           onOpenChange={setImportOpen}

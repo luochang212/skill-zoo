@@ -28,8 +28,6 @@ function AgentPathDetails({
   onEdit: (info: AgentPathInfo) => void;
 }) {
   const { t } = useTranslation();
-  // The custom label is itself the edit affordance because hover underlines it,
-  // so no extra action button displaces the shared row columns.
   const editable = info.agent.startsWith("custom-");
   return (
     <div className="min-w-0 space-y-1.5" data-selectable>
@@ -262,9 +260,6 @@ export function AgentManagerDialog({
 
   const visibleOrder = draftOrder.filter((agent) => visibleAgents[agent] !== false);
   const hiddenOrder = draftOrder.filter((agent) => visibleAgents[agent] === false);
-  // The list keeps the tall, wide shell its rows need; the editor is a short
-  // form that caps height (long reviews still scroll) and follows the app's
-  // narrower form-dialog band.
   const shellClass =
     editor === undefined
       ? "h-[min(720px,calc(100vh-6rem))] max-w-[600px]"

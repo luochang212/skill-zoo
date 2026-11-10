@@ -1,6 +1,3 @@
-// Portable builds must use the custom protocol to serve embedded frontend assets.
-// When `custom-protocol` is missing, Tauri sets `cfg(dev)` which causes the app to
-// connect to the dev server (localhost:3000) instead, which breaks portable builds.
 #[cfg(all(feature = "portable", dev))]
 compile_error!("portable builds require tauri/custom-protocol; check Cargo.toml [features]");
 
@@ -38,9 +35,6 @@ pub fn run() {
     tauri::Builder::default()
         .manage(commands::translation::TranslationState::default())
         .manage(services::skill_usage_cache::SkillUsageCache::default())
-        // Single-instance must register before other plugins so a second
-        // launch forwards to the running instance instead of racing its
-        // writes (lock read-modify-write and same-name atomic-write temps).
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
@@ -56,14 +50,10 @@ pub fn run() {
                 let _lease = persistence::agent_transaction::AgentLease::acquire(
                     &config::get_app_config_dir(),
                 )?;
-                // An unreadable registry degrades to built-in agents: agent
-                // changes still refuse to overwrite the broken file because the
-                // change path reloads the registry before committing.
                 if let Err(e) = config::refresh_agents() {
                     eprintln!("Failed to load agent registry, using built-in agents: {e}");
                 }
             }
-            // Clean up residual .tmp files from interrupted downloads
             let cache_dir = config::get_repo_zip_cache_dir();
             if cache_dir.exists() {
                 if let Ok(entries) = std::fs::read_dir(&cache_dir) {
@@ -77,8 +67,6 @@ pub fn run() {
                 }
             }
 
-            // Load the persisted derived cache so the UI can render immediately,
-            // then reconcile with filesystem truth in the background.
             let skill_cache = persistence::SkillCache::load()
                 .unwrap_or_else(|_| persistence::SkillCache::empty());
             let should_reconcile_cache = !skill_cache.is_empty();
@@ -121,7 +109,6 @@ pub fn run() {
                 });
             }
 
-            // Start filesystem watcher for auto-refresh on external changes
             let app_handle = app.handle().clone();
             let state = app.state::<AppState>();
             match services::watcher::start_skill_watcher(app_handle) {
@@ -132,7 +119,6 @@ pub fn run() {
                 Err(e) => eprintln!("Failed to start file watcher: {e}"),
             }
 
-            // Register updater plugin (skipped for portable builds)
             #[cfg(all(desktop, not(feature = "portable")))]
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())

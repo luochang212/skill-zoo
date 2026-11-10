@@ -49,7 +49,6 @@ export function useSkillTranslation(
     targetLanguage: input.targetLanguage,
   } satisfies TranslationCacheRequest);
   const key = useMemo(() => ["translation-session", identity] as const, [identity]);
-  // The application owns the session; leaving a document only unsubscribes its view.
   const { data: view = empty() } = useQuery<Session>({
     queryKey: key,
     queryFn: skipToken,
@@ -145,11 +144,9 @@ export function useSkillTranslation(
   const translate = useCallback(
     async (force = false) => {
       const old = getView();
-      // Multiple views of the same session must not start duplicate requests.
       if (old.task && !force) return;
       cancelTask();
       setSelectedView(selectionKey);
-      // Only manually started sessions outlive their views; unused drafts can be collected.
       const query = client.getQueryCache().find({ queryKey: key, exact: true });
       query?.setOptions({ ...query.options, gcTime: Infinity });
       const id = crypto.randomUUID();
@@ -184,7 +181,6 @@ export function useSkillTranslation(
       };
       try {
         await translationApi.start(id);
-        // Explicit cancellation can precede registration's acknowledgement.
         if (!active()) {
           await translationApi.cancel(id);
           return;
@@ -207,7 +203,6 @@ export function useSkillTranslation(
             setView((v) => ({ ...v, text: event.text }));
           }
         });
-        // Command resolution can precede Channel delivery; only terminal events settle the task.
       } catch (error) {
         fail(translationErrorCode(error));
         void translationApi.cancel(id).catch(() => {});

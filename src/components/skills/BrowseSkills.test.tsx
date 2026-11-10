@@ -117,8 +117,6 @@ vi.mock("@/lib/api/skills", () => ({
   skillsApi: { searchRepo: mocks.searchRepo },
 }));
 
-// Same wiring as App.tsx: the selected repo swaps the discover view for the
-// repo detail page, which unmounts the preview panel outright.
 function Harness() {
   const [selectedRepo, setSelectedRepo] = useState<DiscoverRepo | null>(null);
   return <BrowseSkills selectedRepo={selectedRepo} onSelectRepo={setSelectedRepo} />;
@@ -281,8 +279,6 @@ describe("BrowseSkills", () => {
     });
     expect(screen.getByRole("button", { name: /hugmouse\/skills/ })).toBeInTheDocument();
 
-    // WebKit reports isComposing === false for the Enter that confirms a candidate,
-    // so the keyCode 229 path is the one that actually protects WKWebView.
     fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
     expect(onSelectRepo).not.toHaveBeenCalled();
 
@@ -330,14 +326,12 @@ describe("BrowseSkills", () => {
 
     await userEvent.click(screen.getByTestId("stub-community-card"));
 
-    // The preview footer identifies the repo, not the skill the user just clicked.
     const repoButton = screen.getByRole("button", { name: "owner/repo" });
     expect(screen.queryByRole("button", { name: "Example Skill" })).toBeNull();
     await userEvent.click(repoButton);
 
     expect(mocks.searchRepo).toHaveBeenCalledWith("owner/repo");
     expect(screen.getByText("repo-detail-stub:repo")).toBeInTheDocument();
-    // The preview is closed, not carried over into the repo detail page.
     expect(screen.queryByRole("button", { name: "Install" })).not.toBeInTheDocument();
   });
 });

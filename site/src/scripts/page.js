@@ -4,7 +4,6 @@ import { initDownloads } from './downloads.js';
 initCarousel();
 initDownloads();
 
-// ── Hero: pause animations when off-screen ──
 const heroZoo = document.getElementById("hero-zoo");
 const heroObserver = new IntersectionObserver(
   (entries) => {
@@ -16,7 +15,6 @@ const heroObserver = new IntersectionObserver(
 );
 heroObserver.observe(heroZoo);
 
-// Smooth scroll for anchor links
 document.querySelectorAll('a[href^="#"]').forEach((a) => {
   a.addEventListener("click", (e) => {
     const href = a.getAttribute("href");
@@ -28,7 +26,6 @@ document.querySelectorAll('a[href^="#"]').forEach((a) => {
   });
 });
 
-// Copy buttons
 document.querySelectorAll("pre:not(.no-copy)").forEach((pre) => {
   const btn = document.createElement("button");
   btn.className = "copy-btn";
@@ -46,7 +43,6 @@ document.querySelectorAll("pre:not(.no-copy)").forEach((pre) => {
   pre.appendChild(btn);
 });
 
-// Tab switcher
 const tabBtns = document.querySelectorAll("#depTabs .tab-btn");
 tabBtns.forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -61,7 +57,6 @@ tabBtns.forEach((btn) => {
   });
 });
 
-// Animated counters
 const animated = new Set();
 const observer = new IntersectionObserver(
   (entries) => {
@@ -89,7 +84,6 @@ const observer = new IntersectionObserver(
 );
 observer.observe(document.querySelector(".stat-row"));
 
-// ── Top Nav ──
 const NAV_TOGGLE = document.getElementById("nav-toggle");
 const NAV_DRAWER = document.getElementById("nav-drawer");
 const NAV_LINKS = document.querySelectorAll("[data-nav-link]");
@@ -112,7 +106,6 @@ NAV_LINKS.forEach((link) => {
   });
 });
 
-// Nav download button scrolls to second page
 if (NAV_DL_BTN) {
   NAV_DL_BTN.addEventListener("click", () => {
     document
@@ -121,7 +114,6 @@ if (NAV_DL_BTN) {
   });
 }
 
-// Nav color adapts to hero section
 const TOP_NAV = document.getElementById("top-nav");
 function updateNavTheme() {
   const heroBottom = heroZoo.getBoundingClientRect().bottom;
@@ -130,7 +122,6 @@ function updateNavTheme() {
 window.addEventListener("scroll", updateNavTheme, { passive: true });
 updateNavTheme();
 
-// ── Scroll Reveal ──
 (function initReveal() {
   const els = document.querySelectorAll("[data-reveal]");
   if (!els.length) return;
@@ -140,13 +131,11 @@ updateNavTheme();
   ).matches;
   const hasIO = typeof IntersectionObserver !== "undefined";
 
-  // Degradation: show everything immediately
   if (reduceMotion || !hasIO) {
     els.forEach((el) => el.classList.add("reveal-visible"));
     return;
   }
 
-  // Hide elements first (JS is running, safe to hide)
   els.forEach((el) => el.classList.add("reveal-init"));
 
   const io = new IntersectionObserver(
@@ -164,12 +153,10 @@ updateNavTheme();
   els.forEach((el) => io.observe(el));
 })();
 
-// ── Mock card star randomization: 5 filled, 7 hollow ──
 (() => {
   const stars = document.querySelectorAll(".m-card-grid .m-card-star");
   if (!stars.length) return;
   const indices = Array.from({ length: stars.length }, (_, i) => i);
-  // Fisher-Yates shuffle, take first 5
   for (let i = indices.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [indices[i], indices[j]] = [indices[j], indices[i]];
@@ -179,7 +166,7 @@ updateNavTheme();
     if (filled.has(i)) {
       el.classList.add("filled");
     } else {
-      el.textContent = "☆"; // ☆ hollow
+      el.textContent = "☆";
     }
   });
 })();

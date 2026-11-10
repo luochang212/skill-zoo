@@ -1,4 +1,3 @@
-//! Public model metadata only: no provider credentials or user content leave the app.
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -25,7 +24,6 @@ fn api_identity(raw: &str) -> Option<(String, String)> {
     {
         return None;
     }
-    // Only the API root differs for these official providers; never match subdomains by suffix.
     let host = url.host_str()?;
     let path = url.path().trim_end_matches('/');
     let path = if host == "api.deepseek.com" && path == "/v1" {
@@ -59,13 +57,14 @@ fn recommendation(model: &Value) -> Option<ModelRecommendation> {
     Some(result)
 }
 
+fn model_id_last_segment(model_id: &str) -> Option<&str> {
+    model_id.rsplit('/').next()
+}
+
 fn is_manufacturer(provider_id: &str, model_id: &str) -> bool {
-    let name = model_id
-        .rsplit('/') // model ID namespace, not a filesystem path
-        .next()
+    let name = model_id_last_segment(model_id)
         .unwrap_or(model_id)
         .to_ascii_lowercase();
-    // Catalog provider IDs and known model families establish ownership, not display names.
     match provider_id {
         "alibaba" | "alibaba-cn" => name.starts_with("qwen"),
         "zai" | "zhipuai" => name.starts_with("glm-"),
@@ -94,7 +93,6 @@ fn modal_recommendation(candidates: &[Option<ModelRecommendation>]) -> Option<Mo
             .or_insert(0usize) += 1;
     }
     let max = counts.values().copied().max()?;
-    // Preserve candidate order when several complete configurations share the top count.
     candidates
         .iter()
         .flatten()
@@ -137,7 +135,7 @@ pub fn lookup(catalog: &Value, base_url: &str, model_id: &str) -> Option<ModelRe
                 let matched = if matches!(tier, 0 | 1 | 3) {
                     id == model_id
                 } else {
-                    id.rsplit('/').next() == model_id.rsplit('/').next() // model ID namespace, not a filesystem path
+                    model_id_last_segment(id) == model_id_last_segment(model_id)
                 };
                 if matched {
                     candidates.push(recommendation(model));
@@ -146,7 +144,6 @@ pub fn lookup(catalog: &Value, base_url: &str, model_id: &str) -> Option<ModelRe
         }
         if !candidates.is_empty() {
             let result = modal_recommendation(&candidates);
-            // Invalid manufacturer records can fall back; endpoint-specific records cannot.
             if result.is_some() || !matches!(tier, 1 | 2) {
                 return result;
             }
@@ -409,7 +406,6 @@ mod tests {
             data[index.to_string()] =
                 json!({"models":{"unknown-model":{"limit":{"context":context,"output":output}}}});
         }
-        // The independent modes (1000, 400) never occur together in this catalog.
         assert_eq!(
             lookup(&data, "https://proxy.test/v1", "unknown-model"),
             Some(ModelRecommendation {

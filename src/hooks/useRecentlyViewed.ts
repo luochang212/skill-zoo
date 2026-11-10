@@ -19,22 +19,17 @@ function load(): RecentlyViewedEntry[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      // Valid JSON with the wrong shape must not crash the Discover view.
       const parsed: unknown = JSON.parse(stored);
       if (Array.isArray(parsed)) return parsed.filter(isRecentlyViewedEntry);
     }
-  } catch {
-    /* ignore */
-  }
+  } catch {}
   return [];
 }
 
 function save(entries: RecentlyViewedEntry[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-  } catch {
-    /* ignore */
-  }
+  } catch {}
 }
 
 export function useRecentlyViewed() {
@@ -58,9 +53,7 @@ export function useRecentlyViewed() {
     setItems([]);
     try {
       localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   }, []);
 
   return { items, add, clear };

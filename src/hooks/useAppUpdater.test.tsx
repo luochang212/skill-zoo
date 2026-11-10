@@ -146,11 +146,9 @@ describe("useAppUpdater", () => {
     const user = userEvent.setup();
     const downloadAndInstall = vi.fn<Update["downloadAndInstall"]>().mockResolvedValue(undefined);
     let resolveStartupCheck!: (result: Update | null) => void;
-    // The startup revalidation (cached update present) hangs on a slow network.
     vi.mocked(check).mockImplementationOnce(
       () => new Promise<Update | null>((resolve) => (resolveStartupCheck = resolve)),
     );
-    // The manual flow the user starts while that check is still in flight.
     vi.mocked(check).mockResolvedValueOnce(createUpdate(downloadAndInstall));
 
     localStorage.setItem("skill-zoo.lastKnownUpdateVersion", "0.2.9");
@@ -160,8 +158,6 @@ describe("useAppUpdater", () => {
     await user.click(screen.getByRole("button", { name: /check/i }));
     await screen.findByText("readyToRestart");
 
-    // The stale startup check finally answers "no update". It must not
-    // reset the finished download back to idle (review S7).
     resolveStartupCheck(null);
     await waitFor(() => expect(check).toHaveBeenCalledTimes(2));
 

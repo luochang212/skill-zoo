@@ -1,4 +1,3 @@
-//! Small connection layer; translations do not own provider credentials.
 use crate::persistence::llm_providers::{Model, Protocol, Provider};
 use futures::StreamExt;
 use genai::adapter::AdapterKind;
@@ -19,13 +18,11 @@ fn is_fixed_thinking_model(base_url: &str, protocol: Protocol, model_id: &str) -
         })
 }
 
-/// Only documented endpoint/model combinations may receive thinking controls.
 pub fn thinking_parameters(
     base_url: &str,
     protocol: Protocol,
     model_id: &str,
 ) -> Option<serde_json::Value> {
-    // This fixed-thinking model defaults to max effort; translation uses light reasoning.
     if is_fixed_thinking_model(base_url, protocol, model_id) {
         return Some(serde_json::json!({"reasoning_effort":"low"}));
     }
@@ -86,7 +83,6 @@ pub fn adapter(protocol: Protocol) -> AdapterKind {
 }
 
 fn classify(error: genai::Error) -> String {
-    // Never stringify SDK errors: they may contain server echoes and credentials.
     if matches!(
         error,
         genai::Error::ChatResponseGeneration { .. }
@@ -151,7 +147,6 @@ fn target(provider: &Provider, model_id: &str) -> Result<ServiceTarget, String> 
     let mut base_url = url::Url::parse(&provider.base_url).map_err(|_| "baseUrl")?;
     if provider.protocol == Protocol::AnthropicMessages {
         let path = base_url.path().trim_end_matches('/');
-        // Anthropic-compatible gateways expose Messages below their v1 API root.
         let path = if path.to_ascii_lowercase().ends_with("/v1") {
             format!("{path}/")
         } else {
@@ -173,8 +168,6 @@ fn target(provider: &Provider, model_id: &str) -> Result<ServiceTarget, String> 
             format!("Bearer {}", provider.api_key),
         ));
     }
-    // A concrete target prevents model inference and environment credential fallbacks.
-    // RequestOverride also permits genuinely anonymous local endpoints.
     Ok(ServiceTarget {
         model: ModelIden::new(adapter(provider.protocol), model_id.to_owned()),
         endpoint: Endpoint::from_owned(base_url.to_string()),
@@ -185,7 +178,6 @@ fn target(provider: &Provider, model_id: &str) -> Result<ServiceTarget, String> 
     })
 }
 
-/// Explicit, read-only inference probe; never include source documents or server echoes.
 pub async fn test_connection(provider: &Provider, model_id: &str) -> Result<u64, String> {
     let started = std::time::Instant::now();
     tokio::time::timeout(Duration::from_secs(15), async {
@@ -193,7 +185,6 @@ pub async fn test_connection(provider: &Provider, model_id: &str) -> Result<u64,
             .with_reqwest(crate::config::http_client().clone())
             .build()
             .map_err(|_| "network")?;
-        // Responses enforces a minimum budget of 16; the other protocols accept 1.
         let budget = if provider.protocol == Protocol::OpenaiResponses {
             16
         } else {
@@ -216,13 +207,9 @@ pub async fn test_connection(provider: &Provider, model_id: &str) -> Result<u64,
             .await
         {
             Ok(response) => response.captured_raw_body.ok_or("providerResponse")?,
-            // Connectivity needs the envelope, not SDK decoding of optional content
-            // (compatible gateways may return thinking without an Anthropic signature).
             Err(genai::Error::ChatResponseGeneration { response_body, .. }) => *response_body,
             Err(error) => return Err(classify(error)),
         };
-        // A one-token budget can legitimately produce no text, especially with reasoning.
-        // Require a protocol response and a valid terminal state, not nonempty prose.
         let valid = match provider.protocol {
             Protocol::OpenaiChatCompletions => {
                 body.pointer("/choices/0/message")
@@ -651,7 +638,6 @@ mod tests {
                 (
                     "responses",
                     json!({"model":"gpt-5-alias","stream":false,"max_output_tokens":16,"store":false}),
-                    // Compatible backends can omit message.id and text.annotations.
                     json!({"id":"r1","model":"gpt-5-alias","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"hi"}]}]}),
                 )
             };
@@ -898,7 +884,6 @@ mod tests {
             api_key: "secret-key".into(),
             models: vec![],
         };
-        // Deliberately mismatched model name: protocol must win over inference.
         let model = Model {
             id: "gpt-test".into(),
             enabled: true,

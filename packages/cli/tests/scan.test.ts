@@ -53,7 +53,6 @@ describe("scanInstalledSkills", () => {
     const paths = getPaths(home);
     const skillDir = path.join(paths.agentsSkillsDir, "code-audit");
     await writeSkill(skillDir, "name: Code Audit\ndescription: Security checks");
-    // Metadata recorded while provenance was known, then the lock disappears.
     await writeJson(paths.metadataFile, {
       entries: {
         "repo:owner/repo:code-audit": { starred: true, isMine: false },
@@ -65,7 +64,6 @@ describe("scanInstalledSkills", () => {
     expect(skills).toHaveLength(1);
     expect(skills[0]?.id).toBe("ssot:code-audit");
     expect(skills[0]?.starred).toBe(true);
-    // The legacy key is migrated on disk, not just in memory.
     const persisted = JSON.parse(await fs.readFile(paths.metadataFile, "utf8"));
     expect(persisted.entries["ssot:code-audit"]).toEqual({ starred: true, isMine: false });
     expect(persisted.entries["repo:owner/repo:code-audit"]).toBeUndefined();

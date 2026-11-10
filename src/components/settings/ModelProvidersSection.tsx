@@ -200,7 +200,6 @@ export function ModelProvidersSection({
     let pending;
     do {
       pending = saveQueue.current;
-      // Wait for ordered writes, including edits queued during the previous write.
       // eslint-disable-next-line no-await-in-loop
       await pending.catch(() => undefined);
     } while (pending !== saveQueue.current);

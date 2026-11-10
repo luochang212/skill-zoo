@@ -13,26 +13,17 @@ import type { DiscoverableSkill } from "@/types/skills";
 interface SkillPreviewPanelProps {
   open: boolean;
   loading: boolean;
-  /** undefined = no error; null = generic failure; string = specific message. */
   error?: string | null;
   content: string | undefined;
   skillName: string;
-  /** Present when the panel offers installation; the footer is hidden otherwise. */
   installStatus?: DiscoverableSkill["installStatus"];
-  /** Gray placeholder footer while the install status is still resolving. */
   installLoading?: boolean;
   installPending?: boolean;
   onInstall?: () => void;
-  /** Shown under a resolution error so the user can pick a skill manually. */
   fallbackSkills?: DiscoverableSkill[];
   onPickFallback?: (skill: DiscoverableSkill) => void;
-  /** Replaces the skill name in the footer when the caller's context already
-   * identifies the skill but not the repository it belongs to. */
   repoLabel?: string;
-  /** Makes the repo label clickable to open the repository detail page. */
   onOpenRepo?: () => void;
-  /** False hides the load progress bar for callers whose content is usually
-   * cached, where the instant completion flash carries no information. */
   showProgressBar?: boolean;
   onClose: () => void;
 }
@@ -127,10 +118,6 @@ function SkillPreviewSkeleton() {
   );
 }
 
-// The preview side panel from the repo page, extracted so community skills on
-// the Discover page can preview in the same shell. No header: the caller's
-// context already identifies the skill, the backdrop closes, and the only
-// added control is the install button in the footer.
 export function SkillPreviewPanel({
   open,
   loading,
@@ -159,7 +146,6 @@ export function SkillPreviewPanel({
     <AnimatePresence>
       {open && (
         <>
-          {/* Backdrop */}
           <motion.div
             className="absolute inset-0 bg-black/20 z-20"
             initial={reduceMotion ? false : { opacity: 0 }}
@@ -168,7 +154,6 @@ export function SkillPreviewPanel({
             transition={{ duration: reduceMotion ? 0 : 0.2 }}
             onClick={onClose}
           />
-          {/* Panel */}
           <motion.div
             className="absolute top-0 right-0 h-full w-[45%] min-w-[400px] max-w-[600px] bg-background border-l border-border shadow-xl z-30 flex flex-col"
             initial={reduceMotion ? false : { x: "100%" }}
@@ -229,8 +214,6 @@ export function SkillPreviewPanel({
                   />
                 </div>
               )}
-              {/* While loading, keep the footer present but gray so the button
-                never pops in after the content resolves. */}
               {(installStatus !== undefined || installLoading) && (
                 <div className="flex shrink-0 items-center gap-4 border-t border-border/50 px-5 py-2.5">
                   {repoLabel && onOpenRepo ? (

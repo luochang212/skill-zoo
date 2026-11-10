@@ -28,10 +28,6 @@ class CaptureStream extends Writable {
   }
 }
 
-// ---------------------------------------------------------------------------
-// listExternalImports
-// ---------------------------------------------------------------------------
-
 describe("listExternalImports", () => {
   it("returns empty array when no imports exist", async () => {
     const home = await makeTempHome();
@@ -123,7 +119,6 @@ describe("listExternalImports", () => {
     await writeSkill(sourcePath, "name: Linked");
 
     const paths = getPaths(home);
-    // Create a symlink in the claude-code agent dir
     const claudeDir = path.join(home, ".claude", "skills");
     await createDirLink(sourcePath, path.join(claudeDir, "linked"));
 
@@ -178,10 +173,6 @@ describe("listExternalImports", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// scanExternalImportFolder
-// ---------------------------------------------------------------------------
-
 describe("scanExternalImportFolder", () => {
   it("finds skill directories with SKILL.md", async () => {
     const home = await makeTempHome();
@@ -222,7 +213,6 @@ describe("scanExternalImportFolder", () => {
     const utilsDir = path.join(scanDir, "utils");
     await writeSkill(utilsDir, "name: Utils");
 
-    // Register it in imports.json
     await writeJson(getPaths(home).externalImportsFile, {
       version: 1,
       imports: {
@@ -265,10 +255,6 @@ describe("scanExternalImportFolder", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// importExternalSkills
-// ---------------------------------------------------------------------------
-
 describe("importExternalSkills", () => {
   it("dry-run returns planned changes without writing", async () => {
     const home = await makeTempHome();
@@ -281,7 +267,6 @@ describe("importExternalSkills", () => {
     expect(result.failed).toEqual([]);
     expect(result.changes.length).toBeGreaterThan(0);
 
-    // Verify no writes happened
     const imports = await readExternalImports(home);
     expect(Object.keys(imports.imports)).toHaveLength(0);
   });
@@ -296,7 +281,6 @@ describe("importExternalSkills", () => {
     expect(result.added).toHaveLength(1);
     expect(result.failed).toEqual([]);
 
-    // Verify imports.json
     const imports = await readExternalImports(home);
     expect(Object.keys(imports.imports)).toHaveLength(1);
     const entry = Object.values(imports.imports)[0];
@@ -304,7 +288,6 @@ describe("importExternalSkills", () => {
     expect(entry?.directory).toBe("utils");
     expect(entry?.id).toMatch(/^external:utils-[a-f0-9]{8}$/);
 
-    // Verify symlink was created in Claude Code skills dir
     const linkPath = path.join(home, ".claude", "skills", "utils");
     const fs = await import("node:fs/promises");
     const linkStat = await fs.lstat(linkPath);
@@ -350,11 +333,8 @@ describe("importExternalSkills", () => {
     const sourcePath = path.join(home, "private", "utils");
     await writeSkill(sourcePath, "name: Utils");
 
-    // claude-code dir doesn't exist yet
     const result = await importExternalSkills(home, [sourcePath], ["claude-code"]);
     expect(result.added).toHaveLength(1);
-    // The symlink creation will fail silently for non-existent agent dirs,
-    // but the imports.json entry should still be created
     const imports = await readExternalImports(home);
     expect(Object.keys(imports.imports)).toHaveLength(1);
   });
@@ -365,10 +345,6 @@ describe("importExternalSkills", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// removeExternalImport
-// ---------------------------------------------------------------------------
-
 describe("removeExternalImport", () => {
   it("dry-run returns planned changes without writing", async () => {
     const home = await makeTempHome();
@@ -376,7 +352,6 @@ describe("removeExternalImport", () => {
     await writeSkill(sourcePath, "name: Utils");
 
     const addResult = await importExternalSkills(home, [sourcePath], ["claude-code"]);
-    // 上一行导入刚成功且只传入一个路径，added 必含该项
     const importId = addResult.added[0]!;
 
     const result = await removeExternalImport(home, importId, { dryRun: true });
@@ -384,7 +359,6 @@ describe("removeExternalImport", () => {
     expect(result.removed).toEqual([importId]);
     expect(result.changes.length).toBeGreaterThan(0);
 
-    // Verify no writes happened
     const imports = await readExternalImports(home);
     expect(Object.keys(imports.imports)).toHaveLength(1);
   });
@@ -395,18 +369,15 @@ describe("removeExternalImport", () => {
     await writeSkill(sourcePath, "name: Utils");
 
     const addResult = await importExternalSkills(home, [sourcePath], ["claude-code"]);
-    // 上一行导入刚成功且只传入一个路径，added 必含该项
     const importId = addResult.added[0]!;
 
     const result = await removeExternalImport(home, importId);
 
     expect(result.removed).toEqual([importId]);
 
-    // Verify imports.json entry gone
     const imports = await readExternalImports(home);
     expect(Object.keys(imports.imports)).toHaveLength(0);
 
-    // Verify symlink removed
     const linkPath = path.join(home, ".claude", "skills", "utils");
     const fs = await import("node:fs/promises");
     await expect(fs.lstat(linkPath)).rejects.toThrow("ENOENT");
@@ -418,10 +389,8 @@ describe("removeExternalImport", () => {
     await writeSkill(sourcePath, "name: Utils");
 
     const addResult = await importExternalSkills(home, [sourcePath], ["claude-code"]);
-    // 上一行导入刚成功且只传入一个路径，added 必含该项
     await removeExternalImport(home, addResult.added[0]!);
 
-    // Source files still exist
     const fs = await import("node:fs/promises");
     const content = await fs.readFile(path.join(sourcePath, "SKILL.md"), "utf8");
     expect(content).toContain("Utils");
@@ -435,21 +404,15 @@ describe("removeExternalImport", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// cleanExternalImportLinks
-// ---------------------------------------------------------------------------
-
 describe("cleanExternalImportLinks", () => {
   it("cleans stale symlinks for invalid imports", async () => {
     const home = await makeTempHome();
     const sourcePath = path.join(home, "private", "utils");
     await writeSkill(sourcePath, "name: Utils");
 
-    // Import and create symlinks
     const addResult = await importExternalSkills(home, [sourcePath], ["claude-code"]);
     const importId = addResult.added[0];
 
-    // Now delete the source to make it invalid
     const fs = await import("node:fs/promises");
     await fs.rm(sourcePath, { recursive: true, force: true });
 
@@ -458,11 +421,9 @@ describe("cleanExternalImportLinks", () => {
     expect(result.cleaned).toContain(importId);
     expect(result.changes.length).toBeGreaterThan(0);
 
-    // Verify symlink removed
     const linkPath = path.join(home, ".claude", "skills", "utils");
     await expect(fs.lstat(linkPath)).rejects.toThrow("ENOENT");
 
-    // Verify imports.json entry still exists
     const imports = await readExternalImports(home);
     expect(Object.keys(imports.imports)).toHaveLength(1);
   });
@@ -479,12 +440,10 @@ describe("cleanExternalImportLinks", () => {
     const utilsId = utilsResult.added[0];
     const toolsId = toolsResult.added[0];
 
-    // Delete both sources
     const fs = await import("node:fs/promises");
     await fs.rm(utilsPath, { recursive: true, force: true });
     await fs.rm(toolsPath, { recursive: true, force: true });
 
-    // Clean only utils
     const result = await cleanExternalImportLinks(home, utilsId);
 
     expect(result.cleaned).toEqual([utilsId]);
@@ -519,7 +478,6 @@ describe("cleanExternalImportLinks", () => {
     expect(result.cleaned).toContain(importId);
     expect(result.changes.length).toBeGreaterThan(0);
 
-    // Symlink should still exist
     const linkPath = path.join(home, ".claude", "skills", "utils");
     const linkStat = await fs.lstat(linkPath);
     expect(linkStat.isSymbolicLink()).toBe(true);
@@ -533,17 +491,12 @@ describe("cleanExternalImportLinks", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// CLI integration
-// ---------------------------------------------------------------------------
-
 describe("CLI imports commands", () => {
   it("imports --json outputs valid JSON envelope", async () => {
     const home = await makeTempHome();
     const sourcePath = path.join(home, "private", "utils");
     await writeSkill(sourcePath, "name: Utils");
 
-    // First add to have something to list
     await importExternalSkills(home, [sourcePath], ["claude-code"]);
 
     const stdout = new CaptureStream();
@@ -592,7 +545,6 @@ describe("CLI imports commands", () => {
     expect(parsed.data.dryRun).toBe(true);
     expect(parsed.data.wouldImport.length).toBe(1);
 
-    // Should not have written imports.json
     const imports = await readExternalImports(home);
     expect(Object.keys(imports.imports)).toHaveLength(0);
   });
@@ -615,7 +567,6 @@ describe("CLI imports commands", () => {
     expect(parsed.ok).toBe(true);
     expect(parsed.data.added.length).toBe(1);
 
-    // Verify import was written
     const imports = await readExternalImports(home);
     expect(Object.keys(imports.imports)).toHaveLength(1);
   });
@@ -630,7 +581,6 @@ describe("CLI imports commands", () => {
     const stdout = new CaptureStream();
     const stderr = new CaptureStream();
 
-    // Should work without error
     await runCli(["--home", home, "list", "--origin", "external", "--json"], {
       stdout,
       stderr,
@@ -648,7 +598,6 @@ describe("CLI imports commands", () => {
     await writeSkill(sourcePath, "name: Utils");
 
     const addResult = await importExternalSkills(home, [sourcePath], ["claude-code"]);
-    // 上一行导入刚成功且只传入一个路径，added 必含该项
     const importId = addResult.added[0]!;
 
     const stdout = new CaptureStream();
@@ -664,7 +613,6 @@ describe("CLI imports commands", () => {
     expect(parsed.ok).toBe(true);
     expect(parsed.data.removed).toContain(importId);
 
-    // Verify nothing was removed
     const imports = await readExternalImports(home);
     expect(Object.keys(imports.imports)).toHaveLength(1);
   });
@@ -677,7 +625,6 @@ describe("CLI imports commands", () => {
     const addResult = await importExternalSkills(home, [sourcePath], ["claude-code"]);
     const importId = addResult.added[0];
 
-    // Delete source to make it invalid
     const fs = await import("node:fs/promises");
     await fs.rm(sourcePath, { recursive: true, force: true });
 
@@ -708,7 +655,6 @@ describe("CLI imports commands", () => {
         callback();
       },
     });
-    // Non-TTY stdin
     (fakeStdin as unknown as { isTTY: boolean }).isTTY = false;
 
     await runCli(["--home", home, "imports", "add", sourcePath, "--agent", "claude-code", "--json"], {
@@ -753,15 +699,11 @@ describe("external import dedupe", () => {
     const entry = Object.values(afterFirst.imports)[0]!;
     const originalImportedAt = entry.importedAt;
 
-    // A second spelling of the same physical folder via a symlinked parent.
-    // "dir" is ignored on POSIX but required on Windows for a directory target.
     const linkedParent = path.join(home, "linked-parent");
     try {
       await fs.symlink(path.join(home, "real-skills"), linkedParent, "dir");
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EPERM") throw error;
-      // Windows denies symlink creation without admin rights or Developer
-      // Mode; without the privilege this scenario cannot run locally.
       console.warn(
         "[skip] symlink privilege unavailable (EPERM); enable Windows Developer Mode or run as admin to execute this test",
       );

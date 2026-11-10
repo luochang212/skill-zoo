@@ -48,7 +48,6 @@ describe("useEditorState save revision", () => {
     act(() => result.current.save());
     await waitFor(() => expect(result.current.savePending).toBe(true));
 
-    // The user keeps typing while the save request is in flight.
     act(() => result.current.updateContent("# submitted and extended"));
 
     await act(async () => {
@@ -91,7 +90,6 @@ describe("useEditorState save revision", () => {
     expect(result.current.open).toBe(true);
     expect(result.current.pendingOpen).toBeNull();
 
-    // SkillContentPane reports unsaved auxiliary drafts after the editor opened.
     externalUnsaved.current = true;
     act(() => result.current.openEditor("skill-2", "/path/to/skill-2", "Another Skill"));
 
@@ -125,7 +123,6 @@ it.each(["ssot:A", "ssot:B"])(
     act(() => result.current.updateContent("shared draft text"));
     act(() => result.current.save());
     await waitFor(() => expect(result.current.savePending).toBe(true));
-    // App's discard-confirm permits closing while a save remains in flight.
     act(() => result.current.closeEditor());
     act(() => result.current.openEditor(reopenedId, "B", "B"));
     await waitFor(() =>

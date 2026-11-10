@@ -581,7 +581,6 @@ describe("manual translation lifecycle", () => {
     await act(() => send({ type: "preview", taskId: id, text: "partial" }));
     hook.unmount();
     await act(async () => {
-      // Let the abandoned view's garbage-collection timer run before delivery.
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
       send({ type: "completed", taskId: id, text: "finished away" });
       finish();

@@ -166,13 +166,11 @@ describe("SkillUpdateManagerDialog drifted updates", () => {
     );
     await screen.findByRole("dialog");
 
-    // The clean skill starts selected; the drifted one does not.
     expect(screen.getByRole("checkbox", { name: /select update for clean-skill/i })).toBeChecked();
     expect(
       screen.getByRole("checkbox", { name: /select update for drifted-skill/i }),
     ).toBeDisabled();
 
-    // Updating the selection only sends the clean skill without force.
     await user.click(screen.getByRole("button", { name: /update selected/i }));
     expect(onUpdate).toHaveBeenCalledWith([cleanUpdate]);
   });

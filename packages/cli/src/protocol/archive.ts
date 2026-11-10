@@ -134,8 +134,6 @@ export async function restoreArchiveIds(
 }
 
 export function makeArchiveId(skillId: string, directory: string): string {
-  // The desktop formats the first 8 digest bytes as hex (16 chars); match it
-  // so the same skill archives to the same ID under either runtime.
   const shortHash = crypto.createHash("sha256").update(skillId).digest("hex").slice(0, 16);
   const safeName =
     directory
@@ -339,8 +337,6 @@ async function restoreOne(home: string | undefined, archiveId: string): Promise<
     }
 
     const metadata = await readMetadata(home);
-    // Manifest IDs are historical records; map a legacy provenance-derived
-    // ID to the canonical installation identity before touching metadata.
     const metadataKey = canonicalizeLegacySkillId(archived.originalSkillId) ?? archived.originalSkillId;
     if (archived.starred || archived.isMine) {
       const existing = metadata.entries[metadataKey];
@@ -471,8 +467,6 @@ async function rollbackRestore(
   for (const agent of restoredAgents) {
     const agentDir = getAgentSkillsDir(home, agent);
     if (agentDir) {
-      // Roll back only links we created; a real directory at that path must
-      // never be recursively deleted.
       await removeAgentLink(path.join(agentDir, agentLinkName(archived.directory))).catch(() => undefined);
     }
   }

@@ -3,16 +3,12 @@ use futures::future::{AbortHandle, AbortRegistration};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
 
-/// Abort points for in-flight `get_repo_skills` loads, keyed by repo identity
-/// (`owner/name@branch`, with the default branch as `@HEAD`).
 #[derive(Default)]
 pub struct RepoLoadCancels {
     tasks: Mutex<HashMap<String, Arc<AbortHandle>>>,
 }
 
 impl RepoLoadCancels {
-    /// Register a cancellable load; returns the registration to wrap the load
-    /// future with and the shared handle to pass back to [`Self::finish`].
     pub fn register(&self, key: &str) -> (AbortRegistration, Arc<AbortHandle>) {
         let (handle, registration) = AbortHandle::new_pair();
         let shared = Arc::new(handle);
@@ -23,8 +19,6 @@ impl RepoLoadCancels {
         (registration, shared)
     }
 
-    /// Abort and forget the load for this identity. Returns whether a live
-    /// task was aborted; cancelling a finished load is a no-op.
     pub fn cancel(&self, key: &str) -> bool {
         let task = self
             .tasks
@@ -40,8 +34,6 @@ impl RepoLoadCancels {
         }
     }
 
-    /// Forget a finished task's handle without touching a newer task that may
-    /// have re-registered the same identity (cancel-then-reload overlap).
     pub fn finish(&self, key: &str, handle: &Arc<AbortHandle>) {
         self.tasks
             .lock()
@@ -62,8 +54,6 @@ pub struct AppState {
 }
 
 impl AppState {
-    /// Hold the shared writer lease before refreshing desktop-owned mutable state.
-    /// The CLI may have committed metadata since this desktop session started.
     pub fn acquire_local_lease(
         &self,
     ) -> Result<crate::persistence::agent_transaction::AgentLease, crate::error::AppError> {
@@ -117,11 +107,9 @@ mod tests {
     async fn finish_freshens_only_its_own_handle_so_reload_stays_cancellable() {
         let cancels = RepoLoadCancels::default();
         let (_first_registration, first_handle) = cancels.register(&key());
-        // Cancel-then-reload: the first task unwinds while a new one registers.
         assert!(cancels.cancel(&key()));
         let (_second_registration, second_handle) = cancels.register(&key());
 
-        // The unwinding first task must not retire the reloaded task's handle.
         cancels.finish(&key(), &first_handle);
         assert!(cancels.cancel(&key()));
         cancels.finish(&key(), &second_handle);

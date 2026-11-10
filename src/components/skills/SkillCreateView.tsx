@@ -35,7 +35,6 @@ export function SkillCreateView({ onClose, onCreated }: SkillCreateViewProps) {
       field.style.height = "auto";
       field.style.height = `${field.scrollHeight}px`;
     }
-    // Measuring a shorter field can clamp the outer document's scroll position.
     if (scrollRef.current) scrollRef.current.scrollTop = scrollTop;
   }, []);
   useLayoutEffect(resizeFields, [description, content, resizeFields]);

@@ -1,17 +1,6 @@
 use std::path::Path;
 use tauri::AppHandle;
 
-/// Open a directory in the system file manager.
-///
-/// On macOS this goes through NSWorkspace's file-viewer activation instead of
-/// `open`-style LaunchServices activation: the latter activates the Finder
-/// application, pulling every open Finder window to the front, while the
-/// former raises only the window showing `dir`.
-///
-/// Semantics differ from opening a window: the parent directory is revealed
-/// with `dir` selected, so a newly created empty directory shows its parent.
-/// Errors are not observable on macOS because the NSWorkspace API returns void, so
-/// this reports `Ok(())` regardless of whether activation happened.
 pub fn open_directory(app: &AppHandle, dir: &Path) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {

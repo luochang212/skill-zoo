@@ -92,7 +92,6 @@ describe("community discovery", () => {
     mocks.result = { data: { skills, fetchedAt: 123, stale: true }, isPending: false };
     const onOpen = vi.fn();
     const { container } = render(<CommunitySkills onOpen={onOpen} />);
-    // Each card shows the weekly trend area in its bottom-right corner.
     const sparklines = container.querySelectorAll('svg[viewBox="0 0 104 30"]');
     expect(sparklines).toHaveLength(12);
     expect(sparklines[0]?.querySelectorAll("path")).toHaveLength(2);
@@ -106,7 +105,6 @@ describe("community discovery", () => {
         {} as IntersectionObserver,
       ),
     );
-    // The window widens ahead of the viewport; the batch itself staggers in.
     expect(screen.getByText("skill-12")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Latest" }));
     expect(mocks.hook).toHaveBeenLastCalledWith("trending");

@@ -21,7 +21,6 @@ function getExtension(name: string): string {
   return i === -1 ? "" : name.slice(i + 1).toLowerCase();
 }
 
-/** Pick an icon based on file extension. */
 function getFileIcon(name: string, isSkillMd: boolean) {
   if (isSkillMd) return BookOpen;
   const ext = getExtension(name);
@@ -57,7 +56,6 @@ function getFileIcon(name: string, isSkillMd: boolean) {
   }
 }
 
-/** Color classes for file type icons. */
 function getIconColor(name: string, isSkillMd: boolean): string {
   if (isSkillMd) return "text-primary";
   const ext = getExtension(name);
@@ -165,7 +163,6 @@ function FileTreeNode({
         )}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
       >
-        {/* Chevron for directories, spacer for files */}
         {node.isDir ? (
           expanded ? (
             <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
@@ -183,7 +180,6 @@ function FileTreeNode({
         </span>
       </button>
 
-      {/* Children. Rendered when expanded */}
       {node.isDir && expanded && (
         <div>
           {isLoading ? (

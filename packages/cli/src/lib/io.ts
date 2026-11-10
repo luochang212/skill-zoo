@@ -42,8 +42,6 @@ export async function ensureDir(dir: string): Promise<void> {
 export async function readJson<T>(filePath: string, fallback: T): Promise<T> {
   try {
     const content = await fs.readFile(filePath, "utf8");
-    // The desktop tolerates empty/whitespace state files as "absent"; the CLI
-    // must be at least as tolerant as the owner of these files.
     if (!content.trim()) {
       return structuredClone(fallback);
     }
@@ -64,8 +62,6 @@ export async function writeTextAtomic(filePath: string, content: string): Promis
   const parent = path.dirname(filePath);
   await ensureDir(parent);
   const tmpPath = path.join(parent, `.${path.basename(filePath)}.${process.pid}.${Date.now()}.tmp`);
-  // Match the desktop's atomic write: flush the temp file to disk before the
-  // rename so a crash cannot leave a truncated state file behind.
   const file = await fs.open(tmpPath, "w");
   try {
     await file.writeFile(content);
@@ -146,11 +142,6 @@ export async function createAgentLink(linkPath: string, targetPath: string): Pro
   return true;
 }
 
-/**
- * Replace an existing symlink with one pointing at targetPath. Callers must
- * have verified the path is a symlink (never an entity directory). This is
- * the repair path for invalid links, not a general overwrite primitive.
- */
 export async function replaceAgentLink(linkPath: string, targetPath: string): Promise<boolean> {
   if (await isSymlinkOrJunction(linkPath)) {
     await removePath(linkPath);
@@ -158,8 +149,6 @@ export async function replaceAgentLink(linkPath: string, targetPath: string): Pr
   return createAgentLink(linkPath, targetPath);
 }
 
-/** Normalize path separators to forward slashes for cross-platform consistency
- *  with the Rust/Tauri desktop app (`normalize_path_separators`). */
 export function normalizePath(filePath: string): string {
   return filePath.replace(/\\/g, "/");
 }

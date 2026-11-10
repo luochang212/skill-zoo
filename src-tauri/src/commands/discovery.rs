@@ -35,8 +35,6 @@ pub struct CatalogSkill {
     skill_id: String,
     name: String,
     installs: u64,
-    /// Weekly install counts as published by skills.sh; older cache files
-    /// predate this field, hence the default.
     #[serde(default)]
     weekly_installs: Vec<u64>,
 }
@@ -58,7 +56,6 @@ fn read_skills(payload: &str) -> Option<Vec<CatalogSkill>> {
 }
 
 fn parse_catalog(body: &str) -> Result<Vec<CatalogSkill>, String> {
-    // Decode Next's JSON payload as data; never evaluate upstream scripts.
     let skills = read_skills(body)
         .or_else(|| {
             body.split("self.__next_f.push(").skip(1).find_map(|part| {
@@ -152,7 +149,6 @@ pub async fn get_skill_catalog(
             if let Ok(bytes) = serde_json::to_vec(&catalog) {
                 if let Some(parent) = path.parent() {
                     if std::fs::create_dir_all(parent).is_ok() {
-                        // Disposable cache: a failed write must not hide a successful fetch.
                         let _ = std::fs::write(&path, bytes);
                     }
                 }

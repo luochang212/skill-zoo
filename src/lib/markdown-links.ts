@@ -3,7 +3,6 @@ export type MarkdownLink =
   | { kind: "document"; path: string; fragment: string }
   | { kind: "blocked" };
 
-// Decode before normalizing: encoded separators and traversal obey the same boundary.
 export function resolveMarkdownLink(href: string, currentPath: string): MarkdownLink {
   if (/^(https?:|mailto:)/i.test(href)) return { kind: "external", url: href };
   if (/^(?:[a-z][a-z\d+.-]*:|\/|\\)/i.test(href)) return { kind: "blocked" };

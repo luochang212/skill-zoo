@@ -24,9 +24,7 @@ function shouldAutoCheckForUpdate() {
 function markAutoUpdateChecked() {
   try {
     localStorage.setItem(LAST_AUTO_UPDATE_CHECK_AT_KEY, String(Date.now()));
-  } catch {
-    // Cache failure should not prevent the automatic check.
-  }
+  } catch {}
 }
 
 function UpdateArrowIcon() {

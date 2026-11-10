@@ -139,13 +139,11 @@ async fn debounced_rebuild_loop(
     app_handle: tauri::AppHandle,
 ) {
     loop {
-        // Wait for the first event
         let Some(first_event) = rx.recv().await else {
             break;
         };
         let mut events = vec![first_event];
 
-        // Debounce: reset timer on each subsequent event
         let timer = tokio::time::sleep(Duration::from_millis(DEBOUNCE_MS));
         tokio::pin!(timer);
         loop {
@@ -400,8 +398,6 @@ pub fn unwatch_external_path(state: &AppState, source_path: &Path) {
 }
 
 pub fn restart_skill_watcher(app: &tauri::AppHandle, state: &AppState) -> Result<(), String> {
-    // Build the complete union first. Retained external imports continue to
-    // receive updates even after their home agent is unregistered.
     let (watcher, task) = start_skill_watcher(app.clone()).map_err(|e| e.to_string())?;
     state
         .fs_watcher
