@@ -1461,6 +1461,7 @@ mod tests {
             installed_at: None,
             updated_at: None,
             commit_sha: Some(commit_sha.to_string()),
+            content_digest: None,
         }
     }
 }

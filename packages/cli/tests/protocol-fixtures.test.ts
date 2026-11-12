@@ -81,6 +81,9 @@ describe("desktop local protocol fixtures", () => {
     expect(reread.skills.demo?.skillFolderHash).toBe(
       "8293db63637957643abb559a59c1122ef387e21f61b60e8b0b3b2dfda73bae36",
     );
+    expect(reread.skills.demo?.contentDigest).toBe(
+      "9660be76978b2d80c9a14e8cefb10db336344c7e3132815743be4cebe3f0454d",
+    );
     expect(await fs.readFile(fixturePath("lock-v3-full.json"), "utf8")).toBe(fixtureBefore);
   });
 

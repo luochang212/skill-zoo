@@ -11,6 +11,7 @@
       "installedAt": "2026-01-02T03:04:05Z",
       "updatedAt": "2026-01-03T03:04:05Z",
       "commitSha": "abc123",
+      "contentDigest": "9660be76978b2d80c9a14e8cefb10db336344c7e3132815743be4cebe3f0454d",
       "futureOptional": "keep-me"
     }
   },

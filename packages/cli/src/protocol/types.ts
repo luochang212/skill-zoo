@@ -14,6 +14,7 @@ export interface SkillLockEntry {
   installedAt?: string | null;
   updatedAt?: string | null;
   commitSha?: string | null;
+  contentDigest?: string | null;
 }
 
 export interface SkillLock {

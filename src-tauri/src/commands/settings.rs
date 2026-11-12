@@ -1044,6 +1044,7 @@ pub struct SkillUpdateStatus {
     pub has_update: bool,
     pub current_sha: Option<String>,
     pub latest_sha: Option<String>,
+    pub content_digest: Option<String>,
     pub repo: String,
     pub locally_modified: bool,
     pub check_error_code: Option<String>,
@@ -1062,15 +1063,17 @@ pub struct CheckUpdatesResult {
 #[derive(Debug, Clone)]
 struct CheckedRemoteSkill {
     latest_sha: Option<String>,
+    latest_digest: Option<String>,
     repo: String,
     check_error_code: Option<String>,
     check_error: Option<String>,
 }
 
 impl CheckedRemoteSkill {
-    fn ok(latest_sha: Option<String>, repo: String) -> Self {
+    fn ok(latest_sha: Option<String>, latest_digest: Option<String>, repo: String) -> Self {
         Self {
             latest_sha,
+            latest_digest,
             repo,
             check_error_code: None,
             check_error: None,
@@ -1080,6 +1083,7 @@ impl CheckedRemoteSkill {
     fn error(repo: String, code: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
             latest_sha: None,
+            latest_digest: None,
             repo,
             check_error_code: Some(code.into()),
             check_error: Some(message.into()),
@@ -1156,8 +1160,12 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
                 for (skill_name, entry) in skills_in_repo {
                     let skill_path = entry.skill_path.as_deref().unwrap_or("");
                     let folder_sha = CliService::get_folder_sha_from_tree(&tree, skill_path);
+                    let content_digest =
+                        CliService::get_content_digest_from_tree(&tree, skill_path);
                     let checked = match folder_sha {
-                        Some(sha) => CheckedRemoteSkill::ok(Some(sha), repo.clone()),
+                        Some(sha) => {
+                            CheckedRemoteSkill::ok(Some(sha), content_digest, repo.clone())
+                        }
                         None => CheckedRemoteSkill::error(
                             repo.clone(),
                             "missingRemotePath",
@@ -1225,7 +1233,7 @@ pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
                     }),
                 )
             } else {
-                CheckedRemoteSkill::ok(None, format!("{owner}/{name}"))
+                CheckedRemoteSkill::ok(None, None, format!("{owner}/{name}"))
             }
         });
         skills.push(skill_update_status(skill_name, entry, checked));
@@ -1245,9 +1253,15 @@ fn skill_update_status(
     mut checked: CheckedRemoteSkill,
 ) -> SkillUpdateStatus {
     let current_sha = entry.commit_sha.clone();
-    let has_update = match (&checked.latest_sha, &current_sha) {
-        (Some(latest), Some(current)) => latest != current,
-        _ => false,
+    let has_update = if let (Some(latest_digest), Some(current_digest)) =
+        (&checked.latest_digest, &entry.content_digest)
+    {
+        latest_digest != current_digest
+    } else {
+        match (&checked.latest_sha, &current_sha) {
+            (Some(latest), Some(current)) => latest != current,
+            _ => false,
+        }
     };
     if current_sha.is_none() && checked.latest_sha.is_some() && checked.check_error.is_none() {
         checked.check_error_code = Some("missingBaseline".into());
@@ -1261,6 +1275,7 @@ fn skill_update_status(
         has_update,
         current_sha,
         latest_sha: checked.latest_sha,
+        content_digest: checked.latest_digest,
         repo: checked.repo,
         locally_modified: crate::services::lock::skill_folder_drifted(
             &crate::config::get_agents_skills_dir().join(skill_name),
@@ -1282,12 +1297,35 @@ mod skill_update_check_tests {
         let status = skill_update_status(
             "demo",
             &entry,
-            CheckedRemoteSkill::ok(Some("new".into()), "owner/repo".into()),
+            CheckedRemoteSkill::ok(Some("new".into()), None, "owner/repo".into()),
         );
         assert_eq!(status.check_error_code.as_deref(), Some("missingBaseline"));
         assert_eq!(status.current_sha, None);
         assert!(!status.has_update);
         assert_eq!(entry.commit_sha, None);
+    }
+
+    #[test]
+    fn digest_match_suppresses_update_even_when_commit_changes() {
+        let entry: SkillLockEntry = serde_json::from_value(serde_json::json!(
+            {"source":"owner/repo","commitSha":"c1","contentDigest":"d1"}
+        ))
+        .unwrap();
+
+        let same = skill_update_status(
+            "demo",
+            &entry,
+            CheckedRemoteSkill::ok(Some("c2".into()), Some("d1".into()), "owner/repo".into()),
+        );
+        assert!(!same.has_update, "same digest must not flag an update");
+
+        let changed = skill_update_status(
+            "demo",
+            &entry,
+            CheckedRemoteSkill::ok(Some("c2".into()), Some("d2".into()), "owner/repo".into()),
+        );
+        assert!(changed.has_update);
+        assert_eq!(changed.content_digest.as_deref(), Some("d2"));
     }
 
     #[test]

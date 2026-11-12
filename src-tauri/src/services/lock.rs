@@ -36,6 +36,8 @@ pub struct SkillLockEntry {
     pub updated_at: Option<String>,
     #[serde(default, rename = "commitSha")]
     pub commit_sha: Option<String>,
+    #[serde(default, rename = "contentDigest")]
+    pub content_digest: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

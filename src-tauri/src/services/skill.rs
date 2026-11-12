@@ -3210,6 +3210,7 @@ mod tests {
             installed_at: None,
             updated_at: None,
             commit_sha: None,
+            content_digest: None,
         }
     }
 

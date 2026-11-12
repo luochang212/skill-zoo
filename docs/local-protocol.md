@@ -92,6 +92,12 @@ For GitHub lock entries, `skillFolderHash` stores the desktop's content baseline
 
 The desktop writes the field when a remote install or an update finishes writing content, and refreshes it on every confirmed content write. A missing, empty, or non-conforming value (older producers wrote the 40-character git commit SHA into this field) is an unknown baseline: it never reports local modification and never blocks updates, and a hashing failure at compare time likewise judges as "not drifted". Only a 64-character lowercase hex digest is treated as a usable baseline. Batch updates skip locally modified skills and report them in the completion summary instead of overwriting them; single updates require explicit confirmation before overwriting. The CLI reads and preserves the field without interpreting it.
 
+## Remote Content Digest
+
+For GitHub lock entries, `contentDigest` stores the remote-side update baseline: the lowercase hex SHA-256 over `entry-path + 0x00 + entry-sha + 0x0A` for every tree entry (blobs and subtrees) under the entry's `skillPath` prefix in the recursive GitHub Trees response, ordered by entry-path bytes (UTF-8). An empty `skillPath` (a root-level skill) hashes the whole tree. The field changes only when the skill's content changes, so an empty commit or a metadata-only push no longer flags an update for root-level skills — the previously stored `commitSha` is a commit identity, not a content fingerprint.
+
+The desktop writes the field when a remote install or a confirmed update succeeds, and compares it against the freshly computed remote digest on every update check; the commit comparison remains the fallback while either side of the pair is missing. Writers must pair it with `commitSha`; readers must tolerate its absence (legacy entries) and never treat a missing digest as an update or a baseline failure. The CLI reads and preserves the field without interpreting it.
+
 ## External Imports
 
 External imports are separately registered user-owned skill directories. New imports must originate outside Skill Zoo's SSOT and registered agent skill directories; existing external sources retain external ownership when a subsequently registered custom agent encloses them. The desktop app records these references in `~/.skill-zoo/imports.json`; the source directory remains the user's source of truth and must not be copied, moved, deleted, or archived by Skill Zoo-compatible tools.

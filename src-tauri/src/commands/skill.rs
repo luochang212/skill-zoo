@@ -51,6 +51,8 @@ pub struct CheckedSkillUpdate {
     pub skill_name: String,
     pub current_sha: String,
     pub latest_sha: String,
+    #[serde(default)]
+    pub content_digest: Option<String>,
     pub force: Option<bool>,
 }
 
@@ -900,11 +902,16 @@ pub async fn update_skill(
             owner, repo, skill_path
         ))
     })?;
+    let new_digest = CliService::get_content_digest_from_tree(&tree, skill_path);
 
     let started_at = chrono::Utc::now().to_rfc3339();
     let requested_skills = vec![skill.directory.clone()];
 
-    if lock_entry.commit_sha.as_deref() == Some(&new_sha) {
+    let up_to_date = match (&lock_entry.content_digest, &new_digest) {
+        (Some(current_digest), Some(latest_digest)) => current_digest == latest_digest,
+        _ => lock_entry.commit_sha.as_deref() == Some(&new_sha),
+    };
+    if up_to_date {
         let result = crate::services::cli::UpdateResult {
             success_count: 0,
             fail_count: 0,
@@ -930,6 +937,7 @@ pub async fn update_skill(
         name: skill.directory.clone(),
         entry: lock_entry,
         latest_sha: new_sha,
+        remote_digest: new_digest,
         force: force == Some(true),
     };
 
@@ -1251,6 +1259,7 @@ fn checked_update_entries_from_lock(
             name: checked.skill_name.clone(),
             entry,
             latest_sha: checked.latest_sha.clone(),
+            remote_digest: checked.content_digest.clone(),
             force: checked.force == Some(true),
         });
     }
@@ -2751,6 +2760,7 @@ mod tests {
             installed_at: None,
             updated_at: None,
             commit_sha: Some(commit_sha.to_string()),
+            content_digest: None,
         }
     }
 
@@ -2980,12 +2990,14 @@ mod tests {
                 skill_name: "ssot-skill".to_string(),
                 current_sha: "stale".to_string(),
                 latest_sha: "new-ssot".to_string(),
+                content_digest: None,
                 force: None,
             },
             CheckedSkillUpdate {
                 skill_name: "local-skill".to_string(),
                 current_sha: "old-local".to_string(),
                 latest_sha: "new-local".to_string(),
+                content_digest: None,
                 force: None,
             },
         ];
@@ -3019,6 +3031,7 @@ mod tests {
             skill_name: "ssot-skill".to_string(),
             current_sha: "old-ssot".to_string(),
             latest_sha: "new-ssot".to_string(),
+            content_digest: None,
             force: None,
         }];
 
@@ -3060,6 +3073,7 @@ mod tests {
                     skill_name: "ssot-skill".to_string(),
                     current_sha: "old-ssot".to_string(),
                     latest_sha: "new-ssot".to_string(),
+                    content_digest: None,
                     force,
                 }]
             };

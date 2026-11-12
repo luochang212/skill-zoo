@@ -87,6 +87,7 @@ export function SkillMaintenanceSettings({
         skillName: skill.skillName,
         currentSha: skill.currentSha!,
         latestSha: skill.latestSha!,
+        contentDigest: skill.contentDigest,
         repo: skill.repo,
         locallyModified: skill.locallyModified,
       }));

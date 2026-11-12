@@ -164,6 +164,7 @@ export interface CheckedSkillUpdate {
   skillName: string;
   currentSha: string;
   latestSha: string;
+  contentDigest?: string | null;
   force?: boolean;
 }
 
@@ -172,6 +173,7 @@ export interface SkillUpdateStatus {
   hasUpdate: boolean;
   currentSha: string | null;
   latestSha: string | null;
+  contentDigest: string | null;
   repo: string;
   locallyModified: boolean;
   checkErrorCode?: string | null;

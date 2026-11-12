@@ -34,6 +34,7 @@ pub struct KnownSkillUpdate {
     pub name: String,
     pub entry: SkillLockEntry,
     pub latest_sha: String,
+    pub remote_digest: Option<String>,
     pub force: bool,
 }
 
@@ -153,28 +154,41 @@ impl CliService {
             )));
         }
 
-        let folder_shas: std::collections::HashMap<String, Option<String>> =
+        type SkillBaselines = std::collections::HashMap<String, Option<String>>;
+        let (folder_shas, content_digests): (SkillBaselines, SkillBaselines) =
             match if let Some(commit) = archive_commit.as_deref() {
                 Self::fetch_repo_tree(&owner, &repo, Some(commit)).await
             } else {
                 Ok(None)
             } {
-                Ok(Some(tree)) => installed_skills
-                    .iter()
-                    .map(|(name, skill_path)| {
-                        (
-                            name.clone(),
-                            Self::get_folder_sha_from_tree(&tree, skill_path),
-                        )
-                    })
-                    .collect(),
+                Ok(Some(tree)) => {
+                    let folder_shas = installed_skills
+                        .iter()
+                        .map(|(name, skill_path)| {
+                            (
+                                name.clone(),
+                                Self::get_folder_sha_from_tree(&tree, skill_path),
+                            )
+                        })
+                        .collect();
+                    let content_digests = installed_skills
+                        .iter()
+                        .map(|(name, skill_path)| {
+                            (
+                                name.clone(),
+                                Self::get_content_digest_from_tree(&tree, skill_path),
+                            )
+                        })
+                        .collect();
+                    (folder_shas, content_digests)
+                }
                 Ok(None) => {
                     eprintln!(
                         "install: tree not found for {}, \
                          update baseline remains unknown",
                         Self::repo_ref_label(&owner, &repo, branch.as_deref())
                     );
-                    std::collections::HashMap::new()
+                    Default::default()
                 }
                 Err(e) => {
                     eprintln!(
@@ -182,7 +196,7 @@ impl CliService {
                          update baseline remains unknown",
                         Self::repo_ref_label(&owner, &repo, branch.as_deref())
                     );
-                    std::collections::HashMap::new()
+                    Default::default()
                 }
             };
         if let Err(error) = Self::update_lock_after_install(
@@ -191,6 +205,7 @@ impl CliService {
             &repo,
             branch.as_deref(),
             &folder_shas,
+            &content_digests,
         ) {
             for (skill_name, _) in &installed_skills {
                 let _ = std::fs::remove_dir_all(ssot_dir.join(skill_name));
@@ -300,17 +315,14 @@ impl CliService {
         }
 
         let mut errors: Vec<String> = Vec::new();
-        let report_missing_baseline = to_update.len() == 1;
 
         let mut by_repo: std::collections::HashMap<RepoUpdateKey, RepoLockEntries> =
             std::collections::HashMap::new();
         for (name, entry) in &to_update {
             if entry.commit_sha.is_none() {
-                if report_missing_baseline {
-                    errors.push(format!(
-                        "{name}: Missing update baseline. Open this skill and update it to establish a baseline."
-                    ));
-                }
+                errors.push(format!(
+                    "{name}: Missing update baseline. Open this skill and update it to establish a baseline."
+                ));
                 continue;
             }
             if entry.effective_url().is_none() {
@@ -390,15 +402,22 @@ impl CliService {
                 normalize_repo_skill_path(skill_path)
             ));
         };
+        let new_digest = Self::get_content_digest_from_tree(tree, skill_path);
 
-        match old_sha {
-            Some(old) if old != new_sha => Ok(Some(KnownSkillUpdate {
+        let changed = match (entry.content_digest.as_deref(), new_digest.as_deref()) {
+            (Some(old_digest), Some(new_digest)) => old_digest != new_digest,
+            _ => old_sha.map(|old| old != new_sha).unwrap_or(false),
+        };
+        if changed {
+            Ok(Some(KnownSkillUpdate {
                 name: name.to_string(),
                 entry: entry.clone(),
                 latest_sha: new_sha,
+                remote_digest: new_digest,
                 force: false,
-            })),
-            _ => Ok(None),
+            }))
+        } else {
+            Ok(None)
         }
     }
 
@@ -581,6 +600,39 @@ impl CliService {
             .iter()
             .find(|e| e.entry_type == "tree" && e.path == normalized_path)
             .map(|e| e.sha.clone())
+    }
+
+    pub fn get_content_digest_from_tree(tree: &RepoTreeResponse, path: &str) -> Option<String> {
+        use sha2::Digest;
+
+        let normalized_path = normalize_repo_skill_path(path);
+        let prefix = if normalized_path.is_empty() {
+            String::new()
+        } else {
+            format!("{normalized_path}/")
+        };
+
+        let mut lines: Vec<Vec<u8>> = tree
+            .tree
+            .iter()
+            .filter(|e| prefix.is_empty() || e.path.starts_with(&prefix))
+            .map(|e| format!("{}\0{}\n", e.path, e.sha).into_bytes())
+            .collect();
+        if !prefix.is_empty() && lines.is_empty() {
+            return None;
+        }
+        lines.sort();
+        let mut hasher = sha2::Sha256::new();
+        for line in &lines {
+            hasher.update(line);
+        }
+        Some(
+            hasher
+                .finalize()
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect(),
+        )
     }
 
     fn sanitize_branch(branch: &str) -> String {
@@ -969,6 +1021,7 @@ impl CliService {
         repo: &str,
         branch: Option<&str>,
         folder_shas: &std::collections::HashMap<String, Option<String>>,
+        content_digests: &std::collections::HashMap<String, Option<String>>,
     ) -> Result<(), AppError> {
         let now = chrono::Utc::now().to_rfc3339();
         let source = format!("{owner}/{repo}");
@@ -1008,6 +1061,7 @@ impl CliService {
                         installed_at: Some(existing_installed_at.unwrap_or_else(|| now.clone())),
                         updated_at: Some(now.clone()),
                         commit_sha,
+                        content_digest: content_digests.get(name).cloned().flatten(),
                     },
                 );
             }
@@ -1071,6 +1125,7 @@ impl CliService {
                 }
                 entry.updated_at = Some(chrono::Utc::now().to_rfc3339());
                 entry.commit_sha = Some(skill.latest_sha.clone());
+                entry.content_digest = skill.remote_digest.clone();
                 entry.skill_folder_hash = Some(fresh_hash);
                 Ok(())
             })
@@ -1432,6 +1487,7 @@ mod tests {
                 "new-repo",
                 Some("release"),
                 &Default::default(),
+                &Default::default(),
             )
             .unwrap();
             let updated = SkillLock::read().unwrap();
@@ -1465,6 +1521,7 @@ mod tests {
                 "owner",
                 "repo",
                 None::<&str>,
+                &Default::default(),
                 &Default::default(),
             )
             .unwrap();
@@ -1645,6 +1702,7 @@ mod tests {
             installed_at: None,
             updated_at: None,
             commit_sha: Some("old".to_string()),
+            content_digest: None,
         };
 
         let (owner, repo, branch) = CliService::update_repo_info(&entry).unwrap();
@@ -1672,6 +1730,7 @@ mod tests {
             installed_at: None,
             updated_at: None,
             commit_sha: Some("old".to_string()),
+            content_digest: None,
         };
 
         let (owner, repo, branch) = CliService::update_repo_info(&entry).unwrap();
@@ -1696,6 +1755,30 @@ mod tests {
             result.errors,
             vec!["demo: Missing update baseline. Open this skill and update it to establish a baseline."]
         );
+    }
+
+    #[tokio::test]
+    async fn batch_update_reports_every_missing_baseline_instead_of_skipping() {
+        let entries = vec![
+            (
+                "a".to_string(),
+                test_lock_entry("owner/repo", Some("skills/a"), None),
+            ),
+            (
+                "b".to_string(),
+                test_lock_entry("owner/repo", Some("skills/b"), None),
+            ),
+        ];
+
+        let result = CliService::update_skill_entries(entries)
+            .await
+            .expect("update result");
+
+        assert_eq!(result.success_count, 0);
+        assert_eq!(result.fail_count, 2);
+        assert!(result.errors.iter().all(|error| error.ends_with(
+            "Missing update baseline. Open this skill and update it to establish a baseline."
+        )));
     }
 
     #[test]
@@ -2030,6 +2113,98 @@ mod tests {
     }
 
     #[test]
+    fn content_digest_is_byte_order_stable_across_multibyte_paths() {
+        let tree_entry = |path: &str, entry_type: &str, sha: &str| TreeEntry {
+            path: path.to_string(),
+            entry_type: entry_type.to_string(),
+            sha: sha.to_string(),
+        };
+        let tree = RepoTreeResponse {
+            sha: "root-sha".to_string(),
+            tree: vec![
+                tree_entry("docs/说明.md", "blob", "b2"),
+                tree_entry("SKILL.md", "blob", "a1"),
+                tree_entry("docs", "tree", "t9"),
+                tree_entry("日本語/リリース.md", "blob", "b3"),
+                tree_entry("agents", "tree", "t5"),
+                tree_entry("agents/tool.md", "blob", "c4"),
+            ],
+        };
+
+        assert_eq!(
+            CliService::get_content_digest_from_tree(&tree, "").as_deref(),
+            Some("080b0b0e7535690db1fbf3b433d4d4d9446f66e778bfd6b75caf0aaca0dcb6a6")
+        );
+        assert_eq!(
+            CliService::get_content_digest_from_tree(&tree, "agents").as_deref(),
+            Some("9660be76978b2d80c9a14e8cefb10db336344c7e3132815743be4cebe3f0454d")
+        );
+        assert_eq!(
+            CliService::get_content_digest_from_tree(&tree, "agents/SKILL.md").as_deref(),
+            Some("9660be76978b2d80c9a14e8cefb10db336344c7e3132815743be4cebe3f0454d")
+        );
+        assert_eq!(
+            CliService::get_content_digest_from_tree(&tree, "docs").as_deref(),
+            Some("d291c39f64b08675f0f32251927b98e7a5760bb0c5274a1593651574c2868556")
+        );
+    }
+
+    #[test]
+    fn root_skill_update_decision_ignores_commit_identity_when_digest_matches() {
+        let tree_entry = |path: &str, sha: &str| TreeEntry {
+            path: path.to_string(),
+            entry_type: "blob".to_string(),
+            sha: sha.to_string(),
+        };
+        let tree_a = RepoTreeResponse {
+            sha: "commit-a".to_string(),
+            tree: vec![tree_entry("SKILL.md", "a1")],
+        };
+        let tree_b = RepoTreeResponse {
+            sha: "commit-b".to_string(),
+            tree: vec![tree_entry("SKILL.md", "a1")],
+        };
+        let digest = CliService::get_content_digest_from_tree(&tree_a, "").unwrap();
+        let mut entry = test_lock_entry("owner/repo", Some(""), Some("commit-a"));
+        entry.content_digest = Some(digest.clone());
+
+        let decision =
+            CliService::known_update_from_tree("demo", &entry, &tree_b, "owner", "repo", None);
+        assert!(decision.unwrap().is_none());
+
+        let tree_c = RepoTreeResponse {
+            sha: "commit-c".to_string(),
+            tree: vec![tree_entry("SKILL.md", "a2")],
+        };
+        let update =
+            CliService::known_update_from_tree("demo", &entry, &tree_c, "owner", "repo", None)
+                .unwrap()
+                .expect("changed content must flag an update");
+        assert_eq!(update.latest_sha, "commit-c");
+        assert_ne!(update.remote_digest.as_deref(), Some(digest.as_str()));
+    }
+
+    #[test]
+    fn update_without_content_digest_falls_back_to_commit_baseline() {
+        let tree = RepoTreeResponse {
+            sha: "commit-new".to_string(),
+            tree: vec![TreeEntry {
+                path: "SKILL.md".to_string(),
+                entry_type: "blob".to_string(),
+                sha: "a1".to_string(),
+            }],
+        };
+        let entry = test_lock_entry("owner/repo", Some(""), Some("commit-old"));
+
+        let update =
+            CliService::known_update_from_tree("demo", &entry, &tree, "owner", "repo", None)
+                .unwrap()
+                .expect("legacy baseline must keep the commit comparison");
+        assert_eq!(update.latest_sha, "commit-new");
+        assert!(update.remote_digest.is_some());
+    }
+
+    #[test]
     fn install_selection_matches_windows_backslash_selector_for_nested_skill() {
         let repo = tempfile::tempdir().unwrap();
         let nested = repo.path().join("skills").join("self-learning");
@@ -2286,6 +2461,7 @@ mod tests {
             name: name.to_string(),
             entry: test_lock_entry(source, Some(&format!("skills/{name}")), Some("old")),
             latest_sha: latest_sha.to_string(),
+            remote_digest: None,
             force: false,
         }
     }
@@ -2495,6 +2671,7 @@ mod tests {
             installed_at: None,
             updated_at: None,
             commit_sha: commit_sha.map(str::to_string),
+            content_digest: None,
         }
     }
 
