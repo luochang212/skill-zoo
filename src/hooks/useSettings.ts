@@ -404,8 +404,6 @@ export async function invalidateAgentState(qc: QueryClient) {
       ["skills"],
       ["repos", "skills"],
       ["skills.sh", "search"],
-      ["consistency"],
-      ["externalImports"],
     ].map((queryKey) => qc.invalidateQueries({ queryKey })),
   );
 }
