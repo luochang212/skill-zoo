@@ -10,6 +10,8 @@ pub const SUPPORTED_UPDATE_HISTORY_VERSION: i32 = 1;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillUpdateHistoryRecord {
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, serde_json::Value>,
     pub id: String,
     pub started_at: String,
     pub finished_at: String,
@@ -23,6 +25,8 @@ pub struct SkillUpdateHistoryRecord {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillUpdateHistory {
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, serde_json::Value>,
     #[serde(default = "default_version")]
     pub version: i32,
     #[serde(default)]
@@ -36,6 +40,7 @@ fn default_version() -> i32 {
 impl Default for SkillUpdateHistory {
     fn default() -> Self {
         Self {
+            extra: BTreeMap::new(),
             version: default_version(),
             records: BTreeMap::new(),
         }
@@ -100,10 +105,13 @@ impl SkillUpdateHistory {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use super::{SkillUpdateHistory, SkillUpdateHistoryRecord};
 
     fn record(id: &str, finished_at: &str) -> SkillUpdateHistoryRecord {
         SkillUpdateHistoryRecord {
+            extra: BTreeMap::new(),
             id: id.to_string(),
             started_at: finished_at.to_string(),
             finished_at: finished_at.to_string(),
@@ -155,10 +163,35 @@ mod tests {
     }
 
     #[test]
+    fn unknown_fields_survive_history_round_trip() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("history.json");
+        std::fs::write(
+            &path,
+            r#"{"version":1,"futureTopLevel":{"a":1},"records":{"update-1":{"id":"update-1","startedAt":"t","finishedAt":"t","mode":"single","requestedSkills":["demo"],"updatedSkills":["demo"],"failedSkills":[],"errors":[],"status":"success","futureField":42}}}"#,
+        )
+        .expect("write history");
+
+        let mut loaded = SkillUpdateHistory::load_from(&path).expect("load history");
+        loaded.save_to(&path).expect("save history");
+        let saved = std::fs::read_to_string(&path).expect("read saved history");
+
+        assert!(
+            saved.contains("futureTopLevel"),
+            "top-level unknown fields must survive a read-modify-write"
+        );
+        assert!(
+            saved.contains("futureField"),
+            "per-record unknown fields must survive a read-modify-write"
+        );
+    }
+
+    #[test]
     fn clear_resets_future_version_so_history_can_be_saved() {
         let dir = tempfile::tempdir().expect("tempdir");
         let path = dir.path().join("history.json");
         let mut history = SkillUpdateHistory {
+            extra: BTreeMap::new(),
             version: super::SUPPORTED_UPDATE_HISTORY_VERSION + 1,
             records: Default::default(),
         };

@@ -18,6 +18,7 @@ use crate::services::skill_archive::{self, ArchiveSkillsResult, RestoreArchivedS
 use crate::store::AppState;
 use futures::future::Abortable;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
@@ -1165,6 +1166,7 @@ fn append_update_history_record(
     );
     let mut history = SkillUpdateHistory::load()?;
     history.insert(SkillUpdateHistoryRecord {
+        extra: BTreeMap::new(),
         id,
         started_at,
         finished_at,

@@ -11,6 +11,7 @@ Skill Zoo desktop owns the local protocol. The CLI is an adjunct control surface
 | `~/.skill-zoo/imports.json` | 1 | Desktop-owned registry for skills imported from user-owned external folders. |
 | `~/.skill-zoo/agents.json` | 1 | Desktop-owned custom coding-agent registrations. |
 | `~/.skill-zoo/agent-lifecycle.json` | 1 | Recoverable multi-file registration lifecycle journal; transient. |
+| `~/.skill-zoo/skill-update-history.json` | 1 | Desktop-only record of skill update runs. The CLI never reads or writes this file. |
 
 ## Custom Agents
 
@@ -105,6 +106,12 @@ External imports are separately registered user-owned skill directories. New imp
 An import entry's `sourcePath` points to the concrete skill root containing `SKILL.md`. `directory` stores the display/link identity used for agent symlink names. Readers must include valid external imports in installed-skill scans when `sourcePath/SKILL.md` exists. Missing or invalid external imports must remain in the imports registry for management and cleanup, but must not appear as installed skills.
 
 Removing an external import means removing the registry entry and app-managed agent links that point to `sourcePath`; it must not remove files under `sourcePath`.
+
+## Skill Update History
+
+`skill-update-history.json` records one entry per desktop update run. Top-level fields are `version: 1` and `records`, a map keyed by record id; each record has camelCase `id`, `startedAt`, `finishedAt`, `mode`, `requestedSkills`, `updatedSkills`, `failedSkills`, `errors` and `status`. Record ids are `update-<unix nanos>` generated at append time. `mode` is `single` (one skill updated from its detail view), `selected` (a checked subset updated in bulk) or `all` (update everything). `status` is `noop` (nothing requested), `success` (all requested skills updated), `failed` (none updated) or `partial` (some updated, some failed). Reads sort records by `finishedAt` descending.
+
+Writes go through the desktop app only, after each update run completes; a history write failure is logged and never fails the update itself. There is no automatic retention: records accumulate until the user deletes one or clears the history. A missing or empty file loads as an empty history; a malformed file surfaces a parse error and is never treated as empty or overwritten. Readers tolerate any `version`; writers refuse files with a version newer than they support. Like the other versioned files, read-modify-write writers preserve unknown optional fields at top level and per record.
 
 ## Skill Scan Recognition
 
