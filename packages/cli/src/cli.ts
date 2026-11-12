@@ -154,7 +154,7 @@ Agent defaults:
     .description("Discover installed skills")
     .option("--archived", "show archived skills instead")
     .option("--agent <id>", "filter installed skills enabled for an agent")
-    .option("--origin <origin>", "filter installed skills by origin: ssot or agent")
+    .option("--origin <origin>", "filter installed skills by origin: ssot, agent, or external")
     .option("--issue <kind>", "filter installed skills by consistency issue: any, duplicate, conflict, or mismatch")
     .option("--json", "print machine-readable JSON")
     .addHelpText(
