@@ -9,7 +9,7 @@ import {
   RefreshCw,
   Trash2,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -63,13 +63,17 @@ export function LocalImportsDialog({ open, onOpenChange }: LocalImportsDialogPro
   const [agents, setAgents] = useState<Set<string>>(new Set());
   const [scanning, setScanning] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const refreshSpinnerTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => () => clearTimeout(refreshSpinnerTimer.current), []);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
       await refetch();
     } finally {
-      setTimeout(() => setRefreshing(false), 500);
+      clearTimeout(refreshSpinnerTimer.current);
+      refreshSpinnerTimer.current = setTimeout(() => setRefreshing(false), 500);
     }
   };
 

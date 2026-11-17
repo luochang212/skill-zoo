@@ -209,7 +209,7 @@ export function AppUpdaterProvider({ children }: { children: ReactNode }) {
         }
       } catch {
         if (gen !== requestGenRef.current) return;
-        setStatus("idle");
+        setStatus(updateRef.current ? "available" : "idle");
         setError("checkFailed");
         if (notifyError) toast.error(t("settings.updater.checkFailed"));
       } finally {

@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import type { PointerEvent, WheelEvent } from "react";
+import type { PointerEvent } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useRepoPanelRefresh } from "./useRepoPanelRefresh";
 
@@ -7,7 +7,8 @@ const pointer = (clientY: number) =>
   ({ clientY, pointerType: "touch", preventDefault: vi.fn() }) as unknown as PointerEvent;
 
 function setup(onRefresh = vi.fn<() => Promise<unknown>>().mockResolvedValue(undefined)) {
-  const viewportRef = { current: { scrollTop: 0 } as HTMLDivElement };
+  const viewport = document.createElement("div");
+  const viewportRef = { current: viewport as HTMLDivElement };
   const hook = renderHook(
     ({ disabled }) => useRepoPanelRefresh({ viewportRef, onRefresh, disabled }),
     {
@@ -15,12 +16,9 @@ function setup(onRefresh = vi.fn<() => Promise<unknown>>().mockResolvedValue(und
     },
   );
   const wheel = (deltaY: number) =>
-    act(() =>
-      hook.result.current.handlers.onWheel({
-        deltaY,
-        preventDefault: vi.fn(),
-      } as unknown as WheelEvent),
-    );
+    act(() => {
+      viewport.dispatchEvent(new WheelEvent("wheel", { deltaY, cancelable: true }));
+    });
 
   return { ...hook, wheel, viewportRef, onRefresh };
 }
