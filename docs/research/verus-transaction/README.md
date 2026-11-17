@@ -1,6 +1,6 @@
 # Verus recovery feasibility study
 
-Date: 2026-10-23. Related [ADR 3](../../../adr/implemented/3-keep-verus-optional-and-outside-production-builds.md).
+Date: 2026-10-23. Related [ADR 3](../../../adr/implemented/3-让-verus-保持可选-且不进生产构建.md).
 
 ## Outcome
 

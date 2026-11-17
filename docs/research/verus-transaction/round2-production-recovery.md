@@ -1,7 +1,7 @@
 # Second round: real recovery failures and repeated replay
 
 Date: 2026-10-23. Base: `4daae2c` (first study now pushed to `origin/main`).
-See the [ADR 3](../../../adr/implemented/3-keep-verus-optional-and-outside-production-builds.md)
+See the [ADR 3](../../../adr/implemented/3-让-verus-保持可选-且不进生产构建.md)
 and [first-study/current-model overview](README.md).
 
 ## Question and result
