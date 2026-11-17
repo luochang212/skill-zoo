@@ -51,3 +51,11 @@
 - CLI restore：SKILL.md 存在性守卫 + 移动后身份复核（`scanCacheEntries` + `canonicalizeLegacySkillId`），fixture 案例 `archive-restore-guard-cases.json` 由 CLI 套件消费；桌面侧守卫的 Rust 直测仍缺（P2 遗留）。
 - 卫生批次：租约错误统一 `lease_command_error`（6 处）+ merge 命令按错误类型区分；`remove_skills` 补 unwatch；future-version 拒绝的 Rust 直测；`onWheel` 改原生 `{passive:false}` 监听（hook 测试改派发真实 `WheelEvent`）；LocalImportsDialog 定时器清理；useAppUpdater 失败重查恢复 `available`；CLI runCli `finally` 兜底释放租约；`imports clean` 移除过度断言；`archivedByVersion` 统一为裸版本。
 - 未做（按分诊）：watcher 根集合自愈与 doctor 清理孤儿归档（排队项）、双错误体系/温床类结构项（ADR 流程）、文档/版本项待确认 release 状态。
+
+## 终局判定（2026-11-18 二次裁决，二值，无排队项）
+
+- **watcher 根集合自愈**：已修（空缓存 rebuild 路径自愈死 watcher，泛型化解锁 mock runtime 端到端测试），后补跨进程租约实测与桌面 restore 双守卫直测。
+- **doctor 清理孤儿归档**：不修。触发极窄（进程被杀窗口 + 手动删目录叠加），触发后 restore 报错清晰、零损坏；修复成本高（产品决策删/保 + WUI 租约 + 协议流程），后悔不对称不成立。
+- **温床类结构项**：不修。当下零触发；ADR 需真实上下文才有决策质量，今日所写挡不住将来同类 bug；留痕以本文件为准。
+- **CSP `img-src http:`**：不修。实证 `MarkdownContent.tsx:47` 渲染第三方 skill 远程图，`http:` 是第三方内容兼容面而非疏忽；`script-src 'self'` 锁死，最重后果为外观层换图；收紧反而使第三方 http 图源裂图。
+- **version.json 停在 v0.4.12**：已由远端 `09107a0` 解决，非漏更新。
