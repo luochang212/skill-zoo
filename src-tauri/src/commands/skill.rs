@@ -309,6 +309,19 @@ fn collect_external_import_candidates(
     existing_sources: &HashSet<PathBuf>,
     candidates: &mut Vec<ExternalImportCandidate>,
 ) -> Result<(), String> {
+    collect_external_import_candidates_at(root, dir, existing_sources, candidates, 0)
+}
+
+fn collect_external_import_candidates_at(
+    root: &Path,
+    dir: &Path,
+    existing_sources: &HashSet<PathBuf>,
+    candidates: &mut Vec<ExternalImportCandidate>,
+    depth: usize,
+) -> Result<(), String> {
+    if depth > SkillService::MAX_SCAN_DEPTH {
+        return Ok(());
+    }
     let managed_roots = known_skill_roots();
     let entries = std::fs::read_dir(dir).map_err(|e| e.to_string())?;
     for entry in entries.flatten() {
@@ -351,7 +364,13 @@ fn collect_external_import_candidates(
         } else if is_symlink_or_junction(&raw_path) {
             continue;
         } else {
-            collect_external_import_candidates(root, &path, existing_sources, candidates)?;
+            collect_external_import_candidates_at(
+                root,
+                &path,
+                existing_sources,
+                candidates,
+                depth + 1,
+            )?;
         }
     }
     Ok(())
@@ -473,7 +492,7 @@ async fn import_external_skills_for_state(
     agents: Vec<String>,
 ) -> Result<Vec<InstalledSkill>, String> {
     let _update = state.update_exit.start_update();
-    let _agent_lease = state.acquire_local_lease().map_err(|e| e.to_string())?;
+    let _agent_lease = state.acquire_local_lease().map_err(lease_command_error)?;
     let _refresh = state.cache_refresh_lock.lock().await;
     if selections.is_empty() {
         return Err("No external skills selected".into());
@@ -543,6 +562,7 @@ async fn import_external_skills_for_state(
                 imports.imports.insert(
                     import_id.clone(),
                     ExternalImportEntry {
+                        extra: Default::default(),
                         id: import_id.clone(),
                         source_path: strip_verbatim_prefix(source_path.display().to_string()),
                         directory: selection.directory.clone(),
@@ -640,7 +660,7 @@ async fn import_external_skills_for_state(
 
 #[tauri::command]
 pub fn remove_external_import(state: State<'_, AppState>, import_id: String) -> Result<(), String> {
-    let _agent_lease = state.acquire_local_lease().map_err(|e| e.to_string())?;
+    let _agent_lease = state.acquire_local_lease().map_err(lease_command_error)?;
     let mut imports = ExternalImports::load().map_err(|e| e.to_string())?;
     let import = imports
         .imports
@@ -665,7 +685,7 @@ pub fn clean_external_import_links(
     state: State<'_, AppState>,
     import_id: Option<String>,
 ) -> Result<usize, String> {
-    let _agent_lease = state.acquire_local_lease().map_err(|e| e.to_string())?;
+    let _agent_lease = state.acquire_local_lease().map_err(lease_command_error)?;
     let imports = ExternalImports::load().map_err(|e| e.to_string())?;
     let mut removed = 0;
     for import in imports.imports.values() {
@@ -1431,6 +1451,12 @@ pub async fn remove_skills(
             continue;
         }
 
+        if skill.origin == "external" {
+            if let Some(source_path) = skill.home_path.as_deref() {
+                crate::services::watcher::unwatch_external_path(&state, Path::new(source_path));
+            }
+        }
+
         if let Err(e) = SkillService::remove_cache_entry(&state.skill_cache, skill_id) {
             failed.push(RemoveSkillFailure {
                 skill_id: skill_id.clone(),
@@ -1506,7 +1532,7 @@ pub fn toggle_symlink(
     agent: String,
     enabled: bool,
 ) -> Result<(), String> {
-    let _agent_lease = state.acquire_local_lease().map_err(|e| e.to_string())?;
+    let _agent_lease = state.acquire_local_lease().map_err(lease_command_error)?;
     let skill = SkillService::find_in_cache(&state.skill_cache, &skill_id)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
@@ -1552,7 +1578,7 @@ pub fn batch_unlink_skills(
     skill_ids: Vec<String>,
     agent: String,
 ) -> Result<BatchUnlinkSkillsResult, String> {
-    let _agent_lease = state.acquire_local_lease().map_err(|e| e.to_string())?;
+    let _agent_lease = state.acquire_local_lease().map_err(lease_command_error)?;
     if config::get_agent_skills_dir(&agent).is_none() {
         return Err(format!("Unknown agent: {agent}"));
     }
@@ -1638,7 +1664,10 @@ pub async fn merge_duplicates_to_ssot(
 ) -> Result<(), String> {
     SkillService::merge_duplicates(&state, &skill_name)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| match e {
+            AppError::OperationInProgress => lease_command_error(e),
+            other => other.to_string(),
+        })
 }
 
 #[tauri::command]
@@ -1739,6 +1768,7 @@ pub fn write_skill_text(
     relative_path: String,
     content: String,
 ) -> Result<(), String> {
+    let _agent_lease = state.acquire_local_lease().map_err(lease_command_error)?;
     let skill = {
         let cache = state.skill_cache.read().map_err(|e| e.to_string())?;
         ManagedSkill::resolve(&cache, &skill_id, true).map_err(|e| e.to_string())?
@@ -2710,7 +2740,7 @@ pub async fn create_skill(
     name: String,
     content: String,
 ) -> Result<InstalledSkill, String> {
-    let _agent_lease = state.acquire_local_lease().map_err(|e| e.to_string())?;
+    let _agent_lease = state.acquire_local_lease().map_err(lease_command_error)?;
     validate_skill_name(&name)?;
     validate_skill_directory(&name)?;
 
@@ -3181,6 +3211,7 @@ mod tests {
         std::fs::create_dir_all(&source).expect("create source");
         std::fs::write(source.join("SKILL.md"), "# Demo").expect("write skill");
         let import = ExternalImportEntry {
+            extra: Default::default(),
             id: "external:demo".to_string(),
             source_path: source.to_string_lossy().to_string(),
             directory: "demo".to_string(),
@@ -3398,6 +3429,7 @@ mod tests {
                 previous.imports.insert(
                     "external:existing".into(),
                     ExternalImportEntry {
+                        extra: Default::default(),
                         id: "external:existing".into(),
                         source_path: source.to_string_lossy().into_owned(),
                         directory: old_directory.into(),

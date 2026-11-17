@@ -1148,7 +1148,7 @@ impl SkillService {
         None
     }
 
-    const MAX_SCAN_DEPTH: usize = 20;
+    pub(crate) const MAX_SCAN_DEPTH: usize = 20;
 
     fn yaml_value_to_string(v: &serde_yaml::Value) -> String {
         if let Some(s) = v.as_str() {
@@ -2296,6 +2296,7 @@ mod tests {
             imports.imports.insert(
                 "external:demo".into(),
                 crate::persistence::ExternalImportEntry {
+                    extra: Default::default(),
                     id: "external:demo".into(),
                     source_path: alias.join("demo").to_string_lossy().into(),
                     directory: "demo".into(),

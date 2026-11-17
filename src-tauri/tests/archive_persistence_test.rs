@@ -27,6 +27,7 @@ fn test_archive_manifest_round_trips_skill_metadata() {
     apps.insert("gemini".to_string(), false);
 
     let skill = ArchivedSkill {
+        extra: Default::default(),
         id: "my-skill-abc123".to_string(),
         archive_id: "my-skill-abc123".to_string(),
         original_skill_id: "repo:owner/repo:my-skill".to_string(),
@@ -54,6 +55,7 @@ fn test_archive_manifest_round_trips_skill_metadata() {
     };
 
     let manifest = ArchiveManifest {
+        extra: Default::default(),
         version: 1,
         skills: BTreeMap::from([(skill.archive_id.clone(), skill.clone())]),
     };
@@ -81,6 +83,7 @@ fn test_refuses_to_write_future_archive_version() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let manifest_path = tmp.path().join("manifest.json");
     let manifest = ArchiveManifest {
+        extra: Default::default(),
         version: 2,
         skills: BTreeMap::new(),
     };

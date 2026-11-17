@@ -9,6 +9,8 @@ pub const SUPPORTED_EXTERNAL_IMPORTS_VERSION: i32 = 1;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalImportEntry {
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, serde_json::Value>,
     pub id: String,
     pub source_path: String,
     pub directory: String,
@@ -18,6 +20,8 @@ pub struct ExternalImportEntry {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ExternalImports {
+    #[serde(flatten, default)]
+    pub extra: BTreeMap<String, serde_json::Value>,
     #[serde(default = "default_version")]
     pub version: i32,
     #[serde(default)]
@@ -31,6 +35,7 @@ fn default_version() -> i32 {
 impl Default for ExternalImports {
     fn default() -> Self {
         Self {
+            extra: Default::default(),
             version: SUPPORTED_EXTERNAL_IMPORTS_VERSION,
             imports: BTreeMap::new(),
         }

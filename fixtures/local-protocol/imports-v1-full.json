@@ -6,7 +6,8 @@
       "sourcePath": "/Users/example/private-skills/skills/demo",
       "directory": "skills/demo",
       "importedAt": 1767472800,
-      "updatedAt": 1767472900
+      "updatedAt": 1767472900,
+      "futureOptional": "keep-me"
     }
   }
 }

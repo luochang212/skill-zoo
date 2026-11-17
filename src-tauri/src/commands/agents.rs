@@ -410,6 +410,7 @@ fn commit_agent_change(
             imports.imports.insert(
                 entry.id.clone(),
                 ExternalImportEntry {
+                    extra: Default::default(),
                     id: entry.id,
                     source_path: source,
                     directory: entry.directory,
@@ -438,6 +439,7 @@ fn commit_agent_change(
                 .imports
                 .entry(archived.original_skill_id.clone())
                 .or_insert_with(|| ExternalImportEntry {
+                    extra: Default::default(),
                     id: archived.original_skill_id.clone(),
                     source_path: source,
                     directory: archived.directory.clone(),
@@ -752,6 +754,7 @@ mod tests {
             imports.imports.insert(
                 "external:demo".into(),
                 ExternalImportEntry {
+                    extra: Default::default(),
                     id: "external:demo".into(),
                     source_path: skill.canonicalize().unwrap().to_string_lossy().into(),
                     directory: "demo".into(),

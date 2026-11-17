@@ -895,6 +895,7 @@ mod tests {
             imports.imports.insert(
                 entry.id.clone(),
                 crate::persistence::ExternalImportEntry {
+                    extra: Default::default(),
                     id: entry.id.clone(),
                     directory: entry.directory.clone(),
                     source_path: entry.home_path.clone().unwrap(),
@@ -1346,6 +1347,7 @@ mod tests {
             std::fs::write(archive_skill_dir.join("SKILL.md"), "# Demo").expect("write skill");
 
             let archived_skill = ArchivedSkill {
+                extra: Default::default(),
                 id: archive_id.to_string(),
                 archive_id: archive_id.to_string(),
                 original_skill_id: "repo:owner/repo:demo".to_string(),
@@ -1372,6 +1374,7 @@ mod tests {
                 reason: None,
             };
             let manifest = ArchiveManifest {
+                extra: Default::default(),
                 version: SUPPORTED_ARCHIVE_VERSION,
                 skills: BTreeMap::from([(archive_id.to_string(), archived_skill)]),
             };

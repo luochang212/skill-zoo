@@ -12,6 +12,8 @@ pub const SUPPORTED_ARCHIVE_VERSION: i32 = 1;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArchivedSkill {
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, serde_json::Value>,
     pub id: String,
     pub archive_id: String,
     pub original_skill_id: String,
@@ -46,6 +48,7 @@ impl ArchivedSkill {
         lock_entry: Option<SkillLockEntry>,
     ) -> Self {
         Self {
+            extra: Default::default(),
             id: archive_id.clone(),
             archive_id,
             original_skill_id: skill.id,
@@ -76,6 +79,8 @@ impl ArchivedSkill {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ArchiveManifest {
+    #[serde(flatten, default)]
+    pub extra: BTreeMap<String, serde_json::Value>,
     #[serde(default = "default_version")]
     pub version: i32,
     #[serde(default)]
@@ -89,6 +94,7 @@ fn default_version() -> i32 {
 impl Default for ArchiveManifest {
     fn default() -> Self {
         Self {
+            extra: Default::default(),
             version: default_version(),
             skills: BTreeMap::new(),
         }

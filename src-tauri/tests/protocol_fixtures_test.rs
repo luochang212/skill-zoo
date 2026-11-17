@@ -52,12 +52,23 @@ fn test_desktop_reads_current_protocol_fixtures() {
             .and_then(|entry| entry.source.as_deref()),
         Some("owner/repo")
     );
+    assert_eq!(
+        archived
+            .extra
+            .get("futureOptional")
+            .and_then(|v| v.as_str()),
+        Some("keep-me")
+    );
 
     assert_eq!(imports.version, 1);
     let import = imports
         .imports
         .get("external:demo-a1b2c3d4")
         .expect("external import");
+    assert_eq!(
+        import.extra.get("futureOptional").and_then(|v| v.as_str()),
+        Some("keep-me")
+    );
     assert_eq!(import.directory, "skills/demo");
     assert_eq!(
         import.source_path,
@@ -143,4 +154,42 @@ fn unknown_installed_version_survives_lock_roundtrip() {
     lock.write_to(&path).unwrap();
     let restored: SkillLock = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
     assert_eq!(restored.skills["demo"], lock.skills["demo"]);
+}
+
+#[test]
+fn desktop_refuses_writes_for_future_protocol_fixtures() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    let lock: SkillLock = read_fixture_json("lock-v4-future.json");
+    let error = lock
+        .write_to(&tmp.path().join("skills-lock.json"))
+        .expect_err("future lock version must be refused");
+    assert!(
+        error
+            .to_string()
+            .contains("Lock file version 4 is newer than this desktop app supports"),
+        "{error}"
+    );
+
+    let manifest: ArchiveManifest = read_fixture_json("archive-v2-future.json");
+    let error = manifest
+        .save_to(&tmp.path().join("archive-manifest.json"))
+        .expect_err("future archive version must be refused");
+    assert!(
+        error
+            .to_string()
+            .contains("Archive manifest version 2 is newer than this desktop app supports"),
+        "{error}"
+    );
+
+    let imports: ExternalImports = read_fixture_json("imports-v2-future.json");
+    let error = imports
+        .save_to(&tmp.path().join("external-imports.json"))
+        .expect_err("future imports version must be refused");
+    assert!(
+        error
+            .to_string()
+            .contains("External imports version 2 is newer than this desktop app supports"),
+        "{error}"
+    );
 }

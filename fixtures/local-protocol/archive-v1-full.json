@@ -39,7 +39,8 @@
         "commitSha": "abc123"
       },
       "archivedByVersion": "0.2.9",
-      "reason": null
+      "reason": null,
+      "futureOptional": "keep-me"
     }
   }
 }

@@ -530,6 +530,7 @@ mod tests {
             imports.imports.insert(
                 "retained".into(),
                 crate::persistence::ExternalImportEntry {
+                    extra: Default::default(),
                     id: "retained".into(),
                     source_path: skill.to_string_lossy().into(),
                     directory: "demo".into(),
