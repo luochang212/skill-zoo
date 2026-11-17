@@ -92,8 +92,8 @@ fn collect_external_watch_roots() -> Vec<WatchRoot> {
         .collect()
 }
 
-pub fn start_skill_watcher(
-    app_handle: tauri::AppHandle,
+pub fn start_skill_watcher<R: tauri::Runtime>(
+    app_handle: tauri::AppHandle<R>,
 ) -> Result<
     (
         notify::RecommendedWatcher,
@@ -134,9 +134,9 @@ pub fn start_skill_watcher(
     Ok((watcher, join_handle))
 }
 
-async fn debounced_rebuild_loop(
+async fn debounced_rebuild_loop<R: tauri::Runtime>(
     mut rx: tokio::sync::mpsc::Receiver<Event>,
-    app_handle: tauri::AppHandle,
+    app_handle: tauri::AppHandle<R>,
 ) {
     loop {
         let Some(first_event) = rx.recv().await else {
@@ -285,7 +285,7 @@ fn nearest_skill_root(path: &Path, scan_root: &Path) -> Option<PathBuf> {
     }
 }
 
-async fn trigger_refresh(app_handle: &tauri::AppHandle, events: Vec<Event>) {
+async fn trigger_refresh<R: tauri::Runtime>(app_handle: &tauri::AppHandle<R>, events: Vec<Event>) {
     let mut roots = collect_watch_roots();
     roots.extend(collect_external_watch_roots());
     let plan = classify_events(&events, &roots);
@@ -348,7 +348,11 @@ async fn trigger_incremental_refresh(
     SkillService::upsert_cache_entries(&state.skill_cache, entries)
 }
 
-async fn trigger_rebuild(app_handle: &tauri::AppHandle, event_count: usize, started: Instant) {
+async fn trigger_rebuild<R: tauri::Runtime>(
+    app_handle: &tauri::AppHandle<R>,
+    event_count: usize,
+    started: Instant,
+) {
     let state = app_handle.state::<AppState>();
     match SkillService::rebuild_cache(
         &state.skill_cache,
@@ -397,7 +401,10 @@ pub fn unwatch_external_path(state: &AppState, source_path: &Path) {
     }
 }
 
-pub fn restart_skill_watcher(app: &tauri::AppHandle, state: &AppState) -> Result<(), String> {
+pub fn restart_skill_watcher<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    state: &AppState,
+) -> Result<(), String> {
     let (watcher, task) = start_skill_watcher(app.clone()).map_err(|e| e.to_string())?;
     state
         .fs_watcher

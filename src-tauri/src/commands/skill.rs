@@ -833,8 +833,8 @@ pub async fn install_skills(
 }
 
 #[tauri::command]
-pub async fn get_installed_skills(
-    app: tauri::AppHandle,
+pub async fn get_installed_skills<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     state: State<'_, AppState>,
     force: Option<bool>,
 ) -> Result<Vec<InstalledSkill>, String> {
@@ -856,6 +856,16 @@ pub async fn get_installed_skills(
         if !is_empty && !has_stale_plugins {
             return SkillService::read_all_skills(&state.skill_cache, &state.metadata)
                 .map_err(|e| e.to_string());
+        }
+    }
+    let watcher_dead = state
+        .fs_watcher
+        .lock()
+        .map_err(|e| e.to_string())?
+        .is_none();
+    if watcher_dead {
+        if let Err(error) = crate::services::watcher::restart_skill_watcher(&app, &state) {
+            eprintln!("Failed to monitor skill directories: {error}");
         }
     }
     SkillService::rebuild_cache(
