@@ -42,7 +42,13 @@ fn test_merge_existing_ssot_preserves_metadata() {
                 },
             )]),
         });
-        SkillService::merge_duplicates_to_ssot("demo", &cache, &metadata).unwrap();
+        SkillService::merge_duplicates_to_ssot(
+            "demo",
+            &cache,
+            &metadata,
+            &make_visible_agents(&["codex", "gemini", "claude-code"]),
+        )
+        .unwrap();
         assert!(metadata.read().unwrap().get("ssot:demo").starred);
         assert!(metadata.read().unwrap().get("ssot:demo").is_mine);
     });
@@ -74,7 +80,13 @@ fn test_merge_rejects_invalid_destination_without_deleting_originals() {
         let metadata = RwLock::new(MetadataStore {
             entries: HashMap::new(),
         });
-        assert!(SkillService::merge_duplicates_to_ssot("demo", &cache, &metadata).is_err());
+        assert!(SkillService::merge_duplicates_to_ssot(
+            "demo",
+            &cache,
+            &metadata,
+            &make_visible_agents(&["codex", "gemini", "claude-code"])
+        )
+        .is_err());
         for p in original_paths {
             assert!(p.join("valuable.txt").exists());
         }
@@ -150,7 +162,13 @@ fn test_merge_rolls_back_partial_destination_for_symlinked_sources() {
             entries: HashMap::new(),
         });
 
-        assert!(SkillService::merge_duplicates_to_ssot("demo", &cache, &metadata).is_err());
+        assert!(SkillService::merge_duplicates_to_ssot(
+            "demo",
+            &cache,
+            &metadata,
+            &make_visible_agents(&["codex", "gemini", "claude-code"])
+        )
+        .is_err());
         assert!(
             !config::get_agents_skills_dir().join("demo").exists(),
             "failed verification must not leave a partial SSOT copy"

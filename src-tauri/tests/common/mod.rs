@@ -45,3 +45,8 @@ pub fn make_lock_entry(source: &str) -> SkillLockEntry {
         content_digest: None,
     }
 }
+
+#[allow(dead_code)]
+pub fn make_visible_agents(ids: &[&str]) -> std::collections::HashMap<String, bool> {
+    ids.iter().map(|id| ((*id).to_string(), true)).collect()
+}

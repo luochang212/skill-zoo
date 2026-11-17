@@ -48,9 +48,14 @@ fn merge_save_failures_preserve_originals_links_and_user_flags() {
                     .with_extension("json.tmp"),
             )
             .unwrap();
-            let error = SkillService::merge_duplicates_to_ssot("demo", &cache, &metadata)
-                .unwrap_err()
-                .to_string();
+            let error = SkillService::merge_duplicates_to_ssot(
+                "demo",
+                &cache,
+                &metadata,
+                &make_visible_agents(&["codex", "gemini", "claude-code"]),
+            )
+            .unwrap_err()
+            .to_string();
             assert!(error.contains("Recovery incomplete"), "{error}");
             for home in &homes {
                 assert!(
@@ -125,7 +130,13 @@ fn merge_keeps_other_owners_and_retargets_existing_agent_links() {
                 ),
             ]),
         });
-        SkillService::merge_duplicates_to_ssot("demo", &cache, &metadata).unwrap();
+        SkillService::merge_duplicates_to_ssot(
+            "demo",
+            &cache,
+            &metadata,
+            &make_visible_agents(&["codex", "gemini", "claude-code"]),
+        )
+        .unwrap();
         assert_eq!(native.canonicalize().unwrap(), ssot.canonicalize().unwrap());
         assert_eq!(
             claude.join("demo").canonicalize().unwrap(),
@@ -200,7 +211,13 @@ fn merge_link_conflict_restores_nested_source_and_preserves_foreign_directory() 
         let metadata = RwLock::new(MetadataStore {
             entries: HashMap::new(),
         });
-        assert!(SkillService::merge_duplicates_to_ssot("demo", &cache, &metadata).is_err());
+        assert!(SkillService::merge_duplicates_to_ssot(
+            "demo",
+            &cache,
+            &metadata,
+            &make_visible_agents(&["codex", "gemini", "claude-code"])
+        )
+        .is_err());
         assert_eq!(
             std::fs::read_to_string(native.join("SKILL.md")).unwrap(),
             "# demo"
@@ -234,11 +251,80 @@ fn merge_rejects_cached_agent_ownership_outside_its_real_root() {
         let metadata = RwLock::new(MetadataStore {
             entries: HashMap::new(),
         });
-        assert!(SkillService::merge_duplicates_to_ssot("demo", &cache, &metadata).is_err());
+        assert!(SkillService::merge_duplicates_to_ssot(
+            "demo",
+            &cache,
+            &metadata,
+            &make_visible_agents(&["codex", "gemini", "claude-code"])
+        )
+        .is_err());
         assert_eq!(
             std::fs::read_to_string(private.join("SKILL.md")).unwrap(),
             "# user source"
         );
         assert!(!config::get_agents_skills_dir().join("demo").exists());
+    });
+}
+
+#[test]
+fn merge_ignores_hidden_agent_copies_and_leaves_their_directories_untouched() {
+    let tmp = tempfile::tempdir().unwrap();
+    config::with_test_home(tmp.path(), || {
+        let ssot = config::get_agents_skills_dir().join("demo");
+        let codex_native = config::get_agent_skills_dir("codex").unwrap().join("demo");
+        let gemini_native = config::get_agent_skills_dir("gemini").unwrap().join("demo");
+        for path in [&ssot, &codex_native, &gemini_native] {
+            std::fs::create_dir_all(path).unwrap();
+            std::fs::write(path.join("SKILL.md"), "# demo").unwrap();
+        }
+        let mut entries = Vec::new();
+        for (id, home, agent) in [
+            ("ssot:demo", &ssot, None),
+            ("agent:codex:demo", &codex_native, Some("codex")),
+            ("agent:gemini:demo", &gemini_native, Some("gemini")),
+        ] {
+            let mut entry = make_cache_entry(id, "demo", "demo");
+            entry.origin = if id == "ssot:demo" { "ssot" } else { "agent" }.into();
+            entry.home_agent = agent.map(|a| a.into());
+            entry.home_path = Some(home.to_string_lossy().into_owned());
+            entry.content_hash = Some("same".into());
+            entries.push(entry);
+        }
+        let cache = RwLock::new(SkillCache::from_entries(entries));
+        let metadata = RwLock::new(MetadataStore {
+            entries: Default::default(),
+        });
+        let visible_agents =
+            HashMap::from([("codex".to_string(), true), ("gemini".to_string(), false)]);
+
+        SkillService::merge_duplicates_to_ssot("demo", &cache, &metadata, &visible_agents).unwrap();
+
+        assert!(gemini_native.is_dir());
+        assert!(
+            std::fs::symlink_metadata(&gemini_native)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+                == false
+        );
+        assert_eq!(
+            std::fs::read_to_string(gemini_native.join("SKILL.md")).unwrap(),
+            "# demo"
+        );
+        assert!(cache
+            .read()
+            .unwrap()
+            .find_by_id("agent:gemini:demo")
+            .is_some());
+        assert_eq!(
+            cache
+                .read()
+                .unwrap()
+                .find_by_id("ssot:demo")
+                .unwrap()
+                .home_path
+                .as_deref(),
+            Some(ssot.to_string_lossy().as_ref())
+        );
     });
 }

@@ -9,7 +9,19 @@ impl SkillService {
         let _update = state.update_exit.start_update();
         let _lease = state.acquire_local_lease()?;
         let _refresh = state.cache_refresh_lock.lock().await;
-        Self::merge_duplicates_inner(skill_name, &state.skill_cache, &state.metadata)
+        let visible_agents = {
+            let settings = state
+                .settings
+                .lock()
+                .map_err(|e| AppError::Parse(format!("Settings lock: {e}")))?;
+            Self::get_visible_agents(&settings)
+        };
+        Self::merge_duplicates_inner(
+            skill_name,
+            &state.skill_cache,
+            &state.metadata,
+            &visible_agents,
+        )
     }
 
     #[cfg(any(test, feature = "test-helpers"))]
@@ -17,14 +29,16 @@ impl SkillService {
         skill_name: &str,
         cache: &RwLock<SkillCache>,
         metadata: &RwLock<MetadataStore>,
+        visible_agents: &HashMap<String, bool>,
     ) -> Result<(), AppError> {
-        Self::merge_duplicates_inner(skill_name, cache, metadata)
+        Self::merge_duplicates_inner(skill_name, cache, metadata, visible_agents)
     }
 
     fn merge_duplicates_inner(
         skill_name: &str,
         cache: &RwLock<SkillCache>,
         metadata: &RwLock<MetadataStore>,
+        visible_agents: &HashMap<String, bool>,
     ) -> Result<(), AppError> {
         let name = Path::new(skill_name);
         if name.components().count() != 1
@@ -62,10 +76,10 @@ impl SkillService {
 
         let entries: Vec<SkillCacheEntry> = entries
             .into_iter()
-            .filter(|entry| entry.origin != "external" && entry.origin != "plugin")
+            .filter(|entry| Self::is_visible_local_skill(entry, visible_agents, false))
             .collect();
 
-        if entries.is_empty() {
+        if entries.len() < 2 {
             return Err(AppError::NotFound(format!(
                 "No mergeable skills found with name: {skill_name}"
             )));

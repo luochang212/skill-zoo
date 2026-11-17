@@ -27,7 +27,12 @@ fn merge_rejects_directory_links_without_removing_originals() {
         let metadata = RwLock::new(MetadataStore {
             entries: Default::default(),
         });
-        let result = SkillService::merge_duplicates_to_ssot("demo", &cache, &metadata);
+        let result = SkillService::merge_duplicates_to_ssot(
+            "demo",
+            &cache,
+            &metadata,
+            &make_visible_agents(&["codex", "gemini", "claude-code"]),
+        );
         let dest = config::get_agents_skills_dir().join("demo");
         assert!(result.is_err());
         for agent in ["codex", "gemini"] {
