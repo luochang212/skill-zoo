@@ -1,10 +1,13 @@
 ---
 status: implemented
-date: 2026-10-21
+date: 2026-11-18
+description: 在改动 site/ 落地页、其构建或部署工作流，或把站点所有权并入桌面端构建之前阅读。
 raised-by: human
 decided-by: human
 created: 2026-10-21
-description: 在改动 site/ 落地页、其构建或部署工作流，或把站点所有权并入桌面端构建之前阅读。
+archived: 2026-11-18
+archive-reason: 记账退役：独立 Astro 站点的操作性规则由 AGENTS.md 网站一节与 site/README.md
+  全文拥有，决策本身从 site/ 文件树直接可见，无外部引用；详见评审记录（2026-11-18）
 paths:
   - site/**
   - .github/workflows/site.yml
