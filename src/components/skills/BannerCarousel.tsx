@@ -4,12 +4,13 @@ import { resolveResource } from "@tauri-apps/api/path";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
-import { Skeleton } from "@/components/ui/skeleton";
 import type { Banner } from "@/types/skills";
 
 const ASPECT = 250 / 420;
 const MAX_CARD_W = 460;
 const AUTOPLAY_MS = 7000;
+const resourceUrls = new Map<string, string>();
+const loadedImages = new Set<string>();
 
 function getStyle(diff: number, cardW: number) {
   const abs = Math.abs(diff);
@@ -68,10 +69,16 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
   const { t } = useTranslation();
   const reduceMotion = useReducedMotion();
   const [current, setCurrent] = useState(0);
-  const [imageUrls, setImageUrls] = useState<string[]>([]);
-  const [imageResults, setImageResults] = useState<Record<string, boolean>>({});
+  const [imageUrls, setImageUrls] = useState<string[]>(() =>
+    banners.map((banner) => resourceUrls.get(banner.image) ?? ""),
+  );
+  const [imageResults, setImageResults] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries([...loadedImages].map((url) => [url, true])),
+  );
   const [dotsHovered, setDotsHovered] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(
+    () => !banners.every((banner) => resourceUrls.has(banner.image)),
+  );
   const containerRef = useRef<HTMLDivElement>(null);
   const [W, setW] = useState(600);
 
@@ -88,14 +95,17 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
   useEffect(() => {
     let ignore = false;
     async function loadUrls() {
-      setLoading(true);
-      setImageUrls([]);
+      setLoading(!banners.every((banner) => resourceUrls.has(banner.image)));
       setCurrent(0);
       const urls = await Promise.all(
         banners.map(async (b) => {
           try {
+            const cached = resourceUrls.get(b.image);
+            if (cached) return cached;
             const path = await resolveResource(b.image);
-            return convertFileSrc(path);
+            const url = convertFileSrc(path);
+            resourceUrls.set(b.image, url);
+            return url;
           } catch {
             return "";
           }
@@ -116,13 +126,15 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
     };
   }, [banners]);
 
+  const ready = !loading && !imageUrls.some((url) => url && imageResults[url] === undefined);
+
   useEffect(() => {
-    if (banners.length <= 1 || reduceMotion) return;
+    if (!ready || banners.length <= 1 || reduceMotion) return;
     const timer = setInterval(() => {
       setCurrent((prev) => (prev + 1) % banners.length);
     }, AUTOPLAY_MS);
     return () => clearInterval(timer);
-  }, [banners.length, reduceMotion, current]);
+  }, [banners.length, reduceMotion, current, ready]);
 
   const goTo = useCallback((index: number) => {
     setCurrent(index);
@@ -152,13 +164,13 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
   return (
     <div
       className="relative w-full select-none px-12"
-      aria-busy={loading || imageUrls.some((url) => url && imageResults[url] === undefined)}
+      aria-busy={!ready}
       style={{ height: `${Math.max(cardH + 80, 240)}px` }}
     >
       <div
         ref={containerRef}
         className="relative mx-auto w-full max-w-[960px] h-[calc(100%-32px)] overflow-hidden"
-        style={{ perspective: "1400px" }}
+        style={{ perspective: "1400px", visibility: ready ? "visible" : "hidden" }}
       >
         {cardStates.map(({ banner, index: i, diff, style }) => {
           const url = imageUrls[i];
@@ -192,7 +204,6 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
                 }
               }}
             >
-              {pending && <Skeleton className="absolute inset-0 h-full w-full rounded-xl" />}
               {url && (
                 <img
                   src={url}
@@ -201,7 +212,10 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
                   height={250}
                   className={`w-full h-full object-cover transition-opacity duration-300 motion-reduce:transition-none ${loaded ? "opacity-100" : "opacity-0"}`}
                   draggable={false}
-                  onLoad={() => setImageResults((results) => ({ ...results, [url]: true }))}
+                  onLoad={() => {
+                    loadedImages.add(url);
+                    setImageResults((results) => ({ ...results, [url]: true }));
+                  }}
                   onError={() => setImageResults((results) => ({ ...results, [url]: false }))}
                 />
               )}
@@ -229,7 +243,7 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
         })}
       </div>
 
-      {banners.length > 1 && (
+      {ready && banners.length > 1 && (
         <>
           <button
             onClick={goPrev}
@@ -248,7 +262,7 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
         </>
       )}
 
-      {banners.length > 1 && (
+      {ready && banners.length > 1 && (
         <div
           className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center rounded-full bg-black/20 px-1 backdrop-blur-sm z-30"
           onMouseEnter={() => setDotsHovered(true)}

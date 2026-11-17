@@ -31,6 +31,7 @@ const banners: Banner[] = [
 async function showCarousel() {
   const view = render(<BannerCarousel banners={banners} />);
   await act(async () => {});
+  view.container.querySelectorAll("img").forEach((image) => fireEvent.load(image));
   return view;
 }
 
@@ -41,8 +42,14 @@ function activeTitle() {
   );
 }
 
-describe("BannerCarousel motion preference", () => {
+let resourceVersion = 0;
+
+describe("BannerCarousel", () => {
   beforeEach(() => {
+    resourceVersion += 1;
+    banners.forEach((banner, index) => {
+      banner.image = `${resourceVersion}-${index}.png`;
+    });
     vi.useFakeTimers();
     reduced = false;
     listeners.clear();
@@ -61,12 +68,23 @@ describe("BannerCarousel motion preference", () => {
     const view = render(<BannerCarousel banners={banners} />);
     const container = view.container.firstElementChild as HTMLElement;
     expect(container.style.height).toBe("354px");
-    expect(container.querySelectorAll(".skeleton")).toHaveLength(2);
+    expect(container.querySelectorAll(".skeleton")).toHaveLength(0);
+    expect(screen.queryByRole("button")).toBeNull();
     await act(async () => {});
     expect(container).toHaveAttribute("aria-busy", "true");
-    fireEvent.load(screen.getByRole("img", { name: "First" }));
-    expect(container.querySelectorAll(".skeleton")).toHaveLength(1);
-    fireEvent.load(screen.getByRole("img", { name: "Second" }));
+    expect(screen.getByAltText("First")).not.toBeVisible();
+    act(() => vi.advanceTimersByTime(16000));
+    expect(vi.getTimerCount()).toBe(0);
+    fireEvent.load(screen.getByAltText("First"));
+    expect(screen.getByAltText("First")).not.toBeVisible();
+    fireEvent.load(screen.getByAltText("Second"));
+    expect(screen.getByAltText("First")).toBeVisible();
+    expect(activeTitle()).toBe("First");
+    expect(screen.getByRole("button", { name: "Next banner" })).toBeVisible();
+    act(() => vi.advanceTimersByTime(6999));
+    expect(activeTitle()).toBe("First");
+    act(() => vi.advanceTimersByTime(1));
+    expect(activeTitle()).toBe("Second");
     expect(container.querySelectorAll(".skeleton")).toHaveLength(0);
     expect(container).toHaveAttribute("aria-busy", "false");
     expect(container.style.height).toBe("354px");
@@ -74,13 +92,25 @@ describe("BannerCarousel motion preference", () => {
 
   it("ends loading with readable titles when an image or resource path fails", async () => {
     vi.mocked(resolveResource).mockRejectedValueOnce(new Error("missing resource"));
-    const view = await showCarousel();
+    const view = render(<BannerCarousel banners={banners} />);
+    await act(async () => {});
+    expect(screen.queryByAltText("First")).toBeNull();
+    fireEvent.error(screen.getByAltText("Second"));
     expect(screen.getByText("First")).toBeVisible();
-    expect(screen.queryByRole("img", { name: "First" })).toBeNull();
-    fireEvent.error(screen.getByRole("img", { name: "Second" }));
     expect(screen.getByText("Second")).toBeVisible();
     expect(view.container.querySelectorAll(".skeleton")).toHaveLength(0);
     expect(view.container.firstElementChild).toHaveAttribute("aria-busy", "false");
+  });
+
+  it("shows previously loaded banners immediately when returning to the page", async () => {
+    const view = await showCarousel();
+    view.unmount();
+    vi.mocked(resolveResource).mockClear();
+    const returned = render(<BannerCarousel banners={banners} />);
+    expect(screen.getByRole("img", { name: "First" })).toBeVisible();
+    expect(returned.container.firstElementChild).toHaveAttribute("aria-busy", "false");
+    await act(async () => {});
+    expect(resolveResource).not.toHaveBeenCalled();
   });
 
   it("does not autoplay under reduce, but manual navigation remains available", async () => {
