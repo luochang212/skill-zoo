@@ -472,8 +472,11 @@
     "skillCompanion": {
       "guide": {
         "phrase": "Plan first, then make changes.",
-        "chatPlaceholder": "Ask your chatbot…",
-        "demoDescription": "Example: enter and save a phrase, open Common Commands in the system tray, click the phrase to copy it, then paste it into a chatbot. This demonstration does not change your clipboard.",
+        "saveHint": "Save before continuing",
+        "chatRequest": "List the page layout issues.",
+        "chatFindings": "Uneven spacing and unclear hierarchy.",
+        "chatPlaceholder": "Ask Codex…",
+        "demoDescription": "Example: enter and save a phrase, open Common Commands in the system tray, click the phrase to copy it, then paste it into an existing Codex conversation about page layout issues and send it. Codex begins preparing a reply. This demonstration does not change your clipboard or send a real message.",
         "copied": "Copied to clipboard",
         "tray": {
           "open": "Open main window",

@@ -472,8 +472,11 @@
     "skillCompanion": {
       "guide": {
         "phrase": "先给出计划，再开始修改",
-        "chatPlaceholder": "向 chatbot 提问…",
-        "demoDescription": "示例：输入并保存短语，打开系统托盘的常用指令，点击短语复制，再粘贴到 chatbot。此演示不会修改你的剪贴板。",
+        "saveHint": "保存后再继续操作",
+        "chatRequest": "列出网页布局目前存在的问题。",
+        "chatFindings": "间距不统一，层级不清晰。",
+        "chatPlaceholder": "向 Codex 提问…",
+        "demoDescription": "示例：输入并保存短语，打开系统托盘的常用指令，点击短语复制，再粘贴到 Codex 中正在讨论网页布局问题的对话里并发送，等待回复。此演示不会修改你的剪贴板或发送真实消息。",
         "copied": "已复制到剪贴板",
         "tray": {
           "open": "打开主界面",

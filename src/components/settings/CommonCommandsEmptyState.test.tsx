@@ -61,10 +61,10 @@ describe("CommonCommandsEmptyState", () => {
     advance(8);
     expect(screen.getByText("Copied to clipboard").parentElement).toHaveAttribute("opacity", "0");
     advance(9.5);
-    expect(screen.getByText("Chatbot", { selector: "text[x='280']" })).toBeInTheDocument();
+    expect(screen.getByText("Codex", { selector: "text[x='280']" })).toBeInTheDocument();
     expect(screen.getAllByText("Plan first, then make changes.")).toHaveLength(3);
     advance(0);
-    expect(screen.getByText("Ask your chatbot…")).toBeInTheDocument();
+    expect(screen.getByText("Ask Codex…")).toBeInTheDocument();
   });
 
   it("shows the command manager as a modal over the branded app, then closes it before opening the tray", () => {
@@ -90,6 +90,105 @@ describe("CommonCommandsEmptyState", () => {
     );
   });
 
+  it("uses the menu bar selection without a click ring over the tray icon", () => {
+    const { container } = render(<CommonCommandsEmptyState />);
+    advance(3.85);
+    const cursor = container.querySelector('[data-scene="cursor"]')!;
+    expect(cursor.querySelector("circle")).toBeNull();
+    expect(container.querySelector("image")!.previousElementSibling).toHaveClass(
+      "fill-foreground/10",
+    );
+    advance(4.2);
+    expect(container.querySelector('[data-scene="tray-menu"]')).toHaveAttribute("opacity", "1");
+    advance(6.4);
+    expect(container.querySelector("image")!.previousElementSibling).toHaveClass(
+      "fill-transparent",
+    );
+  });
+
+  it("highlights Common Commands after the cursor arrives, before opening its submenu", () => {
+    const { container } = render(<CommonCommandsEmptyState />);
+    const menu = container.querySelector('[data-scene="tray-menu"]')!;
+    const label = menu.querySelector("text[y='116']")!;
+    const submenu = menu.querySelector("g")!;
+    advance(4.3);
+    expect(label).toHaveClass("fill-foreground");
+    advance(4.7);
+    expect(label).toHaveClass("fill-foreground");
+    advance(4.8);
+    expect(label).toHaveClass("fill-background");
+    expect(submenu).toHaveAttribute("opacity", "0");
+    advance(5.3);
+    expect(submenu).toHaveAttribute("opacity", "1");
+  });
+
+  it("aligns save feedback with the click and dismisses the menu after copying", () => {
+    const { container } = render(<CommonCommandsEmptyState />);
+    const dialog = container.querySelector('[data-scene="command-dialog"]')!;
+    const cursor = container.querySelector('[data-scene="cursor"]')!;
+    const menu = container.querySelector('[data-scene="tray-menu"]')!;
+    advance(2.6);
+    expect(dialog.querySelector(".lucide-check")).toBeInTheDocument();
+    expect(cursor.querySelector("circle")).toBeNull();
+    advance(2.7);
+    expect(dialog.querySelector(".lucide-check")).toBeNull();
+    expect(dialog.querySelector(".lucide-pen-line")).toBeInTheDocument();
+    expect(cursor.querySelector("circle")).toBeInTheDocument();
+    advance(6);
+    expect(menu).toHaveAttribute("opacity", "1");
+    expect(cursor.querySelector("circle")).toBeInTheDocument();
+    advance(6.4);
+    expect(menu).toHaveAttribute("opacity", "0");
+    expect(screen.getByText("Copied to clipboard").parentElement).toHaveAttribute("opacity", "1");
+  });
+
+  it("shows the paste shortcut with the pasted phrase, then clears the shortcut", () => {
+    const { container } = render(<CommonCommandsEmptyState />);
+    const shortcut = container.querySelector('[data-scene="paste-shortcut"]')!;
+    advance(8.8);
+    expect(shortcut).toHaveAttribute("opacity", "0");
+    expect(screen.getByText("Ask Codex…")).toBeInTheDocument();
+    advance(9);
+    expect(shortcut).toHaveAttribute("opacity", "1");
+    expect(
+      screen.getByText("Plan first, then make changes.", { selector: "text[x='80']" }),
+    ).toBeInTheDocument();
+    advance(10);
+    expect(shortcut).toHaveAttribute("opacity", "0");
+    expect(
+      screen.getByText("Plan first, then make changes.", { selector: "text[x='80']" }),
+    ).toBeInTheDocument();
+  });
+
+  it("sends the pasted draft and holds the pending reply before restarting", () => {
+    const { container } = render(<CommonCommandsEmptyState />);
+    advance(10);
+    const context = container.querySelector('[data-scene="chat-context"]')!;
+    expect(context).toHaveTextContent("List the page layout issues.");
+    expect(context).toHaveTextContent("Uneven spacing and unclear hierarchy.");
+    expect(
+      screen.getByText("Plan first, then make changes.", { selector: "text[x='80']" }),
+    ).toBeInTheDocument();
+    expect(container.querySelector('[data-scene="sent-message"]')).toBeNull();
+    advance(10.5);
+    expect(screen.getByText("Ask Codex…")).toBeInTheDocument();
+    expect(container.querySelector('[data-scene="sent-message"]')).toHaveTextContent(
+      "Plan first, then make changes.",
+    );
+    const pending = container.querySelector('[data-scene="reply-pending"]')!;
+    expect(pending).toHaveTextContent("Codex");
+    expect(pending.querySelectorAll("circle")).toHaveLength(3);
+    const opacity = pending.querySelector("circle")!.getAttribute("opacity");
+    advance(10.8);
+    expect(pending.querySelector("circle")).not.toHaveAttribute("opacity", opacity);
+    advance(14);
+    expect(context).toBeInTheDocument();
+    expect(pending).toBeInTheDocument();
+    advance(0);
+    expect(container.querySelector('[data-scene="sent-message"]')).toBeNull();
+    expect(container.querySelector('[data-scene="reply-pending"]')).toBeNull();
+  });
+
   it("keeps playing the same animation while hovered", () => {
     render(<CommonCommandsEmptyState />);
     fireEvent.mouseEnter(screen.getByRole("img"));
@@ -99,14 +198,20 @@ describe("CommonCommandsEmptyState", () => {
     expect(animate).toHaveBeenCalledTimes(1);
   });
 
-  it("shows a static pasted phrase without starting animation for reduced motion", () => {
+  it("shows a static sent message and pending reply for reduced motion", () => {
     animation.reduced = true;
     render(<CommonCommandsEmptyState />);
     expect(animate).not.toHaveBeenCalled();
-    expect(screen.getByText("Chatbot", { selector: "text[x='280']" })).toBeInTheDocument();
+    expect(screen.getByText("⌘ V").parentElement).toHaveAttribute("opacity", "0");
+    expect(screen.getByText("Codex", { selector: "text[x='280']" })).toBeInTheDocument();
     expect(
-      screen.getByText("Plan first, then make changes.", { selector: "text[x='80']" }),
+      screen.getByText("Plan first, then make changes.", {
+        selector: "g[data-scene='sent-message'] span",
+      }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText("Codex", { selector: "g[data-scene='reply-pending'] > text" }).parentElement,
+    ).toHaveAttribute("data-scene", "reply-pending");
   });
 
   it("stops on preference changes and unmount", () => {
@@ -126,6 +231,8 @@ describe("CommonCommandsEmptyState", () => {
     await i18n.changeLanguage("zh");
     render(<CommonCommandsEmptyState />);
     advance(9.5);
+    expect(screen.getByText("列出网页布局目前存在的问题。")).toBeInTheDocument();
+    expect(screen.getByText("间距不统一，层级不清晰。")).toBeInTheDocument();
     expect(screen.getAllByText("先给出计划，再开始修改")).toHaveLength(3);
     expect(screen.getByRole("img")).toHaveAccessibleName(/此演示不会修改你的剪贴板/);
   });
