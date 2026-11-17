@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.0.0] — 2026-11-18
+
+### Added
+- The website now publishes the decision atlas — every architecture decision record rendered as a static page at site build time and linked from a small footer dot.
+- The Common Commands walkthrough demo is reworked around Codex: the paste target is a live page-layout conversation with a save-first hint, and the narration is localized in both languages.
+
+### Changed
+- Update checks for root-level skills now baseline on a content digest of the remote tree instead of the installed commit, so empty commits and unrelated pushes no longer flag "update available" (ADR 10). Existing lock entries keep their commit fallback until the next successful update establishes the digest baseline, and batch updates now report skills without an established baseline as errors instead of skipping them silently.
+- Skill update history preserves unknown fields across version upgrades, and the update-history file protocol is documented alongside the other versioned state files.
+- The discovery banner carousel caches resolved resource URLs across visits and starts autoplay only after its images are ready, instead of flashing skeletons on every visit.
+
+### Fixed
+- The CLI `skills --origin` help text now lists `external` as a filter value.
+
 ## [0.4.12] — 2026-11-11
 
 ### Fixed
