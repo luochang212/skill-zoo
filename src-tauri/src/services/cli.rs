@@ -1552,7 +1552,7 @@ mod tests {
     #[tokio::test]
     async fn tree_forbidden_responses_only_stop_batches_when_quota_is_zero() {
         let mut server = mockito::Server::new_async().await;
-        let client = reqwest::Client::new();
+        let client = crate::config::http_client();
         for (status, remaining, rate_limited) in [
             (403, Some("0"), true),
             (403, Some("42"), false),

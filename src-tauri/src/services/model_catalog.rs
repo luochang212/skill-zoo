@@ -468,7 +468,7 @@ mod tests {
             .create_async()
             .await;
         assert!(download(
-            &reqwest::Client::new(),
+            crate::config::http_client(),
             &format!("{}/catalog", server.url())
         )
         .await
@@ -480,9 +480,12 @@ mod tests {
             .create_async()
             .await;
         assert_eq!(
-            download(&reqwest::Client::new(), &format!("{}/bad", server.url()))
-                .await
-                .unwrap_err(),
+            download(
+                crate::config::http_client(),
+                &format!("{}/bad", server.url())
+            )
+            .await
+            .unwrap_err(),
             "catalogUnavailable"
         );
         bad.assert_async().await;
@@ -491,11 +494,12 @@ mod tests {
             .with_header("content-length", &(MAX_BYTES + 1).to_string())
             .create_async()
             .await;
-        assert!(
-            download(&reqwest::Client::new(), &format!("{}/large", server.url()))
-                .await
-                .is_err()
-        );
+        assert!(download(
+            crate::config::http_client(),
+            &format!("{}/large", server.url())
+        )
+        .await
+        .is_err());
         large.assert_async().await;
     }
 }

@@ -240,7 +240,7 @@ mod tests {
     #[test]
     fn github_api_requests_capture_current_token_for_all_endpoint_shapes() {
         crate::config::with_test_github_credentials(None, None, || {
-            let client = reqwest::Client::new();
+            let client = crate::config::http_client();
             for path in [
                 "/repos/o/r/git/trees/HEAD?recursive=1",
                 "/repos/o/r",
@@ -271,7 +271,7 @@ mod tests {
     #[test]
     fn expired_saved_token_falls_back_to_anonymous_requests() {
         crate::config::with_test_github_credentials(None, None, || {
-            let client = reqwest::Client::new();
+            let client = crate::config::http_client();
             let url = "https://api.github.com/repos/o/r";
             let authorization = |client: &reqwest::Client| {
                 super::github_get(client, url)
@@ -296,7 +296,7 @@ mod tests {
     #[tokio::test]
     async fn candidate_verification_uses_candidate_and_checks_http_and_quota() {
         let mut server = mockito::Server::new_async().await;
-        let client = reqwest::Client::new();
+        let client = crate::config::http_client();
         for (status, body, expected) in [
             (
                 200,
@@ -360,7 +360,7 @@ mod tests {
             .create_async()
             .await;
         let result = super::verify_github_token_at(
-            &reqwest::Client::new(),
+            crate::config::http_client(),
             &format!("{}/rate_limit", server.url()),
             "candidate-token",
         )

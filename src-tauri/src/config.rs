@@ -13,11 +13,28 @@ pub const SKIP_DIRS: &[&str] = &["node_modules", ".git", "dist", "build", "__pyc
 pub fn http_client() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
     CLIENT.get_or_init(|| {
+        ensure_loopback_proxy_bypass();
         reqwest::Client::builder()
             .user_agent("skill-zoo")
             .build()
             .expect("Failed to create HTTP client")
     })
+}
+
+fn ensure_loopback_proxy_bypass() {
+    const LOOPBACK: &str = "127.0.0.1,localhost,::1";
+    let is_loopback_entry = |entry: &str| matches!(entry.trim(), "127.0.0.1" | "localhost" | "::1");
+    for key in ["NO_PROXY", "no_proxy"] {
+        match std::env::var(key) {
+            Ok(existing) if !existing.split(',').any(is_loopback_entry) => {
+                std::env::set_var(key, format!("{existing},{LOOPBACK}"));
+            }
+            Ok(_) => {}
+            Err(_) => {
+                std::env::set_var(key, LOOPBACK);
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
