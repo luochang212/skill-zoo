@@ -870,6 +870,65 @@ mod tests {
     }
 
     #[test]
+    fn restore_refuses_when_the_archived_skill_md_is_missing_and_preserves_the_record() {
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            let (state, entry) = archive_fixture(&archive_roundtrip_cases().remove(0));
+            archive_one(&state, entry.id.clone()).unwrap();
+            let id = ArchiveManifest::make_archive_id(&entry.id, &entry.directory);
+            let archive_dir = ArchiveManifest::archive_skill_dir(&id);
+            std::fs::remove_file(archive_dir.join("SKILL.md")).unwrap();
+
+            let error = restore_one(&state, id.clone()).unwrap_err();
+            assert!(error.contains("missing or invalid"), "{error}");
+            assert!(error.contains("The archive entry was preserved"), "{error}");
+            assert!(ArchiveManifest::load().unwrap().skills.contains_key(&id));
+            assert!(archive_dir.is_dir());
+            assert!(!Path::new(entry.home_path.as_ref().unwrap()).exists());
+            drop(AgentLease::acquire(&config::get_app_config_dir()).unwrap());
+        });
+    }
+
+    #[test]
+    fn restore_identity_mismatch_rolls_back_to_a_preserved_archive() {
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            let (state, entry) = archive_fixture(&archive_roundtrip_cases().remove(0));
+            archive_one(&state, entry.id.clone()).unwrap();
+            let id = ArchiveManifest::make_archive_id(&entry.id, &entry.directory);
+            let archive_dir = ArchiveManifest::archive_skill_dir(&id);
+            let mut manifest = ArchiveManifest::load().unwrap();
+            let record = manifest.skills.get_mut(&id).unwrap();
+            record.original_skill_id = "ssot:old-name".into();
+            manifest.save().unwrap();
+
+            let error = restore_one(&state, id.clone()).unwrap_err();
+            assert!(
+                error.contains("Restored home does not match the recorded skill identity"),
+                "{error}"
+            );
+
+            assert!(ArchiveManifest::load().unwrap().skills.contains_key(&id));
+            assert_eq!(
+                std::fs::read_to_string(archive_dir.join("SKILL.md")).unwrap(),
+                "# Selected skill"
+            );
+            assert!(!Path::new(entry.home_path.as_ref().unwrap()).exists());
+            let metadata = state.metadata.read().unwrap();
+            assert!(metadata.get("ssot:old-name").starred == false);
+            assert!(
+                ArchiveManifest::load()
+                    .unwrap()
+                    .skills
+                    .get(&id)
+                    .unwrap()
+                    .starred
+            );
+            drop(AgentLease::acquire(&config::get_app_config_dir()).unwrap());
+        });
+    }
+
+    #[test]
     fn archive_target_rejects_a_stale_home_that_no_longer_contains_a_skill() {
         let tmp = tempfile::tempdir().unwrap();
         config::with_test_home(tmp.path(), || {
