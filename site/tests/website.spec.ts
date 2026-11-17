@@ -22,6 +22,7 @@ for (const [route, lang, title] of [[base, 'en', 'Feature System'], [base + 'zh/
     await page.goto(`http://127.0.0.1:4322${route}`);
     await expect(page.locator('html')).toHaveAttribute('lang', lang);
     await expect(page.locator('footer p')).toHaveText('© 2026 Skill Zoo · MIT License');
+    await expect(page.locator('footer [data-atlas-link]')).toHaveAttribute('href', base + 'adr.html');
     await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
     await expect(page.locator('.carousel-card img').first()).toBeVisible();
     await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', /Skill/);
@@ -150,6 +151,12 @@ test('released manifest and sitemap are published under the base', async ({ requ
   expect(await version.json()).toEqual(JSON.parse(readFileSync(new URL('../public/version.json', import.meta.url), 'utf8')));
   const sitemap = await request.get(base + 'sitemap-0.xml');
   expect(await sitemap.text()).toContain('https://www.luochang.ink/skill-zoo/zh/');
+});
+
+test('decision atlas is published with a theme and a pinned commit', async ({ page }) => {
+  await page.goto(base + 'adr.html');
+  await expect(page.locator('[data-atlas-theme]')).toBeVisible();
+  await expect(page.locator(`a[href*="github.com/luochang212/skill-zoo/tree/"]`).first()).toHaveAttribute('href', /\/tree\/[0-9a-f]{7}$/);
 });
 
 for (const [locale, timezoneId, expected] of [
