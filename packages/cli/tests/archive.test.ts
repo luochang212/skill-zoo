@@ -22,6 +22,13 @@ const roundtripCases: Array<{
   ),
 );
 
+const restoreGuardCases: Array<{ name: string; guard: string }> = JSON.parse(
+  await fs.readFile(
+    new URL("../../../fixtures/local-protocol/archive-restore-guard-cases.json", import.meta.url),
+    "utf8",
+  ),
+);
+
 describe("archive and restore", () => {
   it("rejects unsupported archive ownership without touching either source", async () => {
     const cases: Array<{ name: string; origin: string; missingHome: boolean }> = JSON.parse(
@@ -148,7 +155,7 @@ describe("archive and restore", () => {
       originalSkillId: skillId,
       name: "code-audit",
       lockKey: "code-audit",
-      archivedByVersion: `skill-zoo-cli@${CLI_VERSION}`,
+      archivedByVersion: CLI_VERSION,
     });
     expect((await readLock(home)).skills["code-audit"]).toBeUndefined();
     expect((await readMetadata(home)).entries[skillId]).toBeUndefined();
@@ -268,6 +275,39 @@ describe("archive and restore", () => {
       target: normalizePath(skillDir),
     });
   });
+  it.each(restoreGuardCases)("restore guard: $name", async ({ guard }) => {
+    const home = await makeTempHome();
+    const paths = getPaths(home);
+    const source = path.join(home, ".codex", "skills", "demo");
+    await writeSkill(source, "name: demo\ndescription: Selected");
+    await archiveSkillRefs(home, ["agent:codex:demo"]);
+    const [id] = Object.keys((await readArchiveManifest(home)).skills) as [string];
+    const archiveDir = path.join(paths.archiveSkillsDir, id);
+    if (guard === "missing-skill-md") {
+      await fs.rm(path.join(archiveDir, "SKILL.md"));
+    } else {
+      await fs.mkdir(path.join(archiveDir, "moved"));
+      await fs.rename(
+        path.join(archiveDir, "SKILL.md"),
+        path.join(archiveDir, "moved", "SKILL.md"),
+      );
+    }
+
+    const result = await restoreArchiveIds(home, [id]);
+
+    expect(result.failed, guard).toHaveLength(1);
+    expect((await readArchiveManifest(home)).skills[id], guard).toBeDefined();
+    if (guard === "identity-mismatch") {
+      expect(await fs.readFile(path.join(archiveDir, "moved", "SKILL.md"), "utf8")).toContain(
+        "Selected",
+      );
+      expect(await pathExists(source)).toBe(false);
+    } else {
+      expect(await pathExists(archiveDir), guard).toBe(true);
+      expect(await pathExists(source), guard).toBe(false);
+    }
+  });
+
 });
 
 async function createInstalledSkillFixture() {

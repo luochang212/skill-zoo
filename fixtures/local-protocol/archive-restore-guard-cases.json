@@ -1,0 +1,4 @@
+[
+  { "name": "missing archived SKILL.md preserves the record", "guard": "missing-skill-md" },
+  { "name": "identity mismatch preserves the record", "guard": "identity-mismatch" }
+]

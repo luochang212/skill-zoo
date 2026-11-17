@@ -78,11 +78,15 @@ export function createProgram(io: IO = defaultIO()): Command {
   program.hook("preAction", async (_command, action) => {
     const home = (program.opts() as GlobalOptions).home;
     resetAgentSnapshot(home);
-    if (action.name() !== "wui") releaseLease = await acquireAgentLease(home);
+    if (action.name() !== "wui") {
+      releaseLease = await acquireAgentLease(home);
+      activeLeaseRelease = releaseLease;
+    }
   });
   program.hook("postAction", async () => {
     await releaseLease?.();
     releaseLease = undefined;
+    activeLeaseRelease = undefined;
   });
 
   program
@@ -684,10 +688,18 @@ function withHome<T extends CommonOptions>(program: Command, options: T): T {
   };
 }
 
+let activeLeaseRelease: (() => Promise<void>) | undefined;
+
 export async function runCli(argv: string[], io: IO = defaultIO()): Promise<void> {
   const program = createProgram(io);
-  try { await program.parseAsync(argv, { from: "user" }); }
-  catch (error) { await withErrors(io, { json: argv.includes("--json") }, async () => { throw error; }); }
+  try {
+    await program.parseAsync(argv, { from: "user" });
+  } catch (error) {
+    await withErrors(io, { json: argv.includes("--json") }, async () => { throw error; });
+  } finally {
+    await activeLeaseRelease?.();
+    activeLeaseRelease = undefined;
+  }
 }
 
 function defaultIO(): IO {

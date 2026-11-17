@@ -500,9 +500,6 @@ export async function cleanExternalImportLinks(
   options: ImportOptions = {},
 ): Promise<ImportCleanResult> {
   const imports = await readExternalImports(home);
-  const lock = await readLock(home);
-  const manifest = await readArchiveManifest(home);
-  assertWritableSchema(lock, manifest, imports);
 
   const targets: ExternalImportEntry[] = [];
   if (importId) {

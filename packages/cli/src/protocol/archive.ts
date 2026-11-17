@@ -12,7 +12,7 @@ import {
   writeLock,
   writeMetadata,
 } from "./store.js";
-import { rebuildCache, scanInstalledSkills } from "./scan.js";
+import { rebuildCache, scanCacheEntries, scanInstalledSkills } from "./scan.js";
 import type {
   ArchivedSkill,
   BatchFailure,
@@ -263,6 +263,13 @@ async function planRestore(home: string | undefined, archiveId: string): Promise
     throw new CliError(`Archived directory is missing: ${archiveDir}`);
   }
 
+  const archivedSkillMd = path.join(archiveDir, "SKILL.md");
+  if (!(await pathExists(archivedSkillMd))) {
+    throw new CliError(
+      `Archived SKILL.md is missing for ${archiveId}: ${archivedSkillMd}. The archive entry exists, but its files may have been moved or deleted outside Skill Zoo.`,
+    );
+  }
+
   const restorePath = getRestorePath(home, archived);
   if (await pathExists(restorePath)) {
     throw new CliError(`Cannot restore: destination already exists at ${restorePath}`);
@@ -331,6 +338,15 @@ async function restoreOne(home: string | undefined, archiveId: string): Promise<
     await ensureDir(path.dirname(restorePath));
     await movePath(archiveDir, restorePath);
 
+    const scanned = await scanCacheEntries(home);
+    const expectedId =
+      canonicalizeLegacySkillId(archived.originalSkillId) ?? archived.originalSkillId;
+    if (!scanned.some((entry) => entry.id === expectedId)) {
+      throw new CliError(
+        "Restored home does not match the recorded skill identity. The archive was preserved.",
+      );
+    }
+
     if (archived.origin === "ssot" && archived.lockEntry) {
       lock.skills[normalizePath(archived.lockKey ?? archived.directory)] = archived.lockEntry;
       await writeLock(home, lock);
@@ -398,7 +414,7 @@ function makeArchivedSkill(
     archivedAt: Math.floor(Date.now() / 1000),
     lockKey,
     lockEntry,
-    archivedByVersion: `skill-zoo-cli@${CLI_VERSION}`,
+    archivedByVersion: CLI_VERSION,
     reason: null,
   };
 }
