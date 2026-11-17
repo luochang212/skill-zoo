@@ -656,7 +656,10 @@ impl CliService {
     fn archive_zip_url(owner: &str, repo: &str, branch: Option<&str>) -> String {
         match branch {
             Some(branch) => {
-                format!("https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.zip")
+                format!(
+                    "https://github.com/{owner}/{repo}/archive/refs/heads/{}.zip",
+                    urlencoding::encode(branch)
+                )
             }
             None => format!("https://github.com/{owner}/{repo}/archive/HEAD.zip"),
         }
