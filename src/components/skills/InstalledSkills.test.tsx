@@ -36,6 +36,7 @@ const mocks = vi.hoisted(() => ({
   starSkill: vi.fn(),
   toggleSymlink: vi.fn(),
   batchUnlinkSkills: vi.fn(),
+  restoreArchivedSkills: vi.fn(),
   onDragStart: undefined as ((event: unknown) => void) | undefined,
   onDragEnd: undefined as ((event: unknown) => void) | undefined,
 }));
@@ -84,7 +85,7 @@ vi.mock("@/hooks/useSkills", () => ({
   useArchiveSelectedSkills: () => ({ mutate: vi.fn(), isPending: false }),
   useBatchUnlinkSkills: () => ({ mutate: mocks.batchUnlinkSkills, isPending: false }),
   useRemoveSkills: () => ({ mutate: vi.fn(), isPending: false }),
-  useRestoreArchivedSkills: () => ({ mutate: vi.fn(), isPending: false }),
+  useRestoreArchivedSkills: () => ({ mutate: mocks.restoreArchivedSkills, isPending: false }),
   useStarSkill: () => ({ mutate: mocks.starSkill }),
   useToggleSymlink: () => ({ mutateAsync: mocks.toggleSymlink, isPending: false }),
   useUnstarSkill: () => ({ mutate: vi.fn() }),
@@ -156,6 +157,7 @@ describe("InstalledSkills visible agent filtering", () => {
     mocks.toggleSymlink.mockReset();
     mocks.toggleSymlink.mockResolvedValue(undefined);
     mocks.batchUnlinkSkills.mockReset();
+    mocks.restoreArchivedSkills.mockReset();
     mocks.onDragStart = undefined;
     mocks.onDragEnd = undefined;
     vi.mocked(toast.success).mockReset();
@@ -551,6 +553,25 @@ describe("InstalledSkills visible agent filtering", () => {
     renderInstalledSkills();
 
     expect(screen.getByRole("button", { name: "Archive2" })).toBeInTheDocument();
+  });
+
+  it("restores selected archived skills via the batch bar", async () => {
+    mocks.visibleAgentOrder = ["claude-code"];
+    mocks.archivedSkills = [
+      skill({ id: "archived-a", name: "Archived A" }),
+      skill({ id: "archived-b", name: "Archived B" }),
+    ];
+
+    const { container } = renderArchivedSkills();
+
+    await userEvent.click(container.querySelector("button.bg-muted") as HTMLElement);
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Select Archived A" }));
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Select Archived B" }));
+    expect(await screen.findByText("2 selected")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Restore selected" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Restore" }));
+
+    expect(mocks.restoreArchivedSkills.mock.calls[0]?.[0]).toEqual(["archived-a", "archived-b"]);
   });
 
   it("does not surface consistency issues for skills whose home agent is hidden", () => {

@@ -602,7 +602,8 @@ export const InstalledSkills = memo(function InstalledSkills({
     [filtered, isArchiveView, sortDirection, sortField],
   );
 
-  const selectionDisabled = isArchiveView || category.type === "plugin";
+  const selectionDisabled = category.type === "plugin";
+  const starAndDragDisabled = isArchiveView || selectionDisabled;
   const visibleSelectedSkills = useMemo(
     () => sorted.filter((s) => !selectionDisabled && selectedIds.has(s.id)),
     [selectionDisabled, selectedIds, sorted],
@@ -967,7 +968,7 @@ export const InstalledSkills = memo(function InstalledSkills({
                           <SkillDragSource
                             key={skill.id}
                             skill={skill}
-                            disabled={selectionDisabled}
+                            disabled={starAndDragDisabled}
                             className="h-full"
                           >
                             <SkillCard
@@ -983,7 +984,7 @@ export const InstalledSkills = memo(function InstalledSkills({
                                   : onViewSkill(skill.id, skill.directory, skill.name)
                               }
                               onToggleStar={
-                                selectionDisabled ? undefined : () => handleToggleStar(skill)
+                                starAndDragDisabled ? undefined : () => handleToggleStar(skill)
                               }
                               starred={skill.starred}
                               issues={isArchiveView ? undefined : filteredIssuesMap.get(skill.id)}
@@ -1009,7 +1010,7 @@ export const InstalledSkills = memo(function InstalledSkills({
                           <SkillDragSource
                             key={skill.id}
                             skill={skill}
-                            disabled={selectionDisabled}
+                            disabled={starAndDragDisabled}
                           >
                             <SkillCardRow
                               skill={
@@ -1024,7 +1025,7 @@ export const InstalledSkills = memo(function InstalledSkills({
                                   : onViewSkill(skill.id, skill.directory, skill.name)
                               }
                               onToggleStar={
-                                selectionDisabled ? undefined : () => handleToggleStar(skill)
+                                starAndDragDisabled ? undefined : () => handleToggleStar(skill)
                               }
                               starred={skill.starred}
                               issues={isArchiveView ? undefined : filteredIssuesMap.get(skill.id)}
