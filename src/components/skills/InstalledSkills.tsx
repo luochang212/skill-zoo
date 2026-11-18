@@ -47,6 +47,10 @@ import {
   List,
   Link2Off,
   FolderInput,
+  Search,
+  FolderOpen,
+  Star,
+  FilePlus2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -848,6 +852,29 @@ export const InstalledSkills = memo(function InstalledSkills({
 
   const repoPanelExpanded = category.type === "repo" && filtered.length > 0 && !repoPanel.collapsed;
 
+  const hasEmptyFilters = search.length > 0 || agentFilter !== "all";
+  const emptyKind = hasEmptyFilters
+    ? "filtered"
+    : category.type === "all"
+      ? skillsList.length === 0
+        ? "all"
+        : "hidden"
+      : category.type === "mine" ||
+          category.type === "starred" ||
+          category.type === "import" ||
+          category.type === "archived"
+        ? category.type
+        : "category";
+  const EmptyIcon = hasEmptyFilters
+    ? Search
+    : category.type === "starred"
+      ? Star
+      : category.type === "archived"
+        ? Archive
+        : category.type === "mine"
+          ? FilePlus2
+          : FolderOpen;
+
   const renderContent = (draggedSkill: InstalledSkill | null) => (
     <div className="flex h-full relative">
       <SkillSidebar
@@ -956,8 +983,13 @@ export const InstalledSkills = memo(function InstalledSkills({
           ) : (
             <div className={cn("flex-1 min-h-0 flex gap-0", !repoPanelExpanded && "-mr-6")}>
               {filtered.length === 0 ? (
-                <div className="flex-1 flex items-start justify-center pt-24">
-                  <p className="text-sm text-muted-foreground">{t("installed.noMatch")}</p>
+                <div className="absolute inset-x-6 top-[max(12rem,40%)] flex flex-col items-center text-center px-4">
+                  <EmptyIcon
+                    className="absolute bottom-full mb-4 h-8 w-8 text-muted-foreground/50"
+                    strokeWidth={1.5}
+                    aria-hidden="true"
+                  />
+                  <h2 className="text-sm font-medium">{t(`installed.empty.${emptyKind}.title`)}</h2>
                 </div>
               ) : (
                 <ScrollArea className="flex-1 pt-1">

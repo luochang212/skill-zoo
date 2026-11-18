@@ -100,8 +100,16 @@
     "loadingInstalled": "Loading installed skills...",
     "createSkill": "Create Skill",
     "archiveLoadFailed": "Archive could not be loaded.",
-    "noMatch": "No installed skills match your filters.",
-    "noVisibleAgentsMatch": "No skills match your visible coding agents. Show more coding agents in Settings to include them.",
+    "empty": {
+      "all": { "title": "No skills yet" },
+      "hidden": { "title": "No visible skills" },
+      "filtered": { "title": "No matching skills" },
+      "mine": { "title": "No skills created yet" },
+      "starred": { "title": "No favorites yet" },
+      "import": { "title": "No imported skills yet" },
+      "archived": { "title": "No archived skills" },
+      "category": { "title": "No skills here" }
+    },
     "nameColumn": "Name",
     "repoColumn": "Repo"
   },

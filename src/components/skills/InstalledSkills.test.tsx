@@ -643,10 +643,35 @@ describe("InstalledSkills visible agent filtering", () => {
 
     renderInstalledSkills();
 
-    expect(screen.getByText("No installed skills match your filters.")).toBeInTheDocument();
+    expect(screen.getByText("No visible skills")).toBeInTheDocument();
     expect(
       screen.queryByText(/No skills match your visible coding agents/),
     ).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["all", "No skills yet"],
+    ["mine", "No skills created yet"],
+    ["starred", "No favorites yet"],
+    ["import", "No imported skills yet"],
+    ["archived", "No archived skills"],
+  ] as const)("shows the %s empty state", (type, title) => {
+    renderInstalledSkills({ type });
+    expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
+  });
+
+  it("shows a single title without actions when filters have no matches", async () => {
+    const user = userEvent.setup();
+    mocks.skills = [skill({ id: "example", name: "Example", apps: { codex: true } })];
+    renderInstalledSkills();
+    await user.click(screen.getByRole("button", { name: "Claude Code" }));
+    await user.type(screen.getByRole("textbox"), "missing");
+    expect(screen.getByRole("heading", { name: "No matching skills" })).toBeInTheDocument();
+    expect(
+      screen
+        .getByRole("heading", { name: "No matching skills" })
+        .parentElement?.querySelector("button"),
+    ).toBeNull();
   });
 
   it("does not allow batch archiving external imports", async () => {

@@ -100,8 +100,16 @@
     "loadingInstalled": "正在加载已安装的技能...",
     "createSkill": "创建技能",
     "archiveLoadFailed": "归档无法加载。",
-    "noMatch": "没有匹配筛选条件的已安装技能。",
-    "noVisibleAgentsMatch": "没有匹配当前显示的编程工具的技能。可在设置中显示更多编程工具。",
+    "empty": {
+      "all": { "title": "还没有技能" },
+      "hidden": { "title": "暂无可见技能" },
+      "filtered": { "title": "没有匹配的技能" },
+      "mine": { "title": "还没有创建技能" },
+      "starred": { "title": "还没有收藏技能" },
+      "import": { "title": "还没有导入技能" },
+      "archived": { "title": "暂无归档技能" },
+      "category": { "title": "暂无技能" }
+    },
     "nameColumn": "名称",
     "repoColumn": "仓库"
   },
