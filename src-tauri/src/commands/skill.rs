@@ -1423,6 +1423,7 @@ pub async fn remove_skills(
     skill_ids: Vec<String>,
 ) -> Result<RemoveSkillsResult, String> {
     let _agent_lease = state.acquire_local_lease().map_err(lease_command_error)?;
+    let _refresh = state.cache_refresh_lock.lock().await;
     let mut removed: Vec<String> = Vec::new();
     let mut failed: Vec<RemoveSkillFailure> = Vec::new();
 
