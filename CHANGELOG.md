@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.0.1] — 2026-11-18
+
+### Changed
+- Archive records, archive manifests, and external-import entries now preserve unknown per-entry fields across desktop round-trips, matching the lock file's documented behavior, so metadata written by a newer CLI or desktop version survives older writers instead of being silently dropped. The CLI also writes `archivedByVersion` as the bare version, matching the desktop's format.
+
+### Fixed
+- Archived skills can be selected and restored through the batch bar again. The selection gate shared with other views also disabled row checkboxes in the archive view, leaving the advertised "Restore selected" flow unreachable; star and drag remain disabled there.
+- Skill text writes from the editor now acquire the cross-process local lease, so they can no longer bypass a concurrent desktop or CLI operation and leave a skill silently desynchronized. Lease failures surface as the standard `operationInProgress` error, shaped consistently across commands.
+- The file watcher self-heals when the first query runs before any skill directory exists: the rebuild path restarts the dead watcher, and a failed restart retries on every later query instead of staying silent until a force refresh.
+- Loopback traffic (local LLM endpoints, test servers) is no longer routed into a system proxy on macOS: the shared HTTP client ensures NO_PROXY carries the loopback entries before building.
+- Merging duplicate skills now operates on the visible local scope only: copies whose home agent is hidden stay untouched instead of being silently merged into the SSOT, and merging a single visible copy is rejected.
+- CLI archive restore refuses to run when the archived SKILL.md is missing, and verifies the restored home against a cache rescan after the move, rolling back to a preserved archive record on identity mismatch. `runCli` releases the agent lease in a finally block when an action handler throws, and `imports clean` no longer asserts write access to lock and manifest files it never writes.
+- Branch names in archive zip URLs are URL-encoded, so installing from a branch whose name contains special characters works again.
+- The pull-to-refresh wheel listener is attached natively with `{passive:false}` so `preventDefault` actually blocks the zoom-gesture scroll chain; the local-imports dialog clears its refresh spinner timer on unmount; a failed update recheck keeps the "available" status when an update is already known instead of dropping to idle.
+- Removing an external import also unwatches its source path instead of leaving a stale watcher behind, and external import candidate scanning caps its directory depth.
+
 ## [1.0.0] — 2026-11-18
 
 ### Added
