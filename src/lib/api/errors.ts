@@ -38,11 +38,11 @@ export function formatApiError(error: unknown): string {
         ? "error.githubAuthenticatedRateLimit"
         : "error.githubAnonymousRateLimit";
       const retryAt = apiError.retryAt;
-      const date = typeof retryAt === "number" ? new Date(retryAt * 1000) : null;
-      const time =
-        date && Number.isFinite(date.getTime())
-          ? i18n.t("error.githubRetryAt", { time: date.toLocaleString(i18n.language) })
+      const retryTime =
+        typeof retryAt === "number" && Number.isFinite(new Date(retryAt * 1000).getTime())
+          ? formatRetryTime(retryAt)
           : "";
+      const time = retryTime ? i18n.t("error.githubRetryAt", { time: retryTime }) : "";
       return i18n.t(quotaKey) + time;
     }
     if (code === "badRequest") {
@@ -126,6 +126,28 @@ export function canConfigureGitHubToken(error: unknown): boolean {
     detail?.code === "githubUnauthorized" ||
     (detail?.code === "rateLimited" && detail.authenticated !== true)
   );
+}
+
+export interface RateLimitInfo {
+  authenticated?: boolean;
+  retryAt: number | null;
+}
+
+export function rateLimitInfo(error: unknown): RateLimitInfo | null {
+  const detail = asApiError(error);
+  if (detail?.code !== "rateLimited") return null;
+  return {
+    authenticated: typeof detail.authenticated === "boolean" ? detail.authenticated : undefined,
+    retryAt: typeof detail.retryAt === "number" ? detail.retryAt : null,
+  };
+}
+
+export function formatRetryTime(retryAt: number): string {
+  const date = new Date(retryAt * 1000);
+  if (!Number.isFinite(date.getTime())) return "";
+  return date.toDateString() === new Date().toDateString()
+    ? date.toLocaleTimeString(i18n.language)
+    : date.toLocaleString(i18n.language);
 }
 
 function translateError(key: string, repo?: string): string {

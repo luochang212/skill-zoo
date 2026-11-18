@@ -5,14 +5,16 @@ import { useRefreshRepoPanel, useRepoMetadata, useRepoReadme } from "@/hooks/use
 import { MarkdownContent } from "@/components/skills/MarkdownContent";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { useRepoPanelRefresh } from "@/hooks/useRepoPanelRefresh";
-import { apiErrorCode, formatApiError } from "@/lib/api/errors";
-import { useTranslation } from "react-i18next";
+import { apiErrorCode, formatApiError, formatRetryTime, rateLimitInfo } from "@/lib/api/errors";
+import { useTranslation, Trans } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { GithubIcon } from "@/components/ui/github-icon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { emit } from "@tauri-apps/api/event";
 
 interface RepoInfoPanelProps {
   owner: string;
@@ -40,6 +42,7 @@ export function RepoInfoPanel({ owner, name, collapsed, rotation, onToggle }: Re
     onRefresh: refreshPanel.mutateAsync,
     disabled: collapsed,
   });
+  const quota = metaError ? rateLimitInfo(metaErrorObj) : null;
 
   return (
     <>
@@ -132,20 +135,68 @@ export function RepoInfoPanel({ owner, name, collapsed, rotation, onToggle }: Re
                           <Skeleton className="h-5 w-10 rounded-full" />
                         </div>
                       </div>
+                    ) : metaError && quota ? (
+                      <div className="mt-3 overflow-hidden rounded-2xl border border-orange-200/80 bg-gradient-to-br from-amber-100 via-orange-100 to-rose-100 px-4 py-4 shadow-sm dark:border-amber-400/25 dark:from-amber-950/80 dark:via-orange-950/70 dark:to-rose-950/80">
+                        <div className="flex items-center gap-3">
+                          <p className="min-w-0 flex-1 text-base font-semibold leading-[28px] text-amber-950 dark:text-amber-50">
+                            {t("repoPanel.quotaTitle")}
+                          </p>
+                          <Button
+                            size="sm"
+                            className="h-7 shrink-0 rounded-full bg-gradient-to-br from-amber-400 via-orange-400 to-rose-400 px-3 text-xs font-semibold text-white shadow-md hover:brightness-95"
+                            disabled={refreshing}
+                            onClick={refresh}
+                          >
+                            {t("error.retry")}
+                          </Button>
+                        </div>
+                        <p className="mt-2 text-xs leading-normal text-amber-900/75 dark:text-amber-100/70">
+                          {quota.authenticated === true ? (
+                            t("repoPanel.quotaBodyAuthenticated")
+                          ) : (
+                            <Trans
+                              i18nKey="repoPanel.quotaBodyAnonymous"
+                              components={{
+                                tokenLink: (
+                                  <button
+                                    type="button"
+                                    className="font-medium text-amber-900 underline decoration-amber-500/60 underline-offset-2 hover:text-amber-950 dark:text-amber-100 dark:decoration-amber-300/50"
+                                    onClick={() =>
+                                      void emit("navigate", "settings:github-token").catch(() => {})
+                                    }
+                                  />
+                                ),
+                              }}
+                            />
+                          )}
+                        </p>
+                        {quota.retryAt != null && formatRetryTime(quota.retryAt) && (
+                          <div className="mt-2.5">
+                            <span className="inline-flex items-center rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-medium tabular-nums text-amber-900 dark:bg-white/10 dark:text-amber-100">
+                              {t("repoPanel.quotaResetsAt", {
+                                time: formatRetryTime(quota.retryAt),
+                              })}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     ) : metaError ? (
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <AlertTriangle className="h-3 w-3 text-destructive/70 shrink-0" />
-                        <span className="text-xs text-destructive/80">
-                          {formatApiError(metaErrorObj)}
+                      <div className="mt-3 flex items-start gap-2.5 rounded-2xl border border-destructive/25 bg-destructive/5 px-4 py-3.5">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                          <AlertTriangle className="h-4 w-4" aria-hidden="true" />
                         </span>
-                        <button
-                          type="button"
-                          className="text-xs underline hover:text-foreground cursor-pointer ml-1"
-                          onClick={refresh}
+                        <p className="min-w-0 flex-1 py-1.5 text-xs leading-relaxed text-destructive/90">
+                          {formatApiError(metaErrorObj)}
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 shrink-0 rounded-full px-3.5 text-xs"
                           disabled={refreshing}
+                          onClick={refresh}
                         >
                           {t("error.retry")}
-                        </button>
+                        </Button>
                       </div>
                     ) : (
                       metadata?.description && (
@@ -220,10 +271,20 @@ export function RepoInfoPanel({ owner, name, collapsed, rotation, onToggle }: Re
                         ))}
                       </div>
                     </div>
-                  ) : readmeError && apiErrorCode(readmeError) !== "repoNotFound" ? (
-                    <p className="text-xs text-destructive/80" role="alert">
-                      {formatApiError(readmeError)}
-                    </p>
+                  ) : readmeError &&
+                    apiErrorCode(readmeError) !== "repoNotFound" &&
+                    (!metaError || apiErrorCode(readmeError) !== apiErrorCode(metaErrorObj)) ? (
+                    <div
+                      className="flex items-start gap-2.5 rounded-2xl border border-destructive/25 bg-destructive/5 px-4 py-3"
+                      role="alert"
+                    >
+                      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                        <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                      </span>
+                      <p className="min-w-0 flex-1 text-xs leading-relaxed text-destructive/90">
+                        {formatApiError(readmeError)}
+                      </p>
+                    </div>
                   ) : readme ? (
                     <motion.div
                       className="motion-reduce:opacity-100!"

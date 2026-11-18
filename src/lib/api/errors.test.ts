@@ -1,6 +1,6 @@
 import "@/i18n";
 import { describe, expect, it } from "vitest";
-import { canConfigureGitHubToken, formatApiError } from "@/lib/api/errors";
+import { canConfigureGitHubToken, formatApiError, rateLimitInfo } from "@/lib/api/errors";
 import i18n from "@/i18n";
 
 describe("formatApiError", () => {
@@ -126,7 +126,7 @@ describe("formatApiError", () => {
     const anonymous = { code: "rateLimited", authenticated: false, retryAt };
     const authenticated = { ...anonymous, authenticated: true };
     expect(formatApiError(JSON.stringify(anonymous))).toContain("Configure a token");
-    expect(formatApiError(authenticated)).toContain("Wait before trying again");
+    expect(formatApiError(authenticated)).not.toContain("Configure a token");
     expect(formatApiError(`demo: ${JSON.stringify(authenticated)}`)).toBe(
       formatApiError(authenticated),
     );
@@ -139,11 +139,22 @@ describe("formatApiError", () => {
     await i18n.changeLanguage("zh");
     try {
       expect(formatApiError(anonymous)).toContain("配置 Token");
-      expect(formatApiError(authenticated)).toContain("等待后再试");
+      expect(formatApiError(authenticated)).not.toContain("配置 Token");
       expect(formatApiError({ code: "githubUnauthorized" })).toContain("已失效或被撤销");
       expect(formatApiError({ code: "githubPermissionDenied" })).toContain("组织授权");
     } finally {
       await i18n.changeLanguage("en");
     }
+  });
+  it("parses rate-limit details from structured and stringified errors", () => {
+    expect(rateLimitInfo({ code: "rateLimited", authenticated: false, retryAt: 3600 })).toEqual({
+      authenticated: false,
+      retryAt: 3600,
+    });
+    expect(
+      rateLimitInfo(`demo: ${JSON.stringify({ code: "rateLimited", authenticated: true })}`),
+    ).toEqual({ authenticated: true, retryAt: null });
+    expect(rateLimitInfo({ code: "downloadNetwork" })).toBeNull();
+    expect(rateLimitInfo("unexpected")).toBeNull();
   });
 });

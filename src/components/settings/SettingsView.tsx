@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Palette, PlugZap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { AiSettingsRows } from "./AiSettings";
@@ -18,14 +18,25 @@ export function SettingsView({
   onSkillUsageOpenHandled,
   skillCompanionOpenRequest = 0,
   onSkillCompanionOpenHandled,
+  githubTokenOpenRequest = 0,
+  onGitHubTokenOpenHandled,
 }: {
   skillUsageOpenRequest?: number;
   onSkillUsageOpenHandled?: () => void;
   skillCompanionOpenRequest?: number;
   onSkillCompanionOpenHandled?: () => void;
+  githubTokenOpenRequest?: number;
+  onGitHubTokenOpenHandled?: () => void;
 }) {
   const { t } = useTranslation();
   const [githubTokenOpen, setGithubTokenOpen] = useState(false);
+
+  useEffect(() => {
+    if (githubTokenOpenRequest > 0) {
+      setGithubTokenOpen(true);
+      onGitHubTokenOpenHandled?.();
+    }
+  }, [githubTokenOpenRequest, onGitHubTokenOpenHandled]);
 
   return (
     <div className="flex h-full">

@@ -337,7 +337,7 @@ describe("SkillMaintenanceSettings", () => {
     renderSettings(true);
     await user.click(screen.getByRole("button", { name: /check updates/i }));
     await user.click(await screen.findByRole("button", { name: /update manager/i }));
-    expect(await screen.findByText(/Wait before trying again/)).toHaveTextContent(
+    expect(await screen.findByText(/authenticated requests are rate limited/)).toHaveTextContent(
       "Try again after",
     );
     expect(screen.getByText(/invalid or revoked/)).toBeInTheDocument();

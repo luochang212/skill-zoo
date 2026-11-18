@@ -117,6 +117,7 @@ export default function App() {
   const skillCompanionRequestCounter = useRef(0);
   const [skillUsageOpenRequest, setSkillUsageOpenRequest] = useState(0);
   const skillUsageRequestCounter = useRef(0);
+  const [githubTokenOpenRequest, setGithubTokenOpenRequest] = useState(0);
   const [showCreateSkill, setShowCreateSkill] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<DiscoverRepo | null>(null);
   const [archivedEditor, setArchivedEditor] = useState<{ archiveId: string; name: string } | null>(
@@ -202,6 +203,11 @@ export default function App() {
           setView("settings");
           skillCompanionRequestCounter.current += 1;
           setSkillCompanionOpenRequest(skillCompanionRequestCounter.current);
+        });
+      } else if (target === "settings:github-token") {
+        handleTrayNavigateRef.current(() => {
+          setView("settings");
+          setGithubTokenOpenRequest((count) => count + 1);
         });
       }
     }).then((registeredUnlisten) => {
@@ -372,6 +378,8 @@ export default function App() {
             onSkillUsageOpenHandled={() => setSkillUsageOpenRequest(0)}
             skillCompanionOpenRequest={skillCompanionOpenRequest}
             onSkillCompanionOpenHandled={() => setSkillCompanionOpenRequest(0)}
+            githubTokenOpenRequest={githubTokenOpenRequest}
+            onGitHubTokenOpenHandled={() => setGithubTokenOpenRequest(0)}
           />
         )}
       </>

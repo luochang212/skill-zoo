@@ -165,9 +165,9 @@
     "downloadTls": "{{repo}} 的 TLS / 证书验证失败。",
     "githubUnauthorized": "GitHub Token 已失效或被撤销，请在「设置 → GitHub 连接」中重新配置。",
     "githubPermissionDenied": "GitHub 拒绝访问此仓库，请检查 Token 权限和组织授权。",
-    "githubAnonymousRateLimit": "GitHub 匿名请求已被限流，请在「设置 → GitHub 连接」中配置 Token 提高额度，或稍后重试。",
-    "githubAuthenticatedRateLimit": "GitHub 认证请求已被限流，请等待后再试。",
-    "githubRetryAt": " 可在 {{time}} 后重试。",
+    "githubAnonymousRateLimit": "GitHub 匿名请求已被限流，可在「设置 → GitHub 连接」中配置 Token 提高额度。",
+    "githubAuthenticatedRateLimit": "GitHub 认证请求已被限流。",
+    "githubRetryAt": " 请在 {{time}} 后重试。",
     "downloadUnavailable": "{{repo}} 暂时无法访问，请稍后重试。",
     "downloadFailed": "{{repo}} 下载失败，请稍后重试。",
     "cliMissing": "未找到所需工具，请确认已安装 Node.js 和 npx。",
@@ -651,7 +651,11 @@
     "installedCount": "已安装 {{count}} 个技能",
     "lastActive": "最近活跃：",
     "lastPush": "最近推送：",
-    "viewOnGitHub": "在 GitHub 查看"
+    "viewOnGitHub": "在 GitHub 查看",
+    "quotaTitle": "GitHub 额度用完啦 😈",
+    "quotaBodyAnonymous": "匿名请求额度有限，<tokenLink>配置 Token</tokenLink> 可提升额度。",
+    "quotaBodyAuthenticated": "认证账号的请求额度暂时用完，稍候再试。",
+    "quotaResetsAt": "{{time}} 自动恢复"
   },
   "updateExitDialog": {
     "title": "退出 Skill Zoo？",

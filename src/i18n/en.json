@@ -165,8 +165,8 @@
     "downloadTls": "TLS / certificate verification failed for {{repo}}.",
     "githubUnauthorized": "GitHub token is invalid or revoked. Replace it in Settings → GitHub connection.",
     "githubPermissionDenied": "GitHub denied access to this repository. Check token permissions and organization authorization.",
-    "githubAnonymousRateLimit": "GitHub anonymous requests are rate limited. Configure a token in Settings → GitHub connection to increase the quota, or try again later.",
-    "githubAuthenticatedRateLimit": "GitHub authenticated requests are rate limited. Wait before trying again.",
+    "githubAnonymousRateLimit": "GitHub anonymous requests are rate limited. Configure a token in Settings → GitHub connection to increase the quota.",
+    "githubAuthenticatedRateLimit": "GitHub authenticated requests are rate limited.",
     "githubRetryAt": " Try again after {{time}}.",
     "downloadUnavailable": "{{repo}} is temporarily unavailable. Please try again later.",
     "downloadFailed": "Failed to download {{repo}}. Please try again.",
@@ -651,7 +651,11 @@
     "installedCount": "{{count}} skills installed",
     "lastActive": "Last active:",
     "lastPush": "Last push:",
-    "viewOnGitHub": "View on GitHub"
+    "viewOnGitHub": "View on GitHub",
+    "quotaTitle": "GitHub quota used up 😈",
+    "quotaBodyAnonymous": "Anonymous requests have a limited quota. <tokenLink>Configure a token</tokenLink> for a higher limit.",
+    "quotaBodyAuthenticated": "The request quota for your authenticated account is used up. Try again later.",
+    "quotaResetsAt": "Resets at {{time}}"
   },
   "updateExitDialog": {
     "title": "Quit Skill Zoo?",
