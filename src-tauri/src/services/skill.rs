@@ -1596,6 +1596,13 @@ impl SkillService {
             .collect();
         let mut entries = Vec::with_capacity(skill_roots.len());
         for (skill_root, scan_root, agent_id) in skill_roots {
+            if skill_root
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(Self::is_app_temp_dir)
+            {
+                continue;
+            }
             if !imports_by_source.is_empty() {
                 if let Some(import) =
                     directory_identity(skill_root).and_then(|key| imports_by_source.get(&key))

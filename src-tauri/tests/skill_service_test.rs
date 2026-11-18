@@ -4,6 +4,7 @@ use common::{
     make_cache_entry, make_lock_entry, MetadataStore, SkillCache, SkillCacheEntry, SkillLock,
     SkillService,
 };
+use skill_zoo_lib::config;
 use skill_zoo_lib::services::skill::DiscoverableSkillInstallStatus;
 use std::collections::HashMap;
 use std::sync::RwLock;
@@ -332,6 +333,51 @@ fn test_scan_skill_root_for_test_scans_agent_origin_without_ssot_fallback() {
     assert_eq!(entry.home_agent.as_deref(), Some("codex"));
     assert!(entry.apps.contains_key("codex"));
     assert!(entry.content_hash.is_some());
+}
+
+#[test]
+fn scan_skill_roots_batch_skips_app_staging_directories() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    config::with_test_home(tmp.path(), || {
+        let scan_root = tmp.path().join(".agents").join("skills");
+        let staging = scan_root.join(".demo.install.123");
+        std::fs::create_dir_all(&staging).expect("create staging dir");
+        std::fs::write(
+            staging.join("SKILL.md"),
+            "---\nname: demo\ndescription: mid-install\n---\n\n# Body",
+        )
+        .expect("write skill");
+
+        let entries =
+            SkillService::scan_skill_roots_batch(&[(staging.clone(), scan_root.clone(), None)])
+                .expect("scan batch");
+        assert!(
+            entries.is_empty(),
+            "install staging directory must not produce a cache entry"
+        );
+
+        let backup = scan_root.join(".demo.backup.9");
+        std::fs::rename(&staging, &backup).expect("recreate as merge backup dir");
+
+        let entries =
+            SkillService::scan_skill_roots_batch(&[(backup.clone(), scan_root.clone(), None)])
+                .expect("scan batch");
+        assert!(
+            entries.is_empty(),
+            "merge backup directory must not produce a cache entry"
+        );
+
+        std::fs::rename(&backup, scan_root.join("demo")).expect("finish install rename");
+
+        let entries =
+            SkillService::scan_skill_roots_batch(&[(scan_root.join("demo"), scan_root, None)])
+                .expect("scan batch");
+        assert_eq!(
+            entries.len(),
+            1,
+            "renamed final directory must be scanned normally"
+        );
+    });
 }
 
 #[test]
