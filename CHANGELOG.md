@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.0] — 2026-11-18
+
+### Added
+- The repo panel renders a dedicated quota card when GitHub rate limits repository metadata: anonymous limits get a token-configuration shortcut that opens the GitHub connection settings, authenticated limits a plain body, and both carry a reset-time pill and a retry button. Same-day timestamps collapse to clock time, the README alert stays quiet when it would repeat the metadata error, and the generic rate-limit copy drops the retry hint the reset time now carries.
+
+### Changed
+- Empty states in the installed-skills view are per-context now: all, mine, starred, imported, and archived views each name themselves with a matching muted icon, a full library whose entries are all invisible says skills exist but none are shown instead of blaming filters, and filtered views show a bare title without actions. The orphaned noVisibleAgentsMatch message is removed.
+- Release DMGs built on macOS CI regain their window decoration — icon layout, background, and window position — by opting only the DMG bundler out of the CI check instead of weakening the CI variable for the whole job.
+
 ## [1.0.1] — 2026-11-18
 
 ### Changed
