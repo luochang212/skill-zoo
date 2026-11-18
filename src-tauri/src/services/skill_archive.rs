@@ -682,6 +682,11 @@ fn restore_archived_skill_inner(
         }
         let agent_skill_path =
             agent_dir.join(SkillService::agent_link_name(&archived_skill.directory));
+        if archived_skill.home_agent.as_deref() == Some(agent.as_str())
+            && agent_skill_path != restore_path
+        {
+            continue;
+        }
         if agent_skill_path.exists() && !is_symlink_or_junction(&agent_skill_path) {
             let is_native_home = agent_skill_path == restore_path
                 || agent_skill_path
@@ -1279,6 +1284,9 @@ mod tests {
                     lock.write().unwrap();
                 }
                 let lock_before = serde_json::to_value(&lock).unwrap();
+                let flat = config::get_agent_skills_dir("codex")
+                    .map(|root| root.join(SkillService::agent_link_name(&case.directory)));
+                let flat_before = flat.as_ref().is_some_and(|p| p.symlink_metadata().is_ok());
                 archive_one(&state, entry.id.clone()).unwrap();
                 let id = ArchiveManifest::make_archive_id(&entry.id, &entry.directory);
                 if case.historical_lock {
@@ -1305,6 +1313,8 @@ mod tests {
                 );
                 let metadata = state.metadata.read().unwrap();
                 assert!(metadata.get(&entry.id).starred && metadata.get(&entry.id).is_mine);
+                let flat_after = flat.as_ref().is_some_and(|p| p.symlink_metadata().is_ok());
+                assert_eq!(flat_after, flat_before, "{}", case.name);
             });
         }
     }
