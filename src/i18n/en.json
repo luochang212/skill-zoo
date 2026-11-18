@@ -535,6 +535,8 @@
       "usageReadFailed": "Could not read usage from {{agent}}.",
       "usageRetry": "Retry",
       "usageAgentSaveFailed": "Could not save the usage agent selection.",
+      "usagePreferences": "Skill preferences",
+      "usageSkillsCount": "{{count}} skill(s)",
       "screenshotSave": "Save screenshot to Desktop",
       "screenshotSaved": "Saved screenshot to Desktop",
       "screenshotFailed": "Could not save screenshot",

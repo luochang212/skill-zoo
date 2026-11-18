@@ -101,6 +101,7 @@ function usageDateRange(dayCount: number) {
 }
 
 function DailyChart({ breakdown }: { breakdown: DailyCount[] }) {
+  const { t } = useTranslation();
   const max = breakdown.reduce((value, d) => Math.max(value, d.count), 0) || 1;
   const n = breakdown.length;
   const gapPct = Math.max(0.8, Math.min(6, 32 / n));
@@ -123,7 +124,7 @@ function DailyChart({ breakdown }: { breakdown: DailyCount[] }) {
           <div
             key={d.date}
             className="flex-1 flex flex-col justify-end min-w-0 self-stretch"
-            title={`${d.date}  ${d.count} call(s)`}
+            title={`${d.date}  ${t("settings.skillCompanion.usageCalls", { count: d.count })}`}
           >
             <div
               className="w-full bg-emerald-500/70 hover:bg-emerald-500 transition-colors duration-150"
@@ -178,7 +179,7 @@ function SkillUsageBars({
         <div
           key={skill.name}
           className="grid grid-cols-[minmax(0,9rem)_1fr_3ch_5ch] items-center gap-3 group cursor-default"
-          title={`${skill.name}: ${skill.count} (${formatUsageShare(skill.count, total)})`}
+          title={`${skill.name}: ${t("settings.skillCompanion.usageCalls", { count: skill.count })} (${formatUsageShare(skill.count, total)})`}
         >
           <span className="truncate text-foreground">{skill.name}</span>
           <div className="h-1.5 overflow-hidden rounded-full bg-border/60">
@@ -525,7 +526,7 @@ function SkillUsageDialog({
                 )}
                 <SkillUsageBars period={period} agentDisplayName={agentDisplayName} />
                 <p className="flex items-center justify-between gap-3 border-t border-border/30 pt-3 text-[11px] leading-5 text-muted-foreground">
-                  <span className="shrink-0 whitespace-nowrap">{`▸ Skill preferences · ${activeSkillCount} skills · ${dateRange.start} ~ ${dateRange.end}`}</span>
+                  <span className="shrink-0 whitespace-nowrap">{`▸ ${t("settings.skillCompanion.usagePreferences")} · ${t("settings.skillCompanion.usageSkillsCount", { count: activeSkillCount })} · ${dateRange.start} ~ ${dateRange.end}`}</span>
                   <span
                     data-screenshot-only
                     aria-hidden="true"

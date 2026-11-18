@@ -383,7 +383,7 @@ describe("SkillCompanionSettings", () => {
     expect(screen.getByText("From code-review")).toBeInTheDocument();
     expect(
       screen.getByText((content) =>
-        /^▸ Skill preferences · 2 skills · \d{4}\.\d{1,2}\.\d{1,2} ~ \d{4}\.\d{1,2}\.\d{1,2}$/.test(
+        /^▸ Skill preferences · 2 skill\(s\) · \d{4}\.\d{1,2}\.\d{1,2} ~ \d{4}\.\d{1,2}\.\d{1,2}$/.test(
           content,
         ),
       ),

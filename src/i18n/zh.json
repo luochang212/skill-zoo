@@ -535,6 +535,8 @@
       "usageReadFailed": "读取 {{agent}} 使用记录失败。",
       "usageRetry": "重试",
       "usageAgentSaveFailed": "保存使用记录来源失败。",
+      "usagePreferences": "技能偏好",
+      "usageSkillsCount": "{{count}} 个技能",
       "screenshotSave": "保存截图到桌面",
       "screenshotSaved": "截图已保存到桌面",
       "screenshotFailed": "截图保存失败",
