@@ -344,20 +344,24 @@ export async function importExternalSkills(
         const now = Math.floor(Date.now() / 1000);
         const existingEntry = existingImports.imports[importId];
 
-        const entry: ExternalImportEntry = {
-          id: importId,
-          sourcePath: normalizePath(absSource),
-          directory,
-          importedAt: existingEntry?.importedAt ?? now,
-          updatedAt: now,
-        };
-
         for (const { dir: agentDir } of allAgentDirs) {
           const linkPath = path.join(agentDir, agentLinkName(directory));
           if (await createAgentLink(linkPath, absSource)) itemLinks.push(linkPath);
         }
 
-        existingImports.imports[importId] = entry;
+        if (existingEntry) {
+          existingEntry.sourcePath = normalizePath(absSource);
+          existingEntry.directory = directory;
+          existingEntry.updatedAt = now;
+        } else {
+          existingImports.imports[importId] = {
+            id: importId,
+            sourcePath: normalizePath(absSource),
+            directory,
+            importedAt: now,
+            updatedAt: now,
+          };
+        }
         resolvedToId.set(canonicalSource, importId);
         newImportIds.push(importId);
         createdLinks.push(...itemLinks);

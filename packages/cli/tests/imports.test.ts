@@ -328,6 +328,26 @@ describe("importExternalSkills", () => {
     expect(second.added[0]).toBe(firstId);
   });
 
+  it("preserves unknown entry fields when re-importing same path", async () => {
+    const home = await makeTempHome();
+    const sourcePath = path.join(home, "private", "utils");
+    await writeSkill(sourcePath, "name: Utils");
+
+    await importExternalSkills(home, [sourcePath], ["claude-code"]);
+    const imports = await readExternalImports(home);
+    const entry = Object.values(imports.imports)[0] as Record<string, unknown>;
+    entry.futureOptional = "written-by-newer-producer";
+    await writeJson(getPaths(home).externalImportsFile, imports);
+
+    await importExternalSkills(home, [sourcePath], ["claude-code"]);
+
+    const reimported = await readExternalImports(home);
+    const updated = Object.values(reimported.imports)[0] as Record<string, unknown>;
+    expect(updated.futureOptional).toBe("written-by-newer-producer");
+    expect(updated.sourcePath).toBe(normalizePath(sourcePath));
+    expect(updated.directory).toBe("utils");
+  });
+
   it("skips agents whose skill dirs do not exist", async () => {
     const home = await makeTempHome();
     const sourcePath = path.join(home, "private", "utils");
