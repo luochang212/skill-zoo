@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.1] — 2026-11-19
+
+### Fixed
+- The watcher's incremental scans skip the app's own staging directories (`.install.`, `.backup.`, `.update.`), so a skill still being copied into place can no longer surface as a phantom entry and broadcast a spurious change event.
+- Removing skills holds the cache refresh lock, so a watcher rebuild running at the same moment can no longer resurrect entries the user just removed.
+- Restoring an archived skill whose home agent keeps it in a nested folder no longer adds a flat symlink beside it, which made the same skill show up twice in that agent.
+- The CLI import registry keeps unknown per-entry fields when re-importing a path that is already imported, so metadata written by a newer producer survives the rewrite. Re-import updates the recorded source path, directory and timestamp in place, matching the desktop.
+- Skill Usage dialog text is localized: the footer line and the per-day and per-skill tooltips render in the user's language instead of staying English.
+
 ## [1.1.0] — 2026-11-18
 
 ### Added
