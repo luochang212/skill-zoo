@@ -30,7 +30,7 @@
 
 ## 分支权威性
 
-`main` 是权威开发主线；CI 在每次向它 push 和 PR 时运行。`next/own-protocol` 已 fast-forward 回 `main`。`next/curated` 是 0.3.56 兼容性实验（本地 tag `v0.3.56-beta.4`），`next/verified-baselines` 是冻结的 0.3.56 预发布实验；两者均仅作参考。
+`main` 是权威开发主线；CI 在每次向它 push 和 PR 时运行。`next/own-protocol` 的两个提交均已等价落地 `main`（`4b19d8e`、`89b22f3`，`git cherry main next/own-protocol` 可验证），但与 `main` 的祖先关系断裂，`git branch -d` 会拒绝删除，需 `-D`。`next/curated` 是 0.3.56 兼容性实验（本地 tag `v0.3.56-beta.4`），`next/verified-baselines` 是冻结的 0.3.56 预发布实验；两者均仅作参考。
 
 ## 这个项目是什么
 
