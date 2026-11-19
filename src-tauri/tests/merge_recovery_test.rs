@@ -3,7 +3,7 @@ use common::*;
 use skill_zoo_lib::{
     config,
     persistence::metadata::SkillMetadata,
-    persistence::{MetadataStore, SkillCache},
+    persistence::{normalize_path_separators, MetadataStore, SkillCache},
 };
 use std::{collections::HashMap, sync::RwLock};
 
@@ -324,7 +324,7 @@ fn merge_ignores_hidden_agent_copies_and_leaves_their_directories_untouched() {
                 .unwrap()
                 .home_path
                 .as_deref(),
-            Some(ssot.to_string_lossy().as_ref())
+            Some(normalize_path_separators(ssot.to_string_lossy().as_ref()).as_ref())
         );
     });
 }

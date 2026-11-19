@@ -1249,7 +1249,7 @@ mod tests {
             if std::fs::read_dir(cache_dir).is_ok_and(|entries| {
                 entries
                     .flatten()
-                    .filter(|entry| entry.metadata().is_ok_and(|m| m.len() > 0))
+                    .filter(|entry| std::fs::metadata(entry.path()).is_ok_and(|m| m.len() > 0))
                     .count()
                     == expected
             }) {
