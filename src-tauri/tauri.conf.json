@@ -47,7 +47,7 @@
       "resources": "."
     },
     "macOS": {
-      "minimumSystemVersion": "13.3"
+      "minimumSystemVersion": "14.0"
     }
   },
   "plugins": {

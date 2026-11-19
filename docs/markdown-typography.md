@@ -74,7 +74,7 @@ height, code padding/whitespace/scrolling, task markers and document overflow.
 DPR values 1, 1.25, 1.5 and 2 cover rasterization/layout smoke checks, **not** native
 Windows display scaling. Screenshots are inspected at narrow/wide widths.
 
-Windows WebView2, Linux WebKitGTK, older Safari 16.4, physical non-Retina hardware,
+Windows WebView2, Linux WebKitGTK, Safari 17 (the support floor), physical non-Retina hardware,
 and native OS scaling/accessibility configurations require testing on those
 systems. A macOS-hosted browser/DPR check must not be reported as that coverage.
 

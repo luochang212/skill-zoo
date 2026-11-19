@@ -244,8 +244,8 @@ export const messages = {
     "en": "View all releases on GitHub"
   },
   "install-mac-step1": {
-    "zh": "确认系统为 macOS 13.3 或更新版本，打开下载的 <code>.dmg</code> 文件",
-    "en": "On macOS 13.3 or later, open the downloaded <code>.dmg</code> file"
+    "zh": "确认系统为 macOS 14 或更新版本，打开下载的 <code>.dmg</code> 文件",
+    "en": "On macOS 14 or later, open the downloaded <code>.dmg</code> file"
   },
   "install-mac-step2": {
     "zh": "将 <strong>Skill Zoo</strong> 拖入 <code>Applications</code> 文件夹",

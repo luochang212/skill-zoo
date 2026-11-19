@@ -4,11 +4,11 @@ import tauriConfig from "../src-tauri/tauri.conf.json?raw";
 
 describe("browser support floor", () => {
   it("pins the same floor in vite.config.ts and src-tauri/tauri.conf.json", () => {
-    expect(viteConfig).toMatch(/target:\s*"safari16\.4"/);
+    expect(viteConfig).toMatch(/target:\s*"safari17\.0"/);
 
     const tauri = JSON.parse(tauriConfig) as {
       bundle: { macOS: { minimumSystemVersion: string } };
     };
-    expect(tauri.bundle.macOS.minimumSystemVersion).toBe("13.3");
+    expect(tauri.bundle.macOS.minimumSystemVersion).toBe("14.0");
   });
 });

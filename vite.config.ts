@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [react()],
   base: "./",
   build: {
-    target: "safari16.4",
+    target: "safari17.0",
     outDir: "../dist",
     emptyOutDir: true,
   },

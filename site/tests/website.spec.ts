@@ -115,7 +115,7 @@ for (const [os, ua, suffix] of [
     await expect(page.locator('#install-modal')).toBeVisible();
     await expect(page.locator('#dl-manual')).toHaveAttribute('href', expected);
     await expect(page.locator('#dl-manual')).toHaveText('点此手动下载');
-    await expect(page.locator('#modal-steps')).toContainText(os === 'macos' ? 'macOS 13.3' : os === 'windows' ? '安装程序' : 'AppImage');
+    await expect(page.locator('#modal-steps')).toContainText(os === 'macos' ? 'macOS 14' : os === 'windows' ? '安装程序' : 'AppImage');
     expect(requests).toEqual([base + 'version.json']);
     await page.locator('[data-os="windows"]').click();
     await expect(page.locator('#modal-alt a')).toHaveAttribute('href', `${releases}/download/v1.2.3/Skill-Zoo-v1.2.3-Windows-Portable.zip`);

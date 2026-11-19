@@ -101,9 +101,9 @@ Skill 以普通文件的形式存在于磁盘上。缓存不是事实来源，�
 
 ### 浏览器支持基线
 
-前端发布在三个引擎上（macOS 用 WKWebView，Windows 用 WebView2，Linux 用 WebKitGTK），所以"Baseline widely available"不是标准。标准是 **Safari 16.4 / macOS 13.3**——恰好是 Baseline Widely Available 的 Safari 边界，也是 Tailwind v4 的文档基线。
+前端发布在三个引擎上（macOS 用 WKWebView，Windows 用 WebView2，Linux 用 WebKitGTK），所以"Baseline widely available"不是标准。标准是 **Safari 17 / macOS 14**（2026-11-20 为支持 `toSorted` 等方法从 Safari 16.4 抬高）。Tailwind v4 的文档基线是 Safari 16.4，低于本基线，故 Tailwind 产出的 CSS 需按渐进处理。
 
-这条基线有两个机器可读的归宿，每个维度一个：浏览器引擎在 `vite.config.ts` 的 `build.target`（显式固定为 `safari16.4`），OS 版本在 `src-tauri/tauri.conf.json` 的 `bundle.macOS.minimumSystemVersion`。文字描述不得与两者矛盾。
+这条基线有两个机器可读的归宿，每个维度一个：浏览器引擎在 `vite.config.ts` 的 `build.target`（显式固定为 `safari17.0`），OS 版本在 `src-tauri/tauri.conf.json` 的 `bundle.macOS.minimumSystemVersion`。文字描述不得与两者矛盾。
 
 每个平台特性属于两类之一。**承重（load-bearing）**特性是应用缺了它就坏的特性，必须特性检测或提供回退。**渐进（progressive）**特性是缺了只会降级不会崩溃的特性（主题切换的 view transition 和 `::-webkit-scrollbar` 颜色回退都是渐进的）。不在同一次改动中抬高基线，就不要添加高于基线的承重特性。
 
