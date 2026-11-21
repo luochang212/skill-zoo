@@ -247,7 +247,7 @@ export function ModelProvidersSection({
       ) : (
         <div
           className={cn(
-            "grid max-h-[min(560px,calc(100vh-12rem))] min-h-0 grid-cols-1",
+            "grid h-[min(560px,calc(100vh-12rem))] min-h-0 grid-cols-1",
             !choosingTemplate &&
               "grid-rows-[auto_minmax(0,1fr)] sm:grid-cols-[180px_minmax(0,1fr)] sm:grid-rows-[minmax(0,1fr)]",
           )}
