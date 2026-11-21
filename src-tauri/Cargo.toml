@@ -5,11 +5,11 @@ description = "Local GUI tool for managing Agent Skills"
 authors = ["luochang212"]
 license = "MIT"
 edition = "2021"
-# Matches the highest MSRV in Cargo.lock (currently tauri 2.12 / muda at
-# 1.90; zip 9.0.5 needs 1.88). `rust-version` is advisory metadata that cargo
+# Matches the highest MSRV in Cargo.lock (currently notify 9.0 at
+# 1.91; tauri 2.12 / muda at 1.90). `rust-version` is advisory metadata that cargo
 # does not enforce against dependencies, so a lower value would only mislead
 # anyone deciding which toolchain to install.
-rust-version = "1.90.0"
+rust-version = "1.91.0"
 
 [lib]
 name = "skill_zoo_lib"
@@ -47,11 +47,11 @@ regex = "1.12"
 tempfile = "3"
 zip = "9.0"
 sha2 = "0.11"
-notify = "8"
+notify = "9"
 rand = "0.10"
 urlencoding = "2.1"
 arboard = { version = "3.6.1", default-features = false }
-rusqlite = { version = "0.41", features = ["bundled"] }
+rusqlite = { version = "0.43", features = ["bundled"] }
 unicode-width = "0.2"
 socket2 = { version = "0.6", features = ["all"] }
 zstd = "0.14.3"
