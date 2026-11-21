@@ -332,6 +332,8 @@ async fn trigger_incremental_refresh(
     state: &AppState,
     skill_roots: &[SkillRoot],
 ) -> Result<(), crate::error::AppError> {
+    use crate::services::skill::{prior_hashes, PriorHashMap};
+
     let _refresh_guard = state.cache_refresh_lock.lock().await;
     let scan_inputs: Vec<(PathBuf, PathBuf, Option<String>)> = skill_roots
         .iter()
@@ -344,7 +346,18 @@ async fn trigger_incremental_refresh(
         })
         .collect();
 
-    let entries = SkillService::scan_skill_roots_batch(&scan_inputs)?;
+    let prior: PriorHashMap = {
+        let cache = state
+            .skill_cache
+            .read()
+            .map_err(|e: std::sync::PoisonError<_>| crate::error::AppError::Cli(e.to_string()))?;
+        prior_hashes(&cache)
+    };
+    let entries = tokio::task::spawn_blocking(move || {
+        SkillService::scan_skill_roots_batch_with_prior(&scan_inputs, &prior)
+    })
+    .await
+    .map_err(|e| crate::error::AppError::Parse(format!("Skill scan panicked: {e}")))??;
     SkillService::upsert_cache_entries(&state.skill_cache, entries)
 }
 

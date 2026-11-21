@@ -78,6 +78,8 @@ pub struct SkillCacheEntry {
     pub origin: String,
     pub home_path: Option<String>,
     pub content_hash: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hash_fingerprint: Option<String>,
     pub home_agent: Option<String>,
     #[serde(default)]
     pub apps: HashMap<String, bool>,

@@ -15,6 +15,25 @@ use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 use tauri::Emitter;
 
+/// Cache-keyed hash reuse: keys are normalized home paths, values are
+/// (content_hash, hash_fingerprint) from the previous scan.
+pub type PriorHashMap = HashMap<String, (Option<String>, Option<String>)>;
+
+pub(crate) fn prior_hashes(cache: &SkillCache) -> PriorHashMap {
+    cache
+        .skills()
+        .iter()
+        .filter_map(|e| {
+            e.home_path.as_ref().map(|hp| {
+                (
+                    hp.clone(),
+                    (e.content_hash.clone(), e.hash_fingerprint.clone()),
+                )
+            })
+        })
+        .collect()
+}
+
 pub(crate) fn normalize_repo_skill_path(path: &str) -> String {
     let normalized = path
         .replace('\\', "/")
@@ -592,21 +611,70 @@ impl SkillService {
     }
 
     fn compute_content_hash(home_path: &str) -> Option<String> {
-        use sha2::{Digest, Sha256};
         let root = std::path::Path::new(home_path);
-        if !root.is_dir() {
+        let mut files: Vec<std::path::PathBuf> = Vec::new();
+        if !Self::collect_skill_files(root, &mut files) {
             return None;
         }
-        let mut files: Vec<std::path::PathBuf> = Vec::new();
-        if !Self::collect_files_recursive(root, root, 0, &mut files) {
-            return None;
+        Self::content_hash_from_files(root, &files)
+    }
+
+    fn collect_skill_files(root: &std::path::Path, files: &mut Vec<std::path::PathBuf>) -> bool {
+        if !root.is_dir() {
+            return false;
+        }
+        if !Self::collect_files_recursive(root, root, 0, files) {
+            return false;
         }
         if files.is_empty() {
-            return None;
+            return false;
         }
         files.sort();
+        true
+    }
+
+    /// Stat-only fingerprint (path, len, mtime) of every skill file. Two
+    /// walks with the same fingerprint cannot have different content in any
+    /// realistic scenario, so a match lets scans skip re-reading file bytes.
+    fn hash_fingerprint_from_files(
+        root: &std::path::Path,
+        files: &[std::path::PathBuf],
+    ) -> Option<String> {
+        use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
-        for rel_path in &files {
+        for rel_path in files {
+            hasher.update(rel_path.to_str()?);
+            hasher.update(b"\0");
+            let full_path = root.join(rel_path);
+            match std::fs::metadata(&full_path) {
+                Ok(meta) => {
+                    hasher.update(meta.len().to_le_bytes());
+                    let (secs, nanos) = match meta
+                        .modified()
+                        .ok()
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    {
+                        Some(d) => (d.as_secs(), d.subsec_nanos()),
+                        None => (0, 0),
+                    };
+                    hasher.update(secs.to_le_bytes());
+                    hasher.update(nanos.to_le_bytes());
+                }
+                Err(_) => hasher.update(b"missing"),
+            }
+            hasher.update(b"\0");
+        }
+        let result = hasher.finalize();
+        Some(result.iter().map(|b| format!("{:02x}", b)).collect())
+    }
+
+    fn content_hash_from_files(
+        root: &std::path::Path,
+        files: &[std::path::PathBuf],
+    ) -> Option<String> {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        for rel_path in files {
             hasher.update(rel_path.to_str()?);
             hasher.update(b"\0");
             let full_path = root.join(rel_path);
@@ -635,6 +703,26 @@ impl SkillService {
         }
         let result = hasher.finalize();
         Some(result.iter().map(|b| format!("{:02x}", b)).collect())
+    }
+
+    fn resolve_content_hash(
+        prior: &PriorHashMap,
+        home_path: &str,
+    ) -> (Option<String>, Option<String>) {
+        let root = std::path::Path::new(home_path);
+        let mut files: Vec<std::path::PathBuf> = Vec::new();
+        if !Self::collect_skill_files(root, &mut files) {
+            return (None, None);
+        }
+        let fingerprint = Self::hash_fingerprint_from_files(root, &files);
+        if let (Some(fp), Some((hash, Some(prior_fp)))) =
+            (fingerprint.as_ref(), prior.get(home_path))
+        {
+            if prior_fp == fp {
+                return (hash.clone(), fingerprint);
+            }
+        }
+        (Self::content_hash_from_files(root, &files), fingerprint)
     }
 
     fn collect_files_recursive(
@@ -721,11 +809,17 @@ impl SkillService {
         let _refresh_guard = refresh_lock.lock().await;
 
         let snapshot = config::agents();
+        let prior: PriorHashMap = {
+            let cache = cache
+                .read()
+                .map_err(|e: std::sync::PoisonError<_>| AppError::Cli(e.to_string()))?;
+            prior_hashes(&cache)
+        };
         let entries = tokio::task::spawn_blocking(move || {
             config::with_agent_snapshot(snapshot, || {
                 let mut entries: Vec<SkillCacheEntry> = Vec::new();
-                Self::scan_filesystem_into(&mut entries);
-                Self::scan_external_imports_into(&mut entries);
+                Self::scan_filesystem_into(&mut entries, &prior);
+                Self::scan_external_imports_into(&mut entries, &prior);
                 Self::scan_plugin_skills_into(&mut entries);
                 entries
             })
@@ -754,10 +848,17 @@ impl SkillService {
         skill_dirs: Vec<String>,
     ) -> Result<Vec<InstalledSkill>, AppError> {
         let _refresh_guard = refresh_lock.lock().await;
-        let (entries, failed) =
-            tokio::task::spawn_blocking(move || Self::scan_skills_batch(&skill_dirs))
-                .await
-                .map_err(|e| AppError::Parse(format!("Installed skill scan panicked: {e}")))?;
+        let prior: PriorHashMap = {
+            let cache = cache
+                .read()
+                .map_err(|e: std::sync::PoisonError<_>| AppError::Cli(e.to_string()))?;
+            prior_hashes(&cache)
+        };
+        let (entries, failed) = tokio::task::spawn_blocking(move || {
+            Self::scan_skills_batch_with_prior(&skill_dirs, &prior)
+        })
+        .await
+        .map_err(|e| AppError::Parse(format!("Installed skill scan panicked: {e}")))?;
 
         if !failed.is_empty() {
             return Err(AppError::Parse(format!(
@@ -772,7 +873,7 @@ impl SkillService {
         Self::read_all_skills(cache, metadata)
     }
 
-    fn scan_filesystem_into(entries: &mut Vec<SkillCacheEntry>) {
+    fn scan_filesystem_into(entries: &mut Vec<SkillCacheEntry>, prior: &PriorHashMap) {
         let mut scan_dirs: Vec<(PathBuf, Option<String>)> = Vec::new();
         let agents_dir = config::get_agents_skills_dir();
         if agents_dir.exists() {
@@ -810,13 +911,13 @@ impl SkillService {
                 entries,
                 &mut seen_ids,
                 scan_dir,
-                (&imports_by_source, lock.as_ref()),
+                (&imports_by_source, lock.as_ref(), prior),
                 agent_id.as_deref(),
             );
         }
     }
 
-    fn scan_external_imports_into(entries: &mut Vec<SkillCacheEntry>) {
+    fn scan_external_imports_into(entries: &mut Vec<SkillCacheEntry>, prior: &PriorHashMap) {
         let Ok(imports) = ExternalImports::load() else {
             return;
         };
@@ -825,7 +926,7 @@ impl SkillService {
             if external_source_under_ssot(Path::new(&import.source_path)) {
                 continue;
             }
-            let Ok(entry) = Self::scan_external_import(import) else {
+            let Ok(entry) = Self::scan_external_import_with_prior(import, prior) else {
                 continue;
             };
             if seen_ids.insert(entry.id.clone()) {
@@ -972,6 +1073,7 @@ impl SkillService {
             origin: "plugin".to_string(),
             home_path: Some(home_path),
             content_hash,
+            hash_fingerprint: None,
             home_agent: Some(agent_id.to_string()),
             apps,
             plugin_source: Some(directory.to_string()),
@@ -1035,10 +1137,14 @@ impl SkillService {
         entries: &mut Vec<SkillCacheEntry>,
         seen_ids: &mut HashSet<String>,
         scan_root: &PathBuf,
-        scan_sources: (&HashMap<String, &ExternalImportEntry>, Option<&SkillLock>),
+        scan_sources: (
+            &HashMap<String, &ExternalImportEntry>,
+            Option<&SkillLock>,
+            &PriorHashMap,
+        ),
         agent_id: Option<&str>,
     ) {
-        let (imports_by_source, lock) = scan_sources;
+        let (imports_by_source, lock, prior) = scan_sources;
         let Ok(dir_entries) = std::fs::read_dir(dir) else {
             return;
         };
@@ -1053,7 +1159,8 @@ impl SkillService {
                 }
                 if let Some(target) = directory_identity(&path) {
                     if let Some(import) = imports_by_source.get(&target) {
-                        if let Ok(ext_entry) = Self::scan_external_import(import) {
+                        if let Ok(ext_entry) = Self::scan_external_import_with_prior(import, prior)
+                        {
                             if seen_ids.insert(ext_entry.id.clone()) {
                                 entries.push(ext_entry);
                             }
@@ -1076,7 +1183,7 @@ impl SkillService {
                 if let Some(import) =
                     directory_identity(&path).and_then(|key| imports_by_source.get(&key))
                 {
-                    if let Ok(entry) = Self::scan_external_import(import) {
+                    if let Ok(entry) = Self::scan_external_import_with_prior(import, prior) {
                         if seen_ids.insert(entry.id.clone()) {
                             entries.push(entry);
                         }
@@ -1085,7 +1192,8 @@ impl SkillService {
                 }
             }
             if path.join("SKILL.md").exists() {
-                let Ok(entry) = Self::scan_skill_root_with_lock(&path, scan_root, agent_id, lock)
+                let Ok(entry) =
+                    Self::scan_skill_root_with_lock(&path, scan_root, agent_id, lock, prior)
                 else {
                     continue;
                 };
@@ -1106,15 +1214,35 @@ impl SkillService {
         }
     }
 
+    /// Only the YAML frontmatter at the very top of SKILL.md is used for
+    /// name/description. Scans read a bounded head slice instead of whole
+    /// files, falling back to a full read only when the frontmatter opener
+    /// exists but is not closed within the slice.
+    const FRONTMATTER_HEAD_BYTES: u64 = 64 * 1024;
+
     pub fn parse_skill_md(path: &std::path::Path) -> Result<(String, Option<String>), AppError> {
-        let content = std::fs::read_to_string(path).map_err(|e| error::io(path, e))?;
         let fallback_name = path
             .parent()
             .and_then(|p| p.file_name())
             .and_then(|n| n.to_str())
             .unwrap_or("unknown")
             .to_string();
-        Ok(Self::parse_skill_md_content(&content, &fallback_name))
+        let file = std::fs::File::open(path).map_err(|e| error::io(path, e))?;
+        let mut head = Vec::new();
+        {
+            use std::io::Read;
+            let mut limited = file.take(Self::FRONTMATTER_HEAD_BYTES);
+            limited
+                .read_to_end(&mut head)
+                .map_err(|e| error::io(path, e))?;
+        }
+        let head = String::from_utf8_lossy(&head).into_owned();
+        let trimmed = head.strip_prefix('\u{feff}').unwrap_or(&head).trim_start();
+        if trimmed.starts_with("---") && Self::extract_frontmatter(&head).is_none() {
+            let content = std::fs::read_to_string(path).map_err(|e| error::io(path, e))?;
+            return Ok(Self::parse_skill_md_content(&content, &fallback_name));
+        }
+        Ok(Self::parse_skill_md_content(&head, &fallback_name))
     }
 
     pub(crate) fn parse_skill_md_content(
@@ -1562,6 +1690,14 @@ impl SkillService {
     }
 
     pub fn scan_single_skill(skill_dir: &str) -> Result<SkillCacheEntry, AppError> {
+        let empty = PriorHashMap::new();
+        Self::scan_single_skill_with_prior(skill_dir, &empty)
+    }
+
+    pub fn scan_single_skill_with_prior(
+        skill_dir: &str,
+        prior: &PriorHashMap,
+    ) -> Result<SkillCacheEntry, AppError> {
         let origin = Self::detect_origin(skill_dir);
         let home_path = Self::detect_home_path(skill_dir, origin).ok_or_else(|| {
             AppError::NotFound(format!("SKILL.md not found for skill: {skill_dir}"))
@@ -1579,11 +1715,17 @@ impl SkillService {
                     ))
                 })?
         };
-        Self::scan_skill_root(Path::new(&home_path), &scan_root, home_agent.as_deref())
+        Self::scan_skill_root_with_prior(
+            Path::new(&home_path),
+            &scan_root,
+            home_agent.as_deref(),
+            prior,
+        )
     }
 
-    pub fn scan_skill_roots_batch(
+    pub fn scan_skill_roots_batch_with_prior(
         skill_roots: &[(PathBuf, PathBuf, Option<String>)],
+        prior: &PriorHashMap,
     ) -> Result<Vec<SkillCacheEntry>, AppError> {
         let lock = SkillLock::read().ok();
         let imports = ExternalImports::load().unwrap_or_default();
@@ -1607,7 +1749,7 @@ impl SkillService {
                 if let Some(import) =
                     directory_identity(skill_root).and_then(|key| imports_by_source.get(&key))
                 {
-                    entries.push(Self::scan_external_import(import)?);
+                    entries.push(Self::scan_external_import_with_prior(import, prior)?);
                     continue;
                 }
             }
@@ -1616,12 +1758,21 @@ impl SkillService {
                 scan_root,
                 agent_id.as_deref(),
                 lock.as_ref(),
+                prior,
             )?);
         }
         Ok(entries)
     }
 
     pub fn scan_external_import(import: &ExternalImportEntry) -> Result<SkillCacheEntry, AppError> {
+        let empty = PriorHashMap::new();
+        Self::scan_external_import_with_prior(import, &empty)
+    }
+
+    pub fn scan_external_import_with_prior(
+        import: &ExternalImportEntry,
+        prior: &PriorHashMap,
+    ) -> Result<SkillCacheEntry, AppError> {
         let skill_root = PathBuf::from(&import.source_path);
         if external_source_under_ssot(&skill_root) {
             return Err(AppError::BadRequest(
@@ -1653,7 +1804,8 @@ impl SkillService {
             Some(parsed_name)
         };
         let home_path = Some(import.source_path.clone());
-        let content_hash = Self::compute_content_hash(&import.source_path);
+        let (content_hash, hash_fingerprint) =
+            Self::resolve_content_hash(prior, &import.source_path);
         let apps = Self::detect_agents(&import.directory, &home_path);
 
         let mut apps = apps;
@@ -1683,6 +1835,7 @@ impl SkillService {
             origin: "external".to_string(),
             home_path,
             content_hash,
+            hash_fingerprint,
             home_agent: None,
             apps,
             plugin_source: None,
@@ -1696,8 +1849,18 @@ impl SkillService {
         scan_root: &Path,
         agent_id: Option<&str>,
     ) -> Result<SkillCacheEntry, AppError> {
+        let empty = PriorHashMap::new();
+        Self::scan_skill_root_with_prior(skill_root, scan_root, agent_id, &empty)
+    }
+
+    pub fn scan_skill_root_with_prior(
+        skill_root: &Path,
+        scan_root: &Path,
+        agent_id: Option<&str>,
+        prior: &PriorHashMap,
+    ) -> Result<SkillCacheEntry, AppError> {
         let lock = SkillLock::read().ok();
-        Self::scan_skill_root_with_lock(skill_root, scan_root, agent_id, lock.as_ref())
+        Self::scan_skill_root_with_lock(skill_root, scan_root, agent_id, lock.as_ref(), prior)
     }
 
     fn scan_skill_root_with_lock(
@@ -1705,6 +1868,7 @@ impl SkillService {
         scan_root: &Path,
         agent_id: Option<&str>,
         lock: Option<&SkillLock>,
+        prior: &PriorHashMap,
     ) -> Result<SkillCacheEntry, AppError> {
         let skill_md = skill_root.join("SKILL.md");
         if !skill_md.exists() {
@@ -1753,9 +1917,10 @@ impl SkillService {
         let home_path = skill_root
             .to_str()
             .map(crate::persistence::normalize_path_separators);
-        let content_hash = home_path
+        let (content_hash, hash_fingerprint) = home_path
             .as_ref()
-            .and_then(|p| Self::compute_content_hash(p));
+            .map(|p| Self::resolve_content_hash(prior, p))
+            .unwrap_or((None, None));
         let home_agent = if origin == "agent" {
             agent_id
                 .map(str::to_string)
@@ -1783,6 +1948,7 @@ impl SkillService {
             origin: origin.to_string(),
             home_path,
             content_hash,
+            hash_fingerprint,
             home_agent,
             apps,
             plugin_source: None,
@@ -1825,11 +1991,14 @@ impl SkillService {
         c.save()
     }
 
-    pub fn scan_skills_batch(skill_dirs: &[String]) -> (Vec<SkillCacheEntry>, Vec<String>) {
+    pub fn scan_skills_batch_with_prior(
+        skill_dirs: &[String],
+        prior: &PriorHashMap,
+    ) -> (Vec<SkillCacheEntry>, Vec<String>) {
         let mut entries = Vec::with_capacity(skill_dirs.len());
         let mut failed = Vec::new();
         for dir in skill_dirs {
-            match Self::scan_single_skill(dir) {
+            match Self::scan_single_skill_with_prior(dir, prior) {
                 Ok(entry) => entries.push(entry),
                 Err(_) => failed.push(dir.clone()),
             }
@@ -2313,8 +2482,9 @@ mod tests {
             );
             imports.save().unwrap();
             let mut entries = Vec::new();
-            super::SkillService::scan_filesystem_into(&mut entries);
-            super::SkillService::scan_external_imports_into(&mut entries);
+            let prior = super::PriorHashMap::new();
+            super::SkillService::scan_filesystem_into(&mut entries, &prior);
+            super::SkillService::scan_external_imports_into(&mut entries, &prior);
             assert_eq!(entries.len(), 1);
             assert_eq!(entries[0].id, "external:demo");
             assert_eq!(entries[0].origin, "external");
@@ -2564,7 +2734,8 @@ mod tests {
 
         crate::config::with_test_home(home, || {
             let mut entries = Vec::new();
-            SkillService::scan_filesystem_into(&mut entries);
+            let prior = PriorHashMap::new();
+            SkillService::scan_filesystem_into(&mut entries, &prior);
             assert!(
                 entries.iter().any(|e| e.id == "ssot:demo"),
                 "real SSOT skill should be scanned"
@@ -2600,6 +2771,35 @@ mod tests {
                 "a skill unattributable to SSOT or an agent must error, not panic"
             );
         });
+    }
+
+    #[test]
+    fn prior_hash_reuse_matches_fresh_scan_and_detects_content_changes() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let scan_root = root.path().join("skills");
+        let skill = scan_root.join("demo");
+        std::fs::create_dir_all(&skill).expect("skill dir");
+        std::fs::write(skill.join("SKILL.md"), "# Demo").expect("write skill");
+        std::fs::write(skill.join("ref.md"), "body").expect("write ref");
+
+        let first = SkillService::scan_skill_root(&skill, &scan_root, None).unwrap();
+        assert!(first.hash_fingerprint.is_some());
+
+        let prior = prior_hashes(&SkillCache::from_entries(vec![first.clone()]));
+        let second =
+            SkillService::scan_skill_root_with_prior(&skill, &scan_root, None, &prior).unwrap();
+        assert_eq!(second.content_hash, first.content_hash);
+        assert_eq!(second.hash_fingerprint, first.hash_fingerprint);
+
+        std::fs::write(skill.join("ref.md"), "changed body").expect("mutate ref");
+        let third =
+            SkillService::scan_skill_root_with_prior(&skill, &scan_root, None, &prior).unwrap();
+        assert_ne!(third.content_hash, first.content_hash);
+        assert_ne!(third.hash_fingerprint, first.hash_fingerprint);
+        assert_eq!(
+            third.content_hash,
+            SkillService::compute_content_hash(third.home_path.as_deref().expect("home path"))
+        );
     }
 
     #[test]
@@ -3117,6 +3317,7 @@ mod tests {
             origin: "ssot".to_string(),
             home_path: None,
             content_hash: None,
+            hash_fingerprint: None,
             home_agent: None,
             apps: Default::default(),
             plugin_source: None,

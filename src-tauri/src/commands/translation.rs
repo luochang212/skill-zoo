@@ -311,6 +311,7 @@ fn read_source(state: &AppState, skill_id: &str, path: &str, source: &str) -> Re
                 origin: archived.origin.clone(),
                 home_path: Some(root.to_string_lossy().into_owned()),
                 content_hash: None,
+                hash_fingerprint: None,
                 home_agent: None,
                 apps: Default::default(),
                 plugin_source: None,

@@ -1490,6 +1490,7 @@ mod tests {
             origin: origin.to_string(),
             home_path,
             content_hash: None,
+            hash_fingerprint: None,
             home_agent: None,
             plugin_source: None,
             apps: std::collections::HashMap::new(),

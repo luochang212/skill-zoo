@@ -638,11 +638,10 @@ mod tests {
             assert_eq!(retained.id, entry.id);
             assert_eq!(retained.origin, "external");
             assert!(retained.apps["codex"]);
-            let incremental = SkillService::scan_skill_roots_batch(&[(
-                skill.clone(),
-                root,
-                Some("codex".into()),
-            )])
+            let incremental = SkillService::scan_skill_roots_batch_with_prior(
+                &[(skill.clone(), root, Some("codex".into()))],
+                &crate::services::skill::PriorHashMap::new(),
+            )
             .unwrap();
             assert_eq!(incremental.len(), 1);
             assert_eq!(incremental[0].id, entry.id);

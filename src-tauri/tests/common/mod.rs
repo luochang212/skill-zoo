@@ -5,7 +5,7 @@ pub use skill_zoo_lib::persistence::{SkillCache, SkillCacheEntry};
 #[allow(unused_imports)]
 pub use skill_zoo_lib::services::lock::{SkillLock, SkillLockEntry};
 #[allow(unused_imports)]
-pub use skill_zoo_lib::services::skill::SkillService;
+pub use skill_zoo_lib::services::skill::{PriorHashMap, SkillService};
 
 #[allow(dead_code)]
 pub fn make_cache_entry(id: &str, name: &str, directory: &str) -> SkillCacheEntry {
@@ -21,6 +21,7 @@ pub fn make_cache_entry(id: &str, name: &str, directory: &str) -> SkillCacheEntr
         origin: "ssot".to_string(),
         home_path: None,
         content_hash: None,
+        hash_fingerprint: None,
         home_agent: None,
         apps: std::collections::HashMap::new(),
         plugin_source: None,

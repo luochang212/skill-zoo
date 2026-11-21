@@ -1,8 +1,8 @@
 mod common;
 
 use common::{
-    make_cache_entry, make_lock_entry, MetadataStore, SkillCache, SkillCacheEntry, SkillLock,
-    SkillService,
+    make_cache_entry, make_lock_entry, MetadataStore, PriorHashMap, SkillCache, SkillCacheEntry,
+    SkillLock, SkillService,
 };
 use skill_zoo_lib::config;
 use skill_zoo_lib::services::skill::DiscoverableSkillInstallStatus;
@@ -348,9 +348,12 @@ fn scan_skill_roots_batch_skips_app_staging_directories() {
         )
         .expect("write skill");
 
-        let entries =
-            SkillService::scan_skill_roots_batch(&[(staging.clone(), scan_root.clone(), None)])
-                .expect("scan batch");
+        let empty_prior = PriorHashMap::new();
+        let entries = SkillService::scan_skill_roots_batch_with_prior(
+            &[(staging.clone(), scan_root.clone(), None)],
+            &empty_prior,
+        )
+        .expect("scan batch");
         assert!(
             entries.is_empty(),
             "install staging directory must not produce a cache entry"
@@ -359,9 +362,11 @@ fn scan_skill_roots_batch_skips_app_staging_directories() {
         let backup = scan_root.join(".demo.backup.9");
         std::fs::rename(&staging, &backup).expect("recreate as merge backup dir");
 
-        let entries =
-            SkillService::scan_skill_roots_batch(&[(backup.clone(), scan_root.clone(), None)])
-                .expect("scan batch");
+        let entries = SkillService::scan_skill_roots_batch_with_prior(
+            &[(backup.clone(), scan_root.clone(), None)],
+            &empty_prior,
+        )
+        .expect("scan batch");
         assert!(
             entries.is_empty(),
             "merge backup directory must not produce a cache entry"
@@ -369,9 +374,11 @@ fn scan_skill_roots_batch_skips_app_staging_directories() {
 
         std::fs::rename(&backup, scan_root.join("demo")).expect("finish install rename");
 
-        let entries =
-            SkillService::scan_skill_roots_batch(&[(scan_root.join("demo"), scan_root, None)])
-                .expect("scan batch");
+        let entries = SkillService::scan_skill_roots_batch_with_prior(
+            &[(scan_root.join("demo"), scan_root, None)],
+            &empty_prior,
+        )
+        .expect("scan batch");
         assert_eq!(
             entries.len(),
             1,

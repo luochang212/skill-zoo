@@ -1,4 +1,4 @@
-use skill_zoo_lib::{config, services::skill::SkillService};
+use skill_zoo_lib::{config, services::skill::PriorHashMap, services::skill::SkillService};
 use std::time::Instant;
 
 fn samples(mut work: impl FnMut()) -> (f64, f64) {
@@ -66,14 +66,20 @@ fn custom_agent_performance() {
                     inputs.push((dir, scan_root, agent_id));
                 }
                 config::with_agent_snapshot(std::sync::Arc::new(snapshot), || {
+                    let empty_prior = PriorHashMap::new();
                     let scan = samples(|| {
                         std::hint::black_box(
-                            SkillService::scan_skill_roots_batch(&inputs).unwrap(),
+                            SkillService::scan_skill_roots_batch_with_prior(&inputs, &empty_prior)
+                                .unwrap(),
                         );
                     });
                     let incremental = samples(|| {
                         std::hint::black_box(
-                            SkillService::scan_skill_roots_batch(&inputs[..1]).unwrap(),
+                            SkillService::scan_skill_roots_batch_with_prior(
+                                &inputs[..1],
+                                &empty_prior,
+                            )
+                            .unwrap(),
                         );
                     });
                     let detect = samples(|| {
