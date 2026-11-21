@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.2.0] — 2026-11-21
+
+### Changed
+- Scans reuse content hashes across rebuilds: a stat-only fingerprint (path, size, mtime) of each skill's home tree lets startup rebuilds and watcher refreshes skip full byte reads for unchanged skills, SKILL.md parsing reads a 64KB head slice and only falls back to a full read when the frontmatter is not closed within it, and watcher-triggered incremental scans run on a blocking thread instead of occupying the async executor.
+- The browser support baseline is raised to Safari 17 / macOS 14: the frontend build target is pinned to `safari17.0` and the macOS bundle requires macOS 14, enabling baseline methods such as `toSorted`.
+- Dependencies are at their latest stable releases: notify 9, rusqlite 0.43 (bundled SQLite bumped), jest-dom 8, oxfmt 0.79, and in-range patches across the frontend, CLI and Rust lockfiles (genai 0.7.5, reqwest 0.13.5, vite 8.3.8, react-query 5.108.2 and more).
+
+### Fixed
+- The model management dialog keeps a stable height instead of resizing with its content.
+
 ## [1.1.1] — 2026-11-19
 
 ### Fixed
