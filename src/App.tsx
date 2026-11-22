@@ -504,7 +504,7 @@ export default function App() {
                   <div
                     ref={detailOverlayRef}
                     tabIndex={-1}
-                    className="absolute inset-0 z-50 bg-background"
+                    className="absolute inset-0 z-50 bg-background outline-none"
                   >
                     {renderSkillDetail()}
                   </div>
