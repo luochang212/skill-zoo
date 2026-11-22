@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.1] — 2026-11-22
+
+### Fixed
+- The local detail overlay no longer shows the system focus ring when it takes focus.
+
 ## [1.2.0] — 2026-11-21
 
 ### Changed
