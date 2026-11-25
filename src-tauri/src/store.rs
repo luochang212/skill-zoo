@@ -1,3 +1,4 @@
+use crate::error::AppError;
 use crate::persistence::{MetadataStore, Settings, SkillCache};
 use futures::future::{AbortHandle, AbortRegistration};
 use std::collections::HashMap;
@@ -54,16 +55,66 @@ pub struct AppState {
 }
 
 impl AppState {
+    pub fn read_cache(&self) -> Result<std::sync::RwLockReadGuard<'_, SkillCache>, AppError> {
+        self.skill_cache
+            .read()
+            .map_err(|e| AppError::Parse(format!("Skill cache lock: {e}")))
+    }
+
+    pub fn write_cache(&self) -> Result<std::sync::RwLockWriteGuard<'_, SkillCache>, AppError> {
+        self.skill_cache
+            .write()
+            .map_err(|e| AppError::Parse(format!("Skill cache lock: {e}")))
+    }
+
+    pub fn write_metadata(
+        &self,
+    ) -> Result<std::sync::RwLockWriteGuard<'_, MetadataStore>, AppError> {
+        self.metadata
+            .write()
+            .map_err(|e| AppError::Parse(format!("Metadata lock: {e}")))
+    }
+
+    pub fn lock_settings(&self) -> Result<std::sync::MutexGuard<'_, Settings>, AppError> {
+        self.settings
+            .lock()
+            .map_err(|e| AppError::Parse(format!("Settings lock: {e}")))
+    }
+
+    pub async fn rebuild_cache(
+        &self,
+    ) -> Result<Vec<crate::services::skill::InstalledSkill>, AppError> {
+        crate::services::skill::SkillService::rebuild_cache(
+            &self.skill_cache,
+            &self.metadata,
+            &self.cache_refresh_lock,
+        )
+        .await
+    }
+
+    pub async fn refresh_installed_skills(
+        &self,
+        skill_dirs: Vec<String>,
+    ) -> Result<Vec<crate::services::skill::InstalledSkill>, AppError> {
+        crate::services::skill::SkillService::refresh_installed_skills(
+            &self.skill_cache,
+            &self.metadata,
+            &self.cache_refresh_lock,
+            skill_dirs,
+        )
+        .await
+    }
+
     pub fn acquire_local_lease(
         &self,
-    ) -> Result<crate::persistence::agent_transaction::AgentLease, crate::error::AppError> {
+    ) -> Result<crate::persistence::agent_transaction::AgentLease, AppError> {
         let lease = crate::persistence::agent_transaction::AgentLease::acquire(
             &crate::config::get_app_config_dir(),
         )?;
         let mut metadata = self
             .metadata
             .write()
-            .map_err(|e| crate::error::AppError::Parse(format!("Metadata lock: {e}")))?;
+            .map_err(|e| AppError::Parse(format!("Metadata lock: {e}")))?;
         *metadata = MetadataStore::load()?;
         Ok(lease)
     }

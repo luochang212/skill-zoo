@@ -1,5 +1,6 @@
 use crate::config;
 use crate::config::{overlaps, resolve_missing_path};
+use crate::error::{AppError, CommandError};
 use crate::persistence::agents::{AgentRegistry, CustomAgent};
 use crate::persistence::{
     agent_transaction, ArchiveManifest, ExternalImportEntry, ExternalImports,
@@ -33,7 +34,7 @@ pub struct AgentChangeResult {
 
 struct CreatedDirs(Vec<PathBuf>);
 impl CreatedDirs {
-    fn create(&mut self, path: &Path) -> Result<(), String> {
+    fn create(&mut self, path: &Path) -> Result<(), CommandError> {
         let mut missing = Vec::new();
         let mut cursor = path;
         while !cursor.exists() {
@@ -45,7 +46,7 @@ impl CreatedDirs {
                 Ok(()) => self.0.push(directory),
                 Err(error)
                     if error.kind() == std::io::ErrorKind::AlreadyExists && directory.is_dir() => {}
-                Err(error) => return Err(error.to_string()),
+                Err(error) => return Err(error.to_string().into()),
             }
         }
         Ok(())
@@ -59,7 +60,7 @@ impl Drop for CreatedDirs {
     }
 }
 
-fn expanded_path(input: &str) -> Result<PathBuf, String> {
+fn expanded_path(input: &str) -> Result<PathBuf, CommandError> {
     let path = if let Some(rest) = input.strip_prefix("~/") {
         config::home_dir()
             .ok_or("Home directory is unavailable")?
@@ -70,7 +71,7 @@ fn expanded_path(input: &str) -> Result<PathBuf, String> {
     if !path.is_absolute() {
         return Err("Skills directory must be an absolute path".into());
     }
-    resolve_missing_path(&path)
+    resolve_missing_path(&path).map_err(CommandError::from)
 }
 
 fn validate(
@@ -79,7 +80,7 @@ fn validate(
     id: Option<&str>,
     agents: &[config::AgentConfig],
     protected: &[PathBuf],
-) -> Result<(), String> {
+) -> Result<(), CommandError> {
     if name.is_empty() || name.chars().count() > 64 {
         return Err("Agent name must contain 1–64 characters".into());
     }
@@ -107,7 +108,7 @@ fn validate(
         };
         if let Ok(root) = resolve_missing_path(&root) {
             if overlaps(path, &root) {
-                return Err(format!("Skills directory overlaps {}", agent.label));
+                return Err(format!("Skills directory overlaps {}", agent.label).into());
             }
         }
     }
@@ -123,8 +124,8 @@ fn validate(
     Ok(())
 }
 
-fn real_skills(root: &Path) -> Result<Vec<PathBuf>, String> {
-    fn scan(path: &Path, skills: &mut Vec<PathBuf>) -> Result<(), String> {
+fn real_skills(root: &Path) -> Result<Vec<PathBuf>, CommandError> {
+    fn scan(path: &Path, skills: &mut Vec<PathBuf>) -> Result<(), CommandError> {
         if is_symlink_or_junction(path) || !path.is_dir() {
             return Ok(());
         }
@@ -149,9 +150,13 @@ fn real_skills(root: &Path) -> Result<Vec<PathBuf>, String> {
     Ok(skills)
 }
 
-fn preview_path(state: &AppState, path: &Path, id: Option<&str>) -> Result<AgentPreview, String> {
+fn preview_path(
+    state: &AppState,
+    path: &Path,
+    id: Option<&str>,
+) -> Result<AgentPreview, CommandError> {
     let skills = real_skills(path)?;
-    let imports = ExternalImports::load().map_err(|e| e.to_string())?;
+    let imports = ExternalImports::load()?;
     let mut known: Vec<PathBuf> = skills
         .iter()
         .cloned()
@@ -164,9 +169,7 @@ fn preview_path(state: &AppState, path: &Path, id: Option<&str>) -> Result<Agent
         .collect();
     known.extend(
         state
-            .skill_cache
-            .read()
-            .map_err(|e| e.to_string())?
+            .read_cache()?
             .skills()
             .iter()
             .filter_map(|s| s.home_path.as_ref().map(PathBuf::from)),
@@ -184,8 +187,7 @@ fn preview_path(state: &AppState, path: &Path, id: Option<&str>) -> Result<Agent
             }
         }
     }
-    let archived_references = ArchiveManifest::load()
-        .map_err(|e| e.to_string())?
+    let archived_references = ArchiveManifest::load()?
         .skills
         .values()
         .filter(|s| {
@@ -207,7 +209,7 @@ pub fn preview_custom_agent(
     name: String,
     skills_dir: String,
     agent_id: Option<String>,
-) -> Result<AgentPreview, String> {
+) -> Result<AgentPreview, CommandError> {
     let path = expanded_path(&skills_dir)?;
     validate(
         name.trim(),
@@ -226,7 +228,7 @@ pub fn preview_custom_agent(
 pub fn preview_agent_removal(
     state: State<'_, AppState>,
     agent_id: String,
-) -> Result<AgentPreview, String> {
+) -> Result<AgentPreview, CommandError> {
     let path = config::get_agent_skills_dir(&agent_id).ok_or("Unknown agent")?;
     if !agent_id.starts_with("custom-") {
         return Err("Built-in agents cannot be removed".into());
@@ -235,7 +237,7 @@ pub fn preview_agent_removal(
 }
 
 #[tauri::command]
-pub async fn pick_agent_directory(app: tauri::AppHandle) -> Result<Option<String>, String> {
+pub async fn pick_agent_directory(app: tauri::AppHandle) -> Result<Option<String>, CommandError> {
     let selected =
         tauri::async_runtime::spawn_blocking(move || app.dialog().file().blocking_pick_folder())
             .await
@@ -247,6 +249,7 @@ pub async fn pick_agent_directory(app: tauri::AppHandle) -> Result<Option<String
                 .map_err(|e| e.to_string())
         })
         .transpose()
+        .map_err(CommandError::from)
 }
 
 #[tauri::command]
@@ -257,7 +260,7 @@ pub async fn save_custom_agent(
     name: String,
     skills_dir: String,
     create_directory: bool,
-) -> Result<AgentChangeResult, String> {
+) -> Result<AgentChangeResult, CommandError> {
     change_agent(
         app,
         state,
@@ -272,7 +275,7 @@ pub async fn remove_custom_agent(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     agent_id: String,
-) -> Result<AgentChangeResult, String> {
+) -> Result<AgentChangeResult, CommandError> {
     change_agent(app, state, Some(agent_id), None).await
 }
 
@@ -281,17 +284,11 @@ async fn change_agent(
     state: State<'_, AppState>,
     requested_id: Option<String>,
     input: Option<(String, String, bool)>,
-) -> Result<AgentChangeResult, String> {
+) -> Result<AgentChangeResult, CommandError> {
     let (mut result, needs_refresh, _lease) = commit_agent_change(&state, requested_id, input)?;
     let mut refresh_failed = false;
     if needs_refresh {
-        if let Err(e) = SkillService::rebuild_cache(
-            &state.skill_cache,
-            &state.metadata,
-            &state.cache_refresh_lock,
-        )
-        .await
-        {
+        if let Err(e) = state.rebuild_cache().await {
             eprintln!("Agent registered; cache refresh failed: {e}");
             refresh_failed = true;
         }
@@ -312,11 +309,10 @@ fn commit_agent_change(
     state: &AppState,
     requested_id: Option<String>,
     input: Option<(String, String, bool)>,
-) -> Result<(AgentChangeResult, bool, agent_transaction::AgentLease), String> {
+) -> Result<(AgentChangeResult, bool, agent_transaction::AgentLease), CommandError> {
     let dir = config::get_app_config_dir();
-    let _lease = state.acquire_local_lease().map_err(|e| e.to_string())?;
-    let mut registry =
-        AgentRegistry::load_from(&dir.join("agents.json")).map_err(|e| e.to_string())?;
+    let _lease = state.acquire_local_lease()?;
+    let mut registry = AgentRegistry::load_from(&dir.join("agents.json"))?;
     let old = if let Some(id) = &requested_id {
         Some(
             registry
@@ -341,7 +337,7 @@ fn commit_agent_change(
             &hex[20..]
         )
     });
-    let mut settings = state.settings.lock().map_err(|e| e.to_string())?.clone();
+    let mut settings = state.lock_settings()?.clone();
     let mut visible = SkillService::get_visible_agents(&settings);
     if input.is_none()
         && visible.get(&id).copied().unwrap_or(false)
@@ -366,7 +362,7 @@ fn commit_agent_change(
             }
             created_dirs.create(&path)?;
         }
-        let path = path.canonicalize().map_err(|e| e.to_string())?;
+        let path = path.canonicalize().map_err(AppError::from)?;
         validate(
             &name,
             &path,
@@ -386,14 +382,12 @@ fn commit_agent_change(
         next.as_ref()
             .is_none_or(|next| old.skills_dir != next.skills_dir)
     });
-    let mut imports = ExternalImports::load().map_err(|e| e.to_string())?;
+    let mut imports = ExternalImports::load()?;
     if imports.version != 1 {
         return Err("Upgrade Skill Zoo before changing agent ownership".into());
     }
     let mut known = state
-        .skill_cache
-        .read()
-        .map_err(|e| e.to_string())?
+        .read_cache()?
         .skills()
         .iter()
         .filter_map(|s| s.home_path.as_ref().map(PathBuf::from))
@@ -405,8 +399,7 @@ fn commit_agent_change(
             if imports.imports.values().any(|i| i.source_path == source) {
                 continue;
             }
-            let entry = SkillService::scan_skill_root(&root, &old.skills_dir, Some(&id))
-                .map_err(|e| e.to_string())?;
+            let entry = SkillService::scan_skill_root(&root, &old.skills_dir, Some(&id), None)?;
             imports.imports.insert(
                 entry.id.clone(),
                 ExternalImportEntry {
@@ -423,8 +416,7 @@ fn commit_agent_change(
     }
     if root_changed {
         let old = old.as_ref().unwrap();
-        for archived in ArchiveManifest::load()
-            .map_err(|e| e.to_string())?
+        for archived in ArchiveManifest::load()?
             .skills
             .values()
             .filter(|s| s.home_agent.as_deref() == Some(&id))
@@ -494,7 +486,7 @@ fn commit_agent_change(
     }
     settings.set(
         "visible_agents".into(),
-        serde_json::to_string(&persisted_visible).map_err(|e| e.to_string())?,
+        serde_json::to_string(&persisted_visible)?,
     );
     let mut order: Vec<String> = settings
         .get("agent_order")
@@ -506,30 +498,27 @@ fn commit_agent_change(
     if next.is_some() && !order.contains(&id) {
         order.push(id.clone());
     }
-    settings.set(
-        "agent_order".into(),
-        serde_json::to_string(&order).map_err(|e| e.to_string())?,
-    );
-    registry.validate().map_err(|e| e.to_string())?;
+    settings.set("agent_order".into(), serde_json::to_string(&order)?);
+    registry.validate()?;
     let changes = BTreeMap::from([
         (
             "agents.json".into(),
-            Some(serde_json::to_string_pretty(&registry).map_err(|e| e.to_string())?),
+            Some(serde_json::to_string_pretty(&registry)?),
         ),
         (
             "imports.json".into(),
-            Some(serde_json::to_string_pretty(&imports).map_err(|e| e.to_string())?),
+            Some(serde_json::to_string_pretty(&imports)?),
         ),
         (
             "settings.json".into(),
-            Some(serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?),
+            Some(serde_json::to_string_pretty(&settings)?),
         ),
     ]);
     if let Err(e) = agent_transaction::commit(&dir, changes) {
-        return Err(e.to_string());
+        return Err(e.to_string().into());
     }
     created_dirs.0.clear();
-    *state.settings.lock().map_err(|e| e.to_string())? = settings;
+    *state.lock_settings()? = settings;
     config::publish_agents(registry);
     let cleanup_failed = if root_changed {
         match SkillService::stage_agent_symlink_removal_in_dirs(
@@ -598,7 +587,7 @@ mod tests {
                 .unwrap();
             config::refresh_agents().unwrap();
             let state = state();
-            let entry = SkillService::scan_skill_root(&skill, &root, Some(id)).unwrap();
+            let entry = SkillService::scan_skill_root(&skill, &root, Some(id), None).unwrap();
             state.skill_cache.write().unwrap().upsert(entry.clone());
             {
                 let mut metadata = state.metadata.write().unwrap();
@@ -633,7 +622,7 @@ mod tests {
             assert!(!visible["codex"]);
             let imports = ExternalImports::load().unwrap();
             let retained =
-                SkillService::scan_external_import(imports.imports.get(&entry.id).unwrap())
+                SkillService::scan_external_import(imports.imports.get(&entry.id).unwrap(), None)
                     .unwrap();
             assert_eq!(retained.id, entry.id);
             assert_eq!(retained.origin, "external");
@@ -672,7 +661,7 @@ mod tests {
             std::fs::create_dir_all(&skill).unwrap();
             std::fs::write(skill.join("SKILL.md"), "# Demo").unwrap();
             let entry =
-                SkillService::scan_skill_root(&skill, &root, Some(&added.agent_id)).unwrap();
+                SkillService::scan_skill_root(&skill, &root, Some(&added.agent_id), None).unwrap();
             {
                 let mut metadata = state.metadata.write().unwrap();
                 metadata.set_starred(&entry.id, true);
@@ -702,7 +691,7 @@ mod tests {
             drop(lease);
             let imports = ExternalImports::load().unwrap();
             let retained = imports.imports.get(&entry.id).unwrap();
-            let scanned = SkillService::scan_external_import(retained).unwrap();
+            let scanned = SkillService::scan_external_import(retained, None).unwrap();
             assert_eq!(scanned.id, entry.id);
             assert_eq!(scanned.origin, "external");
             assert!(state.metadata.read().unwrap().get(&entry.id).starred);
@@ -769,8 +758,8 @@ mod tests {
             )
             .unwrap();
             drop(lease);
-            let entry =
-                SkillService::scan_external_import(&imports.imports["external:demo"]).unwrap();
+            let entry = SkillService::scan_external_import(&imports.imports["external:demo"], None)
+                .unwrap();
             assert_eq!(entry.origin, "external");
             assert!(entry.apps[&added.agent_id]);
             assert!(skill.join("SKILL.md").is_file());
@@ -800,7 +789,7 @@ mod tests {
             let skill = root.join("demo");
             std::fs::create_dir(&skill).unwrap();
             std::fs::write(skill.join("SKILL.md"), "# Original").unwrap();
-            let entry = SkillService::scan_skill_root(&skill, &root, Some(id)).unwrap();
+            let entry = SkillService::scan_skill_root(&skill, &root, Some(id), None).unwrap();
             state.metadata.write().unwrap().set_starred(&entry.id, true);
             state.skill_cache.write().unwrap().upsert(entry.clone());
             state.metadata.read().unwrap().save().unwrap();
@@ -939,7 +928,9 @@ mod tests {
                 .find(|i| Path::new(&i.source_path) == skill.canonicalize().unwrap())
                 .unwrap();
             assert_eq!(
-                SkillService::scan_external_import(retained).unwrap().origin,
+                SkillService::scan_external_import(retained, None)
+                    .unwrap()
+                    .origin,
                 "external"
             );
         });

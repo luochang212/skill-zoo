@@ -1,3 +1,4 @@
+use crate::error::CommandError;
 use crate::{config, services::github};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -121,7 +122,7 @@ async fn fetch_catalog(kind: CatalogKind) -> Result<Vec<CatalogSkill>, String> {
 pub async fn get_skill_catalog(
     app: tauri::AppHandle,
     kind: CatalogKind,
-) -> Result<SkillCatalog, String> {
+) -> Result<SkillCatalog, CommandError> {
     let path = app
         .path()
         .app_cache_dir()
@@ -160,7 +161,7 @@ pub async fn get_skill_catalog(
                 catalog.stale = true;
                 catalog
             })
-            .ok_or(error),
+            .ok_or(CommandError::from(error)),
     }
 }
 

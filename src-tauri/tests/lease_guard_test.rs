@@ -61,7 +61,7 @@ mod cross_process {
                 "# demo".into(),
             )
         });
-        let error: serde_json::Value = serde_json::from_str(&rejection.unwrap_err()).unwrap();
+        let error: serde_json::Value = serde_json::to_value(rejection.unwrap_err()).unwrap();
         assert_eq!(error["code"], "operationInProgress");
 
         holder.kill().unwrap();

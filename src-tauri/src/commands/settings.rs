@@ -1,3 +1,4 @@
+use crate::error::{AppError, CommandError};
 use crate::services::cli::CliService;
 use crate::services::lock::{SkillLock, SkillLockEntry};
 use crate::services::opener::open_directory;
@@ -38,7 +39,7 @@ fn cached_zip_entries() -> Result<Vec<std::fs::DirEntry>, String> {
 }
 
 #[tauri::command]
-pub fn clear_download_cache() -> Result<u64, String> {
+pub fn clear_download_cache() -> Result<u64, CommandError> {
     let mut freed = 0;
     for entry in cached_zip_entries()? {
         match entry.metadata().and_then(|meta| {
@@ -47,54 +48,56 @@ pub fn clear_download_cache() -> Result<u64, String> {
         }) {
             Ok(size) => freed += size,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(format!("{}: {error}", entry.path().display())),
+            Err(error) => return Err(format!("{}: {error}", entry.path().display()).into()),
         }
     }
     Ok(freed)
 }
 
 #[tauri::command]
-pub fn get_cache_size() -> Result<u64, String> {
+pub fn get_cache_size() -> Result<u64, CommandError> {
     let mut total = 0;
     for entry in cached_zip_entries()? {
         match entry.metadata() {
             Ok(meta) => total += meta.len(),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error.to_string()),
+            Err(error) => return Err(error.to_string().into()),
         }
     }
     Ok(total)
 }
 
 #[tauri::command]
-pub fn open_cache_dir(app_handle: tauri::AppHandle) -> Result<(), String> {
+pub fn open_cache_dir(app_handle: tauri::AppHandle) -> Result<(), CommandError> {
     let cache_dir = crate::config::get_repo_zip_cache_dir();
-    std::fs::create_dir_all(&cache_dir).map_err(|e| e.to_string())?;
-    open_directory(&app_handle, &cache_dir)
+    std::fs::create_dir_all(&cache_dir).map_err(AppError::from)?;
+    open_directory(&app_handle, &cache_dir).map_err(CommandError::from)
 }
 
 #[tauri::command]
-pub fn set_window_theme(window: tauri::Window, theme: String) -> Result<(), String> {
+pub fn set_window_theme(window: tauri::Window, theme: String) -> Result<(), CommandError> {
     let tauri_theme = match theme.as_str() {
         "dark" => Some(tauri::Theme::Dark),
         "light" => Some(tauri::Theme::Light),
         _ => None,
     };
-    window.set_theme(tauri_theme).map_err(|e| e.to_string())
+    window
+        .set_theme(tauri_theme)
+        .map_err(|e| e.to_string().into())
 }
 
-fn decode_png_data_url(data_url: &str) -> Result<Vec<u8>, String> {
+fn decode_png_data_url(data_url: &str) -> Result<Vec<u8>, CommandError> {
     const PREFIX: &str = "data:image/png;base64,";
     let encoded = data_url
         .strip_prefix(PREFIX)
         .ok_or_else(|| "expected a data:image/png;base64,... URL".to_string())?;
     base64::engine::general_purpose::STANDARD
         .decode(encoded)
-        .map_err(|e| format!("PNG data URL decode failed: {e}"))
+        .map_err(|e| CommandError::generic(format!("PNG data URL decode failed: {e}")))
 }
 
 #[tauri::command]
-pub fn save_skill_usage_screenshot(data_url: String) -> Result<String, String> {
+pub fn save_skill_usage_screenshot(data_url: String) -> Result<String, CommandError> {
     let bytes = decode_png_data_url(&data_url)?;
     let desktop_dir =
         dirs::desktop_dir().ok_or_else(|| "Desktop directory not found".to_string())?;
@@ -102,7 +105,8 @@ pub fn save_skill_usage_screenshot(data_url: String) -> Result<String, String> {
         .format("Skill Zoo Skill Preferences %Y-%m-%d at %H.%M.%S.png")
         .to_string();
     let path = desktop_dir.join(filename);
-    std::fs::write(&path, bytes).map_err(|e| format!("Screenshot save failed: {e}"))?;
+    std::fs::write(&path, bytes)
+        .map_err(|e| CommandError::generic(format!("Screenshot save failed: {e}")))?;
     Ok(path.to_string_lossy().to_string())
 }
 
@@ -117,8 +121,8 @@ fn visible_settings(values: &HashMap<String, String>) -> HashMap<String, String>
 }
 
 #[tauri::command]
-pub fn get_settings(state: State<'_, AppState>) -> Result<HashMap<String, String>, String> {
-    let settings = state.settings.lock().map_err(|e| e.to_string())?;
+pub fn get_settings(state: State<'_, AppState>) -> Result<HashMap<String, String>, CommandError> {
+    let settings = state.lock_settings()?;
     Ok(visible_settings(&settings.values))
 }
 
@@ -142,8 +146,8 @@ fn credential_status(values: &HashMap<String, String>) -> GitHubCredentialStatus
 }
 
 #[tauri::command]
-pub fn get_github_token(state: State<'_, AppState>) -> Result<String, String> {
-    let settings = state.settings.lock().map_err(|e| e.to_string())?;
+pub fn get_github_token(state: State<'_, AppState>) -> Result<String, CommandError> {
+    let settings = state.lock_settings()?;
     Ok(settings
         .values
         .get("github_token")
@@ -154,8 +158,8 @@ pub fn get_github_token(state: State<'_, AppState>) -> Result<String, String> {
 #[tauri::command]
 pub fn get_github_credential_status(
     state: State<'_, AppState>,
-) -> Result<GitHubCredentialStatus, String> {
-    let settings = state.settings.lock().map_err(|e| e.to_string())?;
+) -> Result<GitHubCredentialStatus, CommandError> {
+    let settings = state.lock_settings()?;
     Ok(credential_status(&settings.values))
 }
 
@@ -165,15 +169,14 @@ pub fn update_setting(
     state: State<'_, AppState>,
     key: String,
     value: String,
-) -> Result<(), String> {
+) -> Result<(), CommandError> {
     if let Some(error) = credential_key_violation(&key) {
-        return Err(error);
+        return Err(error.into());
     }
     let _agent_lease = crate::persistence::agent_transaction::AgentLease::acquire(
         &crate::config::get_app_config_dir(),
-    )
-    .map_err(|e| e.to_string())?;
-    let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
+    )?;
+    let mut settings = state.lock_settings()?;
     if key == crate::services::skill_usage_cache::AGENT_SETTING
         && !crate::services::skill_usage::supports_agent(&value)
     {
@@ -183,7 +186,7 @@ pub fn update_setting(
     settings.set(key.clone(), value);
     if let Err(error) = settings.save() {
         *settings = previous;
-        return Err(error.to_string());
+        return Err(error.to_string().into());
     }
     drop(settings);
     if key == crate::services::skill_usage_cache::AGENT_SETTING {
@@ -206,12 +209,11 @@ pub fn save_github_credentials(
     state: State<'_, AppState>,
     token: String,
     expires_at: Option<String>,
-) -> Result<(), String> {
+) -> Result<(), CommandError> {
     let _agent_lease = crate::persistence::agent_transaction::AgentLease::acquire(
         &crate::config::get_app_config_dir(),
-    )
-    .map_err(|e| e.to_string())?;
-    let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
+    )?;
+    let mut settings = state.lock_settings()?;
     persist_github_credentials(&mut settings, &token, expires_at.as_deref().unwrap_or(""))
 }
 
@@ -219,7 +221,7 @@ fn persist_github_credentials(
     settings: &mut crate::persistence::Settings,
     token: &str,
     expires_at: &str,
-) -> Result<(), String> {
+) -> Result<(), CommandError> {
     let token = token.trim();
     let expires_at = expires_at.trim();
     let previous = settings.clone();
@@ -239,7 +241,7 @@ fn persist_github_credentials(
     }
     if let Err(error) = settings.save() {
         *settings = previous;
-        return Err(error.to_string());
+        return Err(error.to_string().into());
     }
     crate::config::set_github_credentials(Some(token), Some(expires_at));
     Ok(())
@@ -248,8 +250,10 @@ fn persist_github_credentials(
 #[tauri::command]
 pub async fn verify_github_token(
     token: String,
-) -> Result<crate::services::github::GitHubTokenVerification, String> {
-    crate::services::github::verify_github_token(&token).await
+) -> Result<crate::services::github::GitHubTokenVerification, CommandError> {
+    crate::services::github::verify_github_token(&token)
+        .await
+        .map_err(CommandError::from)
 }
 
 fn verifiable_saved_token(values: &HashMap<String, String>) -> Option<String> {
@@ -262,20 +266,22 @@ fn verifiable_saved_token(values: &HashMap<String, String>) -> Option<String> {
 #[tauri::command]
 pub async fn verify_saved_github_token(
     state: State<'_, AppState>,
-) -> Result<crate::services::github::GitHubTokenVerification, String> {
+) -> Result<crate::services::github::GitHubTokenVerification, CommandError> {
     let token = {
-        let settings = state.settings.lock().map_err(|e| e.to_string())?;
+        let settings = state.lock_settings()?;
         verifiable_saved_token(&settings.values)
             .ok_or_else(|| "No saved GitHub token to verify".to_string())?
     };
-    crate::services::github::verify_github_token(&token).await
+    crate::services::github::verify_github_token(&token)
+        .await
+        .map_err(CommandError::from)
 }
 
 #[tauri::command]
 pub fn get_skill_companion_items(
     state: State<'_, AppState>,
-) -> Result<Vec<SkillCompanionItem>, String> {
-    let settings = state.settings.lock().map_err(|e| e.to_string())?;
+) -> Result<Vec<SkillCompanionItem>, CommandError> {
+    let settings = state.lock_settings()?;
     Ok(crate::services::tray::parse_skill_companion_items(
         &settings,
     ))
@@ -286,20 +292,19 @@ pub fn save_skill_companion_items(
     app_handle: tauri::AppHandle,
     state: State<'_, AppState>,
     items: Vec<SkillCompanionItem>,
-) -> Result<Vec<SkillCompanionItem>, String> {
+) -> Result<Vec<SkillCompanionItem>, CommandError> {
     let _agent_lease = crate::persistence::agent_transaction::AgentLease::acquire(
         &crate::config::get_app_config_dir(),
-    )
-    .map_err(|e| e.to_string())?;
+    )?;
     validate_skill_companion_items(&items)?;
-    let json = serde_json::to_string(&items).map_err(|e| e.to_string())?;
+    let json = serde_json::to_string(&items)?;
     {
-        let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
+        let mut settings = state.lock_settings()?;
         let previous = settings.clone();
         settings.set(SKILL_COMPANION_ITEMS_SETTING.to_string(), json);
         if let Err(error) = settings.save() {
             *settings = previous;
-            return Err(error.to_string());
+            return Err(error.to_string().into());
         }
     }
     if let Err(error) = crate::services::tray::refresh_skill_companion_menu(&app_handle) {
@@ -309,25 +314,30 @@ pub fn save_skill_companion_items(
 }
 
 #[tauri::command]
-pub fn copy_text_to_clipboard(text: String) -> Result<(), String> {
+pub fn copy_text_to_clipboard(text: String) -> Result<(), CommandError> {
     let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
-    clipboard.set_text(text).map_err(|e| e.to_string())
+    clipboard.set_text(text).map_err(|e| e.to_string().into())
 }
 
 #[tauri::command]
-pub fn set_tray_language(app_handle: tauri::AppHandle, language: String) -> Result<(), String> {
-    crate::services::tray::set_tray_language(&app_handle, &language)
+pub fn set_tray_language(
+    app_handle: tauri::AppHandle,
+    language: String,
+) -> Result<(), CommandError> {
+    crate::services::tray::set_tray_language(&app_handle, &language).map_err(CommandError::from)
 }
 
 #[tauri::command]
 pub async fn get_skill_usage(
     app_handle: tauri::AppHandle,
     agent_id: String,
-) -> Result<UsageSnapshot, String> {
+) -> Result<UsageSnapshot, CommandError> {
     let result =
         crate::services::skill_usage_cache::load_usage(&app_handle, agent_id.clone()).await;
     if !crate::services::skill_usage::supports_agent(&agent_id) {
-        return result.map(UsageSnapshot::from_usage);
+        return result
+            .map(UsageSnapshot::from_usage)
+            .map_err(CommandError::from);
     }
     use tauri::Manager;
     let mut snapshot = app_handle
@@ -340,8 +350,10 @@ pub async fn get_skill_usage(
 }
 
 #[tauri::command]
-pub fn get_visible_agents(state: State<'_, AppState>) -> Result<HashMap<String, bool>, String> {
-    let settings = state.settings.lock().map_err(|e| e.to_string())?;
+pub fn get_visible_agents(
+    state: State<'_, AppState>,
+) -> Result<HashMap<String, bool>, CommandError> {
+    let settings = state.lock_settings()?;
     Ok(crate::services::skill::SkillService::get_visible_agents(
         &settings,
     ))
@@ -534,15 +546,15 @@ mod tests {
     }
 }
 
-fn refresh_cached_agent_apps(state: &AppState) -> Result<(), String> {
-    let mut cache = state.skill_cache.write().map_err(|e| e.to_string())?;
+fn refresh_cached_agent_apps(state: &AppState) -> Result<(), CommandError> {
+    let mut cache = state.write_cache()?;
     let mut entries = cache.skills().to_vec();
     for entry in &mut entries {
         entry.apps =
             crate::services::skill::SkillService::detect_agents(&entry.directory, &entry.home_path);
     }
     cache.replace_all(entries);
-    cache.save().map_err(|e| e.to_string())
+    cache.save().map_err(CommandError::from)
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -706,31 +718,31 @@ pub fn update_agent_preferences(
     state: State<'_, AppState>,
     visible_agents: HashMap<String, bool>,
     agent_order: Vec<String>,
-) -> Result<AgentPreferences, String> {
+) -> Result<AgentPreferences, CommandError> {
     let _agent_lease = crate::persistence::agent_transaction::AgentLease::acquire(
         &crate::config::get_app_config_dir(),
-    )
-    .map_err(|e| e.to_string())?;
+    )?;
     let old_visible = {
-        let settings = state.settings.lock().map_err(|e| e.to_string())?;
+        let settings = state.lock_settings()?;
         crate::services::skill::SkillService::get_visible_agents(&settings)
     };
     let visible_agents = merge_registered_visibility(&visible_agents, &old_visible);
     if !has_visible_agent(&visible_agents) {
-        return Err("At least one agent must remain visible".to_string());
+        return Err("At least one agent must remain visible".into());
     }
     let visible_count = visible_agents.values().filter(|v| **v).count();
     if exceeds_visible_agent_cap(old_visible.values().filter(|v| **v).count(), visible_count) {
         return Err(format!(
             "At most {} agents can be visible ({} visible now)",
             MAX_VISIBLE_AGENTS, visible_count,
-        ));
+        )
+        .into());
     }
 
     let normalized_order = normalize_agent_order(&visible_agents, &agent_order);
 
     {
-        let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
+        let mut settings = state.lock_settings()?;
         persist_agent_preferences(
             &mut settings,
             &visible_agents,
@@ -777,7 +789,10 @@ pub fn update_agent_preferences(
             &known_home_paths,
         );
         if let Err(error) = refresh_cached_agent_apps(&state) {
-            eprintln!("Failed to refresh cached agent links after hiding agents: {error}");
+            eprintln!(
+                "Failed to refresh cached agent links after hiding agents: {}",
+                error.message
+            );
         }
     }
 
@@ -1113,10 +1128,10 @@ fn missing_remote_path_error(
 }
 
 #[tauri::command]
-pub async fn check_skill_updates() -> Result<CheckUpdatesResult, String> {
+pub async fn check_skill_updates() -> Result<CheckUpdatesResult, CommandError> {
     use rand::seq::SliceRandom;
 
-    let lock = SkillLock::read().map_err(|e| e.to_string())?;
+    let lock = SkillLock::read()?;
 
     let mut skills_by_repo: HashMap<UpdateRepoKey, UpdateRepoEntries> = HashMap::new();
 

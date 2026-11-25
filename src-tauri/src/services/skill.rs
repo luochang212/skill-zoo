@@ -926,7 +926,7 @@ impl SkillService {
             if external_source_under_ssot(Path::new(&import.source_path)) {
                 continue;
             }
-            let Ok(entry) = Self::scan_external_import_with_prior(import, prior) else {
+            let Ok(entry) = Self::scan_external_import_with_lock(import, prior) else {
                 continue;
             };
             if seen_ids.insert(entry.id.clone()) {
@@ -1159,8 +1159,7 @@ impl SkillService {
                 }
                 if let Some(target) = directory_identity(&path) {
                     if let Some(import) = imports_by_source.get(&target) {
-                        if let Ok(ext_entry) = Self::scan_external_import_with_prior(import, prior)
-                        {
+                        if let Ok(ext_entry) = Self::scan_external_import_with_lock(import, prior) {
                             if seen_ids.insert(ext_entry.id.clone()) {
                                 entries.push(ext_entry);
                             }
@@ -1183,7 +1182,7 @@ impl SkillService {
                 if let Some(import) =
                     directory_identity(&path).and_then(|key| imports_by_source.get(&key))
                 {
-                    if let Ok(entry) = Self::scan_external_import_with_prior(import, prior) {
+                    if let Ok(entry) = Self::scan_external_import_with_lock(import, prior) {
                         if seen_ids.insert(entry.id.clone()) {
                             entries.push(entry);
                         }
@@ -1689,14 +1688,9 @@ impl SkillService {
         }
     }
 
-    pub fn scan_single_skill(skill_dir: &str) -> Result<SkillCacheEntry, AppError> {
-        let empty = PriorHashMap::new();
-        Self::scan_single_skill_with_prior(skill_dir, &empty)
-    }
-
-    pub fn scan_single_skill_with_prior(
+    pub fn scan_single_skill(
         skill_dir: &str,
-        prior: &PriorHashMap,
+        prior: Option<&PriorHashMap>,
     ) -> Result<SkillCacheEntry, AppError> {
         let origin = Self::detect_origin(skill_dir);
         let home_path = Self::detect_home_path(skill_dir, origin).ok_or_else(|| {
@@ -1715,7 +1709,7 @@ impl SkillService {
                     ))
                 })?
         };
-        Self::scan_skill_root_with_prior(
+        Self::scan_skill_root(
             Path::new(&home_path),
             &scan_root,
             home_agent.as_deref(),
@@ -1749,7 +1743,7 @@ impl SkillService {
                 if let Some(import) =
                     directory_identity(skill_root).and_then(|key| imports_by_source.get(&key))
                 {
-                    entries.push(Self::scan_external_import_with_prior(import, prior)?);
+                    entries.push(Self::scan_external_import_with_lock(import, prior)?);
                     continue;
                 }
             }
@@ -1764,12 +1758,36 @@ impl SkillService {
         Ok(entries)
     }
 
-    pub fn scan_external_import(import: &ExternalImportEntry) -> Result<SkillCacheEntry, AppError> {
+    pub fn scan_external_import(
+        import: &ExternalImportEntry,
+        prior: Option<&PriorHashMap>,
+    ) -> Result<SkillCacheEntry, AppError> {
         let empty = PriorHashMap::new();
-        Self::scan_external_import_with_prior(import, &empty)
+        Self::scan_external_import_with_lock(import, prior.unwrap_or(&empty))
     }
 
-    pub fn scan_external_import_with_prior(
+    fn scan_skill_identity(
+        skill_root: &Path,
+        kind: &str,
+    ) -> Result<(String, Option<String>, Option<String>), AppError> {
+        let skill_md = skill_root.join("SKILL.md");
+        if !skill_md.exists() {
+            return Err(AppError::NotFound(format!(
+                "SKILL.md not found for {kind}: {}",
+                skill_root.display()
+            )));
+        }
+        let dir_name = skill_root
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| AppError::Parse(format!("Invalid {kind}: {}", skill_root.display())))?;
+        let (parsed_name, description) =
+            Self::parse_skill_md(&skill_md).unwrap_or((dir_name.to_string(), None));
+        let yaml_name = (parsed_name != dir_name).then_some(parsed_name);
+        Ok((dir_name.to_string(), yaml_name, description))
+    }
+
+    fn scan_external_import_with_lock(
         import: &ExternalImportEntry,
         prior: &PriorHashMap,
     ) -> Result<SkillCacheEntry, AppError> {
@@ -1779,30 +1797,8 @@ impl SkillService {
                 "External import source is inside a Skill Zoo-managed skill directory.".to_string(),
             ));
         }
-        let skill_md = skill_root.join("SKILL.md");
-        if !skill_md.exists() {
-            return Err(AppError::NotFound(format!(
-                "SKILL.md not found for external import: {}",
-                skill_root.display()
-            )));
-        }
-
-        let dir_name = skill_root
-            .file_name()
-            .and_then(|n| n.to_str())
-            .ok_or_else(|| {
-                AppError::Parse(format!(
-                    "Invalid external skill root: {}",
-                    skill_root.display()
-                ))
-            })?;
-        let (parsed_name, description) =
-            Self::parse_skill_md(&skill_md).unwrap_or((dir_name.to_string(), None));
-        let yaml_name = if parsed_name == dir_name {
-            None
-        } else {
-            Some(parsed_name)
-        };
+        let (dir_name, yaml_name, description) =
+            Self::scan_skill_identity(&skill_root, "external import")?;
         let home_path = Some(import.source_path.clone());
         let (content_hash, hash_fingerprint) =
             Self::resolve_content_hash(prior, &import.source_path);
@@ -1825,7 +1821,7 @@ impl SkillService {
 
         Ok(SkillCacheEntry {
             id: import.id.clone(),
-            name: dir_name.to_string(),
+            name: dir_name,
             yaml_name,
             description,
             directory: import.directory.clone(),
@@ -1848,19 +1844,17 @@ impl SkillService {
         skill_root: &Path,
         scan_root: &Path,
         agent_id: Option<&str>,
-    ) -> Result<SkillCacheEntry, AppError> {
-        let empty = PriorHashMap::new();
-        Self::scan_skill_root_with_prior(skill_root, scan_root, agent_id, &empty)
-    }
-
-    pub fn scan_skill_root_with_prior(
-        skill_root: &Path,
-        scan_root: &Path,
-        agent_id: Option<&str>,
-        prior: &PriorHashMap,
+        prior: Option<&PriorHashMap>,
     ) -> Result<SkillCacheEntry, AppError> {
         let lock = SkillLock::read().ok();
-        Self::scan_skill_root_with_lock(skill_root, scan_root, agent_id, lock.as_ref(), prior)
+        let empty = PriorHashMap::new();
+        Self::scan_skill_root_with_lock(
+            skill_root,
+            scan_root,
+            agent_id,
+            lock.as_ref(),
+            prior.unwrap_or(&empty),
+        )
     }
 
     fn scan_skill_root_with_lock(
@@ -1870,20 +1864,8 @@ impl SkillService {
         lock: Option<&SkillLock>,
         prior: &PriorHashMap,
     ) -> Result<SkillCacheEntry, AppError> {
-        let skill_md = skill_root.join("SKILL.md");
-        if !skill_md.exists() {
-            return Err(AppError::NotFound(format!(
-                "SKILL.md not found for skill root: {}",
-                skill_root.display()
-            )));
-        }
-
-        let dir_name = skill_root
-            .file_name()
-            .and_then(|n| n.to_str())
-            .ok_or_else(|| {
-                AppError::Parse(format!("Invalid skill root: {}", skill_root.display()))
-            })?;
+        let (dir_name, yaml_name, description) =
+            Self::scan_skill_identity(skill_root, "skill root")?;
         let relative_dir = skill_root
             .strip_prefix(scan_root)
             .unwrap_or(skill_root)
@@ -1897,20 +1879,12 @@ impl SkillService {
         let lock_entry = lock.and_then(|lock| {
             lock.skills
                 .get(&relative_dir)
-                .or_else(|| lock.skills.get(dir_name))
+                .or_else(|| lock.skills.get(&dir_name))
         });
 
         let (repo_owner, repo_name, source_url) = lock_entry
             .map(|e| e.to_repo_info())
             .unwrap_or((None, None, None));
-
-        let (parsed_name, description) =
-            Self::parse_skill_md(&skill_md).unwrap_or((dir_name.to_string(), None));
-        let yaml_name = if parsed_name == dir_name {
-            None
-        } else {
-            Some(parsed_name)
-        };
 
         let origin = if agent_id.is_some() { "agent" } else { "ssot" };
         let id = Self::make_skill_id(origin, &relative_dir, agent_id);
@@ -1963,7 +1937,7 @@ impl SkillService {
         scan_root: &Path,
         agent_id: Option<&str>,
     ) -> Result<SkillCacheEntry, AppError> {
-        Self::scan_skill_root(skill_root, scan_root, agent_id)
+        Self::scan_skill_root(skill_root, scan_root, agent_id, None)
     }
 
     pub fn upsert_cache_entry(
@@ -1998,7 +1972,7 @@ impl SkillService {
         let mut entries = Vec::with_capacity(skill_dirs.len());
         let mut failed = Vec::new();
         for dir in skill_dirs {
-            match Self::scan_single_skill_with_prior(dir, prior) {
+            match Self::scan_single_skill(dir, Some(prior)) {
                 Ok(entry) => entries.push(entry),
                 Err(_) => failed.push(dir.clone()),
             }
@@ -2517,8 +2491,9 @@ mod tests {
                 std::fs::create_dir_all(&root).unwrap();
                 for content in [b"---\nname: demo\n---\n".as_slice(), &[0xff]] {
                     std::fs::write(root.join("SKILL.md"), content).unwrap();
-                    let single = SkillService::scan_single_skill("category/demo").unwrap();
-                    let concrete = SkillService::scan_skill_root(&root, &scan_root, agent).unwrap();
+                    let single = SkillService::scan_single_skill("category/demo", None).unwrap();
+                    let concrete =
+                        SkillService::scan_skill_root(&root, &scan_root, agent, None).unwrap();
                     assert_eq!(single.id, concrete.id);
                     assert_eq!(single.origin, concrete.origin);
                     assert_eq!(single.home_agent, concrete.home_agent);
@@ -2765,7 +2740,7 @@ mod tests {
             .expect("symlink ssot entry");
 
         crate::config::with_test_home(home, || {
-            let result = SkillService::scan_single_skill("demo");
+            let result = SkillService::scan_single_skill("demo", None);
             assert!(
                 result.is_err(),
                 "a skill unattributable to SSOT or an agent must error, not panic"
@@ -2782,18 +2757,16 @@ mod tests {
         std::fs::write(skill.join("SKILL.md"), "# Demo").expect("write skill");
         std::fs::write(skill.join("ref.md"), "body").expect("write ref");
 
-        let first = SkillService::scan_skill_root(&skill, &scan_root, None).unwrap();
+        let first = SkillService::scan_skill_root(&skill, &scan_root, None, None).unwrap();
         assert!(first.hash_fingerprint.is_some());
 
         let prior = prior_hashes(&SkillCache::from_entries(vec![first.clone()]));
-        let second =
-            SkillService::scan_skill_root_with_prior(&skill, &scan_root, None, &prior).unwrap();
+        let second = SkillService::scan_skill_root(&skill, &scan_root, None, Some(&prior)).unwrap();
         assert_eq!(second.content_hash, first.content_hash);
         assert_eq!(second.hash_fingerprint, first.hash_fingerprint);
 
         std::fs::write(skill.join("ref.md"), "changed body").expect("mutate ref");
-        let third =
-            SkillService::scan_skill_root_with_prior(&skill, &scan_root, None, &prior).unwrap();
+        let third = SkillService::scan_skill_root(&skill, &scan_root, None, Some(&prior)).unwrap();
         assert_ne!(third.content_hash, first.content_hash);
         assert_ne!(third.hash_fingerprint, first.hash_fingerprint);
         assert_eq!(

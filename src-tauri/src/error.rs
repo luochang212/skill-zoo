@@ -91,6 +91,24 @@ pub struct CommandError {
     pub retry_at: Option<i64>,
 }
 
+impl From<&str> for CommandError {
+    fn from(message: &str) -> Self {
+        Self::generic(message)
+    }
+}
+
+impl From<String> for CommandError {
+    fn from(message: String) -> Self {
+        Self::generic(message)
+    }
+}
+
+impl From<serde_json::Error> for CommandError {
+    fn from(error: serde_json::Error) -> Self {
+        Self::generic(error.to_string())
+    }
+}
+
 impl From<AppError> for CommandError {
     fn from(error: AppError) -> Self {
         let code = error.code();

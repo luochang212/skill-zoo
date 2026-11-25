@@ -441,7 +441,7 @@ fn metadata_survives_lost_provenance() {
     .expect("write metadata");
 
     skill_zoo_lib::config::with_test_home(home, || {
-        let entry = SkillService::scan_single_skill("demo").expect("scan single skill");
+        let entry = SkillService::scan_single_skill("demo", None).expect("scan single skill");
         assert_eq!(entry.id, "ssot:demo");
 
         let metadata = MetadataStore::load().expect("load metadata");

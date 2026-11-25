@@ -29,6 +29,28 @@ pub struct UpdateResult {
     pub skipped_drifted: Vec<String>,
 }
 
+impl UpdateResult {
+    pub fn empty() -> Self {
+        Self {
+            success_count: 0,
+            fail_count: 0,
+            errors: Vec::new(),
+            updated: Vec::new(),
+            skipped_drifted: Vec::new(),
+        }
+    }
+
+    pub fn failed(errors: Vec<String>) -> Self {
+        Self {
+            success_count: 0,
+            fail_count: errors.len(),
+            errors,
+            updated: Vec::new(),
+            skipped_drifted: Vec::new(),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct KnownSkillUpdate {
     pub name: String,
@@ -306,11 +328,8 @@ impl CliService {
 
         if to_update.is_empty() {
             return Ok(UpdateResult {
-                success_count: 0,
-                fail_count: 0,
-                errors: vec![],
-                updated: vec![],
                 skipped_drifted,
+                ..UpdateResult::empty()
             });
         }
 
@@ -425,13 +444,7 @@ impl CliService {
         to_update: Vec<KnownSkillUpdate>,
     ) -> Result<UpdateResult, AppError> {
         if to_update.is_empty() {
-            return Ok(UpdateResult {
-                success_count: 0,
-                fail_count: 0,
-                errors: vec![],
-                updated: vec![],
-                skipped_drifted: vec![],
-            });
+            return Ok(UpdateResult::empty());
         }
 
         let (groups, mut errors) = Self::group_known_updates_by_repo(to_update);

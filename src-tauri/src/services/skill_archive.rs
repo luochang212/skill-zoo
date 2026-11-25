@@ -217,7 +217,7 @@ impl ArchiveOwner {
             Self::Store => None,
             Self::Agent(id) => Some(id.as_str()),
         };
-        SkillService::scan_skill_root(home, &self.root()?, agent).map_err(|e| e.to_string())
+        SkillService::scan_skill_root(home, &self.root()?, agent, None).map_err(|e| e.to_string())
     }
 }
 
@@ -723,7 +723,7 @@ fn restore_archived_skill_inner(
 
     let retained = write.imports.imports.get(&archived_skill.original_skill_id);
     let entry = if let Some(import) = retained {
-        SkillService::scan_external_import(import)
+        SkillService::scan_external_import(import, None)
             .map_err(|e| rollback(e.to_string(), &restored_agents))?
     } else {
         owner
@@ -1198,6 +1198,7 @@ mod tests {
                 Path::new(home),
                 &config::get_agents_skills_dir(),
                 None,
+                None,
             )
             .unwrap();
             state.skill_cache.write().unwrap().upsert(current);
@@ -1241,15 +1242,14 @@ mod tests {
         let home = root.join(&case.directory);
         std::fs::create_dir_all(&home).unwrap();
         std::fs::write(home.join("SKILL.md"), "# Selected skill").unwrap();
-        let entry =
-            SkillService::scan_skill_root(&home, root, (case.origin == "agent").then_some("codex"))
-                .unwrap();
+        let agent = (case.origin == "agent").then_some("codex");
+        let entry = SkillService::scan_skill_root(&home, root, agent, None).unwrap();
         let mut entries = vec![entry.clone()];
         if case.coexisting_store {
             let peer = store.join(&case.directory);
             std::fs::create_dir_all(&peer).unwrap();
             std::fs::write(peer.join("SKILL.md"), "# Independent store skill").unwrap();
-            entries.push(SkillService::scan_skill_root(&peer, &store, None).unwrap());
+            entries.push(SkillService::scan_skill_root(&peer, &store, None, None).unwrap());
         }
         let mut metadata = crate::persistence::MetadataStore {
             entries: Default::default(),

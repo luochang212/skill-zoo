@@ -2,6 +2,7 @@ pub mod cli;
 pub mod github;
 pub mod lock;
 pub mod opener;
+pub mod repo_metadata;
 pub mod skill;
 pub mod skill_archive;
 pub mod skill_usage;

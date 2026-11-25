@@ -230,7 +230,7 @@ impl SkillService {
                     files.created_links.push((directory, agent));
                 }
             }
-            let entry = Self::scan_skill_root(&dest_dir, &ssot_dir, None)?;
+            let entry = Self::scan_skill_root(&dest_dir, &ssot_dir, None, None)?;
             let new_id = entry.id.clone();
             {
                 let mut c = cache.write().map_err(|e| AppError::Parse(e.to_string()))?;
