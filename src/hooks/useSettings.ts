@@ -18,6 +18,17 @@ export const skillUsageKey = (agent: string) => ["settings", "skillUsage", agent
 const AGENT_ORDER_SETTING = "agent_order";
 const EMPTY_VISIBLE_AGENTS = Object.freeze({}) as VisibleAgents;
 
+function useSettingValue<T>(
+  queryKey: readonly unknown[],
+  parse: (settings: Record<string, string>) => T,
+) {
+  return useQuery({
+    queryKey,
+    queryFn: async () => parse(await settingsApi.getSettings()),
+    staleTime: 0,
+  });
+}
+
 const CREDENTIAL_STATUS_KEY = ["settings", "githubCredentialStatus"] as const;
 const GITHUB_TOKEN_VERIFICATION_KEY = ["settings", "githubTokenVerification"] as const;
 const GITHUB_TOKEN_KEY = ["settings", "githubToken"] as const;
@@ -106,29 +117,20 @@ export function useVisibleAgents() {
 }
 
 export function useShowNonSsot() {
-  return useQuery({
-    queryKey: SHOW_NON_SSOT_KEY,
-    queryFn: async () => {
-      const settings = await settingsApi.getSettings();
-      return settings["show_non_ssot"] !== undefined
-        ? settings["show_non_ssot"] !== "false"
-        : settings["hide_non_ssot"] !== "true";
-    },
-    staleTime: 0,
-  });
+  return useSettingValue(SHOW_NON_SSOT_KEY, (settings) =>
+    settings["show_non_ssot"] !== undefined
+      ? settings["show_non_ssot"] !== "false"
+      : settings["hide_non_ssot"] !== "true",
+  );
 }
 
 const PLUGINS_DISCOVERY_KEY = ["settings", "pluginsDiscoveryEnabled"] as const;
 
 export function usePluginsDiscoveryEnabled() {
-  return useQuery({
-    queryKey: PLUGINS_DISCOVERY_KEY,
-    queryFn: async () => {
-      const settings = await settingsApi.getSettings();
-      return settings["plugins_discovery_enabled"] === "true";
-    },
-    staleTime: 0,
-  });
+  return useSettingValue(
+    PLUGINS_DISCOVERY_KEY,
+    (settings) => settings["plugins_discovery_enabled"] === "true",
+  );
 }
 
 export function useUpdatePluginsDiscoveryEnabled() {
@@ -155,14 +157,10 @@ const CLOSE_TO_TRAY_KEY = ["settings", "closeToTray"] as const;
 const CLOSE_TO_TRAY_SETTING = "close_to_tray";
 
 export function useCloseToTray() {
-  return useQuery({
-    queryKey: CLOSE_TO_TRAY_KEY,
-    queryFn: async () => {
-      const settings = await settingsApi.getSettings();
-      return settings[CLOSE_TO_TRAY_SETTING] === "true";
-    },
-    staleTime: 0,
-  });
+  return useSettingValue(
+    CLOSE_TO_TRAY_KEY,
+    (settings) => settings[CLOSE_TO_TRAY_SETTING] === "true",
+  );
 }
 
 export function useUpdateCloseToTray() {
@@ -189,14 +187,10 @@ export function useUpdateShowNonSsot() {
 }
 
 export function useSkillUsageAgent() {
-  return useQuery({
-    queryKey: SKILL_USAGE_AGENT_KEY,
-    queryFn: async () => {
-      const settings = await settingsApi.getSettings();
-      return settings[SKILL_USAGE_AGENT_SETTING] || "codex";
-    },
-    staleTime: 0,
-  });
+  return useSettingValue(
+    SKILL_USAGE_AGENT_KEY,
+    (settings) => settings[SKILL_USAGE_AGENT_SETTING] || "codex",
+  );
 }
 
 export function useUpdateSkillUsageAgent() {
@@ -265,14 +259,9 @@ export function mergeAgentOrder(agentOrder: string[], knownAgents: string[]): st
 }
 
 export function useAgentOrder() {
-  return useQuery({
-    queryKey: AGENT_ORDER_KEY,
-    queryFn: async () => {
-      const settings = await settingsApi.getSettings();
-      return parseAgentOrder(settings[AGENT_ORDER_SETTING]);
-    },
-    staleTime: 0,
-  });
+  return useSettingValue(AGENT_ORDER_KEY, (settings) =>
+    parseAgentOrder(settings[AGENT_ORDER_SETTING]),
+  );
 }
 
 export function normalizeAgentOrder(
