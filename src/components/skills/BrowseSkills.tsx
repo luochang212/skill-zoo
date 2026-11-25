@@ -21,8 +21,9 @@ import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { RepoDetail } from "@/components/skills/RepoDetail";
 import type { CatalogSkill, DiscoverableSkill, DiscoverRepo } from "@/types/skills";
-import { Search, Loader2, AlertTriangle } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { QueryErrorState } from "@/components/ui/QueryErrorState";
 
 interface RepoCardProps {
   repo: DiscoverRepo;
@@ -398,13 +399,7 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
           )}
 
           {reposError ? (
-            <div className="mt-6 flex-1 flex flex-col items-center justify-center gap-3">
-              <AlertTriangle className="h-8 w-8 text-destructive/60" />
-              <p className="text-sm text-destructive">{t("error.generic")}</p>
-              <Button size="sm" variant="outline" onClick={() => refetchRepos()}>
-                {t("error.retry")}
-              </Button>
-            </div>
+            <QueryErrorState className="mt-6 flex-1" onRetry={() => refetchRepos()} />
           ) : loadingRepos ? null : repos.length === 0 ? (
             <div className="mt-6 flex-1 flex items-center justify-center">
               <p className="text-sm text-muted-foreground">{t("browse.noRepos")}</p>

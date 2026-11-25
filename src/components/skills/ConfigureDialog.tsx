@@ -8,11 +8,10 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { QueryErrorState } from "@/components/ui/QueryErrorState";
 import { useSymlinkStatus, useToggleSymlink } from "@/hooks/useSkills";
 import { useVisibleAgentOrder } from "@/hooks/useSettings";
 import { useAgentConfigs, getAgentLabel } from "@/lib/agents";
-import { AlertTriangle } from "lucide-react";
 import type { SymlinkStatus } from "@/types/skills";
 
 interface ConfigureDialogProps {
@@ -63,13 +62,7 @@ export function ConfigureDialog({
             {t("configureDialog.loading")}
           </div>
         ) : isError ? (
-          <div className="py-6 text-center space-y-3">
-            <AlertTriangle className="h-8 w-8 text-destructive/60 mx-auto" />
-            <p className="text-sm text-destructive">{t("error.generic")}</p>
-            <Button size="sm" variant="outline" onClick={() => refetch()}>
-              {t("error.retry")}
-            </Button>
-          </div>
+          <QueryErrorState className="py-6" onRetry={() => refetch()} />
         ) : (
           <div className="space-y-1 -mx-2">
             {visibleAgentOrder.map((agent) => {

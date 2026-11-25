@@ -16,7 +16,7 @@ import { ConfigureDialog } from "@/components/skills/ConfigureDialog";
 import { SkillContentPane, type ContentTab } from "@/components/skills/SkillContentPane";
 import { skillsApi } from "@/lib/api/skills";
 import { apiErrorCode } from "@/lib/api/errors";
-import { AlertTriangle } from "lucide-react";
+import { QueryErrorState } from "@/components/ui/QueryErrorState";
 import type { InstalledSkill } from "@/types/skills";
 
 interface SkillDetailProps {
@@ -236,12 +236,7 @@ export function SkillDetail({
       )}
 
       {isError && !skill ? (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center space-y-3">
-            <AlertTriangle className="h-8 w-8 text-destructive/60 mx-auto" />
-            <p className="text-sm text-destructive">{t("error.generic")}</p>
-          </div>
-        </div>
+        <QueryErrorState className="flex-1" />
       ) : (
         <SkillContentPane
           content={content}
