@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.2.2] — 2026-11-25
+
+### Changed
+- Skill lists and settings dialogs share error, retry, and confirmation components. Batch actions and settings reads reuse existing behavior through shared code.
+- Desktop commands return structured errors across more operations. Repository metadata and README retrieval now live in a dedicated service, and skill scanning and update result handling share common code.
+
+### Fixed
+- Custom agent validation preserves field-specific messages and focus when a command returns a structured error.
+- The archived skills view shows the underlying error message when the archive fails to load.
+
 ## [1.2.1] — 2026-11-22
 
 ### Fixed
