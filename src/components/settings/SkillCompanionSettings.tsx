@@ -27,6 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { WorkbenchDialog } from "@/components/ui/WorkbenchDialog";
 import {
   useSaveSkillCompanionItems,
   useSkillCompanionItems,
@@ -854,109 +855,100 @@ function SkillCompanionManagerDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !busy && onOpenChange(nextOpen)}>
-      <DialogContent
-        closeDisabled={busy}
-        onPointerDownOutside={(event) => busy && event.preventDefault()}
-        onEscapeKeyDown={(event) => busy && event.preventDefault()}
-        onCloseAutoFocus={(event) => {
-          event.preventDefault();
-          returnFocusRef.current?.focus();
-        }}
-        className="flex h-[min(720px,calc(100vh-6rem))] w-[calc(100vw-2rem)] max-w-[640px] flex-col gap-0 overflow-hidden p-0 sm:rounded-xl"
-        data-selectable
-      >
-        <DialogHeader className="shrink-0 border-b border-border/50 px-4 py-4 text-left">
-          <DialogTitle>{t("settings.skillCompanion.manageTitle")}</DialogTitle>
-          <DialogDescription>{t("settings.skillCompanion.manageDescription")}</DialogDescription>
-        </DialogHeader>
-
-        <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          {items.length === 0 ? (
-            <CommonCommandsEmptyState />
-          ) : (
-            <Reorder.Group
-              as="div"
-              axis="y"
-              values={itemOrder}
-              onReorder={(nextOrder) =>
-                setItems((current) => {
-                  const next = reorderItems(current, nextOrder);
-                  itemsRef.current = next;
-                  return next;
-                })
-              }
-              layoutScroll
-            >
-              {items.map((item, index) => (
-                <SkillCompanionRow
-                  key={item.id}
-                  item={item}
-                  index={index}
-                  disabled={busy || (editingId !== null && editingId !== item.id)}
-                  isEditing={editingId === item.id}
-                  onBeginEdit={() => beginEdit(item)}
-                  onUpdate={(content) => updateItem(item.id, content)}
-                  onSave={() => saveItem(item)}
-                  onDelete={() => deleteItem(item.id)}
-                  onDragEnd={saveOrder}
-                />
-              ))}
-            </Reorder.Group>
-          )}
-        </div>
-
-        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border/40 p-3">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="gap-1.5"
-            disabled={busy || editingId !== null}
-            onClick={addItem}
+    <WorkbenchDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      busy={busy}
+      returnFocusRef={returnFocusRef}
+      className="h-[min(720px,calc(100vh-6rem))] max-w-[640px]"
+      title={t("settings.skillCompanion.manageTitle")}
+      description={t("settings.skillCompanion.manageDescription")}
+    >
+      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        {items.length === 0 ? (
+          <CommonCommandsEmptyState />
+        ) : (
+          <Reorder.Group
+            as="div"
+            axis="y"
+            values={itemOrder}
+            onReorder={(nextOrder) =>
+              setItems((current) => {
+                const next = reorderItems(current, nextOrder);
+                itemsRef.current = next;
+                return next;
+              })
+            }
+            layoutScroll
           >
-            <Plus className="h-3.5 w-3.5" />
-            {t("settings.skillCompanion.add")}
-          </Button>
-          {editingId ? (
-            <p className="text-xs text-muted-foreground">
-              {t("settings.skillCompanion.editingHint")}
-            </p>
-          ) : (
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="gap-1.5 text-muted-foreground"
-                disabled={busy}
-                onClick={() => setImportOpen(true)}
-              >
-                <ClipboardPaste className="h-3.5 w-3.5" />
-                {t("settings.skillCompanion.import")}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="gap-1.5 text-muted-foreground"
-                disabled={busy || items.length === 0}
-                onClick={exportItems}
-              >
-                <ClipboardCopy className="h-3.5 w-3.5" />
-                {t("settings.skillCompanion.export")}
-              </Button>
-            </div>
-          )}
-        </div>
-        <SkillCompanionImportDialog
-          open={importOpen}
-          onOpenChange={setImportOpen}
-          existing={items}
-          onConfirm={importItems}
-        />
-      </DialogContent>
-    </Dialog>
+            {items.map((item, index) => (
+              <SkillCompanionRow
+                key={item.id}
+                item={item}
+                index={index}
+                disabled={busy || (editingId !== null && editingId !== item.id)}
+                isEditing={editingId === item.id}
+                onBeginEdit={() => beginEdit(item)}
+                onUpdate={(content) => updateItem(item.id, content)}
+                onSave={() => saveItem(item)}
+                onDelete={() => deleteItem(item.id)}
+                onDragEnd={saveOrder}
+              />
+            ))}
+          </Reorder.Group>
+        )}
+      </div>
+
+      <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border/40 p-3">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="gap-1.5"
+          disabled={busy || editingId !== null}
+          onClick={addItem}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          {t("settings.skillCompanion.add")}
+        </Button>
+        {editingId ? (
+          <p className="text-xs text-muted-foreground">
+            {t("settings.skillCompanion.editingHint")}
+          </p>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="gap-1.5 text-muted-foreground"
+              disabled={busy}
+              onClick={() => setImportOpen(true)}
+            >
+              <ClipboardPaste className="h-3.5 w-3.5" />
+              {t("settings.skillCompanion.import")}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="gap-1.5 text-muted-foreground"
+              disabled={busy || items.length === 0}
+              onClick={exportItems}
+            >
+              <ClipboardCopy className="h-3.5 w-3.5" />
+              {t("settings.skillCompanion.export")}
+            </Button>
+          </div>
+        )}
+      </div>
+      <SkillCompanionImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        existing={items}
+        onConfirm={importItems}
+      />
+    </WorkbenchDialog>
   );
 }
 
@@ -994,35 +986,32 @@ function SkillCompanionImportDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="flex max-h-[calc(100vh-6rem)] w-[calc(100vw-2rem)] max-w-[560px] flex-col gap-0 p-0 sm:rounded-xl"
-        data-selectable
-      >
-        <DialogHeader className="shrink-0 border-b border-border/50 px-4 py-4 text-left">
-          <DialogTitle>{t("settings.skillCompanion.importTitle")}</DialogTitle>
-          <DialogDescription>{t("settings.skillCompanion.importDescription")}</DialogDescription>
-        </DialogHeader>
-        <div className="p-4">
-          <textarea
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            placeholder={t("settings.skillCompanion.importPlaceholder")}
-            aria-label={t("settings.skillCompanion.importTextarea")}
-            rows={8}
-            className="h-40 w-full resize-none overflow-y-auto rounded-md border border-input bg-background px-3 py-2 font-mono text-sm leading-5 transition-colors placeholder:text-muted-foreground focus-visible:outline-none"
-          />
-        </div>
-        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border/40 p-3">
-          <Button type="button" size="sm" variant="outline" onClick={() => onOpenChange(false)}>
-            {t("common.cancel")}
-          </Button>
-          <Button type="button" size="sm" disabled={empty} onClick={confirm}>
-            {t("settings.skillCompanion.importAction")}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <WorkbenchDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      className="max-h-[calc(100vh-6rem)] max-w-[560px]"
+      title={t("settings.skillCompanion.importTitle")}
+      description={t("settings.skillCompanion.importDescription")}
+    >
+      <div className="p-4">
+        <textarea
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          placeholder={t("settings.skillCompanion.importPlaceholder")}
+          aria-label={t("settings.skillCompanion.importTextarea")}
+          rows={8}
+          className="h-40 w-full resize-none overflow-y-auto rounded-md border border-input bg-background px-3 py-2 font-mono text-sm leading-5 transition-colors placeholder:text-muted-foreground focus-visible:outline-none"
+        />
+      </div>
+      <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border/40 p-3">
+        <Button type="button" size="sm" variant="outline" onClick={() => onOpenChange(false)}>
+          {t("common.cancel")}
+        </Button>
+        <Button type="button" size="sm" disabled={empty} onClick={confirm}>
+          {t("settings.skillCompanion.importAction")}
+        </Button>
+      </div>
+    </WorkbenchDialog>
   );
 }
 

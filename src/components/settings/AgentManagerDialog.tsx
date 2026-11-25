@@ -5,13 +5,7 @@ import { ChevronDown, ChevronRight, FolderOpen, GripVertical, Search, Plus } fro
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { WorkbenchDialog } from "@/components/ui/WorkbenchDialog";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { skillsApi } from "@/lib/api/skills";
@@ -309,7 +303,7 @@ export function AgentManagerDialog({
     visibleInfos.length === 0 && hiddenInfos.length === 0 && suppressedInfos.length === 0;
 
   return (
-    <Dialog
+    <WorkbenchDialog
       open={open}
       onOpenChange={(nextOpen) => {
         if (updatePreferences.isPending || editorBusy) return;
@@ -319,247 +313,227 @@ export function AgentManagerDialog({
         }
         onOpenChange(nextOpen);
       }}
+      busy={updatePreferences.isPending || editorBusy}
+      returnFocusRef={returnFocusRef}
+      className={shellClass}
+      title={t(
+        editor === undefined
+          ? "settings.agentPaths.manageTitle"
+          : editor
+            ? "settings.customAgents.editTitle"
+            : "settings.customAgents.addTitle",
+      )}
+      description={t(
+        editor === undefined
+          ? "settings.agentPaths.manageDescription"
+          : "settings.customAgents.description",
+      )}
     >
-      <DialogContent
-        closeDisabled={updatePreferences.isPending || editorBusy}
-        onPointerDownOutside={(event) =>
-          (updatePreferences.isPending || editorBusy) && event.preventDefault()
-        }
-        onEscapeKeyDown={(event) =>
-          (updatePreferences.isPending || editorBusy) && event.preventDefault()
-        }
-        onCloseAutoFocus={(event) => {
-          event.preventDefault();
-          returnFocusRef.current?.focus();
-        }}
-        className={`flex ${shellClass} w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:rounded-xl`}
-        data-selectable
-      >
-        <DialogHeader className="shrink-0 border-b border-border/50 px-4 py-4 text-left">
-          <DialogTitle>
-            {t(
-              editor === undefined
-                ? "settings.agentPaths.manageTitle"
-                : editor
-                  ? "settings.customAgents.editTitle"
-                  : "settings.customAgents.addTitle",
-            )}
-          </DialogTitle>
-          <DialogDescription>
-            {t(
-              editor === undefined
-                ? "settings.agentPaths.manageDescription"
-                : "settings.customAgents.description",
-            )}
-          </DialogDescription>
-        </DialogHeader>
-
-        {editor !== undefined ? (
-          <CustomAgentEditor
-            agent={editor ?? undefined}
-            closeRequest={closeRequest}
-            onBusyChange={setEditorBusy}
-            onCancel={(closeDialog) => {
-              if (closeDialog) {
-                setEditor(undefined);
-                onOpenChange(false);
-              } else returnToList(editor?.agent);
-            }}
-            onSaved={(result) => {
-              setQuery("");
-              setHiddenExpanded(true);
-              returnToList(result.agentId);
-            }}
-          />
-        ) : (
-          <>
-            <div className="flex shrink-0 items-center gap-3 border-b border-border/40 px-4 py-3">
-              <div className="relative min-w-0 flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder={t("settings.agentPaths.searchPlaceholder")}
-                  aria-label={t("settings.agentPaths.searchPlaceholder")}
-                  className="h-9 pl-9"
-                />
-              </div>
-              <Button
-                id="add-custom-agent"
-                type="button"
-                size="sm"
-                className="shrink-0 gap-1.5"
-                disabled={updatePreferences.isPending}
-                onClick={() => enterEditor(null)}
-              >
-                <Plus className="h-4 w-4" />
-                {t("settings.customAgents.add")}
-              </Button>
+      {editor !== undefined ? (
+        <CustomAgentEditor
+          agent={editor ?? undefined}
+          closeRequest={closeRequest}
+          onBusyChange={setEditorBusy}
+          onCancel={(closeDialog) => {
+            if (closeDialog) {
+              setEditor(undefined);
+              onOpenChange(false);
+            } else returnToList(editor?.agent);
+          }}
+          onSaved={(result) => {
+            setQuery("");
+            setHiddenExpanded(true);
+            returnToList(result.agentId);
+          }}
+        />
+      ) : (
+        <>
+          <div className="flex shrink-0 items-center gap-3 border-b border-border/40 px-4 py-3">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={t("settings.agentPaths.searchPlaceholder")}
+                aria-label={t("settings.agentPaths.searchPlaceholder")}
+                className="h-9 pl-9"
+              />
             </div>
+            <Button
+              id="add-custom-agent"
+              type="button"
+              size="sm"
+              className="shrink-0 gap-1.5"
+              disabled={updatePreferences.isPending}
+              onClick={() => enterEditor(null)}
+            >
+              <Plus className="h-4 w-4" />
+              {t("settings.customAgents.add")}
+            </Button>
+          </div>
 
-            <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-              {noResults ? (
-                <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
-                  {t("settings.agentPaths.noResults")}
-                </div>
-              ) : (
-                <>
-                  {visibleInfos.length > 0 && (
-                    <div>
-                      <div className="sticky top-0 z-10 bg-muted/95 px-4 py-2 text-xs font-medium text-muted-foreground backdrop-blur">
-                        {t("settings.agentPaths.visibleGroup", { count: visibleInfos.length })}
-                      </div>
-                      {normalizedQuery ? (
-                        visibleInfos.map((info) => (
-                          <div
-                            key={info.agent}
-                            className="flex min-h-14 items-center gap-3 border-b border-border/40 px-4 py-2.5 last:border-b-0"
-                          >
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/60">
-                              <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <AgentPathDetails info={info} onEdit={enterEditor} />
-                            </div>
-                            <OpenPathButton info={info} />
-                            <Switch
-                              checked
-                              onCheckedChange={() => handleToggle(info.agent)}
-                              disabled={updatePreferences.isPending || visibleOrder.length <= 1}
-                              aria-label={t("settings.agentPaths.toggleVisibility", {
-                                agent: info.label,
-                              })}
-                              className="shrink-0"
-                            />
-                          </div>
-                        ))
-                      ) : (
-                        <Reorder.Group
-                          as="div"
-                          axis="y"
-                          values={visibleOrder}
-                          onReorder={(nextVisibleOrder) => {
-                            const nextOrder = [...nextVisibleOrder, ...hiddenOrder];
-                            setDraftOrder(nextOrder);
-                            draftOrderRef.current = nextOrder;
-                          }}
-                          layoutScroll
-                        >
-                          {visibleOrder.map((agent) => {
-                            const info = pathById.get(agent);
-                            if (!info) return null;
-                            return (
-                              <SortableAgentRow
-                                key={agent}
-                                info={info}
-                                onEdit={enterEditor}
-                                isVisible
-                                canToggle={visibleOrder.length > 1}
-                                disabled={updatePreferences.isPending}
-                                onToggle={() => handleToggle(agent)}
-                                onDragStart={() => {
-                                  dragStartOrderRef.current = draftOrderRef.current;
-                                }}
-                                onDrag={(_event, panInfo) => updateAutoScroll(panInfo.point.y)}
-                                onDragEnd={(event) => {
-                                  stopAutoScroll();
-                                  if (
-                                    event.type === "pointercancel" &&
-                                    dragStartOrderRef.current.length > 0
-                                  ) {
-                                    setDraftOrder(dragStartOrderRef.current);
-                                    draftOrderRef.current = dragStartOrderRef.current;
-                                    return;
-                                  }
-                                  if (updatePreferences.isPending) return;
-                                  const visibleNow = draftOrderRef.current.filter(
-                                    (id) => visibleAgents[id] !== false,
-                                  );
-                                  updatePreferences.commitOrder(visibleNow);
-                                }}
-                              />
-                            );
-                          })}
-                        </Reorder.Group>
-                      )}
+          <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            {noResults ? (
+              <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
+                {t("settings.agentPaths.noResults")}
+              </div>
+            ) : (
+              <>
+                {visibleInfos.length > 0 && (
+                  <div>
+                    <div className="sticky top-0 z-10 bg-muted/95 px-4 py-2 text-xs font-medium text-muted-foreground backdrop-blur">
+                      {t("settings.agentPaths.visibleGroup", { count: visibleInfos.length })}
                     </div>
-                  )}
-
-                  {suppressedInfos.length > 0 && (
-                    <section
-                      aria-label={t("settings.customAgents.notEnabled")}
-                      className="border-t border-border/40"
-                    >
-                      <h3 className="bg-muted/95 px-4 py-2 text-xs font-medium text-muted-foreground">
-                        {t("settings.customAgents.notEnabled")}
-                      </h3>
-                      {suppressedInfos.map((info) => (
+                    {normalizedQuery ? (
+                      visibleInfos.map((info) => (
                         <div
                           key={info.agent}
-                          className="space-y-1.5 border-b border-border/40 px-4 py-3 last:border-b-0"
+                          className="flex min-h-14 items-center gap-3 border-b border-border/40 px-4 py-2.5 last:border-b-0"
                         >
-                          <p className="text-sm font-medium">
-                            {info.label} · {t("settings.customAgents.builtin")}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {t("settings.customAgents.overlapStatus", {
-                              agent: pathById.get(info.suppressedBy!)?.label ?? info.suppressedBy,
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/60">
+                            <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <AgentPathDetails info={info} onEdit={enterEditor} />
+                          </div>
+                          <OpenPathButton info={info} />
+                          <Switch
+                            checked
+                            onCheckedChange={() => handleToggle(info.agent)}
+                            disabled={updatePreferences.isPending || visibleOrder.length <= 1}
+                            aria-label={t("settings.agentPaths.toggleVisibility", {
+                              agent: info.label,
                             })}
-                          </p>
-                          <p className="break-all font-mono text-xs text-muted-foreground">
-                            {info.path}
-                          </p>
+                            className="shrink-0"
+                          />
+                        </div>
+                      ))
+                    ) : (
+                      <Reorder.Group
+                        as="div"
+                        axis="y"
+                        values={visibleOrder}
+                        onReorder={(nextVisibleOrder) => {
+                          const nextOrder = [...nextVisibleOrder, ...hiddenOrder];
+                          setDraftOrder(nextOrder);
+                          draftOrderRef.current = nextOrder;
+                        }}
+                        layoutScroll
+                      >
+                        {visibleOrder.map((agent) => {
+                          const info = pathById.get(agent);
+                          if (!info) return null;
+                          return (
+                            <SortableAgentRow
+                              key={agent}
+                              info={info}
+                              onEdit={enterEditor}
+                              isVisible
+                              canToggle={visibleOrder.length > 1}
+                              disabled={updatePreferences.isPending}
+                              onToggle={() => handleToggle(agent)}
+                              onDragStart={() => {
+                                dragStartOrderRef.current = draftOrderRef.current;
+                              }}
+                              onDrag={(_event, panInfo) => updateAutoScroll(panInfo.point.y)}
+                              onDragEnd={(event) => {
+                                stopAutoScroll();
+                                if (
+                                  event.type === "pointercancel" &&
+                                  dragStartOrderRef.current.length > 0
+                                ) {
+                                  setDraftOrder(dragStartOrderRef.current);
+                                  draftOrderRef.current = dragStartOrderRef.current;
+                                  return;
+                                }
+                                if (updatePreferences.isPending) return;
+                                const visibleNow = draftOrderRef.current.filter(
+                                  (id) => visibleAgents[id] !== false,
+                                );
+                                updatePreferences.commitOrder(visibleNow);
+                              }}
+                            />
+                          );
+                        })}
+                      </Reorder.Group>
+                    )}
+                  </div>
+                )}
+
+                {suppressedInfos.length > 0 && (
+                  <section
+                    aria-label={t("settings.customAgents.notEnabled")}
+                    className="border-t border-border/40"
+                  >
+                    <h3 className="bg-muted/95 px-4 py-2 text-xs font-medium text-muted-foreground">
+                      {t("settings.customAgents.notEnabled")}
+                    </h3>
+                    {suppressedInfos.map((info) => (
+                      <div
+                        key={info.agent}
+                        className="space-y-1.5 border-b border-border/40 px-4 py-3 last:border-b-0"
+                      >
+                        <p className="text-sm font-medium">
+                          {info.label} · {t("settings.customAgents.builtin")}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {t("settings.customAgents.overlapStatus", {
+                            agent: pathById.get(info.suppressedBy!)?.label ?? info.suppressedBy,
+                          })}
+                        </p>
+                        <p className="break-all font-mono text-xs text-muted-foreground">
+                          {info.path}
+                        </p>
+                      </div>
+                    ))}
+                  </section>
+                )}
+                {hiddenInfos.length > 0 && (
+                  <div>
+                    <button
+                      type="button"
+                      className="sticky top-0 z-10 flex w-full items-center gap-2 bg-muted/95 px-4 py-2 text-left text-xs font-medium text-muted-foreground backdrop-blur hover:text-foreground"
+                      onClick={() => setHiddenExpanded((expanded) => !expanded)}
+                      aria-expanded={showHiddenRows}
+                    >
+                      {showHiddenRows ? (
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      ) : (
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      )}
+                      {t("settings.agentPaths.hiddenGroup", { count: hiddenInfos.length })}
+                    </button>
+                    {showHiddenRows &&
+                      hiddenInfos.map((info) => (
+                        <div
+                          key={info.agent}
+                          className="flex min-h-14 items-center gap-3 border-b border-border/40 px-4 py-2.5 last:border-b-0"
+                        >
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/60">
+                            <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <AgentPathDetails info={info} onEdit={enterEditor} />
+                          </div>
+                          <OpenPathButton info={info} />
+                          <Switch
+                            checked={false}
+                            onCheckedChange={() => handleToggle(info.agent)}
+                            disabled={updatePreferences.isPending}
+                            aria-label={t("settings.agentPaths.toggleVisibility", {
+                              agent: info.label,
+                            })}
+                            className="shrink-0"
+                          />
                         </div>
                       ))}
-                    </section>
-                  )}
-                  {hiddenInfos.length > 0 && (
-                    <div>
-                      <button
-                        type="button"
-                        className="sticky top-0 z-10 flex w-full items-center gap-2 bg-muted/95 px-4 py-2 text-left text-xs font-medium text-muted-foreground backdrop-blur hover:text-foreground"
-                        onClick={() => setHiddenExpanded((expanded) => !expanded)}
-                        aria-expanded={showHiddenRows}
-                      >
-                        {showHiddenRows ? (
-                          <ChevronDown className="h-3.5 w-3.5" />
-                        ) : (
-                          <ChevronRight className="h-3.5 w-3.5" />
-                        )}
-                        {t("settings.agentPaths.hiddenGroup", { count: hiddenInfos.length })}
-                      </button>
-                      {showHiddenRows &&
-                        hiddenInfos.map((info) => (
-                          <div
-                            key={info.agent}
-                            className="flex min-h-14 items-center gap-3 border-b border-border/40 px-4 py-2.5 last:border-b-0"
-                          >
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/60">
-                              <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <AgentPathDetails info={info} onEdit={enterEditor} />
-                            </div>
-                            <OpenPathButton info={info} />
-                            <Switch
-                              checked={false}
-                              onCheckedChange={() => handleToggle(info.agent)}
-                              disabled={updatePreferences.isPending}
-                              aria-label={t("settings.agentPaths.toggleVisibility", {
-                                agent: info.label,
-                              })}
-                              className="shrink-0"
-                            />
-                          </div>
-                        ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </>
-        )}
-      </DialogContent>
-    </Dialog>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </WorkbenchDialog>
   );
 }

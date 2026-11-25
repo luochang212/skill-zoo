@@ -12,14 +12,8 @@ import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { WorkbenchDialog } from "@/components/ui/WorkbenchDialog";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import {
   useClearSkillUpdateHistory,
   useDeleteSkillUpdateHistoryRecord,
@@ -147,281 +141,257 @@ export function SkillUpdateManagerDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        onCloseAutoFocus={(event) => {
-          event.preventDefault();
-          if (configureGitHubTokenRef.current) {
-            configureGitHubTokenRef.current = false;
-            onRequestGitHubTokenConfig?.();
-            return;
-          }
-          returnFocusRef.current?.focus();
-        }}
-        className="flex h-[min(720px,calc(100vh-6rem))] w-[calc(100vw-2rem)] max-w-[640px] flex-col gap-0 overflow-hidden p-0 sm:rounded-xl"
-        data-selectable
-      >
-        <DialogHeader className="shrink-0 border-b border-border/50 px-4 py-4 text-left">
-          <DialogTitle>{t("settings.maintenance.updateManagerTitle")}</DialogTitle>
-          <DialogDescription>{t("settings.maintenance.updateManagerDesc")}</DialogDescription>
-        </DialogHeader>
-
-        <div className="flex shrink-0 items-center gap-3 border-b border-border/40 px-4 py-3">
-          <div className="flex min-w-0 flex-1 items-center gap-1 rounded-md bg-muted/60 p-1">
-            <button
-              type="button"
-              className={cn(
-                "flex h-8 flex-1 items-center justify-center gap-1.5 rounded px-2 text-xs font-medium transition-colors",
-                tab === "updates" ? "bg-background shadow-sm" : "text-muted-foreground",
-              )}
-              onClick={() => setTab("updates")}
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              {t("settings.maintenance.availableUpdatesTab", { count: updates.length })}
-            </button>
-            <button
-              type="button"
-              className={cn(
-                "flex h-8 flex-1 items-center justify-center gap-1.5 rounded px-2 text-xs font-medium transition-colors",
-                tab === "history" ? "bg-background shadow-sm" : "text-muted-foreground",
-              )}
-              onClick={() => setTab("history")}
-            >
-              <History className="h-3.5 w-3.5" />
-              {t("settings.maintenance.updateHistoryTab", { count: history.length })}
-            </button>
-          </div>
-          {tab === "updates" ? (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 shrink-0 gap-1.5 text-xs"
-              onClick={onCheckUpdates}
-              disabled={isChecking || isUpdating}
-            >
-              <RefreshCw className={cn("h-3.5 w-3.5", isChecking && "animate-spin")} />
-              {isChecking
-                ? t("settings.maintenance.checkingBtn")
-                : t("settings.maintenance.checkUpdateBtn")}
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 shrink-0 gap-1.5 text-xs"
-              onClick={handleClearHistory}
-              disabled={history.length === 0 || historyBusy}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              {t("settings.maintenance.clearHistory")}
-            </Button>
-          )}
-        </div>
-
-        {tab === "updates" ? (
-          <>
-            <div className="flex shrink-0 items-center justify-between border-b border-border/40 px-4 py-2.5">
-              <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Checkbox
-                  checked={allSelected}
-                  onCheckedChange={(checked) => setAllSelected(Boolean(checked))}
-                  disabled={updates.length === 0 || isUpdating}
-                  aria-label={t("settings.maintenance.selectAllUpdates")}
-                />
-                {t("settings.maintenance.selectedUpdates", {
-                  selected: selectedUpdates.length,
-                  total: updates.length,
-                })}
-              </label>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  className="h-8 gap-1.5 text-xs"
-                  onClick={() => onUpdate(selectedUpdates)}
-                  disabled={selectedUpdates.length === 0 || isUpdating}
-                >
-                  <RefreshCw className={cn("h-3.5 w-3.5", isUpdating && "animate-spin")} />
-                  {t("settings.maintenance.updateSelected")}
-                </Button>
-              </div>
-            </div>
-            <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-              {updates.length === 0 && issues.length === 0 ? (
-                <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
-                  {t("settings.maintenance.noAvailableUpdates")}
-                </div>
-              ) : (
-                <>
-                  {updates.map((update) => (
-                    <div
-                      key={update.skillName}
-                      className="flex min-h-16 items-center gap-3 border-b border-border/40 px-4 py-3"
-                    >
-                      <Checkbox
-                        checked={selected.has(update.skillName)}
-                        onCheckedChange={(checked) =>
-                          toggleSelected(update.skillName, Boolean(checked))
-                        }
-                        disabled={isUpdating || update.locallyModified}
-                        aria-label={t("settings.maintenance.selectUpdate", {
-                          skill: update.skillName,
-                        })}
-                      />
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <p className="truncate text-sm font-medium leading-none">
-                            {update.skillName}
-                          </p>
-                          <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-[10px]">
-                            {update.repo}
-                          </Badge>
-                          {update.locallyModified && (
-                            <Badge
-                              variant="outline"
-                              className="h-5 shrink-0 gap-1 border-amber-500/50 px-1.5 text-[10px] text-amber-600"
-                            >
-                              <AlertTriangle className="h-3 w-3" />
-                              {t("settings.maintenance.locallyModifiedBadge")}
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="truncate font-mono text-xs text-muted-foreground">
-                          {shortSha(update.currentSha)} -&gt; {shortSha(update.latestSha)}
-                        </p>
-                      </div>
-                      {update.locallyModified && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 shrink-0 gap-1.5 text-xs"
-                          disabled={isUpdating}
-                          onClick={() => setDriftConfirmItem(update)}
-                        >
-                          <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
-                          {t("settings.maintenance.updateAnyway")}
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  {issues.length > 0 && (
-                    <>
-                      <div className="border-b border-border/40 bg-muted/35 px-4 py-2 text-xs font-medium text-muted-foreground">
-                        {t("settings.maintenance.updateIssuesGroup", { count: issues.length })}
-                      </div>
-                      {issues.map((issue) => (
-                        <div
-                          key={issue.skillName}
-                          className="flex min-h-16 items-start gap-3 border-b border-border/40 px-4 py-3 last:border-b-0"
-                        >
-                          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/10">
-                            <AlertTriangle className="h-4 w-4 text-amber-600" />
-                          </div>
-                          <div className="min-w-0 flex-1 space-y-1">
-                            <div className="flex items-center gap-2">
-                              <p className="truncate text-sm font-medium leading-none">
-                                {issue.skillName}
-                              </p>
-                              <Badge variant="outline" className="h-5 shrink-0 px-1.5 text-[10px]">
-                                {issue.repo}
-                              </Badge>
-                              <Badge
-                                variant="secondary"
-                                className="h-5 shrink-0 px-1.5 text-[10px]"
-                              >
-                                {t("settings.maintenance.updateIssueBadge", {
-                                  code: issue.code,
-                                })}
-                              </Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {apiErrorCode(issue.message)
-                                ? formatApiError(issue.message)
-                                : issue.message}
-                            </p>
-                            {canConfigureGitHubToken(
-                              apiErrorCode(issue.message) ? issue.message : { code: issue.code },
-                            ) && (
-                              <Button
-                                size="sm"
-                                variant="link"
-                                className="h-auto p-0 text-xs"
-                                disabled={isUpdating || historyBusy}
-                                onClick={() => {
-                                  configureGitHubTokenRef.current = true;
-                                  onOpenChange(false);
-                                }}
-                              >
-                                {t("settings.github.configure")}
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </>
-              )}
-            </div>
-          </>
-        ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {historyQuery.isLoading ? (
-              <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
-                {t("settings.maintenance.loadingHistory")}
-              </div>
-            ) : history.length === 0 ? (
-              <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
-                {t("settings.maintenance.noUpdateHistory")}
-              </div>
-            ) : (
-              history.map((record) => (
-                <HistoryRow
-                  key={record.id}
-                  record={record}
-                  disabled={historyBusy}
-                  onDelete={() => handleDeleteHistory(record.id)}
-                />
-              ))
+    <WorkbenchDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      onCloseAutoFocus={(event) => {
+        event.preventDefault();
+        if (configureGitHubTokenRef.current) {
+          configureGitHubTokenRef.current = false;
+          onRequestGitHubTokenConfig?.();
+          return;
+        }
+        returnFocusRef.current?.focus();
+      }}
+      className="h-[min(720px,calc(100vh-6rem))] max-w-[640px]"
+      title={t("settings.maintenance.updateManagerTitle")}
+      description={t("settings.maintenance.updateManagerDesc")}
+    >
+      <div className="flex shrink-0 items-center gap-3 border-b border-border/40 px-4 py-3">
+        <div className="flex min-w-0 flex-1 items-center gap-1 rounded-md bg-muted/60 p-1">
+          <button
+            type="button"
+            className={cn(
+              "flex h-8 flex-1 items-center justify-center gap-1.5 rounded px-2 text-xs font-medium transition-colors",
+              tab === "updates" ? "bg-background shadow-sm" : "text-muted-foreground",
             )}
-          </div>
+            onClick={() => setTab("updates")}
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            {t("settings.maintenance.availableUpdatesTab", { count: updates.length })}
+          </button>
+          <button
+            type="button"
+            className={cn(
+              "flex h-8 flex-1 items-center justify-center gap-1.5 rounded px-2 text-xs font-medium transition-colors",
+              tab === "history" ? "bg-background shadow-sm" : "text-muted-foreground",
+            )}
+            onClick={() => setTab("history")}
+          >
+            <History className="h-3.5 w-3.5" />
+            {t("settings.maintenance.updateHistoryTab", { count: history.length })}
+          </button>
+        </div>
+        {tab === "updates" ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 shrink-0 gap-1.5 text-xs"
+            onClick={onCheckUpdates}
+            disabled={isChecking || isUpdating}
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", isChecking && "animate-spin")} />
+            {isChecking
+              ? t("settings.maintenance.checkingBtn")
+              : t("settings.maintenance.checkUpdateBtn")}
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 shrink-0 gap-1.5 text-xs"
+            onClick={handleClearHistory}
+            disabled={history.length === 0 || historyBusy}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            {t("settings.maintenance.clearHistory")}
+          </Button>
         )}
+      </div>
 
-        <Dialog
-          open={driftConfirmItem != null}
-          onOpenChange={(nextOpen) => {
-            if (!nextOpen) setDriftConfirmItem(null);
-          }}
-        >
-          <DialogContent className="sm:max-w-[380px]">
-            <DialogHeader>
-              <DialogTitle>{t("settings.maintenance.driftConfirmTitle")}</DialogTitle>
-              <DialogDescription>
-                {t("settings.maintenance.driftConfirmDesc", {
-                  skill: driftConfirmItem?.skillName ?? "",
-                })}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button size="sm" variant="outline" onClick={() => setDriftConfirmItem(null)}>
-                {t("common.cancel")}
-              </Button>
+      {tab === "updates" ? (
+        <>
+          <div className="flex shrink-0 items-center justify-between border-b border-border/40 px-4 py-2.5">
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Checkbox
+                checked={allSelected}
+                onCheckedChange={(checked) => setAllSelected(Boolean(checked))}
+                disabled={updates.length === 0 || isUpdating}
+                aria-label={t("settings.maintenance.selectAllUpdates")}
+              />
+              {t("settings.maintenance.selectedUpdates", {
+                selected: selectedUpdates.length,
+                total: updates.length,
+              })}
+            </label>
+            <div className="flex items-center gap-2">
               <Button
                 size="sm"
-                variant="destructive"
-                disabled={isUpdating}
-                onClick={() => {
-                  if (!driftConfirmItem) return;
-                  onUpdate([{ ...driftConfirmItem, force: true }]);
-                  setDriftConfirmItem(null);
-                }}
+                className="h-8 gap-1.5 text-xs"
+                onClick={() => onUpdate(selectedUpdates)}
+                disabled={selectedUpdates.length === 0 || isUpdating}
               >
-                {t("settings.maintenance.driftConfirmOverwrite")}
+                <RefreshCw className={cn("h-3.5 w-3.5", isUpdating && "animate-spin")} />
+                {t("settings.maintenance.updateSelected")}
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </DialogContent>
-    </Dialog>
+            </div>
+          </div>
+          <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            {updates.length === 0 && issues.length === 0 ? (
+              <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
+                {t("settings.maintenance.noAvailableUpdates")}
+              </div>
+            ) : (
+              <>
+                {updates.map((update) => (
+                  <div
+                    key={update.skillName}
+                    className="flex min-h-16 items-center gap-3 border-b border-border/40 px-4 py-3"
+                  >
+                    <Checkbox
+                      checked={selected.has(update.skillName)}
+                      onCheckedChange={(checked) =>
+                        toggleSelected(update.skillName, Boolean(checked))
+                      }
+                      disabled={isUpdating || update.locallyModified}
+                      aria-label={t("settings.maintenance.selectUpdate", {
+                        skill: update.skillName,
+                      })}
+                    />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-sm font-medium leading-none">
+                          {update.skillName}
+                        </p>
+                        <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-[10px]">
+                          {update.repo}
+                        </Badge>
+                        {update.locallyModified && (
+                          <Badge
+                            variant="outline"
+                            className="h-5 shrink-0 gap-1 border-amber-500/50 px-1.5 text-[10px] text-amber-600"
+                          >
+                            <AlertTriangle className="h-3 w-3" />
+                            {t("settings.maintenance.locallyModifiedBadge")}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="truncate font-mono text-xs text-muted-foreground">
+                        {shortSha(update.currentSha)} -&gt; {shortSha(update.latestSha)}
+                      </p>
+                    </div>
+                    {update.locallyModified && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 shrink-0 gap-1.5 text-xs"
+                        disabled={isUpdating}
+                        onClick={() => setDriftConfirmItem(update)}
+                      >
+                        <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                        {t("settings.maintenance.updateAnyway")}
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                {issues.length > 0 && (
+                  <>
+                    <div className="border-b border-border/40 bg-muted/35 px-4 py-2 text-xs font-medium text-muted-foreground">
+                      {t("settings.maintenance.updateIssuesGroup", { count: issues.length })}
+                    </div>
+                    {issues.map((issue) => (
+                      <div
+                        key={issue.skillName}
+                        className="flex min-h-16 items-start gap-3 border-b border-border/40 px-4 py-3 last:border-b-0"
+                      >
+                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/10">
+                          <AlertTriangle className="h-4 w-4 text-amber-600" />
+                        </div>
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <p className="truncate text-sm font-medium leading-none">
+                              {issue.skillName}
+                            </p>
+                            <Badge variant="outline" className="h-5 shrink-0 px-1.5 text-[10px]">
+                              {issue.repo}
+                            </Badge>
+                            <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-[10px]">
+                              {t("settings.maintenance.updateIssueBadge", {
+                                code: issue.code,
+                              })}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {apiErrorCode(issue.message)
+                              ? formatApiError(issue.message)
+                              : issue.message}
+                          </p>
+                          {canConfigureGitHubToken(
+                            apiErrorCode(issue.message) ? issue.message : { code: issue.code },
+                          ) && (
+                            <Button
+                              size="sm"
+                              variant="link"
+                              className="h-auto p-0 text-xs"
+                              disabled={isUpdating || historyBusy}
+                              onClick={() => {
+                                configureGitHubTokenRef.current = true;
+                                onOpenChange(false);
+                              }}
+                            >
+                              {t("settings.github.configure")}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {historyQuery.isLoading ? (
+            <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
+              {t("settings.maintenance.loadingHistory")}
+            </div>
+          ) : history.length === 0 ? (
+            <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
+              {t("settings.maintenance.noUpdateHistory")}
+            </div>
+          ) : (
+            history.map((record) => (
+              <HistoryRow
+                key={record.id}
+                record={record}
+                disabled={historyBusy}
+                onDelete={() => handleDeleteHistory(record.id)}
+              />
+            ))
+          )}
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={driftConfirmItem != null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setDriftConfirmItem(null);
+        }}
+        title={t("settings.maintenance.driftConfirmTitle")}
+        description={t("settings.maintenance.driftConfirmDesc", {
+          skill: driftConfirmItem?.skillName ?? "",
+        })}
+        confirmLabel={t("settings.maintenance.driftConfirmOverwrite")}
+        pending={isUpdating}
+        onConfirm={() => {
+          if (!driftConfirmItem) return;
+          onUpdate([{ ...driftConfirmItem, force: true }]);
+          setDriftConfirmItem(null);
+        }}
+      />
+    </WorkbenchDialog>
   );
 }
 

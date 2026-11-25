@@ -4,14 +4,7 @@ import { Copy, AlertTriangle, Check, CheckCircle2, Eye, PenLine, Settings } from
 import { useConsistencyLabelSettings } from "@/hooks/useConsistencyLabelSettings";
 import { useMergeDuplicates } from "@/hooks/useSkills";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { skillsApi } from "@/lib/api/skills";
 import { cn } from "@/lib/utils";
@@ -231,66 +224,6 @@ function MismatchEntry({
         )}
       </div>
     </div>
-  );
-}
-
-function MergeConfirmDialog({
-  skillName,
-  skillDirs,
-  onConfirm,
-  onCancel,
-  isPending,
-}: {
-  skillName: string;
-  skillDirs: string[];
-  onConfirm: () => void;
-  onCancel: () => void;
-  isPending: boolean;
-}) {
-  const { t } = useTranslation();
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="sm:max-w-md" data-selectable>
-        <DialogHeader>
-          <DialogTitle>{t("consistency.mergeConfirmTitle")}</DialogTitle>
-          <DialogDescription>
-            {t("consistency.mergeConfirmDesc", { name: skillName })}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-2 text-[12px]">
-          <p className="font-medium text-foreground">{t("consistency.mergeStepsLabel")}</p>
-          <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-            <li>{t("consistency.mergeStep1")}</li>
-            <li>{t("consistency.mergeStep2")}</li>
-            <li>{t("consistency.mergeStep3")}</li>
-          </ol>
-
-          <p className="font-medium text-foreground pt-2">{t("consistency.deleteDirsLabel")}</p>
-          <ul className="space-y-0.5 text-muted-foreground">
-            {skillDirs.map((dir) => (
-              <li key={dir} className="truncate font-mono text-[11px]" title={dir}>
-                {dir}
-              </li>
-            ))}
-          </ul>
-
-          <p className="text-red-500 dark:text-red-300 pt-2 font-medium">
-            {t("consistency.mergeCannotUndo")}
-          </p>
-        </div>
-
-        <DialogFooter>
-          <Button size="sm" variant="outline" onClick={onCancel} disabled={isPending}>
-            {t("common.cancel")}
-          </Button>
-          <Button size="sm" variant="destructive" onClick={onConfirm} disabled={isPending}>
-            {isPending ? t("common.loading") : t("consistency.mergeConfirmBtn")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -556,83 +489,92 @@ export function ConsistencyPanel({
       </ScrollArea>
 
       {confirmGroup && (
-        <MergeConfirmDialog
-          skillName={confirmGroup.name}
-          skillDirs={confirmGroup.skills
-            .filter((s) => s.origin !== "ssot" && s.origin !== "external")
-            .map((s) => s.homePath ?? s.directory)}
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => !open && setConfirmMerge(null)}
+          className="sm:max-w-md"
+          title={t("consistency.mergeConfirmTitle")}
+          description={t("consistency.mergeConfirmDesc", { name: confirmGroup.name })}
+          confirmLabel={
+            mergeMutation.isPending ? t("common.loading") : t("consistency.mergeConfirmBtn")
+          }
+          pending={mergeMutation.isPending}
           onConfirm={() => {
             mergeMutation.mutate(confirmGroup.name, {
               onSuccess: () => setConfirmMerge(null),
             });
           }}
-          onCancel={() => setConfirmMerge(null)}
-          isPending={mergeMutation.isPending}
-        />
+        >
+          <div className="space-y-2 text-[12px]">
+            <p className="font-medium text-foreground">{t("consistency.mergeStepsLabel")}</p>
+            <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+              <li>{t("consistency.mergeStep1")}</li>
+              <li>{t("consistency.mergeStep2")}</li>
+              <li>{t("consistency.mergeStep3")}</li>
+            </ol>
+
+            <p className="font-medium text-foreground pt-2">{t("consistency.deleteDirsLabel")}</p>
+            <ul className="space-y-0.5 text-muted-foreground">
+              {confirmGroup.skills
+                .filter((s) => s.origin !== "ssot" && s.origin !== "external")
+                .map((s) => s.homePath ?? s.directory)
+                .map((dir) => (
+                  <li key={dir} className="truncate font-mono text-[11px]" title={dir}>
+                    {dir}
+                  </li>
+                ))}
+            </ul>
+
+            <p className="text-red-500 dark:text-red-300 pt-2 font-medium">
+              {t("consistency.mergeCannotUndo")}
+            </p>
+          </div>
+        </ConfirmDialog>
       )}
 
       {batchMergeOpen && (
-        <Dialog open onOpenChange={(open) => !open && setBatchMergeOpen(false)}>
-          <DialogContent className="sm:max-w-md" data-selectable>
-            <DialogHeader>
-              <DialogTitle>{t("consistency.mergeAllConfirmTitle")}</DialogTitle>
-              <DialogDescription>
-                {t("consistency.mergeAllConfirmDesc", { count: mergeableGroups.length })}
-              </DialogDescription>
-            </DialogHeader>
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => !open && setBatchMergeOpen(false)}
+          className="sm:max-w-md"
+          title={t("consistency.mergeAllConfirmTitle")}
+          description={t("consistency.mergeAllConfirmDesc", { count: mergeableGroups.length })}
+          confirmLabel={merging ? t("consistency.merging") : t("consistency.mergeConfirmBtn")}
+          pending={merging}
+          onConfirm={() => {
+            setMerging(true);
+            mergeableGroups
+              .reduce(
+                (chain, group) =>
+                  chain.then(() => mergeMutation.mutateAsync(group.name).catch(() => {})),
+                Promise.resolve(),
+              )
+              .finally(() => {
+                setMerging(false);
+                setBatchMergeOpen(false);
+              });
+          }}
+        >
+          <ScrollArea className="max-h-60">
+            <div className="space-y-2 text-[12px]">
+              {mergeableGroups.map((group) => (
+                <div key={group.name} className="flex items-center gap-2">
+                  <Copy className="h-3 w-3 shrink-0 text-amber-500 dark:text-amber-400" />
+                  <span className="flex-1 truncate">
+                    {t("consistency.mergeAllGroupLabel", {
+                      name: group.name,
+                      count: group.skills.length,
+                    })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
 
-            <ScrollArea className="max-h-60">
-              <div className="space-y-2 text-[12px]">
-                {mergeableGroups.map((group) => (
-                  <div key={group.name} className="flex items-center gap-2">
-                    <Copy className="h-3 w-3 shrink-0 text-amber-500 dark:text-amber-400" />
-                    <span className="flex-1 truncate">
-                      {t("consistency.mergeAllGroupLabel", {
-                        name: group.name,
-                        count: group.skills.length,
-                      })}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-
-            <p className="text-red-500 dark:text-red-300 text-[12px] font-medium">
-              {t("consistency.mergeCannotUndo")}
-            </p>
-
-            <DialogFooter>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setBatchMergeOpen(false)}
-                disabled={merging}
-              >
-                {t("common.cancel")}
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                disabled={merging}
-                onClick={() => {
-                  setMerging(true);
-                  mergeableGroups
-                    .reduce(
-                      (chain, group) =>
-                        chain.then(() => mergeMutation.mutateAsync(group.name).catch(() => {})),
-                      Promise.resolve(),
-                    )
-                    .finally(() => {
-                      setMerging(false);
-                      setBatchMergeOpen(false);
-                    });
-                }}
-              >
-                {merging ? t("consistency.merging") : t("consistency.mergeConfirmBtn")}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          <p className="text-red-500 dark:text-red-300 text-[12px] font-medium">
+            {t("consistency.mergeCannotUndo")}
+          </p>
+        </ConfirmDialog>
       )}
     </div>
   );
