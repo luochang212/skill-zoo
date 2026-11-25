@@ -52,6 +52,21 @@ describe("CustomAgentEditor", () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
+  it("focuses the name field for a structured duplicate-name error", async () => {
+    vi.mocked(settingsApi.previewCustomAgent).mockRejectedValue({
+      code: "generic",
+      message: "An agent with this name already exists",
+    });
+    setup();
+    const user = userEvent.setup();
+    const name = screen.getByLabelText(/Name/);
+    await user.type(name, "Codex");
+    await user.type(screen.getByLabelText(/^Skills directory/), "/tool/skills");
+    await user.click(screen.getByRole("button", { name: "Add Agent" }));
+    await waitFor(() => expect(name).toHaveAttribute("aria-invalid", "true"));
+    expect(name).toHaveFocus();
+  });
+
   it("requires explicit missing-directory consent and retains input after failure", async () => {
     vi.mocked(settingsApi.previewCustomAgent).mockResolvedValue({ ...preview, exists: false });
     vi.mocked(settingsApi.saveCustomAgent).mockRejectedValue(new Error("Save failed"));

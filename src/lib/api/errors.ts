@@ -188,7 +188,7 @@ function asApiError(error: unknown): ApiError | null {
   return typeof maybe.code === "string" ? maybe : null;
 }
 
-function errorMessage(error: unknown): string {
+export function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
   const apiError = asApiError(error);

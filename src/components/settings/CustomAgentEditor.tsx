@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, FolderOpen, LoaderCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { errorMessage } from "@/lib/api/errors";
 import { settingsApi } from "@/lib/api/settings";
 import type { AgentChangeResult, AgentPathInfo, AgentPreview } from "@/types/skills";
 import { Button } from "@/components/ui/button";
@@ -55,7 +56,7 @@ export function CustomAgentEditor({
   const lastClose = useRef(closeRequest);
   const dirty = name !== (agent?.label ?? "") || path !== (agent?.path ?? "") || create;
   const showError = (failure: unknown) => {
-    const message = failure instanceof Error ? failure.message : String(failure);
+    const message = errorMessage(failure);
     const nameConflict = message.includes("name already exists");
     const overlappingAgent = message.match(/Skills directory overlaps (.+)/)?.[1];
     const field =

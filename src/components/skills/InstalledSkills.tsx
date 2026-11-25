@@ -13,6 +13,7 @@ import {
   useUnstarSkill,
 } from "@/hooks/useSkills";
 import { toast } from "sonner";
+import { formatApiError } from "@/lib/api/errors";
 import { useConsistencyCheck, type SkillIssues, type ConsistencyTab } from "@/hooks/useSkillIssues";
 import { useConsistencyLabelSettings } from "@/hooks/useConsistencyLabelSettings";
 import { useVisibleAgentOrder, useShowNonSsot } from "@/hooks/useSettings";
@@ -624,7 +625,7 @@ export const InstalledSkills = memo(function InstalledSkills({
           <QueryErrorState
             className="max-w-md"
             message={t("installed.archiveLoadFailed")}
-            detail={String(archivedLoadError)}
+            detail={formatApiError(archivedLoadError)}
             onRetry={() => refetchArchived()}
           />
         </div>

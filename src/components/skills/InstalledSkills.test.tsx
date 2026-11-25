@@ -31,6 +31,7 @@ class ResizeObserverMock {
 const mocks = vi.hoisted(() => ({
   skills: [] as InstalledSkill[],
   archivedSkills: [] as InstalledSkill[],
+  archiveError: null as { code: string; message: string } | null,
   visibleAgentOrder: ["claude-code", "codex"] as string[],
   showNonSsot: true,
   starSkill: vi.fn(),
@@ -79,7 +80,8 @@ vi.mock("@/hooks/useSkills", () => ({
   useArchivedSkills: () => ({
     data: mocks.archivedSkills,
     isLoading: false,
-    isError: false,
+    isError: mocks.archiveError !== null,
+    error: mocks.archiveError,
     refetch: vi.fn(),
   }),
   useArchiveSelectedSkills: () => ({ mutate: vi.fn(), isPending: false }),
@@ -151,6 +153,7 @@ describe("InstalledSkills visible agent filtering", () => {
     globalThis.ResizeObserver = ResizeObserverMock;
     mocks.skills = [];
     mocks.archivedSkills = [];
+    mocks.archiveError = null;
     mocks.visibleAgentOrder = ["claude-code", "codex"];
     mocks.showNonSsot = true;
     mocks.starSkill.mockReset();
@@ -527,6 +530,12 @@ describe("InstalledSkills visible agent filtering", () => {
       expect(screen.getByRole("button", { name: "Claude Skill" })).toBeInTheDocument();
     });
     expect(screen.queryByRole("button", { name: "Codex Skill" })).not.toBeInTheDocument();
+  });
+
+  it("shows the message from a structured archive load error", () => {
+    mocks.archiveError = { code: "generic", message: "Could not read archive index" };
+    renderArchivedSkills();
+    expect(screen.getByText("Could not read archive index")).toBeInTheDocument();
   });
 
   it("shows archived skill cards without visible-agent filtering in All", () => {
