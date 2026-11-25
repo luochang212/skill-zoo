@@ -1,4 +1,5 @@
 import { memo, useMemo, useState, useEffect } from "react";
+import type { UseMutationResult } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
   useArchivedSkills,
@@ -23,21 +24,14 @@ import { ConsistencyPanel } from "@/components/skills/ConsistencyPanel";
 import { LocalImportsDialog } from "@/components/settings/LocalImportsDialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QueryErrorState } from "@/components/ui/QueryErrorState";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useSkeletonCount } from "@/hooks/useSkeletonCount";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRepoPanelCollapsed } from "@/hooks/useRepoPanelCollapsed";
 import { RepoInfoPanel } from "@/components/skills/RepoInfoPanel";
 import {
-  AlertTriangle,
   Archive,
   ArrowUp,
   ArrowDown,
@@ -52,7 +46,7 @@ import {
   Star,
   FilePlus2,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, toggleSetItem } from "@/lib/utils";
 import {
   AgentDropTab,
   SkillDndLayer,
@@ -147,69 +141,6 @@ function ListHeader({
       {headerBtn("updatedAt", dateLabel, "w-28 shrink-0 hidden @md/main:flex")}
       <div className="w-8 shrink-0 hidden @lg/main:block" />
     </div>
-  );
-}
-
-function BatchConfirmDialog({
-  open,
-  onOpenChange,
-  title,
-  description,
-  items,
-  confirmLabel,
-  confirmVariant = "default",
-  confirmPending,
-  onConfirm,
-  hint,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  title: string;
-  description: string;
-  items: Array<{ id: string; name: string }>;
-  confirmLabel: string;
-  confirmVariant?: "default" | "destructive";
-  confirmPending?: boolean;
-  onConfirm: () => void;
-  hint?: string;
-}) {
-  const { t } = useTranslation();
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[380px]" data-selectable>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <ScrollArea className="max-h-40 border rounded-md">
-          <div className="p-2 space-y-1">
-            {items.map((skill) => (
-              <p
-                key={skill.id}
-                className="text-[13px] leading-tight truncate text-muted-foreground"
-              >
-                {skill.name}
-              </p>
-            ))}
-          </div>
-        </ScrollArea>
-        {hint && <p className="text-xs text-muted-foreground px-1">{hint}</p>}
-        <DialogFooter>
-          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-            {t("common.cancel")}
-          </Button>
-          <Button
-            variant={confirmVariant}
-            size="sm"
-            disabled={confirmPending || items.length === 0}
-            onClick={onConfirm}
-          >
-            {confirmLabel}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -672,17 +603,7 @@ export const InstalledSkills = memo(function InstalledSkills({
   }
 
   if (isError) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center space-y-3">
-          <AlertTriangle className="h-8 w-8 text-destructive/60 mx-auto" />
-          <p className="text-sm text-destructive">{t("error.generic")}</p>
-          <Button size="sm" variant="outline" onClick={() => refetch()}>
-            {t("error.retry")}
-          </Button>
-        </div>
-      </div>
-    );
+    return <QueryErrorState className="h-full" onRetry={() => refetch()} />;
   }
 
   if (isArchiveView && archivedError) {
@@ -700,16 +621,12 @@ export const InstalledSkills = memo(function InstalledSkills({
           onSelectCategory={onSelectCategory}
         />
         <div className="flex-1 min-w-0 flex items-center justify-center p-6">
-          <div className="text-center space-y-3 max-w-md">
-            <AlertTriangle className="h-8 w-8 text-destructive/60 mx-auto" />
-            <p className="text-sm font-medium text-destructive">
-              {t("installed.archiveLoadFailed")}
-            </p>
-            <p className="text-xs text-muted-foreground break-words">{String(archivedLoadError)}</p>
-            <Button size="sm" variant="outline" onClick={() => refetchArchived()}>
-              {t("error.retry")}
-            </Button>
-          </div>
+          <QueryErrorState
+            className="max-w-md"
+            message={t("installed.archiveLoadFailed")}
+            detail={String(archivedLoadError)}
+            onRetry={() => refetchArchived()}
+          />
         </div>
       </div>
     );
@@ -725,12 +642,7 @@ export const InstalledSkills = memo(function InstalledSkills({
   };
 
   const handleToggleSelect = (skillId: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(skillId)) next.delete(skillId);
-      else next.add(skillId);
-      return next;
-    });
+    setSelectedIds((prev) => toggleSetItem(prev, skillId));
   };
 
   const handleDeselectVisible = () => {
@@ -750,68 +662,61 @@ export const InstalledSkills = memo(function InstalledSkills({
     });
   };
 
-  const clearSucceededSelection = (ids: string[]) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      ids.forEach((id) => next.delete(id));
-      return next;
-    });
-  };
-
-  const handleBatchArchive = () => {
-    const skillIds = visibleSelectedIds;
+  const runBatchAction = <TResult extends { failed: Array<unknown> }, TVars>(
+    mutation: UseMutationResult<TResult, Error, TVars>,
+    variables: TVars,
+    succeededIds: (result: TResult) => string[],
+    partialFailedKey: string,
+  ) => {
     setBatchAction(null);
-    archiveSkillsMutation.mutate(skillIds, {
+    mutation.mutate(variables, {
       onSuccess: (result) => {
-        clearSucceededSelection(result.archived);
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          succeededIds(result).forEach((id) => next.delete(id));
+          return next;
+        });
         if (result.failed.length > 0) {
-          toast.warning(t("archiveDialog.batchPartialFailed", { count: result.failed.length }));
+          toast.warning(t(partialFailedKey, { count: result.failed.length }));
         }
       },
     });
   };
 
-  const handleBatchRemove = () => {
-    const skillIds = visibleSelectedIds;
-    setBatchAction(null);
-    removeSkillsMutation.mutate(skillIds, {
-      onSuccess: (result) => {
-        clearSucceededSelection(result.removed);
-        if (result.failed.length > 0) {
-          toast.warning(t("removeDialog.batchPartialFailed", { count: result.failed.length }));
-        }
-      },
-    });
-  };
+  const handleBatchArchive = () =>
+    runBatchAction(
+      archiveSkillsMutation,
+      visibleSelectedIds,
+      (result) => result.archived,
+      "archiveDialog.batchPartialFailed",
+    );
 
-  const handleBatchRestore = () => {
-    const archiveIds = visibleSelectedIds;
-    setBatchAction(null);
-    restoreArchivedSkillsMutation.mutate(archiveIds, {
-      onSuccess: (result) => {
-        clearSucceededSelection(result.restored.map(({ archiveId }) => archiveId));
-        if (result.failed.length > 0) {
-          toast.warning(t("restoreDialog.batchPartialFailed", { count: result.failed.length }));
-        }
-      },
-    });
-  };
+  const handleBatchRemove = () =>
+    runBatchAction(
+      removeSkillsMutation,
+      visibleSelectedIds,
+      (result) => result.removed,
+      "removeDialog.batchPartialFailed",
+    );
+
+  const handleBatchRestore = () =>
+    runBatchAction(
+      restoreArchivedSkillsMutation,
+      visibleSelectedIds,
+      (result) => result.restored.map(({ archiveId }) => archiveId),
+      "restoreDialog.batchPartialFailed",
+    );
 
   const handleBatchUnlink = () => {
     if (!batchUnlinkAgent) return;
-
-    const skillIds = batchUnlinkSkills.map((skill) => skill.id);
-    setBatchAction(null);
-    batchUnlinkSkillsMutation.mutate(
-      { skillIds, agent: batchUnlinkAgent },
+    runBatchAction(
+      batchUnlinkSkillsMutation,
       {
-        onSuccess: (result) => {
-          clearSucceededSelection([...result.unlinked, ...result.skipped]);
-          if (result.failed.length > 0) {
-            toast.warning(t("symlinkBatch.partialFailed", { count: result.failed.length }));
-          }
-        },
+        skillIds: batchUnlinkSkills.map((skill) => skill.id),
+        agent: batchUnlinkAgent,
       },
+      (result) => [...result.unlinked, ...result.skipped],
+      "symlinkBatch.partialFailed",
     );
   };
 
@@ -1153,7 +1058,7 @@ export const InstalledSkills = memo(function InstalledSkills({
           </div>
         )}
 
-        <BatchConfirmDialog
+        <ConfirmDialog
           open={batchAction === "unlink"}
           onOpenChange={(open) => setBatchAction(open ? "unlink" : null)}
           title={t("symlinkBatch.title", { agent: batchUnlinkAgentLabel })}
@@ -1167,7 +1072,8 @@ export const InstalledSkills = memo(function InstalledSkills({
               ? t("symlinkBatch.unlinking")
               : t("symlinkBatch.unlink")
           }
-          confirmPending={batchUnlinkSkillsMutation.isPending}
+          confirmVariant="default"
+          pending={batchUnlinkSkillsMutation.isPending}
           onConfirm={handleBatchUnlink}
           hint={
             batchUnlinkHomeCount > 0
@@ -1179,7 +1085,7 @@ export const InstalledSkills = memo(function InstalledSkills({
           }
         />
 
-        <BatchConfirmDialog
+        <ConfirmDialog
           open={batchAction === "archive"}
           onOpenChange={(open) => setBatchAction(open ? "archive" : null)}
           title={t("archiveDialog.batchTitle")}
@@ -1190,11 +1096,12 @@ export const InstalledSkills = memo(function InstalledSkills({
           confirmLabel={
             archiveSkillsMutation.isPending ? t("common.archiving") : t("common.archive")
           }
-          confirmPending={archiveSkillsMutation.isPending}
+          confirmVariant="default"
+          pending={archiveSkillsMutation.isPending}
           onConfirm={handleBatchArchive}
         />
 
-        <BatchConfirmDialog
+        <ConfirmDialog
           open={batchAction === "restore"}
           onOpenChange={(open) => setBatchAction(open ? "restore" : null)}
           title={t("restoreDialog.batchTitle")}
@@ -1205,11 +1112,12 @@ export const InstalledSkills = memo(function InstalledSkills({
           confirmLabel={
             restoreArchivedSkillsMutation.isPending ? t("common.restoring") : t("common.restore")
           }
-          confirmPending={restoreArchivedSkillsMutation.isPending}
+          confirmVariant="default"
+          pending={restoreArchivedSkillsMutation.isPending}
           onConfirm={handleBatchRestore}
         />
 
-        <BatchConfirmDialog
+        <ConfirmDialog
           open={batchAction === "remove"}
           onOpenChange={(open) => setBatchAction(open ? "remove" : null)}
           title={t("removeDialog.title")}
@@ -1223,7 +1131,7 @@ export const InstalledSkills = memo(function InstalledSkills({
           items={batchDialogItems}
           confirmLabel={t("common.remove")}
           confirmVariant="destructive"
-          confirmPending={removeSkillsMutation.isPending}
+          pending={removeSkillsMutation.isPending}
           onConfirm={handleBatchRemove}
           hint={
             allExternalInSelection

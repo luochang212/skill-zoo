@@ -24,8 +24,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { SkillInstallDialog } from "@/components/skills/SkillInstallDialog";
 import { SkillPreviewPanel } from "@/components/skills/SkillPreviewPanel";
 import { formatApiError, isCancelledError } from "@/lib/api/errors";
+import { toggleSetItem } from "@/lib/utils";
 import type { DiscoverRepo, DiscoverableSkill } from "@/types/skills";
 import { BackButton } from "@/components/ui/BackButton";
+import { QueryErrorState } from "@/components/ui/QueryErrorState";
 import {
   AlertTriangle,
   Star,
@@ -163,12 +165,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
   const selectedInstallable = installableSkills.filter((s) => selectedKeys.has(s.key));
 
   const toggleKey = (key: string) => {
-    setSelectedKeys((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+    setSelectedKeys((prev) => toggleSetItem(prev, key));
   };
 
   const toggleAll = () => {
@@ -279,13 +276,12 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
         <ScrollArea className="flex-1 min-h-0">
           <div className="px-5 py-4 pr-5 max-w-full">
             {isError && !isCancelledError(error) ? (
-              <div className="flex flex-col items-center justify-center py-12 gap-3">
-                <AlertTriangle className="h-8 w-8 text-destructive/60" />
-                <p className="text-sm text-destructive">{formatApiError(error)}</p>
-                <Button size="sm" variant="outline" disabled={isLoadingRepo} onClick={refreshRepo}>
-                  {t("error.retry")}
-                </Button>
-              </div>
+              <QueryErrorState
+                className="py-12"
+                message={formatApiError(error)}
+                retryDisabled={isLoadingRepo}
+                onRetry={refreshRepo}
+              />
             ) : isCancelledError(error) && skillList.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 gap-3">
                 <CircleOff className="h-8 w-8 text-muted-foreground/50" />
