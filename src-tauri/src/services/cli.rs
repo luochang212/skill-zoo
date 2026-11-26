@@ -21,6 +21,21 @@ pub struct RepoTreeResponse {
     tree: Vec<TreeEntry>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkippedDestinationConflict {
+    pub name: String,
+    pub kept_path: String,
+    pub skipped_path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallSkillsResult {
+    pub installed: Vec<String>,
+    pub skipped: Vec<SkippedDestinationConflict>,
+}
+
 pub struct UpdateResult {
     pub success_count: usize,
     pub fail_count: usize,
@@ -90,7 +105,7 @@ impl CliService {
         repo_url: &str,
         skills: &[String],
         preflight_agent_dirs: &[PathBuf],
-    ) -> Result<Vec<String>, AppError> {
+    ) -> Result<InstallSkillsResult, AppError> {
         let install_all = skills.is_empty() || skills.iter().any(|s| s == "*");
 
         let repo_ref = github::parse_repo_ref(repo_url)?;
@@ -117,6 +132,9 @@ impl CliService {
                     .join(", ")
             )));
         }
+
+        let (to_install, skipped_conflicts) =
+            Self::resolve_destination_conflicts(&clone_path, &to_install);
 
         let ssot_dir = config::get_agents_skills_dir();
         Self::ensure_install_destinations_available(
@@ -235,10 +253,13 @@ impl CliService {
             return Err(error);
         }
 
-        Ok(installed_skills
-            .iter()
-            .map(|(name, _)| name.clone())
-            .collect())
+        Ok(InstallSkillsResult {
+            installed: installed_skills
+                .iter()
+                .map(|(name, _)| name.clone())
+                .collect(),
+            skipped: skipped_conflicts,
+        })
     }
 
     fn ensure_install_destinations_available(
@@ -723,6 +744,50 @@ impl CliService {
                     .any(|selector| Self::matches_discovered_skill(repo_root, selector, name, path))
             })
             .collect()
+    }
+
+    fn resolve_destination_conflicts<'a>(
+        repo_root: &Path,
+        selected: &[&'a (String, String, PathBuf)],
+    ) -> (
+        Vec<&'a (String, String, PathBuf)>,
+        Vec<SkippedDestinationConflict>,
+    ) {
+        let mut groups: std::collections::BTreeMap<&str, Vec<&(String, String, PathBuf)>> =
+            Default::default();
+        for entry in selected {
+            groups.entry(entry.0.as_str()).or_default().push(entry);
+        }
+
+        let mut kept = Vec::new();
+        let mut skipped = Vec::new();
+        for (name, group) in groups {
+            if group.len() == 1 {
+                kept.push(group[0]);
+                continue;
+            }
+            let mut ranked: Vec<&(String, String, PathBuf)> = group.to_vec();
+            ranked.sort_by_key(|entry| {
+                let relative = Self::relative_skill_path(repo_root, entry);
+                let depth = relative.split('/').filter(|s| !s.is_empty()).count();
+                (depth, relative)
+            });
+            let winner = ranked[0];
+            kept.push(winner);
+            let kept_path = Self::relative_skill_path(repo_root, winner);
+            for loser in &ranked[1..] {
+                skipped.push(SkippedDestinationConflict {
+                    name: name.to_string(),
+                    kept_path: kept_path.clone(),
+                    skipped_path: Self::relative_skill_path(repo_root, loser),
+                });
+            }
+        }
+        (kept, skipped)
+    }
+
+    fn relative_skill_path(repo_root: &Path, entry: &(String, String, PathBuf)) -> String {
+        Self::lock_skill_path(repo_root, &entry.2).unwrap_or_else(|| entry.0.clone())
     }
 
     fn matches_discovered_skill(
@@ -2246,7 +2311,7 @@ mod tests {
     }
 
     #[test]
-    fn install_selection_keeps_true_duplicate_destinations_visible_to_preflight() {
+    fn install_selection_resolves_duplicate_destinations_same_depth_lexicographic() {
         let repo = tempfile::tempdir().unwrap();
         let claude = repo.path().join(".claude").join("skills").join("recap");
         let codex = repo.path().join(".codex").join("skills").join("recap");
@@ -2254,8 +2319,8 @@ mod tests {
         std::fs::create_dir_all(&codex).unwrap();
 
         let discovered = vec![
-            ("recap".to_string(), String::new(), claude),
-            ("recap".to_string(), String::new(), codex),
+            ("recap".to_string(), String::new(), claude.clone()),
+            ("recap".to_string(), String::new(), codex.clone()),
         ];
         let requested = vec![
             ".claude/skills/recap".to_string(),
@@ -2264,22 +2329,76 @@ mod tests {
 
         let selected =
             CliService::select_discovered_skills(repo.path(), &discovered, &requested, false);
-        let destinations = selected
+        let (kept, skipped) = CliService::resolve_destination_conflicts(repo.path(), &selected);
+
+        assert_eq!(kept.len(), 1);
+        assert_eq!(&kept[0].2, &claude);
+        assert_eq!(skipped.len(), 1);
+        assert_eq!(skipped[0].name, "recap");
+        assert_eq!(skipped[0].kept_path, ".claude/skills/recap");
+        assert_eq!(skipped[0].skipped_path, ".codex/skills/recap");
+
+        let destinations = kept
             .iter()
             .map(|(name, _, _)| name.as_str())
             .collect::<Vec<_>>();
-
         let result = CliService::ensure_install_destinations_available(
             &destinations,
             &repo.path().join("ssot"),
             &[],
         );
+        assert!(result.is_ok());
+    }
 
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("multiple selected skills target the same destination"));
+    #[test]
+    fn install_selection_prefers_shallower_duplicate_destination() {
+        let repo = tempfile::tempdir().unwrap();
+        let top = repo.path().join("skills").join("recap");
+        let nested = repo
+            .path()
+            .join("plugins")
+            .join("pitch")
+            .join("skills")
+            .join("recap");
+        std::fs::create_dir_all(&top).unwrap();
+        std::fs::create_dir_all(&nested).unwrap();
+
+        let discovered = vec![
+            ("recap".to_string(), String::new(), top.clone()),
+            ("recap".to_string(), String::new(), nested.clone()),
+        ];
+
+        let selected = CliService::select_discovered_skills(repo.path(), &discovered, &[], true);
+        let (kept, skipped) = CliService::resolve_destination_conflicts(repo.path(), &selected);
+
+        assert_eq!(kept.len(), 1);
+        assert_eq!(&kept[0].2, &top);
+        assert_eq!(skipped.len(), 1);
+        assert_eq!(skipped[0].kept_path, "skills/recap");
+        assert_eq!(skipped[0].skipped_path, "plugins/pitch/skills/recap");
+    }
+
+    #[test]
+    fn install_selection_keeps_explicit_deep_copy_when_unambiguous() {
+        let repo = tempfile::tempdir().unwrap();
+        let nested = repo
+            .path()
+            .join("plugins")
+            .join("pitch")
+            .join("skills")
+            .join("recap");
+        std::fs::create_dir_all(&nested).unwrap();
+
+        let discovered = vec![("recap".to_string(), String::new(), nested.clone())];
+        let requested = vec!["plugins/pitch/skills/recap".to_string()];
+
+        let selected =
+            CliService::select_discovered_skills(repo.path(), &discovered, &requested, false);
+        let (kept, skipped) = CliService::resolve_destination_conflicts(repo.path(), &selected);
+
+        assert_eq!(kept.len(), 1);
+        assert_eq!(&kept[0].2, &nested);
+        assert!(skipped.is_empty());
     }
 
     #[test]

@@ -12,6 +12,7 @@ import type {
   ExternalImportCandidate,
   ExternalImportInfo,
   ExternalImportSelection,
+  InstallSkillsResult,
   InstalledSkill,
   RepoSkillsResult,
   SkillAudit,
@@ -36,7 +37,7 @@ export const skillsApi = {
     invoke<number>("clean_external_import_links", { importId: importId ?? null }),
 
   installSkills: (repoUrl: string, skillNames: string[], agents: string[]) =>
-    invoke<InstalledSkill[]>("install_skills", { repoUrl, skillNames, agents }),
+    invoke<InstallSkillsResult>("install_skills", { repoUrl, skillNames, agents }),
 
   getInstalledSkills: (force?: boolean) =>
     invoke<InstalledSkill[]>("get_installed_skills", { force }),

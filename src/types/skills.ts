@@ -49,6 +49,17 @@ export interface RepoSkillsResult {
   total: number;
 }
 
+export interface SkippedDestinationConflict {
+  name: string;
+  keptPath: string;
+  skippedPath: string;
+}
+
+export interface InstallSkillsResult {
+  installed: InstalledSkill[];
+  skipped: SkippedDestinationConflict[];
+}
+
 export interface SymlinkStatus {
   skillId: string;
   skillName: string;

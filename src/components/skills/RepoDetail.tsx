@@ -24,7 +24,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { SkillInstallDialog } from "@/components/skills/SkillInstallDialog";
 import { SkillPreviewPanel } from "@/components/skills/SkillPreviewPanel";
 import { formatApiError, isCancelledError } from "@/lib/api/errors";
-import { toggleSetItem } from "@/lib/utils";
+import { toggleSetItem, cn } from "@/lib/utils";
+import {
+  compressedGroupLabels,
+  duplicateSkillNames,
+  groupSkillsByParentPath,
+  parentPathOf,
+} from "@/lib/skillGrouping";
+import { toast } from "sonner";
 import type { DiscoverRepo, DiscoverableSkill } from "@/types/skills";
 import { BackButton } from "@/components/ui/BackButton";
 import { QueryErrorState } from "@/components/ui/QueryErrorState";
@@ -36,12 +43,152 @@ import {
   RotateCw,
   Loader,
   CircleOff,
+  List,
+  ListTree,
 } from "lucide-react";
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+type RepoViewMode = "flat" | "grouped";
+
+interface RepoSkillRowProps {
+  skill: DiscoverableSkill;
+  selected: boolean;
+  isLoading: boolean;
+  removePending: boolean;
+  showParentPath: boolean;
+  onToggle: () => void;
+  onPreview: () => void;
+  onRemove: () => void;
+}
+
+function RepoSkillRow({
+  skill,
+  selected,
+  isLoading,
+  removePending,
+  showParentPath,
+  onToggle,
+  onPreview,
+  onRemove,
+}: RepoSkillRowProps) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-border/40 px-4 py-3 hover:bg-accent/30 transition-colors">
+      <Checkbox
+        checked={skill.installStatus === "installed" || selected}
+        disabled={isLoading || skill.installStatus !== "available"}
+        onCheckedChange={onToggle}
+        aria-label={
+          skill.installStatus === "installed"
+            ? t("common.installed")
+            : skill.installStatus === "conflict"
+              ? t("browse.nameConflict")
+              : t("browse.selectSkill", { name: skill.name })
+        }
+        className="shrink-0"
+      />
+      <button type="button" className="min-w-0 flex-1 cursor-pointer text-left" onClick={onPreview}>
+        <div className="flex items-baseline gap-x-2 min-w-0">
+          <h4 className="text-[13px] font-medium hover:text-primary transition-colors shrink-0">
+            {skill.name}
+          </h4>
+          {showParentPath && (
+            <span className="text-[10px] font-mono text-muted-foreground/70 truncate">
+              {parentPathOf(skill.key) || "/"}
+            </span>
+          )}
+        </div>
+        {skill.description && (
+          <p className="text-[12px] text-muted-foreground/80 text-fade-right mt-0.5">
+            {skill.description}
+          </p>
+        )}
+      </button>
+      {skill.installStatus === "installed" ? (
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs rounded-lg shrink-0"
+          disabled={isLoading || removePending}
+          onClick={onRemove}
+        >
+          {t("common.uninstall")}
+        </Button>
+      ) : skill.installStatus === "conflict" ? (
+        <Badge
+          variant="destructive"
+          className="h-7 shrink-0 px-2.5 text-xs font-medium"
+          title={t("browse.nameConflictHint")}
+        >
+          {t("browse.nameConflict")}
+        </Badge>
+      ) : null}
+    </div>
+  );
+}
+
+interface GroupedRepoSkillsProps {
+  groups: ReturnType<typeof groupSkillsByParentPath>;
+  selectedKeys: Set<string>;
+  isLoadingRepo: boolean;
+  removePending: boolean;
+  onToggle: (key: string) => void;
+  onPreview: (skill: DiscoverableSkill) => void;
+  onRemove: (skill: DiscoverableSkill) => void;
+}
+
+function GroupedRepoSkills({
+  groups,
+  selectedKeys,
+  isLoadingRepo,
+  removePending,
+  onToggle,
+  onPreview,
+  onRemove,
+}: GroupedRepoSkillsProps) {
+  const labels = compressedGroupLabels(groups.map((g) => g.parentPath));
+
+  return (
+    <div className="flex flex-col gap-6">
+      {groups.map((group) => (
+        <section key={group.parentPath}>
+          {groups.length > 1 && (
+            <div
+              className="sticky top-0 z-10 -mx-5 px-9 py-1.5 bg-background/85 backdrop-blur-sm border-b border-border/60 flex items-baseline gap-2"
+              title={group.parentPath || "/"}
+            >
+              <span className="text-[13px] font-mono text-muted-foreground truncate">
+                {labels.get(group.parentPath) || group.parentPath || "/"}
+              </span>
+              <span className="text-[11px] text-muted-foreground/60 tabular-nums shrink-0">
+                {group.skills.length}
+              </span>
+            </div>
+          )}
+          <div className="flex flex-col gap-2 pt-2">
+            {group.skills.map((skill) => (
+              <RepoSkillRow
+                key={skill.key}
+                skill={skill}
+                selected={selectedKeys.has(skill.key)}
+                isLoading={isLoadingRepo}
+                removePending={removePending}
+                showParentPath={false}
+                onToggle={() => onToggle(skill.key)}
+                onPreview={() => onPreview(skill)}
+                onRemove={() => onRemove(skill)}
+              />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
 }
 
 interface RepoDetailProps {
@@ -75,6 +222,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
   const [pendingRemove, setPendingRemove] = useState<DiscoverableSkill | null>(null);
   const [previewSkill, setPreviewSkill] = useState<DiscoverableSkill | null>(null);
+  const [viewMode, setViewMode] = useState<RepoViewMode>("flat");
 
   const isLoadingRepo = isFetching || isLoading;
   const refreshRepo = () => {
@@ -150,9 +298,17 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
     installMutation.mutate(
       { repoUrl, skillNames, agents },
       {
-        onSuccess: () => {
+        onSuccess: (result) => {
           setInstallSkills(null);
           setSelectedKeys(new Set());
+          if (result.skipped.length > 0) {
+            toast.success(
+              t("browse.skippedDuplicates", {
+                count: result.installed.length,
+                skipped: result.skipped.length,
+              }),
+            );
+          }
         },
       },
     );
@@ -160,6 +316,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
 
   const { skills: skillList, total } = skills ?? { skills: [], total: 0 };
   const installableSkills = skillList.filter((s) => s.installStatus === "available");
+  const duplicateNames = duplicateSkillNames(skillList);
   const allSelected =
     installableSkills.length > 0 && selectedKeys.size === installableSkills.length;
   const selectedInstallable = installableSkills.filter((s) => selectedKeys.has(s.key));
@@ -297,73 +454,78 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
             ) : (
               <>
                 {installableSkills.length > 0 && (
-                  <label className="inline-flex items-center gap-3 text-[11px] text-muted-foreground cursor-pointer hover:text-foreground transition-colors mb-4 pl-4">
-                    <Checkbox
-                      checked={allSelected}
-                      onCheckedChange={toggleAll}
-                      disabled={isLoadingRepo}
-                    />
-                    {t("browse.selectAll")}
-                  </label>
-                )}
-                <div className="flex flex-col gap-2">
-                  {skillList.map((skill) => (
-                    <div
-                      key={skill.key}
-                      className="flex items-center gap-3 rounded-lg border border-border/40 px-4 py-3 hover:bg-accent/30 transition-colors"
-                    >
+                  <div className="flex items-center justify-between mb-4 pl-4 pr-1">
+                    <label className="inline-flex items-center gap-3 text-[11px] text-muted-foreground cursor-pointer hover:text-foreground transition-colors">
                       <Checkbox
-                        checked={skill.installStatus === "installed" || selectedKeys.has(skill.key)}
-                        disabled={isLoadingRepo || skill.installStatus !== "available"}
-                        onCheckedChange={() => toggleKey(skill.key)}
-                        aria-label={
-                          skill.installStatus === "installed"
-                            ? t("common.installed")
-                            : skill.installStatus === "conflict"
-                              ? t("browse.nameConflict")
-                              : t("browse.selectSkill", { name: skill.name })
-                        }
-                        className="shrink-0"
+                        checked={allSelected}
+                        onCheckedChange={toggleAll}
+                        disabled={isLoadingRepo}
                       />
-                      <button
-                        type="button"
-                        className="min-w-0 flex-1 cursor-pointer text-left"
-                        onClick={() => setPreviewSkill(skill)}
-                      >
-                        <h4 className="text-[13px] font-medium hover:text-primary transition-colors">
-                          {skill.name}
-                        </h4>
-                        {skill.description && (
-                          <p className="text-[12px] text-muted-foreground/80 text-fade-right mt-0.5">
-                            {skill.description}
-                          </p>
+                      {t("browse.selectAll")}
+                    </label>
+                    <button
+                      type="button"
+                      aria-label={t(viewMode === "flat" ? "browse.viewGrouped" : "browse.viewFlat")}
+                      title={t(viewMode === "flat" ? "browse.viewGrouped" : "browse.viewFlat")}
+                      onClick={() => setViewMode(viewMode === "flat" ? "grouped" : "flat")}
+                      className="inline-flex shrink-0 items-center bg-muted rounded-lg p-1 gap-1 cursor-pointer"
+                    >
+                      <span
+                        className={cn(
+                          "p-1.5 rounded-md transition-all duration-200",
+                          viewMode === "flat"
+                            ? "bg-background text-foreground shadow-sm"
+                            : "text-muted-foreground",
                         )}
-                      </button>
-                      {skill.installStatus === "installed" ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs rounded-lg shrink-0"
-                          disabled={isLoadingRepo || removeMutation.isPending}
-                          onClick={() => {
-                            setPendingRemove(skill);
-                            setRemoveConfirmOpen(true);
-                          }}
-                        >
-                          {t("common.uninstall")}
-                        </Button>
-                      ) : skill.installStatus === "conflict" ? (
-                        <Badge
-                          variant="destructive"
-                          className="h-7 shrink-0 px-2.5 text-xs font-medium"
-                          title={t("browse.nameConflictHint")}
-                        >
-                          {t("browse.nameConflict")}
-                        </Badge>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
+                      >
+                        <List className="h-3.5 w-3.5" />
+                      </span>
+                      <span
+                        className={cn(
+                          "p-1.5 rounded-md transition-all duration-200",
+                          viewMode === "grouped"
+                            ? "bg-background text-foreground shadow-sm"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        <ListTree className="h-3.5 w-3.5" />
+                      </span>
+                    </button>
+                  </div>
+                )}
+                {viewMode === "flat" ? (
+                  <div className="flex flex-col gap-2">
+                    {skillList.map((skill) => (
+                      <RepoSkillRow
+                        key={skill.key}
+                        skill={skill}
+                        selected={selectedKeys.has(skill.key)}
+                        isLoading={isLoadingRepo}
+                        removePending={removeMutation.isPending}
+                        showParentPath={duplicateNames.has(skill.name)}
+                        onToggle={() => toggleKey(skill.key)}
+                        onPreview={() => setPreviewSkill(skill)}
+                        onRemove={() => {
+                          setPendingRemove(skill);
+                          setRemoveConfirmOpen(true);
+                        }}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <GroupedRepoSkills
+                    groups={groupSkillsByParentPath(skillList)}
+                    selectedKeys={selectedKeys}
+                    isLoadingRepo={isLoadingRepo}
+                    removePending={removeMutation.isPending}
+                    onToggle={toggleKey}
+                    onPreview={setPreviewSkill}
+                    onRemove={(skill) => {
+                      setPendingRemove(skill);
+                      setRemoveConfirmOpen(true);
+                    }}
+                  />
+                )}
 
                 {isTruncated && (
                   <div className="flex items-center gap-2 mt-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40">

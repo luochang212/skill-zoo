@@ -18,6 +18,7 @@ import { invalidateFor } from "@/hooks/queryInvalidation";
 import type {
   BatchUnlinkSkillsResult,
   ExternalImportSelection,
+  InstallSkillsResult,
   InstalledSkill,
 } from "@/types/skills";
 import { useEffect } from "react";
@@ -119,7 +120,11 @@ export function useCleanExternalImportLinks() {
 
 export function useInstallSkills() {
   const qc = useQueryClient();
-  return useMutation({
+  return useMutation<
+    InstallSkillsResult,
+    Error,
+    { repoUrl: string; skillNames: string[]; agents: string[] }
+  >({
     mutationFn: (vars: { repoUrl: string; skillNames: string[]; agents: string[] }) =>
       skillsApi.installSkills(vars.repoUrl, vars.skillNames, vars.agents),
     onSuccess: () => invalidateFor(qc, "installSkills"),

@@ -6,7 +6,9 @@ use crate::persistence::{
     atomic_write, ArchivedSkill, ExternalImportEntry, ExternalImports, SkillCache, SkillCacheEntry,
     SkillUpdateHistory, SkillUpdateHistoryRecord,
 };
-use crate::services::cli::{CliService, KnownSkillUpdate, UpdateResult};
+use crate::services::cli::{
+    CliService, KnownSkillUpdate, SkippedDestinationConflict, UpdateResult,
+};
 use crate::services::github;
 use crate::services::lock::SkillLock;
 use crate::services::opener::open_directory;
@@ -773,6 +775,13 @@ async fn fail_installed_skills(
     command_error_with_recovery(error, recovery_errors)
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallSkillsResult {
+    pub installed: Vec<InstalledSkill>,
+    pub skipped: Vec<SkippedDestinationConflict>,
+}
+
 #[tauri::command]
 pub async fn install_skills(
     app: tauri::AppHandle,
@@ -780,7 +789,7 @@ pub async fn install_skills(
     repo_url: String,
     skill_names: Vec<String>,
     agents: Vec<String>,
-) -> Result<Vec<InstalledSkill>, CommandError> {
+) -> Result<InstallSkillsResult, CommandError> {
     let _update_guard = state.update_exit.start_update();
     let _agent_lease = state.acquire_local_lease().map_err(CommandError::from)?;
     for agent in &agents {
@@ -792,9 +801,11 @@ pub async fn install_skills(
     }
     let preflight_agent_dirs = selected_agent_skill_dirs(&agents);
     let needs_monitoring = preflight_agent_dirs.iter().any(|p| !p.exists());
-    let installed_dirs = CliService::add_skills(&repo_url, &skill_names, &preflight_agent_dirs)
+    let service_result = CliService::add_skills(&repo_url, &skill_names, &preflight_agent_dirs)
         .await
         .map_err(CommandError::from)?;
+    let installed_dirs = service_result.installed;
+    let skipped = service_result.skipped;
 
     let mut created_links = Vec::new();
     for skill_dir in &installed_dirs {
@@ -817,7 +828,10 @@ pub async fn install_skills(
         }
     }
     match state.refresh_installed_skills(installed_dirs.clone()).await {
-        Ok(skills) => Ok(skills),
+        Ok(skills) => Ok(InstallSkillsResult {
+            installed: skills,
+            skipped,
+        }),
         Err(error) => {
             Err(fail_installed_skills(&state, &installed_dirs, &created_links, error).await)
         }
