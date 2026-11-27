@@ -4,9 +4,9 @@ use crate::persistence::agent_transaction::AgentLease;
 use crate::persistence::archive::SUPPORTED_ARCHIVE_VERSION;
 use crate::persistence::external_imports::SUPPORTED_EXTERNAL_IMPORTS_VERSION;
 use crate::persistence::{
-    ArchiveManifest, ArchivedSkill, ExternalImports, MetadataStore, SkillCache,
+    ArchiveManifest, ArchivedSkill, ExternalImports, MetadataStore, SkillCache, SkillCacheEntry,
 };
-use crate::services::lock::{SkillLock, SUPPORTED_LOCK_VERSION};
+use crate::services::lock::{SkillLock, SkillLockEntry, SUPPORTED_LOCK_VERSION};
 use crate::services::skill::{
     is_symlink_or_junction, plugin_read_only_error, same_directory, InstalledSkill, SkillService,
 };
@@ -14,6 +14,7 @@ use crate::services::update_exit::UpdateGuard;
 use crate::store::AppState;
 use regex::Regex;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
@@ -79,7 +80,6 @@ fn format_archive_app_error(action: &str, error: impl std::fmt::Display) -> Stri
 }
 
 struct ArchiveWrite<'a> {
-    state: &'a AppState,
     imports: ExternalImports,
     _refresh: tokio::sync::MutexGuard<'a, ()>,
     _lease: AgentLease,
@@ -96,23 +96,11 @@ impl<'a> ArchiveWrite<'a> {
             return Err(format!("External imports version {} is newer than this desktop app supports. Upgrade Skill Zoo before writing.", imports.version));
         }
         Ok(Self {
-            state,
             imports,
             _refresh: refresh,
             _lease: lease,
             _update: update,
         })
-    }
-    fn remove_cached_skill(&self, id: &str) -> Result<(), String> {
-        let mut cache = self.state.skill_cache.write().map_err(|e| e.to_string())?;
-        cache.remove(id);
-        cache.save().map_err(|e| e.to_string())
-    }
-
-    fn edit_metadata(&self, edit: impl FnOnce(&mut MetadataStore)) -> Result<(), String> {
-        let mut metadata = self.state.metadata.write().map_err(|e| e.to_string())?;
-        edit(&mut metadata);
-        metadata.save().map_err(|e| e.to_string())
     }
 }
 
@@ -228,11 +216,14 @@ struct ArchiveTarget {
 }
 
 impl ArchiveTarget {
-    fn resolve(write: &ArchiveWrite<'_>, skill_id: &str) -> Result<Self, String> {
-        let skill = SkillService::read_all_skills(&write.state.skill_cache, &write.state.metadata)
-            .map_err(|e| e.to_string())?
-            .into_iter()
-            .find(|s| s.id == skill_id)
+    fn resolve(
+        write: &ArchiveWrite<'_>,
+        installed_by_id: &HashMap<String, InstalledSkill>,
+        skill_id: &str,
+    ) -> Result<Self, String> {
+        let skill = installed_by_id
+            .get(skill_id)
+            .cloned()
             .ok_or_else(|| format!("Skill not found: {skill_id}"))?;
         let home = PathBuf::from(
             skill
@@ -364,12 +355,54 @@ pub fn read_archived_skill_md(archive_id: String) -> Result<String, String> {
         .map_err(|e| format_archive_io_error("Read archived SKILL.md", &skill_md, &e))
 }
 
-fn archive_skill_inner(write: &ArchiveWrite<'_>, skill_id: String) -> Result<(), String> {
-    let state = write.state;
-    let target = ArchiveTarget::resolve(write, &skill_id)?;
-    let skill = target.skill;
-    let home = target.home;
-    let home_path = home.to_string_lossy().into_owned();
+struct PreparedArchive {
+    skill_id: String,
+    archive_id: String,
+    archived_skill: ArchivedSkill,
+    home: PathBuf,
+    archive_dir: PathBuf,
+    lock_key: Option<String>,
+    removed_agents: Vec<String>,
+    moved: bool,
+}
+
+impl PreparedArchive {
+    fn undo(&self) -> Vec<String> {
+        let mut errors = Vec::new();
+        if self.moved && self.archive_dir.exists() && !self.home.exists() {
+            if let Some(parent) = self.home.parent() {
+                if let Err(e) = std::fs::create_dir_all(parent) {
+                    errors.push(format!("recreate skill parent: {e}"));
+                }
+            }
+            if let Err(e) = std::fs::rename(&self.archive_dir, &self.home) {
+                errors.push(format!("move archived skill back home: {e}"));
+            }
+        }
+        for agent in &self.removed_agents {
+            if let Err(e) = SkillService::toggle_symlink(
+                &self.archived_skill.directory,
+                &self.home.to_string_lossy(),
+                agent,
+                true,
+            ) {
+                errors.push(format!("restore agent symlink: {e}"));
+            }
+        }
+        errors
+    }
+}
+
+fn prepare_archive(
+    write: &ArchiveWrite<'_>,
+    installed_by_id: &HashMap<String, InstalledSkill>,
+    manifest: &ArchiveManifest,
+    lock: &SkillLock,
+    skill_id: String,
+) -> Result<PreparedArchive, String> {
+    let target = ArchiveTarget::resolve(write, installed_by_id, &skill_id)?;
+    let skill = target.skill.clone();
+    let home = target.home.clone();
 
     let archive_id = ArchiveManifest::make_archive_id(&skill.id, &skill.directory);
     validate_archive_id(&archive_id)?;
@@ -381,26 +414,22 @@ fn archive_skill_inner(write: &ArchiveWrite<'_>, skill_id: String) -> Result<(),
             archive_dir.display()
         ));
     }
-
-    let snapshot = ArchiveSnapshot::capture(state)?;
-    let old_manifest = &snapshot.manifest;
-    if old_manifest.skills.contains_key(&archive_id) {
+    if manifest.skills.contains_key(&archive_id) {
         return Err(format!("Skill is already archived: {}", skill.name));
     }
 
-    let old_lock = &snapshot.lock;
     let lock_key = if !matches!(target.owner, ArchiveOwner::Store) {
         None
-    } else if old_lock.skills.contains_key(&skill.directory) {
+    } else if lock.skills.contains_key(&skill.directory) {
         Some(skill.directory.clone())
-    } else if old_lock.skills.contains_key(&skill.name) {
+    } else if lock.skills.contains_key(&skill.name) {
         Some(skill.name.clone())
     } else {
         None
     };
     let lock_entry = lock_key
         .as_ref()
-        .and_then(|key| old_lock.skills.get(key).cloned());
+        .and_then(|key| lock.skills.get(key).cloned());
     let archived_skill = ArchivedSkill::from_installed(
         skill.clone(),
         archive_id.clone(),
@@ -408,90 +437,16 @@ fn archive_skill_inner(write: &ArchiveWrite<'_>, skill_id: String) -> Result<(),
         lock_entry,
     );
 
-    let mut manifest = old_manifest.clone();
-    manifest
-        .skills
-        .insert(archive_id.clone(), archived_skill.clone());
-    manifest.save().map_err(|e| e.to_string())?;
-
-    if let Some(parent) = archive_dir.parent() {
-        if let Err(e) = std::fs::create_dir_all(parent) {
-            return Err(recovery_error(
-                format_archive_io_error("Create archive directory", parent, &e),
-                snapshot.restore(state),
-            ));
-        }
-    }
-
-    let mut removed_agents: Vec<String> = Vec::new();
-    let rollback = |message: String, removed_agents: &[String]| -> String {
-        let mut errors = Vec::new();
-        if archive_dir.exists() && !home.exists() {
-            if let Some(parent) = home.parent() {
-                if let Err(e) = std::fs::create_dir_all(parent) {
-                    errors.push(format!("recreate skill parent: {e}"));
-                }
-            }
-            if let Err(e) = std::fs::rename(&archive_dir, &home) {
-                errors.push(format!("move archived skill back home: {e}"));
-            }
-        }
-        for agent in removed_agents {
-            if let Err(e) = SkillService::toggle_symlink(&skill.directory, &home_path, agent, true)
-            {
-                errors.push(format!("restore agent symlink: {e}"));
-            }
-        }
-        errors.extend(snapshot.restore(state));
-        recovery_error(message, errors)
-    };
-
-    for (agent, enabled) in &archived_skill.apps {
-        if !enabled {
-            continue;
-        }
-        if archived_skill.home_agent.as_deref() == Some(agent.as_str()) {
-            let flat_path = config::get_agent_skills_dir(agent)
-                .map(|root| root.join(SkillService::agent_link_name(&skill.directory)));
-            if flat_path.is_none_or(|path| !is_symlink_or_junction(&path)) {
-                continue;
-            }
-        }
-        match SkillService::toggle_symlink(&skill.directory, &home_path, agent, false) {
-            Ok(()) => removed_agents.push(agent.clone()),
-            Err(e) => {
-                return Err(rollback(
-                    format_archive_app_error("Remove agent link while archiving", e),
-                    &removed_agents,
-                ))
-            }
-        }
-    }
-
-    if let Err(e) = std::fs::rename(&home, &archive_dir) {
-        return Err(rollback(
-            format_archive_io_error("Move skill into archive", &archive_dir, &e),
-            &removed_agents,
-        ));
-    }
-
-    write
-        .remove_cached_skill(&skill.id)
-        .map_err(|e| rollback(e, &removed_agents))?;
-    write
-        .edit_metadata(|metadata| metadata.remove(&skill.id))
-        .map_err(|e| rollback(e, &removed_agents))?;
-
-    if let Some(key) = lock_key {
-        if let Err(e) = SkillLock::update(|lock| {
-            lock.skills.remove(&key);
-            Ok::<(), AppError>(())
-        }) {
-            return Err(rollback(e.to_string(), &removed_agents));
-        }
-    }
-
-    Ok(())
+    Ok(PreparedArchive {
+        skill_id: skill.id,
+        archive_id,
+        archived_skill,
+        home,
+        archive_dir,
+        lock_key,
+        removed_agents: Vec::new(),
+        moved: false,
+    })
 }
 
 pub async fn archive_skills(
@@ -502,69 +457,203 @@ pub async fn archive_skills(
     let mut archived: Vec<String> = Vec::new();
     let mut failed: Vec<ArchiveSkillFailure> = Vec::new();
 
+    let installed_by_id: HashMap<String, InstalledSkill> =
+        SkillService::read_all_skills(&state.skill_cache, &state.metadata)
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .map(|skill| (skill.id.clone(), skill))
+            .collect();
+    let mut manifest = ArchiveManifest::load().map_err(|e| e.to_string())?;
+    let lock = SkillLock::read().map_err(|e| e.to_string())?;
+
+    let mut prepared: Vec<PreparedArchive> = Vec::new();
     for skill_id in skill_ids {
-        match archive_skill_inner(&write, skill_id.clone()) {
-            Ok(()) => archived.push(skill_id),
+        match prepare_archive(&write, &installed_by_id, &manifest, &lock, skill_id.clone()) {
+            Ok(item) => {
+                manifest
+                    .skills
+                    .insert(item.archive_id.clone(), item.archived_skill.clone());
+                prepared.push(item);
+            }
             Err(e) => failed.push(ArchiveSkillFailure { skill_id, error: e }),
+        }
+    }
+    if prepared.is_empty() {
+        return Ok(ArchiveSkillsResult { archived, failed });
+    }
+
+    let snapshot = ArchiveSnapshot::capture(state)?;
+
+    for item in &mut prepared {
+        let mut item_error: Option<String> = None;
+        if let Some(parent) = item.archive_dir.parent() {
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                item_error = Some(format_archive_io_error(
+                    "Create archive directory",
+                    parent,
+                    &e,
+                ));
+            }
+        }
+        if item_error.is_none() {
+            for (agent, enabled) in &item.archived_skill.apps {
+                if !enabled {
+                    continue;
+                }
+                if item.archived_skill.home_agent.as_deref() == Some(agent.as_str()) {
+                    let flat_path = config::get_agent_skills_dir(agent).map(|root| {
+                        root.join(SkillService::agent_link_name(
+                            &item.archived_skill.directory,
+                        ))
+                    });
+                    if flat_path.is_none_or(|path| !is_symlink_or_junction(&path)) {
+                        continue;
+                    }
+                }
+                match SkillService::toggle_symlink(
+                    &item.archived_skill.directory,
+                    &item.home.to_string_lossy(),
+                    agent,
+                    false,
+                ) {
+                    Ok(()) => item.removed_agents.push(agent.clone()),
+                    Err(e) => {
+                        item_error = Some(format_archive_app_error(
+                            "Remove agent link while archiving",
+                            e,
+                        ));
+                        break;
+                    }
+                }
+            }
+        }
+        if item_error.is_none() {
+            match std::fs::rename(&item.home, &item.archive_dir) {
+                Ok(()) => item.moved = true,
+                Err(e) => {
+                    item_error = Some(format_archive_io_error(
+                        "Move skill into archive",
+                        &item.archive_dir,
+                        &e,
+                    ));
+                }
+            }
+        }
+        if let Some(message) = item_error {
+            let undo_errors = item.undo();
+            let error = if undo_errors.is_empty() {
+                message
+            } else {
+                recovery_error(message, undo_errors)
+            };
+            failed.push(ArchiveSkillFailure {
+                skill_id: item.skill_id.clone(),
+                error,
+            });
+            manifest.skills.remove(&item.archive_id);
+            continue;
+        }
+        archived.push(item.skill_id.clone());
+    }
+
+    if !archived.is_empty() {
+        let succeeded_ids: std::collections::HashSet<&String> = archived.iter().collect();
+        let succeeded = |item: &PreparedArchive| succeeded_ids.contains(&item.skill_id);
+        let persist = (|| -> Result<(), String> {
+            manifest.save().map_err(|e| e.to_string())?;
+
+            let lock_keys: Vec<&str> = prepared
+                .iter()
+                .filter(|item| succeeded(item))
+                .filter_map(|item| item.lock_key.as_deref())
+                .collect();
+            if !lock_keys.is_empty() {
+                SkillLock::update(|lock| {
+                    for key in lock_keys {
+                        lock.skills.remove(key);
+                    }
+                    Ok::<(), AppError>(())
+                })
+                .map_err(|e| e.to_string())?;
+            }
+
+            let ids: Vec<String> = prepared
+                .iter()
+                .filter(|item| succeeded(item))
+                .map(|item| item.archived_skill.original_skill_id.clone())
+                .collect();
+            if !ids.is_empty() {
+                SkillService::remove_cache_entries(&state.skill_cache, &ids)
+                    .map_err(|e| e.to_string())?;
+
+                let mut metadata = state.metadata.write().map_err(|e| e.to_string())?;
+                for id in &ids {
+                    metadata.remove(id);
+                }
+                metadata.save().map_err(|e| e.to_string())?;
+            }
+            Ok(())
+        })();
+
+        if let Err(persist_error) = persist {
+            let mut errors = Vec::new();
+            for item in prepared.iter().filter(|item| succeeded(item)) {
+                errors.extend(item.undo());
+            }
+            errors.extend(snapshot.restore(state));
+            return Err(recovery_error(persist_error, errors));
         }
     }
 
     Ok(ArchiveSkillsResult { archived, failed })
 }
 
-pub async fn restore_archived_skills(
-    state: &AppState,
-    archive_ids: Vec<String>,
-) -> Result<RestoreArchivedSkillsResult, String> {
-    let write = ArchiveWrite::begin(state).await?;
-    let mut restored: Vec<RestoredArchivedSkill> = Vec::new();
-    let mut failed: Vec<RestoreArchivedSkillFailure> = Vec::new();
-
-    let manifest = ArchiveManifest::load().map_err(|e| e.to_string())?;
-    for archive_id in archive_ids {
-        match restore_archived_skill_inner(&write, archive_id.clone()).and_then(|restored_id| {
-            SkillService::read_all_skills(&state.skill_cache, &state.metadata)
-                .map_err(|e| e.to_string())?
-                .into_iter()
-                .find(|skill| skill.id == restored_id)
-                .ok_or_else(|| "Skill restored but not found in cache".to_string())
-        }) {
-            Ok(skill) => restored.push(RestoredArchivedSkill { archive_id, skill }),
-            Err(e) => failed.push(RestoreArchivedSkillFailure {
-                archive_id,
-                error: e,
-            }),
-        }
-    }
-
-    let mut skipped_agents = restored
-        .iter()
-        .map(|record| &record.archive_id)
-        .filter_map(|id| manifest.skills.get(id))
-        .flat_map(|s| s.apps.iter())
-        .filter(|(agent, enabled)| {
-            **enabled && config::get_agent_skills_dir(agent).is_none_or(|p| !p.exists())
-        })
-        .map(|(agent, _)| agent.clone())
-        .collect::<Vec<_>>();
-    skipped_agents.sort();
-    skipped_agents.dedup();
-    Ok(RestoreArchivedSkillsResult {
-        restored,
-        failed,
-        skipped_agents,
-    })
+struct PreparedRestore {
+    archive_id: String,
+    archived_skill: ArchivedSkill,
+    owner: ArchiveOwner,
+    archive_dir: PathBuf,
+    restore_path: PathBuf,
+    restored_agents: Vec<String>,
+    moved: bool,
+    scanned: Option<SkillCacheEntry>,
+    expected_id: String,
 }
 
-fn restore_archived_skill_inner(
+impl PreparedRestore {
+    fn undo(&self) -> Vec<String> {
+        let mut errors = Vec::new();
+        for agent in &self.restored_agents {
+            if let Err(e) = SkillService::toggle_symlink(
+                &self.archived_skill.directory,
+                &self.restore_path.to_string_lossy(),
+                agent,
+                false,
+            ) {
+                errors.push(format!("remove restored agent symlink: {e}"));
+            }
+        }
+        if self.moved && self.restore_path.exists() && !self.archive_dir.exists() {
+            if let Some(parent) = self.archive_dir.parent() {
+                if let Err(e) = std::fs::create_dir_all(parent) {
+                    errors.push(format!("recreate archive parent: {e}"));
+                }
+            }
+            if let Err(e) = std::fs::rename(&self.restore_path, &self.archive_dir) {
+                errors.push(format!("move restored skill back to archive: {e}"));
+            }
+        }
+        errors
+    }
+}
+
+fn prepare_restore(
     write: &ArchiveWrite<'_>,
+    manifest: &ArchiveManifest,
     archive_id: String,
-) -> Result<String, String> {
-    let state = write.state;
+) -> Result<PreparedRestore, String> {
     validate_archive_id(&archive_id)?;
-    let snapshot = ArchiveSnapshot::capture(state)?;
-    let old_manifest = &snapshot.manifest;
-    let archived_skill = old_manifest
+    let archived_skill = manifest
         .skills
         .get(&archive_id)
         .cloned()
@@ -594,63 +683,226 @@ fn restore_archived_skill_inner(
     }
     let restore_path = match &archived_skill.home_path {
         Some(home) => PathBuf::from(home),
-        None if matches!(owner, ArchiveOwner::Store) => config::get_agents_skills_dir().join(&archived_skill.directory),
-        None => return Err("Archive does not record the original agent home. The archive was preserved; restore its files manually rather than guessing a destination.".into()),
+        None if matches!(owner, ArchiveOwner::Store) => {
+            config::get_agents_skills_dir().join(&archived_skill.directory)
+        }
+        None => {
+            return Err("Archive does not record the original agent home. The archive was preserved; restore its files manually rather than guessing a destination.".into())
+        }
     };
     if restore_path.exists() {
         return Err(format!("Cannot restore: destination already exists at {}. Move, rename, archive, or remove the existing skill folder before restoring this archived skill.", restore_path.display()));
     }
-    if let Some(parent) = restore_path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format_archive_io_error("Create restore directory", parent, &e))?;
-    }
-    std::fs::rename(&archive_dir, &restore_path)
-        .map_err(|e| format_archive_io_error("Move archived skill back", &restore_path, &e))?;
-
-    let mut restored_agents: Vec<String> = Vec::new();
-    let rollback = |message: String, restored_agents: &[String]| -> String {
-        let mut errors = Vec::new();
-        for agent in restored_agents {
-            if let Err(e) = SkillService::toggle_symlink(
-                &archived_skill.directory,
-                &restore_path.to_string_lossy(),
-                agent,
-                false,
-            ) {
-                errors.push(format!("remove restored agent symlink: {e}"));
-            }
-        }
-        if restore_path.exists() && !archive_dir.exists() {
-            if let Some(parent) = archive_dir.parent() {
-                if let Err(e) = std::fs::create_dir_all(parent) {
-                    errors.push(format!("recreate archive parent: {e}"));
-                }
-            }
-            if let Err(e) = std::fs::rename(&restore_path, &archive_dir) {
-                errors.push(format!("move restored skill back to archive: {e}"));
-            }
-        }
-        errors.extend(snapshot.restore(state));
-        recovery_error(message, errors)
+    let expected_id = if write
+        .imports
+        .imports
+        .contains_key(&archived_skill.original_skill_id)
+    {
+        archived_skill.original_skill_id.clone()
+    } else {
+        crate::persistence::metadata::canonicalize_legacy_skill_id(
+            &archived_skill.original_skill_id,
+        )
+        .unwrap_or_else(|| archived_skill.original_skill_id.clone())
     };
 
-    if matches!(owner, ArchiveOwner::Store) {
-        if let Some(lock_entry) = archived_skill.lock_entry.clone() {
-            let key = archived_skill
-                .lock_key
-                .clone()
-                .unwrap_or_else(|| archived_skill.directory.clone());
-            if let Err(e) = SkillLock::update(|lock| {
-                lock.skills.insert(key, lock_entry);
-                Ok::<(), AppError>(())
-            }) {
-                return Err(rollback(e.to_string(), &restored_agents));
-            }
+    Ok(PreparedRestore {
+        archive_id,
+        archived_skill,
+        owner,
+        archive_dir,
+        restore_path,
+        restored_agents: Vec::new(),
+        moved: false,
+        scanned: None,
+        expected_id,
+    })
+}
+
+pub async fn restore_archived_skills(
+    state: &AppState,
+    archive_ids: Vec<String>,
+) -> Result<RestoreArchivedSkillsResult, String> {
+    let write = ArchiveWrite::begin(state).await?;
+    let mut restored: Vec<RestoredArchivedSkill> = Vec::new();
+    let mut failed: Vec<RestoreArchivedSkillFailure> = Vec::new();
+
+    let manifest = ArchiveManifest::load().map_err(|e| e.to_string())?;
+    let mut manifest_after = manifest.clone();
+    let mut prepared: Vec<PreparedRestore> = Vec::new();
+    for archive_id in archive_ids {
+        match prepare_restore(&write, &manifest, archive_id.clone()) {
+            Ok(item) => prepared.push(item),
+            Err(e) => failed.push(RestoreArchivedSkillFailure {
+                archive_id,
+                error: e,
+            }),
         }
     }
+    if prepared.is_empty() {
+        let skipped_agents = compute_skipped_agents(&manifest, &restored);
+        return Ok(RestoreArchivedSkillsResult {
+            restored,
+            failed,
+            skipped_agents,
+        });
+    }
 
-    write
-        .edit_metadata(|metadata| {
+    let snapshot = ArchiveSnapshot::capture(state)?;
+
+    for item in &mut prepared {
+        let mut item_error: Option<String> = None;
+        if let Some(parent) = item.restore_path.parent() {
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                item_error = Some(format_archive_io_error(
+                    "Create restore directory",
+                    parent,
+                    &e,
+                ));
+            }
+        }
+        if item_error.is_none() {
+            match std::fs::rename(&item.archive_dir, &item.restore_path) {
+                Ok(()) => item.moved = true,
+                Err(e) => {
+                    item_error = Some(format_archive_io_error(
+                        "Move archived skill back",
+                        &item.restore_path,
+                        &e,
+                    ));
+                }
+            }
+        }
+
+        if item_error.is_none() {
+            for (agent, enabled) in &item.archived_skill.apps {
+                if !enabled {
+                    continue;
+                }
+                let Some(agent_dir) = config::get_agent_skills_dir(agent) else {
+                    continue;
+                };
+                if !agent_dir.exists() {
+                    continue;
+                }
+                let agent_skill_path = agent_dir.join(SkillService::agent_link_name(
+                    &item.archived_skill.directory,
+                ));
+                if item.archived_skill.home_agent.as_deref() == Some(agent.as_str())
+                    && agent_skill_path != item.restore_path
+                {
+                    continue;
+                }
+                if agent_skill_path.exists() && !is_symlink_or_junction(&agent_skill_path) {
+                    let is_native_home = agent_skill_path == item.restore_path
+                        || agent_skill_path
+                            .canonicalize()
+                            .ok()
+                            .zip(item.restore_path.canonicalize().ok())
+                            .is_some_and(|(agent_path, restore_path)| agent_path == restore_path);
+                    if is_native_home {
+                        continue;
+                    }
+                    item_error = Some(format!(
+                        "Restore agent link failed: destination already exists at {} and is a real directory, not a symlink.",
+                        agent_skill_path.display()
+                    ));
+                    break;
+                }
+                match SkillService::toggle_symlink(
+                    &item.archived_skill.directory,
+                    &item.restore_path.to_string_lossy(),
+                    agent,
+                    true,
+                ) {
+                    Ok(()) => item.restored_agents.push(agent.clone()),
+                    Err(e) => {
+                        item_error = Some(format_archive_app_error("Restore agent link", e));
+                        break;
+                    }
+                }
+            }
+        }
+
+        if item_error.is_none() {
+            let entry = if let Some(import) = write
+                .imports
+                .imports
+                .get(&item.archived_skill.original_skill_id)
+            {
+                SkillService::scan_external_import(import, None).map_err(|e| e.to_string())
+            } else {
+                item.owner.scan(&item.restore_path)
+            };
+            match entry {
+                Ok(entry) if entry.id == item.expected_id => item.scanned = Some(entry),
+                Ok(entry) => {
+                    item_error = Some(format!(
+                        "Restored home does not match the recorded skill identity ({} != {}). The archive was preserved.",
+                        entry.id, item.expected_id
+                    ));
+                }
+                Err(e) => item_error = Some(e),
+            }
+        }
+
+        if let Some(message) = item_error {
+            let undo_errors = item.undo();
+            let error = if undo_errors.is_empty() {
+                message
+            } else {
+                recovery_error(message, undo_errors)
+            };
+            failed.push(RestoreArchivedSkillFailure {
+                archive_id: item.archive_id.clone(),
+                error,
+            });
+            continue;
+        }
+        manifest_after.skills.remove(&item.archive_id);
+    }
+
+    let completed: Vec<&PreparedRestore> = prepared
+        .iter()
+        .filter(|item| item.scanned.is_some())
+        .collect();
+    if completed.is_empty() {
+        let skipped_agents = compute_skipped_agents(&manifest, &restored);
+        return Ok(RestoreArchivedSkillsResult {
+            restored,
+            failed,
+            skipped_agents,
+        });
+    }
+    let persist = (|| -> Result<(), String> {
+        let lock_inserts: Vec<(String, SkillLockEntry)> = completed
+            .iter()
+            .filter_map(|item| {
+                if !matches!(item.owner, ArchiveOwner::Store) {
+                    return None;
+                }
+                let lock_entry = item.archived_skill.lock_entry.clone()?;
+                let key = item
+                    .archived_skill
+                    .lock_key
+                    .clone()
+                    .unwrap_or_else(|| item.archived_skill.directory.clone());
+                Some((key, lock_entry))
+            })
+            .collect();
+        if !lock_inserts.is_empty() {
+            SkillLock::update(|lock| {
+                for (key, entry) in lock_inserts {
+                    lock.skills.insert(key, entry);
+                }
+                Ok::<(), AppError>(())
+            })
+            .map_err(|e| e.to_string())?;
+        }
+
+        let mut metadata = state.metadata.write().map_err(|e| e.to_string())?;
+        for item in &completed {
+            let archived_skill = &item.archived_skill;
             let metadata_key = crate::persistence::metadata::canonicalize_legacy_skill_id(
                 &archived_skill.original_skill_id,
             )
@@ -667,96 +919,79 @@ fn restore_archived_skill_inner(
             } else {
                 metadata.remove(&metadata_key);
             }
+        }
+        metadata.save().map_err(|e| e.to_string())?;
+        drop(metadata);
+
+        let entries: Vec<SkillCacheEntry> = completed
+            .iter()
+            .filter_map(|item| item.scanned.clone())
+            .collect();
+        SkillService::upsert_cache_entries(&state.skill_cache, entries)
+            .map_err(|e| e.to_string())?;
+
+        manifest_after.save().map_err(|e| e.to_string())?;
+        Ok(())
+    })();
+
+    if let Err(persist_error) = persist {
+        let mut errors = Vec::new();
+        for item in &completed {
+            errors.extend(item.undo());
+        }
+        errors.extend(snapshot.restore(state));
+        return Err(recovery_error(persist_error, errors));
+    }
+
+    let installed_by_id: HashMap<String, InstalledSkill> =
+        SkillService::read_all_skills(&state.skill_cache, &state.metadata)
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .map(|skill| (skill.id.clone(), skill))
+            .collect();
+    for item in &completed {
+        let restored_id = item
+            .scanned
+            .as_ref()
+            .map(|entry| entry.id.clone())
+            .unwrap_or_else(|| item.expected_id.clone());
+        match installed_by_id.get(&restored_id).cloned() {
+            Some(skill) => restored.push(RestoredArchivedSkill {
+                archive_id: item.archive_id.clone(),
+                skill,
+            }),
+            None => failed.push(RestoreArchivedSkillFailure {
+                archive_id: item.archive_id.clone(),
+                error: "Skill restored but not found in cache".to_string(),
+            }),
+        }
+    }
+
+    let skipped_agents = compute_skipped_agents(&manifest, &restored);
+    Ok(RestoreArchivedSkillsResult {
+        restored,
+        failed,
+        skipped_agents,
+    })
+}
+
+fn compute_skipped_agents(
+    manifest: &ArchiveManifest,
+    restored: &[RestoredArchivedSkill],
+) -> Vec<String> {
+    let mut skipped_agents = restored
+        .iter()
+        .map(|record| &record.archive_id)
+        .filter_map(|id| manifest.skills.get(id))
+        .flat_map(|s| s.apps.iter())
+        .filter(|(agent, enabled)| {
+            **enabled && config::get_agent_skills_dir(agent).is_none_or(|p| !p.exists())
         })
-        .map_err(|e| rollback(e, &restored_agents))?;
-
-    for (agent, enabled) in &archived_skill.apps {
-        if !enabled {
-            continue;
-        }
-        let Some(agent_dir) = config::get_agent_skills_dir(agent) else {
-            continue;
-        };
-        if !agent_dir.exists() {
-            continue;
-        }
-        let agent_skill_path =
-            agent_dir.join(SkillService::agent_link_name(&archived_skill.directory));
-        if archived_skill.home_agent.as_deref() == Some(agent.as_str())
-            && agent_skill_path != restore_path
-        {
-            continue;
-        }
-        if agent_skill_path.exists() && !is_symlink_or_junction(&agent_skill_path) {
-            let is_native_home = agent_skill_path == restore_path
-                || agent_skill_path
-                    .canonicalize()
-                    .ok()
-                    .zip(restore_path.canonicalize().ok())
-                    .is_some_and(|(agent_path, restore_path)| agent_path == restore_path);
-            if is_native_home {
-                continue;
-            }
-            return Err(rollback(
-                format!(
-                    "Restore agent link failed: destination already exists at {} and is a real directory, not a symlink.",
-                    agent_skill_path.display()
-                ),
-                &restored_agents,
-            ));
-        }
-        match SkillService::toggle_symlink(
-            &archived_skill.directory,
-            &restore_path.to_string_lossy(),
-            agent,
-            true,
-        ) {
-            Ok(()) => restored_agents.push(agent.clone()),
-            Err(e) => {
-                return Err(rollback(
-                    format_archive_app_error("Restore agent link", e),
-                    &restored_agents,
-                ))
-            }
-        }
-    }
-
-    let retained = write.imports.imports.get(&archived_skill.original_skill_id);
-    let entry = if let Some(import) = retained {
-        SkillService::scan_external_import(import, None)
-            .map_err(|e| rollback(e.to_string(), &restored_agents))?
-    } else {
-        owner
-            .scan(&restore_path)
-            .map_err(|e| rollback(e, &restored_agents))?
-    };
-    let expected_id = if retained.is_some() {
-        archived_skill.original_skill_id.clone()
-    } else {
-        crate::persistence::metadata::canonicalize_legacy_skill_id(
-            &archived_skill.original_skill_id,
-        )
-        .unwrap_or_else(|| archived_skill.original_skill_id.clone())
-    };
-    if entry.id != expected_id {
-        return Err(rollback(
-            "Restored home does not match the recorded skill identity. The archive was preserved."
-                .into(),
-            &restored_agents,
-        ));
-    }
-    let restored_id = entry.id.clone();
-    if let Err(e) = SkillService::upsert_cache_entry(&state.skill_cache, entry) {
-        return Err(rollback(e.to_string(), &restored_agents));
-    }
-
-    let mut manifest = old_manifest.clone();
-    manifest.skills.remove(&archive_id);
-    if let Err(e) = manifest.save() {
-        return Err(rollback(e.to_string(), &restored_agents));
-    }
-
-    Ok(restored_id)
+        .map(|(agent, _)| agent.clone())
+        .collect::<Vec<_>>();
+    skipped_agents.sort();
+    skipped_agents.dedup();
+    skipped_agents
 }
 
 fn assert_writable_schema(lock: &SkillLock, manifest: &ArchiveManifest) -> Result<(), String> {
@@ -1228,6 +1463,260 @@ mod tests {
                 .unwrap()
                 .find_by_id(&entry.id)
                 .is_none());
+        });
+    }
+
+    fn batch_archive_fixture() -> (AppState, Vec<SkillCacheEntry>) {
+        let store = config::get_agents_skills_dir();
+        let agent = config::get_agent_skills_dir("codex").unwrap();
+        let mut entries = Vec::new();
+        for name in ["demo-a", "demo-b"] {
+            let home = store.join(name);
+            std::fs::create_dir_all(&home).unwrap();
+            std::fs::write(home.join("SKILL.md"), format!("# {name}")).unwrap();
+            SkillService::toggle_symlink(name, home.to_string_lossy().as_ref(), "codex", true)
+                .unwrap();
+            entries.push(SkillService::scan_skill_root(&home, &store, None, None).unwrap());
+        }
+        let mut metadata = crate::persistence::MetadataStore {
+            entries: Default::default(),
+        };
+        let mut lock = SkillLock::read().unwrap();
+        for entry in &entries {
+            metadata.set_starred(&entry.id, true);
+            lock.skills.insert(
+                entry.directory.clone(),
+                test_lock_entry("owner/repo", "sha"),
+            );
+        }
+        metadata.save().unwrap();
+        lock.write().unwrap();
+        (
+            AppState::new(
+                SkillCache::from_entries(entries.clone()),
+                crate::persistence::MetadataStore {
+                    entries: Default::default(),
+                },
+                crate::persistence::Settings {
+                    values: Default::default(),
+                },
+            ),
+            entries,
+        )
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn archive_skills_batch_keeps_state_files_when_every_move_fails() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            let (state, entries) = batch_archive_fixture();
+            let lock_before = serde_json::to_value(SkillLock::read().unwrap()).unwrap();
+            let metadata_before = serde_json::to_value(MetadataStore::load().unwrap()).unwrap();
+
+            let probe = &entries[0];
+            let probe_archive_id = ArchiveManifest::make_archive_id(&probe.id, &probe.directory);
+            let archive_root = ArchiveManifest::archive_skill_dir(&probe_archive_id)
+                .parent()
+                .unwrap()
+                .to_path_buf();
+            std::fs::create_dir_all(&archive_root).unwrap();
+            std::fs::set_permissions(&archive_root, std::fs::Permissions::from_mode(0o555))
+                .unwrap();
+
+            let ids: Vec<String> = entries.iter().map(|entry| entry.id.clone()).collect();
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            let result = rt.block_on(archive_skills(&state, ids)).unwrap();
+            std::fs::set_permissions(&archive_root, std::fs::Permissions::from_mode(0o755))
+                .unwrap();
+
+            assert!(result.archived.is_empty());
+            assert_eq!(result.failed.len(), entries.len());
+            for entry in &entries {
+                let home = PathBuf::from(entry.home_path.as_ref().unwrap());
+                assert!(home.join("SKILL.md").is_file());
+                let codex_link = config::get_agent_skills_dir("codex")
+                    .unwrap()
+                    .join(SkillService::agent_link_name(&entry.directory));
+                assert!(codex_link.symlink_metadata().is_ok());
+                assert!(state
+                    .skill_cache
+                    .read()
+                    .unwrap()
+                    .find_by_id(&entry.id)
+                    .is_some());
+                assert!(SkillLock::read()
+                    .unwrap()
+                    .skills
+                    .contains_key(&entry.directory));
+                assert!(state.metadata.read().unwrap().get(&entry.id).starred);
+            }
+            assert_eq!(
+                serde_json::to_value(SkillLock::read().unwrap()).unwrap(),
+                lock_before
+            );
+            assert_eq!(
+                serde_json::to_value(MetadataStore::load().unwrap()).unwrap(),
+                metadata_before
+            );
+            assert!(ArchiveManifest::load().unwrap().skills.is_empty());
+            drop(
+                crate::persistence::agent_transaction::AgentLease::acquire(
+                    &config::get_app_config_dir(),
+                )
+                .unwrap(),
+            );
+        });
+    }
+
+    #[test]
+    fn archive_skills_batch_reports_partial_failures_and_persists_survivors() {
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            let (state, entries) = batch_archive_fixture();
+            let mut missing = entries[0].clone();
+            missing.id = "ssot:demo-missing".into();
+            missing.directory = "demo-missing".into();
+            missing.home_path = Some(
+                config::get_agents_skills_dir()
+                    .join("demo-missing")
+                    .to_string_lossy()
+                    .into_owned(),
+            );
+            state.skill_cache.write().unwrap().upsert(missing.clone());
+
+            let ids: Vec<String> = entries
+                .iter()
+                .chain(std::iter::once(&missing))
+                .map(|entry| entry.id.clone())
+                .collect();
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            let result = rt.block_on(archive_skills(&state, ids)).unwrap();
+
+            assert_eq!(result.failed.len(), 1);
+            assert_eq!(result.failed[0].skill_id, missing.id);
+            assert!(result.failed[0].error.contains("archiveable"));
+            let mut archived = result.archived.clone();
+            archived.sort();
+            let mut expected: Vec<String> = entries.iter().map(|e| e.id.clone()).collect();
+            expected.sort();
+            assert_eq!(archived, expected);
+
+            let manifest = ArchiveManifest::load().unwrap();
+            let lock = SkillLock::read().unwrap();
+            let codex_dir = config::get_agent_skills_dir("codex").unwrap();
+            for entry in &entries {
+                let home = PathBuf::from(entry.home_path.as_ref().unwrap());
+                assert!(
+                    !home.exists(),
+                    "{} home must move into the archive",
+                    entry.id
+                );
+                let archive_id = ArchiveManifest::make_archive_id(&entry.id, &entry.directory);
+                assert!(ArchiveManifest::archive_skill_dir(&archive_id)
+                    .join("SKILL.md")
+                    .is_file());
+                assert!(manifest.skills.contains_key(&archive_id));
+                assert!(!lock.skills.contains_key(&entry.directory));
+                let link = codex_dir.join(SkillService::agent_link_name(&entry.directory));
+                assert!(!link.symlink_metadata().is_ok());
+                assert!(state
+                    .skill_cache
+                    .read()
+                    .unwrap()
+                    .find_by_id(&entry.id)
+                    .is_none());
+                assert!(!state.metadata.read().unwrap().get(&entry.id).starred);
+            }
+            assert!(state
+                .skill_cache
+                .read()
+                .unwrap()
+                .find_by_id(&missing.id)
+                .is_some());
+            drop(
+                crate::persistence::agent_transaction::AgentLease::acquire(
+                    &config::get_app_config_dir(),
+                )
+                .unwrap(),
+            );
+        });
+    }
+
+    #[test]
+    fn restore_archived_skills_batch_reports_partial_failures() {
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            let (state, entries) = batch_archive_fixture();
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            let ids: Vec<String> = entries.iter().map(|entry| entry.id.clone()).collect();
+            let archived = rt.block_on(archive_skills(&state, ids)).unwrap();
+            assert!(archived.failed.is_empty(), "{:?}", archived.failed);
+
+            let blocked_home = config::get_agents_skills_dir().join("demo-b");
+            std::fs::create_dir_all(&blocked_home).unwrap();
+            std::fs::write(blocked_home.join("SKILL.md"), "# foreign").unwrap();
+
+            let archive_ids: Vec<String> = entries
+                .iter()
+                .map(|entry| ArchiveManifest::make_archive_id(&entry.id, &entry.directory))
+                .collect();
+            let result = rt
+                .block_on(restore_archived_skills(&state, archive_ids.clone()))
+                .unwrap();
+
+            assert_eq!(result.failed.len(), 1);
+            assert!(result.failed[0]
+                .error
+                .contains("destination already exists"));
+            assert_eq!(result.restored.len(), 1);
+            assert_eq!(result.restored[0].skill.id, entries[0].id);
+
+            let first_home = PathBuf::from(entries[0].home_path.as_ref().unwrap());
+            assert!(first_home.join("SKILL.md").is_file());
+            let codex_dir = config::get_agent_skills_dir("codex").unwrap();
+            assert!(codex_dir
+                .join(SkillService::agent_link_name("demo-a"))
+                .symlink_metadata()
+                .is_ok());
+            assert!(state
+                .skill_cache
+                .read()
+                .unwrap()
+                .find_by_id(&entries[0].id)
+                .is_some());
+            assert!(state.metadata.read().unwrap().get(&entries[0].id).starred);
+            assert!(SkillLock::read().unwrap().skills.contains_key("demo-a"));
+
+            assert_eq!(
+                std::fs::read_to_string(blocked_home.join("SKILL.md")).unwrap(),
+                "# foreign"
+            );
+            assert!(ArchiveManifest::archive_skill_dir(&archive_ids[1])
+                .join("SKILL.md")
+                .is_file());
+            let manifest = ArchiveManifest::load().unwrap();
+            assert!(manifest.skills.contains_key(&archive_ids[1]));
+            assert!(!manifest.skills.contains_key(&archive_ids[0]));
+            assert!(!SkillLock::read().unwrap().skills.contains_key("demo-b"));
+
+            drop(
+                crate::persistence::agent_transaction::AgentLease::acquire(
+                    &config::get_app_config_dir(),
+                )
+                .unwrap(),
+            );
         });
     }
 

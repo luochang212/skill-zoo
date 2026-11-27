@@ -1637,6 +1637,14 @@ pub fn batch_unlink_skills(
     skill_ids: Vec<String>,
     agent: String,
 ) -> Result<BatchUnlinkSkillsResult, CommandError> {
+    batch_unlink_skills_impl(&state, skill_ids, agent)
+}
+
+fn batch_unlink_skills_impl(
+    state: &AppState,
+    skill_ids: Vec<String>,
+    agent: String,
+) -> Result<BatchUnlinkSkillsResult, CommandError> {
     let _agent_lease = state.acquire_local_lease()?;
     if config::get_agent_skills_dir(&agent).is_none() {
         return Err(format!("Unknown agent: {agent}").into());
@@ -1645,6 +1653,7 @@ pub fn batch_unlink_skills(
     let mut unlinked = Vec::new();
     let mut skipped = Vec::new();
     let mut failed = Vec::new();
+    let mut updated_entries: Vec<SkillCacheEntry> = Vec::new();
     let mut seen = HashSet::new();
 
     for skill_id in skill_ids {
@@ -1695,14 +1704,9 @@ pub fn batch_unlink_skills(
 
         match SkillService::toggle_symlink(&skill.directory, home_path, &agent, false) {
             Ok(()) => {
-                let new_apps = SkillService::detect_agents(&skill.directory, &skill.home_path);
-                if let Ok(mut cache) = state.skill_cache.write() {
-                    if let Some(mut entry) = cache.find_by_id(&skill_id).cloned() {
-                        entry.apps = new_apps;
-                        cache.upsert(entry);
-                        let _ = cache.save();
-                    }
-                }
+                let mut entry = skill;
+                entry.apps = SkillService::detect_agents(&entry.directory, &entry.home_path);
+                updated_entries.push(entry);
                 unlinked.push(skill_id);
             }
             Err(error) => failed.push(BatchUnlinkSkillFailure {
@@ -1710,6 +1714,10 @@ pub fn batch_unlink_skills(
                 error: error.to_string(),
             }),
         }
+    }
+
+    if !updated_entries.is_empty() {
+        let _ = SkillService::upsert_cache_entries(&state.skill_cache, updated_entries);
     }
 
     Ok(BatchUnlinkSkillsResult {
@@ -3087,6 +3095,78 @@ mod tests {
             assert!(cache.find_by_id("ssot:demo-first").is_some());
             assert!(cache.find_by_id("ssot:demo-second").is_some());
             drop(cache);
+
+            drop(
+                crate::persistence::agent_transaction::AgentLease::acquire(
+                    &config::get_app_config_dir(),
+                )
+                .unwrap(),
+            );
+        });
+    }
+
+    #[test]
+    fn batch_unlink_updates_apps_and_tolerates_cache_persist_failure() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        config::with_test_home(tmp.path(), || {
+            let home = config::get_agents_skills_dir().join("demo");
+            std::fs::create_dir_all(&home).expect("create skill");
+            std::fs::write(home.join("SKILL.md"), "# Demo").expect("write skill");
+            let mut entry = test_cache_entry_with_home(
+                "ssot:demo",
+                "demo",
+                "ssot",
+                Some(home.to_string_lossy().into_owned()),
+            );
+            entry.apps.insert("codex".to_string(), true);
+            entry.apps.insert("claude-code".to_string(), true);
+            SkillService::toggle_symlink("demo", home.to_string_lossy().as_ref(), "codex", true)
+                .expect("create codex link");
+            SkillService::toggle_symlink(
+                "demo",
+                home.to_string_lossy().as_ref(),
+                "claude-code",
+                true,
+            )
+            .expect("create claude-code link");
+            let state = AppState::new(
+                SkillCache::from_entries(vec![entry]),
+                crate::persistence::MetadataStore {
+                    entries: Default::default(),
+                },
+                crate::persistence::Settings {
+                    values: Default::default(),
+                },
+            );
+
+            let result =
+                batch_unlink_skills_impl(&state, vec!["ssot:demo".to_string()], "codex".into())
+                    .expect("batch unlink");
+            assert_eq!(result.unlinked, vec!["ssot:demo".to_string()]);
+            assert!(result.failed.is_empty());
+            assert!(result.skipped.is_empty());
+
+            let codex_link = config::get_agent_skills_dir("codex")
+                .unwrap()
+                .join(SkillService::agent_link_name("demo"));
+            assert!(!codex_link.symlink_metadata().is_ok());
+            {
+                let cache = state.skill_cache.read().unwrap();
+                let updated = cache.find_by_id("ssot:demo").unwrap();
+                assert!(!updated.apps.get("codex").copied().unwrap_or(true));
+                assert!(updated.apps.get("claude-code").copied().unwrap_or(false));
+            }
+
+            let blocked = config::get_app_config_dir().join("skills-cache.json.tmp");
+            std::fs::create_dir_all(&blocked).expect("block cache persist");
+            let result = batch_unlink_skills_impl(
+                &state,
+                vec!["ssot:demo".to_string()],
+                "claude-code".into(),
+            )
+            .expect("batch unlink tolerates cache persist failure");
+            std::fs::remove_dir(&blocked).expect("unblock cache persist");
+            assert_eq!(result.unlinked, vec!["ssot:demo".to_string()]);
 
             drop(
                 crate::persistence::agent_transaction::AgentLease::acquire(
