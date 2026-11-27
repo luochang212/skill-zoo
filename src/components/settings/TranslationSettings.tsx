@@ -40,7 +40,7 @@ export function TranslationSettings({ onConfigureModels }: { onConfigureModels: 
   const selected = choices.findIndex(
     (c) => c.provider.id === prefs.data?.providerId && c.model.id === prefs.data?.modelId,
   );
-  const error = prefs.error ?? providers.error ?? save.error ?? clear.error;
+  const error = prefs.error ?? providers.error;
   return (
     <section className="space-y-5">
       <SettingsSelect
@@ -50,7 +50,18 @@ export function TranslationSettings({ onConfigureModels }: { onConfigureModels: 
         options={translationLanguages.map(([value, label]) => ({ value, label }))}
         disabled={!prefs.data || save.isPending}
         onValueChange={(targetLanguage) =>
-          prefs.data && save.mutate({ ...prefs.data, targetLanguage })
+          prefs.data &&
+          save.mutate(
+            { ...prefs.data, targetLanguage },
+            {
+              onError: (e) =>
+                toast.error(
+                  t(`translation.errors.${translationErrorCode(e)}`, {
+                    defaultValue: t("translation.errors.configRead"),
+                  }),
+                ),
+            },
+          )
         }
       />
       {providers.isSuccess && choices.length === 0 ? (
@@ -132,7 +143,15 @@ export function TranslationSettings({ onConfigureModels }: { onConfigureModels: 
           className={`h-8 w-[4.5rem] shrink-0 rounded-md border text-xs ${confirmClear ? "border-primary" : "border-input"}`}
           disabled={clear.isPending}
           onClick={() => {
-            if (confirmClear) clear.mutate();
+            if (confirmClear)
+              clear.mutate(undefined, {
+                onError: (e) =>
+                  toast.error(
+                    t(`translation.errors.${translationErrorCode(e)}`, {
+                      defaultValue: t("translation.errors.configRead"),
+                    }),
+                  ),
+              });
             else setConfirmClear(true);
           }}
         >

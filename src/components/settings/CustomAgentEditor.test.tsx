@@ -3,9 +3,17 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 import i18n from "@/i18n";
 import { settingsApi } from "@/lib/api/settings";
 import { CustomAgentEditor, suggestName } from "./CustomAgentEditor";
+
+vi.mock("sonner", () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}));
 
 const agent = {
   agent: "custom-3e572935-73ca-4f2a-9b36-2cdbd6d0a689",
@@ -44,6 +52,8 @@ function setup(edit = false) {
 describe("CustomAgentEditor", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
+    vi.mocked(toast.success).mockClear();
+    vi.mocked(toast.error).mockClear();
     vi.spyOn(settingsApi, "previewCustomAgent").mockResolvedValue(preview);
     vi.spyOn(settingsApi, "previewAgentRemoval").mockResolvedValue(preview);
     vi.spyOn(settingsApi, "saveCustomAgent").mockResolvedValue(result);
@@ -65,6 +75,7 @@ describe("CustomAgentEditor", () => {
     await user.click(screen.getByRole("button", { name: "Add Agent" }));
     await waitFor(() => expect(name).toHaveAttribute("aria-invalid", "true"));
     expect(name).toHaveFocus();
+    expect(toast.error).toHaveBeenCalledWith("An agent with this name already exists.");
   });
 
   it("requires explicit missing-directory consent and retains input after failure", async () => {
@@ -75,11 +86,16 @@ describe("CustomAgentEditor", () => {
     await user.type(screen.getByLabelText(/Name/), "New Tool");
     await user.type(screen.getByLabelText(/^Skills directory/), "/tool/skills");
     await user.click(screen.getByRole("button", { name: "Add Agent" }));
-    expect(await screen.findByText(/Confirm creation/)).toBeInTheDocument();
+    expect(await screen.findByText(/Create this directory/)).toBeInTheDocument();
     expect(settingsApi.saveCustomAgent).not.toHaveBeenCalled();
     await user.click(screen.getByRole("checkbox"));
     await user.click(screen.getByRole("button", { name: "Add Agent" }));
-    expect(await screen.findByText(/Could not save agent settings/)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Could not save agent settings. Check directory permissions and try again.",
+      ),
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Name/)).toHaveValue("New Tool");
     expect(screen.getByLabelText(/^Skills directory/)).toHaveValue("/tool/skills");
     expect(settingsApi.saveCustomAgent).toHaveBeenCalledWith(
@@ -136,6 +152,8 @@ describe("CustomAgentEditor", () => {
     setup();
     await userEvent.setup().click(screen.getByRole("button", { name: "Add Agent" }));
     expect(screen.getByLabelText(/^Skills directory/)).toHaveFocus();
+    expect(screen.getByLabelText(/^Skills directory/)).toHaveAttribute("aria-invalid", "true");
+    expect(toast.error).toHaveBeenCalledWith("Enter an absolute Skills directory path.");
     expect(
       fireEvent.keyDown(screen.getByLabelText(/Name/), { key: "Enter", isComposing: true }),
     ).toBe(false);

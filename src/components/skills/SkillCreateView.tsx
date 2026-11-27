@@ -25,8 +25,8 @@ export function SkillCreateView({ onClose, onCreated }: SkillCreateViewProps) {
   const createMutation = useCreateSkill();
 
   const trimmedName = name.trim();
-  const nameValid = SKILL_NAME_RE.test(trimmedName);
-  const canCreate = trimmedName.length > 0 && nameValid && !createMutation.isPending;
+  const nameInvalid = trimmedName.length > 0 && !SKILL_NAME_RE.test(trimmedName);
+  const canCreate = trimmedName.length > 0 && !nameInvalid && !createMutation.isPending;
 
   const resizeFields = useCallback(() => {
     const scrollTop = scrollRef.current?.scrollTop ?? 0;
@@ -90,10 +90,8 @@ export function SkillCreateView({ onClose, onCreated }: SkillCreateViewProps) {
           <div className="border-b border-border/50 pb-5">
             <input
               aria-label={t("createSkill.name")}
-              aria-invalid={trimmedName.length > 0 && !nameValid}
-              aria-describedby={
-                trimmedName.length > 0 && !nameValid ? `${id}-name-error` : undefined
-              }
+              aria-invalid={nameInvalid}
+              aria-describedby={nameInvalid ? `${id}-name-error` : undefined}
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder={t("createSkill.namePlaceholder")}
@@ -104,11 +102,13 @@ export function SkillCreateView({ onClose, onCreated }: SkillCreateViewProps) {
               spellCheck={false}
               disabled={createMutation.isPending}
             />
-            {trimmedName.length > 0 && !nameValid && (
-              <p id={`${id}-name-error`} className="mt-2 text-xs text-destructive">
-                {t("createSkill.nameInvalid")}
-              </p>
-            )}
+            <p
+              id={nameInvalid ? `${id}-name-error` : undefined}
+              aria-hidden={!nameInvalid}
+              className={`mt-2 text-xs text-destructive ${nameInvalid ? "" : "invisible"}`}
+            >
+              {nameInvalid ? t("createSkill.nameInvalid") : ""}
+            </p>
             <textarea
               ref={descriptionRef}
               aria-label={t("createSkill.description")}

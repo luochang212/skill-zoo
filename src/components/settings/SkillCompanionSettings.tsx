@@ -663,11 +663,12 @@ function SkillCompanionRow({
                 invalid && "border-destructive/60",
               )}
             />
-            {invalid ? (
-              <p id={`skill-companion-error-${index}`} className="text-xs text-destructive">
-                {t("settings.skillCompanion.validation")}
-              </p>
-            ) : null}
+            <p
+              id={invalid ? `skill-companion-error-${index}` : undefined}
+              className={`text-xs text-destructive ${invalid ? "" : "invisible"}`}
+            >
+              {invalid ? t("settings.skillCompanion.validation") : ""}
+            </p>
           </div>
         ) : (
           <p className="truncate py-1 text-sm leading-5 text-foreground">{preview}</p>

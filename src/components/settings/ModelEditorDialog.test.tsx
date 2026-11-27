@@ -59,6 +59,18 @@ describe("model configuration editor", () => {
     expect(config.onConfirm).toHaveBeenCalledWith(model);
   });
 
+  it("reports validation failures as toasts and marks the conflicting field invalid", async () => {
+    const config = props();
+    render(<ModelEditorDialog {...config} />);
+    await user().clear(screen.getByLabelText("Model ID"));
+    await user().type(screen.getByLabelText("Model ID"), "duplicate");
+    await user().click(screen.getByRole("button", { name: "Confirm" }));
+    expect(config.onConfirm).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith("Enter a unique model ID.");
+    expect(screen.getByLabelText("Model ID")).toBeInvalid();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("opens with the caret at the end of the model ID without selecting it", async () => {
     render(<ModelEditorDialog {...props()} />);
     const input = screen.getByLabelText("Model ID") as HTMLInputElement;
@@ -210,7 +222,9 @@ describe("model configuration editor", () => {
       await input.clear(screen.getByLabelText("Model ID"));
       await input.type(screen.getByLabelText("Model ID"), "duplicate");
       await input.click(screen.getByRole("button", { name: "Confirm" }));
-      expect(screen.getByRole("alert")).toHaveTextContent("unique");
+      expect(toast.error).toHaveBeenCalledWith("Enter a unique model ID.");
+      expect(screen.getByLabelText("Model ID")).toBeInvalid();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
       await input.clear(screen.getByLabelText("Model ID"));
       await input.type(screen.getByLabelText("Model ID"), "custom");
       await input.type(screen.getByLabelText("Context window"), "100");

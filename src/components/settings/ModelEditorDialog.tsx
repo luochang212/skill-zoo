@@ -89,23 +89,27 @@ export function ModelEditorDialog({
       clearTimeout(timer);
     };
   }, [baseUrl, normalizedModelId, composing, context, output, identity, id, t]);
+  const failWith = (key: "modelId" | "contextWindow" | "maxOutputTokens") => {
+    setError(key);
+    toast.error(t(`llm.modelErrors.${key}`));
+  };
   const confirmModel = () => {
     const nextId = normalizedModelId;
     const nextContext = parseLimit(context);
     const nextOutput = parseLimit(output);
     if (!nextId || otherModelIds.includes(nextId)) {
-      setError("modelId");
+      failWith("modelId");
       return;
     }
     if (nextContext === undefined) {
-      setError("contextWindow");
+      failWith("contextWindow");
       return;
     }
     if (
       nextOutput === undefined ||
       (nextOutput != null && nextContext != null && nextOutput > nextContext)
     ) {
-      setError("maxOutputTokens");
+      failWith("maxOutputTokens");
       return;
     }
     const next = {
@@ -206,11 +210,6 @@ export function ModelEditorDialog({
                 </div>
               ))}
             </div>
-            {error && (
-              <p role="alert" className="text-xs text-destructive">
-                {t(`llm.modelErrors.${error}`)}
-              </p>
-            )}
           </div>
           <div className="flex shrink-0 justify-end gap-2 border-t border-border/40 p-3">
             <Button

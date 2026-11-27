@@ -44,7 +44,6 @@ export function CustomAgentEditor({
   const [review, setReview] = useState<"remove" | "path">();
   const [discard, setDiscard] = useState(false);
   const [discardClosesDialog, setDiscardClosesDialog] = useState(false);
-  const [error, setError] = useState("");
   const [invalid, setInvalid] = useState<"name" | "path">();
   const [picking, setPicking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -80,7 +79,7 @@ export function CustomAgentEditor({
                 : field === "path"
                   ? "directoryError"
                   : "saveError";
-    setError(
+    toast.error(
       overlappingAgent && overlappingAgent !== "Skill Zoo storage"
         ? t("settings.customAgents.overlappingAgent", { agent: overlappingAgent })
         : t(`settings.customAgents.${key}`),
@@ -139,13 +138,13 @@ export function CustomAgentEditor({
   const validate = async () => {
     if (!path.trim()) {
       setInvalid("path");
-      setError(t("settings.customAgents.pathError"));
+      toast.error(t("settings.customAgents.pathError"));
       pathRef.current?.focus();
       return undefined;
     }
     if (!name.trim() || [...name.trim()].length > 64) {
       setInvalid("name");
-      setError(t("settings.customAgents.nameError"));
+      toast.error(t("settings.customAgents.nameError"));
       nameRef.current?.focus();
       return undefined;
     }
@@ -155,7 +154,6 @@ export function CustomAgentEditor({
       if (token !== sequence.current) return undefined;
       setPreview(value);
       setInvalid(undefined);
-      setError("");
       return value;
     } catch (e) {
       if (token === sequence.current) {
@@ -173,7 +171,7 @@ export function CustomAgentEditor({
       const value = await validate();
       if (!value) return;
       if (!value.exists && !create) {
-        setError(t("settings.customAgents.creationRequired"));
+        toast.error(t("settings.customAgents.creationRequired"));
         pathRef.current?.focus();
         return;
       }
@@ -196,14 +194,12 @@ export function CustomAgentEditor({
     try {
       setPreview(await settingsApi.previewAgentRemoval(agent!.agent));
       setReview("remove");
-      setError("");
     } catch (e) {
       showError(e);
     }
   };
   const resetErrors = () => {
     sequence.current++;
-    setError("");
     setInvalid(undefined);
     setPreview(undefined);
   };
@@ -268,11 +264,6 @@ export function CustomAgentEditor({
                 archives: preview?.archivedReferences ?? 0,
               })}
             </p>
-            {error && (
-              <p role="alert" className="text-sm text-destructive">
-                {error}
-              </p>
-            )}
           </div>
           <div className="mt-4 flex shrink-0 justify-end gap-2 border-t border-border/40 pt-4">
             <Button
@@ -329,7 +320,6 @@ export function CustomAgentEditor({
                   spellCheck={false}
                   autoCapitalize="none"
                   aria-invalid={invalid === "path"}
-                  aria-describedby={error ? `${id}-error` : undefined}
                   onChange={(e) => applyPath(e.target.value)}
                   onBlur={() => {
                     if (name.trim() && path.trim()) void validate();
@@ -380,7 +370,6 @@ export function CustomAgentEditor({
                 value={name}
                 disabled={busy}
                 aria-invalid={invalid === "name"}
-                aria-describedby={error ? `${id}-error` : undefined}
                 onChange={(e) => {
                   setName(e.target.value);
                   setNameEdited(true);
@@ -391,11 +380,6 @@ export function CustomAgentEditor({
                 }}
               />
             </div>
-            {error && (
-              <p id={`${id}-error`} role="alert" className="text-sm text-destructive">
-                {error}
-              </p>
-            )}
           </div>
           <div className="mt-4 flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border/40 pt-4">
             {agent && (
