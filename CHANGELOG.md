@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.3.0] — 2026-11-28
+
+### Added
+- Repo installs resolve same-name skills by path instead of failing the batch: when a selection contains duplicates (bundle repos like anthropics/financial-services), the shallowest path wins with ties broken lexicographically, skipped copies surface in a toast, and flat view annotates duplicate rows with their parent path. The repo detail view gains a flat/grouped toggle, and grouped view renders every folder as a collapsible header band with a tri-state checkbox selecting the folder's installable skills.
+- Pasting a GitHub tree or blob URL opens the repo detail pre-filtered to that subtree: a dismissible chip shows the active path, both view modes filter by it, and an unmatched path falls back to the full list with a notice. Whole-repo and subtree views of the same branch share selection state and refresh together.
+
+### Changed
+- Batch removal, archiving, restoring, and unlinking persist once for the whole batch — one trash pass, one lock write, one cache and metadata save — instead of paying the per-skill cost for every item. Per-item failure reporting is unchanged.
+- Settings and skill-create validation errors report through toasts while fields keep their invalid state and focus, and error lines reserve their height so rows no longer shift when a message appears. Translation preference saves and cache clears surface exactly one localized error per failure.
+- The discovery banner carousel reserves its slot with a muted shell sharing the final geometry while banners load, and images fade in individually instead of the carousel waiting for every image to decode before appearing.
+- Recommended repositories replace pixelfx and HKUSTDial/Supervisor-Skills with cursor/plugins and cloudflare/skills.
+
+### Fixed
+- Subtree views no longer drop skills on large repos: path filtering runs on the backend before counting and truncation, so a subtree can return items the truncated whole-repo view cut off. Forced ZIP refreshes replace the cache atomically, keeping the previous archive readable while the new one downloads, fails, or is cancelled.
+- Directory names ending in SKILL.md survive URL parsing; only blob links pointing at a real SKILL.md file trim that file segment from the path.
+- The repo view's select-all checkbox counts only the currently installable skills, so selections outside the view no longer make it look fully checked.
+
 ## [1.2.2] — 2026-11-25
 
 ### Changed
