@@ -27,6 +27,8 @@ pub struct DiscoverRepo {
     #[serde(default)]
     pub topics: Vec<String>,
     pub html_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
 }
 
 pub fn minimal_discover_repo(owner: String, name: String, branch: Option<String>) -> DiscoverRepo {
@@ -44,6 +46,7 @@ pub fn minimal_discover_repo(owner: String, name: String, branch: Option<String>
         pushed_at: None,
         topics: vec![],
         html_url: None,
+        path: None,
     }
 }
 
@@ -265,6 +268,7 @@ async fn fetch_github_repo_metadata(owner: &str, name: &str) -> Result<DiscoverR
                     .get("html_url")
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string()),
+                path: None,
             }),
             Err(e) => Err(AppError::Parse(format!(
                 "Invalid repo metadata JSON for {owner}/{name}: {e}"

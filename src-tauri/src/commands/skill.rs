@@ -1871,6 +1871,7 @@ pub fn get_recommended_repos(app: tauri::AppHandle) -> Result<Vec<DiscoverRepo>,
             pushed_at: None,
             topics: vec![],
             html_url: None,
+            path: None,
         })
         .collect())
 }
@@ -1878,25 +1879,25 @@ pub fn get_recommended_repos(app: tauri::AppHandle) -> Result<Vec<DiscoverRepo>,
 #[tauri::command]
 pub async fn search_repo(query: String) -> Result<DiscoverRepo, CommandError> {
     let repo_query = github::parse_repo_query(&query)?;
-    if let Some(branch) = repo_query.branch {
-        return Ok(minimal_discover_repo(
-            repo_query.owner,
-            repo_query.name,
-            Some(branch),
-        ));
-    }
-    let owner = repo_query.owner;
-    let name = repo_query.name;
-    match repo_metadata::get_repo_metadata(&owner, &name, false).await {
-        Ok(repo) => Ok(repo),
-        Err(e) => {
-            eprintln!(
-                "search_repo: metadata degraded for {owner}/{name}: code={} message={}",
-                e.code, e.message
-            );
-            Ok(minimal_discover_repo(owner, name, None))
+    let mut repo = match repo_query.branch {
+        Some(branch) => minimal_discover_repo(repo_query.owner, repo_query.name, Some(branch)),
+        None => {
+            let owner = repo_query.owner.clone();
+            let name = repo_query.name.clone();
+            match repo_metadata::get_repo_metadata(&owner, &name, false).await {
+                Ok(repo) => repo,
+                Err(e) => {
+                    eprintln!(
+                        "search_repo: metadata degraded for {owner}/{name}: code={} message={}",
+                        e.code, e.message
+                    );
+                    minimal_discover_repo(owner, name, None)
+                }
+            }
         }
-    }
+    };
+    repo.path = repo_query.path;
+    Ok(repo)
 }
 
 #[tauri::command]

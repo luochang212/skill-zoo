@@ -43,6 +43,17 @@ export function duplicateSkillNames(skills: DiscoverableSkill[]): Set<string> {
   return new Set([...counts.entries()].filter(([, count]) => count > 1).map(([name]) => name));
 }
 
+export function filterSkillsBySubtree(
+  skills: DiscoverableSkill[],
+  path: string,
+): DiscoverableSkill[] {
+  const normalized = path.trim().replace(/\/+$/, "");
+  if (!normalized) return skills;
+  return skills.filter(
+    (skill) => skill.key === normalized || skill.key.startsWith(`${normalized}/`),
+  );
+}
+
 const tailSegments = (path: string, n: number) => path.split("/").slice(-n).join("/");
 
 export function compressedGroupLabels(parentPaths: string[]): Map<string, string> {

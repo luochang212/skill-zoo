@@ -158,6 +158,7 @@ pub struct GitHubRepoQuery {
     pub owner: String,
     pub name: String,
     pub branch: Option<String>,
+    pub path: Option<String>,
 }
 
 static REPO_SEGMENT_RE: LazyLock<Regex> =
@@ -194,17 +195,29 @@ pub fn parse_repo_query(input: &str) -> Result<GitHubRepoQuery, String> {
 
         let owner = segments[0].to_string();
         let name = segments[1].trim_end_matches(".git").to_string();
-        let branch = if segments.len() >= 4 && segments[2] == "tree" {
-            Some(segments[3].to_string())
+        let ref_prefix = if segments.len() >= 3 && (segments[2] == "tree" || segments[2] == "blob")
+        {
+            Some(segments[2])
         } else {
             None
         };
+        let branch = ref_prefix
+            .filter(|_| segments.len() >= 4)
+            .map(|_| segments[3].to_string());
+        let path = ref_prefix.and_then(|_| {
+            if segments.len() > 4 {
+                normalize_sub_path(&segments[4..].join("/"))
+            } else {
+                None
+            }
+        });
 
         validate_repo_segments(&owner, &name, branch.as_deref().unwrap_or("HEAD"))?;
         Ok(GitHubRepoQuery {
             owner,
             name,
             branch,
+            path,
         })
     } else {
         let parts: Vec<&str> = input.splitn(2, '/').collect();
@@ -218,7 +231,23 @@ pub fn parse_repo_query(input: &str) -> Result<GitHubRepoQuery, String> {
             owner,
             name,
             branch: None,
+            path: None,
         })
+    }
+}
+
+fn normalize_sub_path(raw: &str) -> Option<String> {
+    let trimmed = raw
+        .trim_end_matches("/SKILL.md")
+        .trim_end_matches("SKILL.md")
+        .trim_matches('/');
+    if trimmed.is_empty() {
+        return None;
+    }
+    if trimmed.split('/').all(|s| REPO_SEGMENT_RE.is_match(s)) {
+        Some(trimmed.to_string())
+    } else {
+        None
     }
 }
 
@@ -425,6 +454,30 @@ mod tests {
         assert_eq!(query.owner, "owner");
         assert_eq!(query.name, "repo");
         assert_eq!(query.branch.as_deref(), Some("master"));
+    }
+
+    #[test]
+    fn repo_query_extracts_sub_path_from_tree_and_blob_urls() {
+        let query = parse_repo_query("https://github.com/cursor/plugins/tree/main/pstack").unwrap();
+        assert_eq!(query.owner, "cursor");
+        assert_eq!(query.name, "plugins");
+        assert_eq!(query.branch.as_deref(), Some("main"));
+        assert_eq!(query.path.as_deref(), Some("pstack"));
+
+        let query = parse_repo_query("https://github.com/owner/repo/tree/dev/skills/foo").unwrap();
+        assert_eq!(query.path.as_deref(), Some("skills/foo"));
+
+        let query = parse_repo_query("https://github.com/owner/repo/blob/main/skills/foo/SKILL.md")
+            .unwrap();
+        assert_eq!(query.branch.as_deref(), Some("main"));
+        assert_eq!(query.path.as_deref(), Some("skills/foo"));
+
+        let query = parse_repo_query("https://github.com/owner/repo/tree/main").unwrap();
+        assert_eq!(query.path, None);
+
+        let query = parse_repo_query("https://github.com/owner/repo").unwrap();
+        assert_eq!(query.branch, None);
+        assert_eq!(query.path, None);
     }
 
     #[test]

@@ -232,6 +232,7 @@ export interface DiscoverRepo {
   pushedAt?: string;
   topics?: string[];
   htmlUrl?: string;
+  path?: string;
 }
 
 export interface SkillAudit {
