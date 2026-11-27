@@ -6,10 +6,10 @@
     "description": "Public repository for Agent Skills"
   },
   {
-    "owner": "HKUSTDial",
-    "name": "Supervisor-Skills",
+    "owner": "cloudflare",
+    "name": "skills",
     "branch": "main",
-    "description": "Research skills from a PhD advisor's decade of experience: idea evaluation, literature survey, paper drafting, figures, submission review, and rebuttal"
+    "description": "Skills for teaching agents how to build on Cloudflare."
   },
   {
     "owner": "zai-org",
