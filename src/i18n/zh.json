@@ -836,5 +836,11 @@
     "cancelRepo": "取消加载 {{repo}}",
     "defaultBranch": "默认分支",
     "clearAll": "清除全部"
+  },
+  "windowControls": {
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "restore": "还原",
+    "close": "关闭"
   }
 }

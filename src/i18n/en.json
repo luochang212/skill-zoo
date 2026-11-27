@@ -836,5 +836,11 @@
     "cancelRepo": "Cancel loading {{repo}}",
     "defaultBranch": "Default branch",
     "clearAll": "Clear all"
+  },
+  "windowControls": {
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "restore": "Restore",
+    "close": "Close"
   }
 }

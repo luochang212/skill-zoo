@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { View } from "@/types/skills";
 
+import { WindowControls } from "./WindowControls";
+
 interface HeaderProps {
   view: View;
   onViewChange: (view: View) => void;
@@ -37,16 +39,19 @@ export function Header({ view, onViewChange, hideTabs, onDragMouseDown, actions 
     >
       <div className="h-[4.5rem] px-5">
         {hideTabs ? (
-          <div className="flex items-center justify-between h-full">
+          <div className="flex items-center justify-between h-full pl-[5.75rem]">
             <h1
-              className="italic tracking-tight leading-tight shrink-0 pl-[5.75rem]"
+              className="italic tracking-tight leading-tight shrink-0"
               style={{
                 fontFamily: LOGO_FONT,
               }}
             >
               <span className="font-bold text-2xl rainbow-text">Skill Zoo</span>
             </h1>
-            {actions}
+            <div className="flex items-center gap-1">
+              {actions}
+              <WindowControls />
+            </div>
           </div>
         ) : (
           <nav className="grid grid-cols-[1fr_auto_1fr] items-center h-full">
@@ -97,7 +102,10 @@ export function Header({ view, onViewChange, hideTabs, onDragMouseDown, actions 
                 ))}
               </div>
             </div>
-            <div className="flex justify-end">{actions}</div>
+            <div className="flex items-center justify-end gap-1">
+              {actions}
+              <WindowControls />
+            </div>
           </nav>
         )}
       </div>
