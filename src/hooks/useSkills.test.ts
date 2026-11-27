@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { resolveResource } from "@tauri-apps/api/path";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
 import i18n from "@/i18n";
 import {
+  useBanners,
   useRepoReadme,
   useRefreshRepoPanel,
   useRemoveSkill,
@@ -21,6 +23,7 @@ import { createQueryWrapper } from "@/test/utils";
 import type { InstalledSkill } from "@/types/skills";
 
 vi.mock("@tauri-apps/api/core");
+vi.mock("@tauri-apps/api/path");
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
 
 const mockSkills: InstalledSkill[] = [
@@ -380,5 +383,44 @@ describe("useSkillFileContent", () => {
       .map((q) => q.queryKey);
     expect(keys).toContainEqual(["skills", "file", "skill-a", "README.md"]);
     expect(keys).toContainEqual(["skills", "file", "skill-b", "README.md"]);
+  });
+});
+
+describe("useBanners", () => {
+  beforeEach(() => {
+    vi.mocked(invoke).mockReset();
+    vi.mocked(resolveResource).mockReset();
+    vi.mocked(convertFileSrc).mockReset();
+  });
+
+  it("resolves resource paths into webview asset urls", async () => {
+    vi.mocked(invoke).mockResolvedValue([
+      {
+        image: "banners/banner1.webp",
+        title: "DeepSeek Harness",
+        subtitle: "Everything is a plugin",
+      },
+    ]);
+    vi.mocked(resolveResource).mockResolvedValue("/res/banners/banner1.webp");
+    vi.mocked(convertFileSrc).mockImplementation((path) => path);
+    const { wrapper } = createQueryWrapper();
+    const { result } = renderHook(() => useBanners(), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.[0]?.imageUrl).toBe("/res/banners/banner1.webp");
+  });
+
+  it("keeps the banner with an empty url when resource resolution fails", async () => {
+    vi.mocked(invoke).mockResolvedValue([
+      {
+        image: "banners/banner1.webp",
+        title: "DeepSeek Harness",
+        subtitle: "Everything is a plugin",
+      },
+    ]);
+    vi.mocked(resolveResource).mockRejectedValue(new Error("missing resource"));
+    const { wrapper } = createQueryWrapper();
+    const { result } = renderHook(() => useBanners(), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.[0]?.imageUrl).toBe("");
   });
 });

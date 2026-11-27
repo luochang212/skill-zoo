@@ -75,7 +75,7 @@ interface BrowseSkillsProps {
 
 export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) {
   const { t } = useTranslation();
-  const { data: banners } = useBanners();
+  const { data: banners, isPending: bannersPending } = useBanners();
   const {
     data: recommendedRepos,
     isLoading: loadingRepos,
@@ -372,11 +372,11 @@ export function BrowseSkills({ selectedRepo, onSelectRepo }: BrowseSkillsProps) 
             </div>
           </div>
 
-          {banners && banners.length > 0 && (
-            <div className="mt-6 shrink-0">
-              <BannerCarousel banners={banners} onBannerClick={handleBannerClick} />
-            </div>
-          )}
+          <BannerCarousel
+            banners={banners}
+            pending={bannersPending}
+            onBannerClick={handleBannerClick}
+          />
 
           {recentToDisplay.length > 0 && (
             <div className="mt-6 shrink-0">

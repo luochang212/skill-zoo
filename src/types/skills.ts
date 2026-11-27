@@ -263,6 +263,8 @@ export interface Banner {
   hideText?: boolean;
 }
 
+export type ResolvedBanner = Banner & { imageUrl: string };
+
 export type CatalogKind = "popular" | "trending";
 export interface CatalogSkill {
   source: string;

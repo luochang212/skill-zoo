@@ -1,5 +1,7 @@
 import { invalidateAgentState } from "@/hooks/useSettings";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import { resolveResource } from "@tauri-apps/api/path";
 import { listen } from "@tauri-apps/api/event";
 import i18n from "@/i18n";
 import { formatApiError } from "@/lib/api/errors";
@@ -16,10 +18,12 @@ import {
 } from "@/lib/api/skills";
 import { invalidateFor } from "@/hooks/queryInvalidation";
 import type {
+  Banner,
   BatchUnlinkSkillsResult,
   ExternalImportSelection,
   InstallSkillsResult,
   InstalledSkill,
+  ResolvedBanner,
 } from "@/types/skills";
 import { useEffect } from "react";
 
@@ -371,10 +375,21 @@ export function useSaveSkillFileContent() {
   });
 }
 
+async function resolveBannerUrl(banner: Banner): Promise<ResolvedBanner> {
+  try {
+    return { ...banner, imageUrl: convertFileSrc(await resolveResource(banner.image)) };
+  } catch {
+    return { ...banner, imageUrl: "" };
+  }
+}
+
 export function useBanners() {
   return useQuery({
     queryKey: ["banners"],
-    queryFn: () => skillsApi.getBanners(),
+    queryFn: async () => {
+      const banners = await skillsApi.getBanners();
+      return Promise.all(banners.map(resolveBannerUrl));
+    },
     staleTime: 5 * 60 * 1000,
   });
 }

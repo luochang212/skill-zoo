@@ -1,15 +1,20 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { convertFileSrc } from "@tauri-apps/api/core";
-import { resolveResource } from "@tauri-apps/api/path";
+import {
+  useLayoutEffect,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+  type CSSProperties,
+} from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
-import type { Banner } from "@/types/skills";
+import type { ResolvedBanner } from "@/types/skills";
 
 const ASPECT = 250 / 420;
 const MAX_CARD_W = 460;
 const AUTOPLAY_MS = 7000;
-const resourceUrls = new Map<string, string>();
 const loadedImages = new Set<string>();
 
 function getStyle(diff: number, cardW: number) {
@@ -60,29 +65,40 @@ function getStyle(diff: number, cardW: number) {
   };
 }
 
+function cardBase(style: ReturnType<typeof getStyle>, cardW: number, cardH: number): CSSProperties {
+  return {
+    left: "50%",
+    top: "50%",
+    width: `${cardW}px`,
+    height: `${cardH}px`,
+    marginLeft: `${-cardW / 2}px`,
+    marginTop: `${-cardH / 2}px`,
+    transform: `translateX(${style.x}px) scale(${style.scale}) rotateY(${style.rotateY}deg) translateZ(${style.z}px)`,
+    zIndex: style.zIndex,
+    opacity: style.opacity,
+  };
+}
+
 interface BannerCarouselProps {
-  banners: Banner[];
+  banners: ResolvedBanner[] | undefined;
+  pending: boolean;
   onBannerClick?: (owner: string, name: string, branch?: string) => void;
 }
 
-export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) {
+export function BannerCarousel({ banners, pending, onBannerClick }: BannerCarouselProps) {
   const { t } = useTranslation();
   const reduceMotion = useReducedMotion();
   const [current, setCurrent] = useState(0);
-  const [imageUrls, setImageUrls] = useState<string[]>(() =>
-    banners.map((banner) => resourceUrls.get(banner.image) ?? ""),
-  );
   const [imageResults, setImageResults] = useState<Record<string, boolean>>(() =>
     Object.fromEntries([...loadedImages].map((url) => [url, true])),
   );
   const [dotsHovered, setDotsHovered] = useState(false);
-  const [loading, setLoading] = useState(
-    () => !banners.every((banner) => resourceUrls.has(banner.image)),
-  );
   const containerRef = useRef<HTMLDivElement>(null);
   const [W, setW] = useState(600);
 
-  useEffect(() => {
+  const count = banners?.length ?? 0;
+
+  useLayoutEffect(() => {
     if (!containerRef.current) return;
     const el = containerRef.current;
     const measure = () => setW(el.clientWidth);
@@ -90,68 +106,18 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [banners.length]);
+  }, [pending, count]);
 
   useEffect(() => {
-    let ignore = false;
-    async function loadUrls() {
-      setLoading(!banners.every((banner) => resourceUrls.has(banner.image)));
-      setCurrent(0);
-      const urls = await Promise.all(
-        banners.map(async (b) => {
-          try {
-            const cached = resourceUrls.get(b.image);
-            if (cached) return cached;
-            const path = await resolveResource(b.image);
-            const url = convertFileSrc(path);
-            resourceUrls.set(b.image, url);
-            return url;
-          } catch {
-            return "";
-          }
-        }),
-      );
-      if (!ignore) {
-        setImageUrls(urls);
-        setLoading(false);
-      }
-    }
-    if (banners.length > 0) {
-      loadUrls();
-    } else {
-      setLoading(false);
-    }
-    return () => {
-      ignore = true;
-    };
+    setCurrent(0);
   }, [banners]);
-
-  const ready = !loading && !imageUrls.some((url) => url && imageResults[url] === undefined);
-
-  useEffect(() => {
-    if (!ready || banners.length <= 1 || reduceMotion) return;
-    const timer = setInterval(() => {
-      setCurrent((prev) => (prev + 1) % banners.length);
-    }, AUTOPLAY_MS);
-    return () => clearInterval(timer);
-  }, [banners.length, reduceMotion, current, ready]);
-
-  const goTo = useCallback((index: number) => {
-    setCurrent(index);
-  }, []);
-
-  const goPrev = useCallback(() => {
-    setCurrent((prev) => (prev - 1 + banners.length) % banners.length);
-  }, [banners.length]);
-
-  const goNext = useCallback(() => {
-    setCurrent((prev) => (prev + 1) % banners.length);
-  }, [banners.length]);
 
   const cardW = Math.min(W * 0.6, MAX_CARD_W);
   const cardH = Math.round(cardW * ASPECT);
+  const height = Math.max(cardH + 80, 240);
 
   const cardStates = useMemo(() => {
+    if (!banners?.length) return [];
     return banners.map((banner, i) => {
       let diff = (i - current + banners.length) % banners.length;
       if (diff > banners.length / 2) diff -= banners.length;
@@ -159,91 +125,114 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
     });
   }, [banners, current, cardW]);
 
-  if (!banners.length) return null;
+  const currentUrl = banners?.[current]?.imageUrl;
+  const busy = !!currentUrl && imageResults[currentUrl] === undefined;
+
+  useEffect(() => {
+    if (pending || count <= 1 || reduceMotion) return;
+    const timer = setInterval(() => {
+      setCurrent((prev) => (prev + 1) % count);
+    }, AUTOPLAY_MS);
+    return () => clearInterval(timer);
+  }, [pending, count, reduceMotion, current]);
+
+  const goTo = useCallback((index: number) => {
+    setCurrent(index);
+  }, []);
+
+  const goPrev = useCallback(() => {
+    setCurrent((prev) => (prev - 1 + count) % count);
+  }, [count]);
+
+  const goNext = useCallback(() => {
+    setCurrent((prev) => (prev + 1) % count);
+  }, [count]);
+
+  if (!pending && count === 0) return null;
 
   return (
     <div
-      className="relative w-full select-none px-12"
-      aria-busy={!ready}
-      style={{ height: `${Math.max(cardH + 80, 240)}px` }}
+      className="relative mt-6 w-full shrink-0 select-none px-12"
+      aria-busy={pending || busy}
+      style={{ height: `${height}px` }}
     >
       <div
         ref={containerRef}
         className="relative mx-auto w-full max-w-[960px] h-[calc(100%-32px)] overflow-hidden"
-        style={{ perspective: "1400px", visibility: ready ? "visible" : "hidden" }}
+        style={{ perspective: "1400px" }}
       >
-        {cardStates.map(({ banner, index: i, diff, style }) => {
-          const url = imageUrls[i];
-          const pending = loading || (!!url && imageResults[url] === undefined);
-          const loaded = !!url && imageResults[url] === true;
-          return (
-            <div
-              key={i}
-              className="absolute top-0 rounded-xl overflow-hidden cursor-pointer bg-muted"
-              style={{
-                left: "50%",
-                top: "50%",
-                width: `${cardW}px`,
-                height: `${cardH}px`,
-                marginLeft: `${-cardW / 2}px`,
-                marginTop: `${-cardH / 2}px`,
-                transform: `translateX(${style.x}px) scale(${style.scale}) rotateY(${style.rotateY}deg) translateZ(${style.z}px)`,
-                zIndex: style.zIndex,
-                opacity: style.opacity,
-                boxShadow: loaded ? style.shadow : "none",
-                transition: reduceMotion
-                  ? "none"
-                  : "transform 0.7s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.7s ease, box-shadow 0.7s ease",
-                transformStyle: "preserve-3d",
-              }}
-              onClick={() => {
-                if (diff === 0 && onBannerClick && banner.owner && banner.name) {
-                  onBannerClick(banner.owner, banner.name, banner.branch);
-                } else {
-                  goTo(i);
-                }
-              }}
-            >
-              {url && (
-                <img
-                  src={url}
-                  alt={banner.title}
-                  width={420}
-                  height={250}
-                  className={`w-full h-full object-cover transition-opacity duration-300 motion-reduce:transition-none ${loaded ? "opacity-100" : "opacity-0"}`}
-                  draggable={false}
-                  onLoad={() => {
-                    loadedImages.add(url);
-                    setImageResults((results) => ({ ...results, [url]: true }));
-                  }}
-                  onError={() => setImageResults((results) => ({ ...results, [url]: false }))}
-                />
-              )}
-              {loaded && (
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-              )}
-              {!pending && style.zIndex >= 10 && (!banner.hideText || !loaded) && (
+        {pending
+          ? [-1, 0, 1].map((diff) => (
+              <div
+                key={diff}
+                className="absolute rounded-xl bg-muted"
+                style={cardBase(getStyle(diff, cardW), cardW, cardH)}
+              />
+            ))
+          : cardStates.map(({ banner, index: i, diff, style }) => {
+              const url = banner.imageUrl;
+              const pendingImage = !!url && imageResults[url] === undefined;
+              const loaded = !!url && imageResults[url] === true;
+              return (
                 <div
-                  className={`absolute bottom-4 left-4 right-4 ${loaded ? "text-white" : "text-foreground"}`}
+                  key={i}
+                  className="absolute rounded-xl overflow-hidden cursor-pointer bg-muted"
+                  style={{
+                    ...cardBase(style, cardW, cardH),
+                    boxShadow: loaded ? style.shadow : "none",
+                    transition: reduceMotion
+                      ? "none"
+                      : "transform 0.7s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.7s ease, box-shadow 0.7s ease",
+                    transformStyle: "preserve-3d",
+                  }}
+                  onClick={() => {
+                    if (diff === 0 && onBannerClick && banner.owner && banner.name) {
+                      onBannerClick(banner.owner, banner.name, banner.branch);
+                    } else {
+                      goTo(i);
+                    }
+                  }}
                 >
-                  <h3
-                    className={`text-base font-semibold truncate ${loaded ? "drop-shadow-md" : ""}`}
-                  >
-                    {banner.title}
-                  </h3>
-                  <p
-                    className={`text-xs truncate ${loaded ? "text-white/80 drop-shadow-md" : "text-muted-foreground"}`}
-                  >
-                    {banner.subtitle}
-                  </p>
+                  {url && (
+                    <img
+                      src={url}
+                      alt={banner.title}
+                      width={420}
+                      height={250}
+                      className={`w-full h-full object-cover transition-opacity duration-300 motion-reduce:transition-none ${loaded ? "opacity-100" : "opacity-0"}`}
+                      draggable={false}
+                      onLoad={() => {
+                        loadedImages.add(url);
+                        setImageResults((results) => ({ ...results, [url]: true }));
+                      }}
+                      onError={() => setImageResults((results) => ({ ...results, [url]: false }))}
+                    />
+                  )}
+                  {loaded && (
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                  )}
+                  {!pendingImage && style.zIndex >= 10 && (!banner.hideText || !loaded) && (
+                    <div
+                      className={`absolute bottom-4 left-4 right-4 ${loaded ? "text-white" : "text-foreground"}`}
+                    >
+                      <h3
+                        className={`text-base font-semibold truncate ${loaded ? "drop-shadow-md" : ""}`}
+                      >
+                        {banner.title}
+                      </h3>
+                      <p
+                        className={`text-xs truncate ${loaded ? "text-white/80 drop-shadow-md" : "text-muted-foreground"}`}
+                      >
+                        {banner.subtitle}
+                      </p>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          );
-        })}
+              );
+            })}
       </div>
 
-      {ready && banners.length > 1 && (
+      {!pending && count > 1 && (
         <>
           <button
             onClick={goPrev}
@@ -262,13 +251,13 @@ export function BannerCarousel({ banners, onBannerClick }: BannerCarouselProps) 
         </>
       )}
 
-      {ready && banners.length > 1 && (
+      {!pending && count > 1 && (
         <div
           className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center rounded-full bg-black/20 px-1 backdrop-blur-sm z-30"
           onMouseEnter={() => setDotsHovered(true)}
           onMouseLeave={() => setDotsHovered(false)}
         >
-          {banners.map((_, i) => (
+          {cardStates.map(({ index: i }) => (
             <button
               key={i}
               onClick={() => goTo(i)}
