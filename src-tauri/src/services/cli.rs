@@ -832,7 +832,7 @@ impl CliService {
         repo: &str,
         branch: Option<&str>,
         force: bool,
-        app_handle: Option<&tauri::AppHandle>,
+        app_handle: Option<(&tauri::AppHandle, Option<&str>)>,
     ) -> Result<PathBuf, AppError> {
         let url = Self::archive_zip_url(owner, repo, branch);
         Self::ensure_cached_zip_from_url(owner, repo, branch, force, app_handle, &url).await
@@ -843,21 +843,19 @@ impl CliService {
         repo: &str,
         branch: Option<&str>,
         force: bool,
-        app_handle: Option<&tauri::AppHandle>,
+        app_handle: Option<(&tauri::AppHandle, Option<&str>)>,
         url: &str,
     ) -> Result<PathBuf, AppError> {
         let cache_path = Self::cache_zip_path(owner, repo, branch);
 
-        if force {
-            let _ = std::fs::remove_file(&cache_path);
-        } else if let Ok(metadata) = std::fs::metadata(&cache_path) {
-            if let Ok(modified) = metadata.modified() {
-                if let Ok(elapsed) = modified.elapsed() {
-                    if elapsed.as_secs() < 86400 {
-                        return Ok(cache_path);
-                    }
-                }
-            }
+        if !force
+            && std::fs::metadata(&cache_path)
+                .and_then(|metadata| metadata.modified())
+                .ok()
+                .and_then(|modified| modified.elapsed().ok())
+                .is_some_and(|elapsed| elapsed.as_secs() < 86400)
+        {
+            return Ok(cache_path);
         }
 
         let cache_dir = config::get_repo_zip_cache_dir();
@@ -909,7 +907,7 @@ impl CliService {
             use std::io::Write;
             file.write_all(&chunk).map_err(AppError::Io)?;
 
-            if let Some(handle) = app_handle {
+            if let Some((handle, path)) = app_handle {
                 if downloaded >= emit_threshold {
                     let _ = handle.emit(
                         "repo-download-progress",
@@ -917,6 +915,7 @@ impl CliService {
                             "owner": owner,
                             "repo": repo,
                             "branch": branch,
+                            "path": path,
                             "downloaded": downloaded,
                             "total": total_size,
                         }),
@@ -1353,7 +1352,7 @@ mod tests {
     #[test]
     fn zip_download_cleans_partial_responses_and_cancelled_downloads() {
         use std::io::Write;
-        for cancel in [false, true] {
+        for (cancel, force) in [(false, false), (true, false), (false, true), (true, true)] {
             let home = tempfile::tempdir().unwrap();
             let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
             listener.set_nonblocking(true).unwrap();
@@ -1394,12 +1393,25 @@ mod tests {
                 rt.block_on(async {
                     tokio::time::timeout(std::time::Duration::from_secs(15), async {
                         let cache_dir = config::get_repo_zip_cache_dir();
+                        let cache_path = CliService::cache_zip_path("owner", "repo", None);
+                        if force {
+                            std::fs::create_dir_all(&cache_dir).unwrap();
+                            std::fs::write(&cache_path, b"previous archive").unwrap();
+                            assert_eq!(
+                                CliService::ensure_cached_zip_from_url(
+                                    "owner", "repo", None, false, None, &url,
+                                )
+                                .await
+                                .unwrap(),
+                                cache_path
+                            );
+                        }
                         let mut attempts = 0;
                         let mut download;
                         loop {
                             attempts += 1;
                             download = Box::pin(CliService::ensure_cached_zip_from_url(
-                                "owner", "repo", None, false, None, &url,
+                                "owner", "repo", None, force, None, &url,
                             ));
                             tokio::select! {
                                 result = &mut download => {
@@ -1412,6 +1424,12 @@ mod tests {
                                 _ = tokio::time::sleep(std::time::Duration::from_secs(3)) => {}
                             }
                         }
+                        if force {
+                            assert_eq!(
+                                std::fs::read(&cache_path).ok().as_deref(),
+                                Some(b"previous archive".as_slice())
+                            );
+                        }
                         if cancel {
                             drop(download);
                             finish.send(()).unwrap();
@@ -1421,9 +1439,12 @@ mod tests {
                         }
                         assert_eq!(
                             std::fs::read_dir(cache_dir).unwrap().count(),
-                            0,
-                            "cancel={cancel}"
+                            usize::from(force),
+                            "cancel={cancel}, force={force}"
                         );
+                        if force {
+                            assert_eq!(std::fs::read(&cache_path).unwrap(), b"previous archive");
+                        }
                     })
                     .await
                     .unwrap();

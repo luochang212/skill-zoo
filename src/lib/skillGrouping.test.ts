@@ -3,7 +3,6 @@ import type { DiscoverableSkill } from "@/types/skills";
 import {
   compressedGroupLabels,
   duplicateSkillNames,
-  filterSkillsBySubtree,
   groupSkillsByParentPath,
   parentPathOf,
 } from "@/lib/skillGrouping";
@@ -99,37 +98,5 @@ describe("duplicateSkillNames", () => {
 
   it("returns an empty set when all names are unique", () => {
     expect(duplicateSkillNames([skill("skills/a"), skill("skills/c")])).toEqual(new Set());
-  });
-});
-
-describe("filterSkillsBySubtree", () => {
-  const skills = [
-    skill("pstack/skills/architect"),
-    skill("pstack/skills/arena"),
-    skill("skills/dcf-model"),
-    skill("pstack"),
-  ];
-
-  it("keeps skills equal to or under the subtree path", () => {
-    const filtered = filterSkillsBySubtree(skills, "pstack");
-    expect(filtered.map((s) => s.key)).toEqual([
-      "pstack/skills/architect",
-      "pstack/skills/arena",
-      "pstack",
-    ]);
-  });
-
-  it("matches an exact skill key and rejects partial prefix collisions", () => {
-    expect(filterSkillsBySubtree(skills, "pstack/skills/architect").map((s) => s.key)).toEqual([
-      "pstack/skills/architect",
-    ]);
-    expect(filterSkillsBySubtree(skills, "psta")).toEqual([]);
-  });
-
-  it("trims trailing slashes and returns all skills for a blank path", () => {
-    expect(filterSkillsBySubtree(skills, "pstack/")).toEqual(
-      filterSkillsBySubtree(skills, "pstack"),
-    );
-    expect(filterSkillsBySubtree(skills, "  ")).toHaveLength(4);
   });
 });

@@ -1427,10 +1427,11 @@ impl SkillService {
         Ok(normalized_root)
     }
 
-    pub async fn discover_from_repo(
+    async fn discover_from_repo(
         owner: &str,
         name: &str,
         branch: Option<&str>,
+        path: Option<&str>,
         force: bool,
         app_handle: Option<&tauri::AppHandle>,
     ) -> Result<Vec<DiscoverableSkill>, AppError> {
@@ -1439,20 +1440,20 @@ impl SkillService {
                 h.emit(
                     "repo-load-stage",
                     serde_json::json!({
-                        "owner": owner, "repo": name, "branch": branch, "stage": "downloading"
+                        "owner": owner, "repo": name, "branch": branch, "path": path, "stage": "downloading"
                     }),
                 )
             });
 
             let zip_path =
-                CliService::ensure_cached_zip_with_progress(owner, name, branch, force, app_handle)
+                CliService::ensure_cached_zip_with_progress(owner, name, branch, force, app_handle.map(|app| (app, path)))
                     .await?;
 
             let _ = app_handle.map(|h| {
                 h.emit(
                     "repo-load-stage",
                     serde_json::json!({
-                        "owner": owner, "repo": name, "branch": branch, "stage": "extracting"
+                        "owner": owner, "repo": name, "branch": branch, "path": path, "stage": "extracting"
                     }),
                 )
             });
@@ -1482,7 +1483,7 @@ impl SkillService {
                 h.emit(
                     "repo-load-stage",
                     serde_json::json!({
-                        "owner": owner, "repo": name, "branch": branch, "stage": "scanning"
+                        "owner": owner, "repo": name, "branch": branch, "path": path, "stage": "scanning"
                     }),
                 )
             });
@@ -1502,7 +1503,7 @@ impl SkillService {
         let _ = app_handle.map(|h| {
             h.emit(
                 "repo-load-done",
-                serde_json::json!({ "owner": owner, "repo": name, "branch": branch }),
+                serde_json::json!({ "owner": owner, "repo": name, "branch": branch, "path": path }),
             )
         });
 
@@ -1585,10 +1586,16 @@ impl SkillService {
         name: &str,
         branch: Option<&str>,
         max_skills: usize,
+        path: Option<&str>,
         force: bool,
         app_handle: Option<&tauri::AppHandle>,
     ) -> Result<(Vec<DiscoverableSkill>, usize), AppError> {
-        let mut skills = Self::discover_from_repo(owner, name, branch, force, app_handle).await?;
+        let mut skills =
+            Self::discover_from_repo(owner, name, branch, path, force, app_handle).await?;
+        if let Some(path) = path {
+            let prefix = format!("{path}/");
+            skills.retain(|skill| skill.key == path || skill.key.starts_with(&prefix));
+        }
         let total = skills.len();
         skills.truncate(max_skills);
         Ok((skills, total))
@@ -3491,6 +3498,56 @@ mod tests {
     }
 
     #[test]
+    fn discover_caps_results_after_selecting_the_subtree() {
+        let tmp = tempfile::tempdir().unwrap();
+        config::with_test_home(tmp.path(), || {
+            let zip_path = CliService::cache_zip_path("owner", "subtrees", None);
+            std::fs::create_dir_all(zip_path.parent().unwrap()).unwrap();
+            let mut zip = zip::ZipWriter::new(std::fs::File::create(zip_path).unwrap());
+            for folder in ["plugins/tool", "plugins/toolbox"] {
+                zip.start_file(
+                    format!("subtrees-main/{folder}/SKILL.md"),
+                    zip::write::SimpleFileOptions::default(),
+                )
+                .unwrap();
+                std::io::Write::write_all(&mut zip, b"---\nname: demo\n---\n").unwrap();
+            }
+            zip.finish().unwrap();
+
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            rt.block_on(async {
+                let (first, total) = SkillService::discover_from_repo_capped(
+                    "owner", "subtrees", None, 1, None, false, None,
+                )
+                .await
+                .unwrap();
+                assert_eq!(total, 2);
+                let target = if first[0].key == "plugins/tool" {
+                    "plugins/toolbox"
+                } else {
+                    "plugins/tool"
+                };
+                let (scoped, total) = SkillService::discover_from_repo_capped(
+                    "owner",
+                    "subtrees",
+                    None,
+                    1,
+                    Some(target),
+                    false,
+                    None,
+                )
+                .await
+                .unwrap();
+                assert_eq!(total, 1);
+                assert_eq!(scoped[0].key, target);
+            });
+        });
+    }
+
+    #[test]
     fn discover_rejects_archive_scale_limits_before_extraction() {
         let tmp = tempfile::tempdir().unwrap();
         let zip_bytes = {
@@ -3514,6 +3571,7 @@ mod tests {
             let result = rt.block_on(SkillService::discover_from_repo(
                 "bomb-owner",
                 "flood-repo",
+                None,
                 None,
                 false,
                 None,

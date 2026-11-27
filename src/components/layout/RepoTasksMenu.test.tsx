@@ -105,7 +105,7 @@ it("offers cancellation for a running load and removes the entry without navigat
   await waitFor(() => expect(skillsApi.getRepoSkills).toHaveBeenCalledOnce());
   await user.click(screen.getByRole("button", { name: /Download tasks:/ }));
   await user.click(screen.getByRole("menuitem", { name: "Cancel loading owner/repo" }));
-  expect(skillsApi.cancelRepoSkills).toHaveBeenCalledWith("owner", "repo", "dev");
+  expect(skillsApi.cancelRepoSkills).toHaveBeenCalledWith("owner", "repo", "dev", undefined);
   expect(onOpen).not.toHaveBeenCalled();
   await waitFor(() =>
     expect(screen.queryByRole("button", { name: /Download tasks:/ })).not.toBeInTheDocument(),

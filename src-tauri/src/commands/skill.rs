@@ -1929,11 +1929,12 @@ pub async fn get_repo_skills(
     name: String,
     branch: Option<String>,
     force: Option<bool>,
+    path: Option<String>,
 ) -> Result<RepoSkillsResult, CommandError> {
     validate_repo_ref(&owner, &name, branch.as_deref())?;
     let force = force.unwrap_or(false);
 
-    let cancel_key = repo_load_cancel_key(&owner, &name, branch.as_deref());
+    let cancel_key = repo_load_cancel_key(&owner, &name, branch.as_deref(), path.as_deref());
     let (registration, handle) = state.repo_load_cancels.register(&cancel_key);
     let discovery = Abortable::new(
         SkillService::discover_from_repo_capped(
@@ -1941,6 +1942,7 @@ pub async fn get_repo_skills(
             &name,
             branch.as_deref(),
             1000,
+            path.as_deref(),
             force,
             Some(&app),
         ),
@@ -1974,8 +1976,13 @@ pub async fn get_repo_skills(
     Ok(RepoSkillsResult { skills, total })
 }
 
-fn repo_load_cancel_key(owner: &str, name: &str, branch: Option<&str>) -> String {
-    format!("{owner}/{name}@{}", branch.unwrap_or("HEAD"))
+fn repo_load_cancel_key(
+    owner: &str,
+    name: &str,
+    branch: Option<&str>,
+    path: Option<&str>,
+) -> String {
+    serde_json::json!([owner, name, branch, path]).to_string()
 }
 
 #[tauri::command]
@@ -1984,11 +1991,15 @@ pub fn cancel_repo_skills(
     owner: String,
     name: String,
     branch: Option<String>,
+    path: Option<String>,
 ) -> Result<(), CommandError> {
     validate_repo_ref(&owner, &name, branch.as_deref())?;
-    state
-        .repo_load_cancels
-        .cancel(&repo_load_cancel_key(&owner, &name, branch.as_deref()));
+    state.repo_load_cancels.cancel(&repo_load_cancel_key(
+        &owner,
+        &name,
+        branch.as_deref(),
+        path.as_deref(),
+    ));
     Ok(())
 }
 

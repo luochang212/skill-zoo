@@ -93,6 +93,69 @@ describe("repository session tasks", () => {
     expect(toast.success).not.toHaveBeenCalled();
   });
 
+  it("loads and cancels a subtree independently from the full repository", async () => {
+    const subtree = { ...repo, path: "plugins/tool" };
+    vi.mocked(skillsApi.getRepoSkills).mockImplementation(() => new Promise(() => {}));
+    vi.mocked(skillsApi.cancelRepoSkills).mockResolvedValue(undefined);
+    const hook = setup(subtree);
+    act(() => {
+      hook.result.current.register(repo);
+      hook.result.current.register(subtree);
+    });
+    await waitFor(() => expect(skillsApi.getRepoSkills).toHaveBeenCalledTimes(2));
+    expect(skillsApi.getRepoSkills).toHaveBeenCalledWith(
+      "owner",
+      "repo",
+      undefined,
+      false,
+      "plugins/tool",
+    );
+    act(() =>
+      handlers.get("repo-download-progress")!({
+        payload: { owner: "owner", repo: "repo", path: subtree.path, downloaded: 42, total: 100 },
+      }),
+    );
+    expect(hook.result.current.tasks[0]?.progress?.downloaded).toBe(0);
+    expect(hook.result.current.tasks[1]?.progress?.downloaded).toBe(42);
+    act(() => hook.result.current.cancel(subtree));
+    expect(skillsApi.cancelRepoSkills).toHaveBeenCalledWith(
+      "owner",
+      "repo",
+      undefined,
+      "plugins/tool",
+    );
+    expect(hook.result.current.tasks[0]?.cancelled).toBe(false);
+    expect(hook.result.current.tasks[1]?.cancelled).toBe(true);
+  });
+
+  it("reloads a completed sibling when revisited after refreshing the same branch", async () => {
+    const subtree = { ...repo, path: "plugins/tool" };
+    vi.mocked(skillsApi.getRepoSkills).mockResolvedValue(data);
+    const hook = setup();
+    act(() => {
+      hook.result.current.register(repo);
+      hook.result.current.register(subtree);
+    });
+    await waitFor(() =>
+      expect(hook.result.current.tasks.every((task) => task.query.isSuccess)).toBe(true),
+    );
+    await act(async () => {
+      await hook.result.current.refresh(repo);
+    });
+    expect(skillsApi.getRepoSkills).toHaveBeenCalledTimes(3);
+    hook.navigate(subtree);
+    await waitFor(() =>
+      expect(skillsApi.getRepoSkills).toHaveBeenLastCalledWith(
+        "owner",
+        "repo",
+        undefined,
+        false,
+        subtree.path,
+      ),
+    );
+    expect(skillsApi.getRepoSkills).toHaveBeenCalledTimes(4);
+  });
+
   it("isolates default and named branch progress", async () => {
     vi.mocked(skillsApi.getRepoSkills).mockImplementation(() => new Promise(() => {}));
     const hook = setup();
@@ -148,7 +211,13 @@ describe("repository session tasks", () => {
       await hook.result.current.refresh(repo);
     });
     await waitFor(() => expect(hook.result.current.tasks[0]?.query.isSuccess).toBe(true));
-    expect(skillsApi.getRepoSkills).toHaveBeenLastCalledWith("owner", "repo", undefined, true);
+    expect(skillsApi.getRepoSkills).toHaveBeenLastCalledWith(
+      "owner",
+      "repo",
+      undefined,
+      true,
+      undefined,
+    );
   });
 
   it("cancels a running load: the entry vanishes, no failure notice fires, and reload restarts fresh", async () => {
@@ -161,7 +230,7 @@ describe("repository session tasks", () => {
     await waitFor(() => expect(skillsApi.getRepoSkills).toHaveBeenCalledOnce());
 
     act(() => hook.result.current.cancel(repo));
-    expect(skillsApi.cancelRepoSkills).toHaveBeenCalledWith("owner", "repo", undefined);
+    expect(skillsApi.cancelRepoSkills).toHaveBeenCalledWith("owner", "repo", undefined, undefined);
     expect(hook.result.current.tasks[0]?.dismissed).toBe(true);
 
     await act(async () => {
@@ -173,7 +242,13 @@ describe("repository session tasks", () => {
       await hook.result.current.refresh(repo);
     });
     await waitFor(() => expect(hook.result.current.tasks[0]?.dismissed).toBe(false));
-    expect(skillsApi.getRepoSkills).toHaveBeenLastCalledWith("owner", "repo", undefined, true);
+    expect(skillsApi.getRepoSkills).toHaveBeenLastCalledWith(
+      "owner",
+      "repo",
+      undefined,
+      true,
+      undefined,
+    );
   });
 
   it("shares IPC work when invalidation restarts an observer during a refresh", async () => {

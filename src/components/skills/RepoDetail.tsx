@@ -28,7 +28,6 @@ import { toggleSetItem, cn } from "@/lib/utils";
 import {
   compressedGroupLabels,
   duplicateSkillNames,
-  filterSkillsBySubtree,
   groupSkillsByParentPath,
   parentPathOf,
 } from "@/lib/skillGrouping";
@@ -196,9 +195,10 @@ function GroupedRepoSkills({
 interface RepoDetailProps {
   repo: DiscoverRepo;
   onBack: () => void;
+  onClearSubtree: () => void;
 }
 
-export function RepoDetail({ repo, onBack }: RepoDetailProps) {
+export function RepoDetail({ repo, onBack, onClearSubtree }: RepoDetailProps) {
   const { t } = useTranslation();
 
   const {
@@ -225,7 +225,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
   const [pendingRemove, setPendingRemove] = useState<DiscoverableSkill | null>(null);
   const [previewSkill, setPreviewSkill] = useState<DiscoverableSkill | null>(null);
   const [viewMode, setViewMode] = useState<RepoViewMode>("flat");
-  const [subtreeFilter, setSubtreeFilter] = useState<string | null>(repo.path?.trim() || null);
+  const subtreeFilter = repo.path;
 
   const isLoadingRepo = isFetching || isLoading;
   const refreshRepo = () => {
@@ -303,7 +303,11 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
       {
         onSuccess: (result) => {
           setInstallSkills(null);
-          setSelectedKeys(new Set());
+          setSelectedKeys((previous) => {
+            const next = new Set(previous);
+            for (const key of skillNames) next.delete(key);
+            return next;
+          });
           if (result.skipped.length > 0) {
             toast.success(
               t("browse.skippedDuplicates", {
@@ -318,34 +322,34 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
   };
 
   const { skills: skillList, total } = skills ?? { skills: [], total: 0 };
-  const visibleSkills = subtreeFilter ? filterSkillsBySubtree(skillList, subtreeFilter) : skillList;
-  const installableSkills = visibleSkills.filter((s) => s.installStatus === "available");
-  const duplicateNames = duplicateSkillNames(visibleSkills);
-  const allSelected =
-    installableSkills.length > 0 && selectedKeys.size === installableSkills.length;
+  const installableSkills = skillList.filter((s) => s.installStatus === "available");
+  const duplicateNames = duplicateSkillNames(skillList);
   const selectedInstallable = installableSkills.filter((s) => selectedKeys.has(s.key));
+  const allSelected =
+    installableSkills.length > 0 && selectedInstallable.length === installableSkills.length;
 
   const toggleKey = (key: string) => {
     setSelectedKeys((prev) => toggleSetItem(prev, key));
   };
 
   const toggleAll = () => {
-    if (allSelected) {
-      setSelectedKeys(new Set());
-    } else {
-      setSelectedKeys(new Set(installableSkills.map((s) => s.key)));
-    }
+    setSelectedKeys((previous) => {
+      const next = new Set(previous);
+      for (const { key } of installableSkills) {
+        if (allSelected) next.delete(key);
+        else next.add(key);
+      }
+      return next;
+    });
   };
 
   const isTruncated = total > skillList.length;
 
   useEffect(() => {
-    if (!subtreeFilter || isLoadingRepo || skillList.length === 0) return;
-    if (visibleSkills.length === 0) {
-      toast.info(t("browse.subtreeNoMatch", { path: subtreeFilter }));
-      setSubtreeFilter(null);
-    }
-  }, [subtreeFilter, isLoadingRepo, skillList.length, visibleSkills.length, t]);
+    if (!subtreeFilter || isLoadingRepo || isError || !skills || skills.total > 0) return;
+    toast.info(t("browse.subtreeNoMatch", { path: subtreeFilter }));
+    onClearSubtree();
+  }, [subtreeFilter, isLoadingRepo, isError, skills, onClearSubtree, t]);
 
   return (
     <div className="flex flex-col h-full relative" data-selectable>
@@ -444,6 +448,22 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
       ) : (
         <ScrollArea className="flex-1 min-h-0">
           <div className="px-5 py-4 pr-5 max-w-full">
+            {subtreeFilter && (
+              <div className="flex items-center mb-3 pl-4">
+                <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-[11px] font-mono text-muted-foreground">
+                  {subtreeFilter}
+                  <button
+                    type="button"
+                    aria-label={t("browse.clearSubtreeFilter")}
+                    title={t("browse.clearSubtreeFilter")}
+                    onClick={onClearSubtree}
+                    className="cursor-pointer text-muted-foreground/60 hover:text-foreground transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              </div>
+            )}
             {isError && !isCancelledError(error) ? (
               <QueryErrorState
                 className="py-12"
@@ -465,24 +485,8 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
               </div>
             ) : (
               <>
-                {subtreeFilter && (
-                  <div className="flex items-center mb-3 pl-4">
-                    <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-[11px] font-mono text-muted-foreground">
-                      {subtreeFilter}
-                      <button
-                        type="button"
-                        aria-label={t("browse.clearSubtreeFilter")}
-                        title={t("browse.clearSubtreeFilter")}
-                        onClick={() => setSubtreeFilter(null)}
-                        className="cursor-pointer text-muted-foreground/60 hover:text-foreground transition-colors"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  </div>
-                )}
-                {installableSkills.length > 0 && (
-                  <div className="flex items-center justify-between mb-4 pl-4 pr-1">
+                <div className="flex items-center mb-4 pl-4 pr-1">
+                  {installableSkills.length > 0 && (
                     <label className="inline-flex items-center gap-3 text-[11px] text-muted-foreground cursor-pointer hover:text-foreground transition-colors">
                       <Checkbox
                         checked={allSelected}
@@ -491,39 +495,39 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
                       />
                       {t("browse.selectAll")}
                     </label>
-                    <button
-                      type="button"
-                      aria-label={t(viewMode === "flat" ? "browse.viewGrouped" : "browse.viewFlat")}
-                      title={t(viewMode === "flat" ? "browse.viewGrouped" : "browse.viewFlat")}
-                      onClick={() => setViewMode(viewMode === "flat" ? "grouped" : "flat")}
-                      className="inline-flex shrink-0 items-center bg-muted rounded-lg p-1 gap-1 cursor-pointer"
+                  )}
+                  <button
+                    type="button"
+                    aria-label={t(viewMode === "flat" ? "browse.viewGrouped" : "browse.viewFlat")}
+                    title={t(viewMode === "flat" ? "browse.viewGrouped" : "browse.viewFlat")}
+                    onClick={() => setViewMode(viewMode === "flat" ? "grouped" : "flat")}
+                    className="ml-auto inline-flex shrink-0 items-center bg-muted rounded-lg p-1 gap-1 cursor-pointer"
+                  >
+                    <span
+                      className={cn(
+                        "p-1.5 rounded-md transition-all duration-200",
+                        viewMode === "flat"
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground",
+                      )}
                     >
-                      <span
-                        className={cn(
-                          "p-1.5 rounded-md transition-all duration-200",
-                          viewMode === "flat"
-                            ? "bg-background text-foreground shadow-sm"
-                            : "text-muted-foreground",
-                        )}
-                      >
-                        <List className="h-3.5 w-3.5" />
-                      </span>
-                      <span
-                        className={cn(
-                          "p-1.5 rounded-md transition-all duration-200",
-                          viewMode === "grouped"
-                            ? "bg-background text-foreground shadow-sm"
-                            : "text-muted-foreground",
-                        )}
-                      >
-                        <ListTree className="h-3.5 w-3.5" />
-                      </span>
-                    </button>
-                  </div>
-                )}
+                      <List className="h-3.5 w-3.5" />
+                    </span>
+                    <span
+                      className={cn(
+                        "p-1.5 rounded-md transition-all duration-200",
+                        viewMode === "grouped"
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      <ListTree className="h-3.5 w-3.5" />
+                    </span>
+                  </button>
+                </div>
                 {viewMode === "flat" ? (
                   <div className="flex flex-col gap-2">
-                    {visibleSkills.map((skill) => (
+                    {skillList.map((skill) => (
                       <RepoSkillRow
                         key={skill.key}
                         skill={skill}
@@ -542,7 +546,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
                   </div>
                 ) : (
                   <GroupedRepoSkills
-                    groups={groupSkillsByParentPath(visibleSkills)}
+                    groups={groupSkillsByParentPath(skillList)}
                     selectedKeys={selectedKeys}
                     isLoadingRepo={isLoadingRepo}
                     removePending={removeMutation.isPending}
@@ -559,7 +563,7 @@ export function RepoDetail({ repo, onBack }: RepoDetailProps) {
                   <div className="flex items-center gap-2 mt-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40">
                     <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
                     <p className="text-[11px] text-amber-700 dark:text-amber-300">
-                      {t("browse.truncated", { shown: visibleSkills.length, total })}
+                      {t("browse.truncated", { shown: skillList.length, total })}
                     </p>
                   </div>
                 )}

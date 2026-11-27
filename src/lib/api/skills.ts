@@ -105,11 +105,11 @@ export const skillsApi = {
 
   searchRepo: (query: string) => invoke<DiscoverRepo>("search_repo", { query }),
 
-  getRepoSkills: (owner: string, name: string, branch?: string, force?: boolean) =>
-    invoke<RepoSkillsResult>("get_repo_skills", { owner, name, branch, force }),
+  getRepoSkills: (owner: string, name: string, branch?: string, force?: boolean, path?: string) =>
+    invoke<RepoSkillsResult>("get_repo_skills", { owner, name, branch, force, path }),
 
-  cancelRepoSkills: (owner: string, name: string, branch?: string) =>
-    invoke<void>("cancel_repo_skills", { owner, name, branch }),
+  cancelRepoSkills: (owner: string, name: string, branch?: string, path?: string) =>
+    invoke<void>("cancel_repo_skills", { owner, name, branch, path }),
 
   previewSkillMd: (owner: string, name: string, branch: string | undefined, skillDir: string) =>
     invoke<string>("preview_skill_md", { owner, name, branch, skillDir }),

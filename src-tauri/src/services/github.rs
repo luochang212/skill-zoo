@@ -206,7 +206,7 @@ pub fn parse_repo_query(input: &str) -> Result<GitHubRepoQuery, String> {
             .map(|_| segments[3].to_string());
         let path = ref_prefix.and_then(|_| {
             if segments.len() > 4 {
-                normalize_sub_path(&segments[4..].join("/"))
+                normalize_sub_path(&segments[4..].join("/"), ref_prefix == Some("blob"))
             } else {
                 None
             }
@@ -236,11 +236,15 @@ pub fn parse_repo_query(input: &str) -> Result<GitHubRepoQuery, String> {
     }
 }
 
-fn normalize_sub_path(raw: &str) -> Option<String> {
-    let trimmed = raw
-        .trim_end_matches("/SKILL.md")
-        .trim_end_matches("SKILL.md")
-        .trim_matches('/');
+fn normalize_sub_path(raw: &str, is_blob: bool) -> Option<String> {
+    let trimmed = raw.trim_matches('/');
+    let trimmed = if is_blob {
+        trimmed
+            .strip_suffix("/SKILL.md")
+            .unwrap_or(if trimmed == "SKILL.md" { "" } else { trimmed })
+    } else {
+        trimmed
+    };
     if trimmed.is_empty() {
         return None;
     }
@@ -478,6 +482,18 @@ mod tests {
         let query = parse_repo_query("https://github.com/owner/repo").unwrap();
         assert_eq!(query.branch, None);
         assert_eq!(query.path, None);
+    }
+
+    #[test]
+    fn repo_query_preserves_directories_named_like_skill_files() {
+        for path in ["customSKILL.md", "dir/SKILL.md"] {
+            let query =
+                parse_repo_query(&format!("https://github.com/o/r/tree/main/{path}")).unwrap();
+            assert_eq!(query.path.as_deref(), Some(path));
+        }
+        let query =
+            parse_repo_query("https://github.com/o/r/blob/main/customSKILL.md/SKILL.md").unwrap();
+        assert_eq!(query.path.as_deref(), Some("customSKILL.md"));
     }
 
     #[test]

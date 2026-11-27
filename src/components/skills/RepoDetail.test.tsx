@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   repoSkillsStaleData: null as unknown,
   repoSkillsFetching: false,
   repoSelectedKeys: new Set<string>(),
+  repoSkillPath: undefined as string | undefined,
 }));
 
 class ResizeObserverMock {
@@ -82,7 +83,12 @@ vi.mock("@/hooks/useRepoTasks", () => ({
               installStatus: "installed",
               installedSkillId: "repo:owner/repo:installed",
             },
-          ],
+          ].filter(
+            (skill) =>
+              !mocks.repoSkillPath ||
+              skill.key === mocks.repoSkillPath ||
+              skill.key.startsWith(`${mocks.repoSkillPath}/`),
+          ),
         },
     isFetching: mocks.repoSkillsFetching,
     progress: null,
@@ -96,10 +102,11 @@ vi.mock("@/hooks/useRepoTasks", () => ({
 }));
 
 function renderDetail(repo: DiscoverRepo = { owner: "owner", name: "repo", branch: "main" }) {
+  mocks.repoSkillPath = repo.path;
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const view = render(
     <QueryClientProvider client={queryClient}>
-      <RepoDetail repo={repo} onBack={vi.fn()} />
+      <RepoDetail repo={repo} onBack={vi.fn()} onClearSubtree={vi.fn()} />
     </QueryClientProvider>,
   );
   return { ...view, queryClient };
@@ -115,6 +122,19 @@ describe("RepoDetail discover status", () => {
     mocks.repoSkillsStaleData = null;
     mocks.repoSkillsFetching = false;
     mocks.repoSelectedKeys = new Set();
+  });
+
+  it("does not count selections outside the current subtree", () => {
+    mocks.repoSelectedKeys = new Set(["another/skill"]);
+    renderDetail({ owner: "owner", name: "repo", branch: "main", path: ".agents" });
+    expect(screen.getByRole("checkbox", { name: "Select all" })).not.toBeChecked();
+  });
+
+  it("offers grouping when every visible skill is already installed", async () => {
+    renderDetail({ owner: "owner", name: "repo", branch: "main", path: "installed" });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Group by folder" }));
+    expect(screen.getByRole("button", { name: "Flat list" })).toBeInTheDocument();
   });
 
   it("blocks stale install actions and does not display a discovery README", async () => {

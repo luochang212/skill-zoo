@@ -25,26 +25,31 @@ interface RepoEvent {
   owner: string;
   repo: string;
   branch?: string | null;
+  path?: string | null;
 }
 interface RepoEntry {
   repo: DiscoverRepo;
-  selectedKeys: Set<string>;
   dismissed: boolean;
   cancelled: boolean;
 }
 
+function repoRef(repo: DiscoverRepo) {
+  return [repo.owner, repo.name, repo.branch || null] as const;
+}
+
 export function repoTaskKey(repo: DiscoverRepo) {
-  return JSON.stringify([repo.owner, repo.name, repo.branch || null]);
+  return JSON.stringify([...repoRef(repo), repo.path || null]);
 }
 
 function queryKey(repo: DiscoverRepo) {
-  return ["repos", "skills", repo.owner, repo.name, repo.branch || undefined] as const;
+  return ["repos", "skills", ...repoRef(repo), repo.path || null] as const;
 }
 
 function useSessionTasks(activeRepo: DiscoverRepo | null, onOpen: (repo: DiscoverRepo) => void) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [entries, setEntries] = useState<RepoEntry[]>([]);
+  const [selection, setSelection] = useState<Record<string, Set<string>>>({});
   const [progress, setProgress] = useState<Record<string, RepoProgress>>({});
   const [listening, setListening] = useState(false);
   const inFlight = useRef(new Map<string, Promise<RepoSkillsResult>>());
@@ -55,7 +60,7 @@ function useSessionTasks(activeRepo: DiscoverRepo | null, onOpen: (repo: Discove
     setEntries((previous) =>
       previous.some((entry) => repoTaskKey(entry.repo) === repoTaskKey(repo))
         ? previous
-        : [...previous, { repo, selectedKeys: new Set(), dismissed: false, cancelled: false }],
+        : [...previous, { repo, dismissed: false, cancelled: false }],
     );
   }, []);
 
@@ -73,16 +78,11 @@ function useSessionTasks(activeRepo: DiscoverRepo | null, onOpen: (repo: Discove
   }, []);
 
   const select = useCallback((repo: DiscoverRepo, update: SetStateAction<Set<string>>) => {
-    setEntries((previous) =>
-      previous.map((entry) =>
-        repoTaskKey(entry.repo) === repoTaskKey(repo)
-          ? {
-              ...entry,
-              selectedKeys: typeof update === "function" ? update(entry.selectedKeys) : update,
-            }
-          : entry,
-      ),
-    );
+    const key = JSON.stringify(repoRef(repo));
+    setSelection((previous) => ({
+      ...previous,
+      [key]: typeof update === "function" ? update(previous[key] ?? EMPTY_SELECTION) : update,
+    }));
   }, []);
 
   useEffect(() => {
@@ -94,6 +94,7 @@ function useSessionTasks(activeRepo: DiscoverRepo | null, onOpen: (repo: Discove
         owner: event.owner,
         name: event.repo,
         branch: event.branch ?? undefined,
+        path: event.path ?? undefined,
       });
       if (!inFlight.current.has(key)) return;
       setProgress((previous) => ({
@@ -139,7 +140,7 @@ function useSessionTasks(activeRepo: DiscoverRepo | null, onOpen: (repo: Discove
       ),
     );
     const request = skillsApi
-      .getRepoSkills(repo.owner, repo.name, repo.branch || undefined, force)
+      .getRepoSkills(repo.owner, repo.name, repo.branch || undefined, force, repo.path)
       .finally(() => inFlight.current.delete(key));
     inFlight.current.set(key, request);
     return request;
@@ -165,7 +166,7 @@ function useSessionTasks(activeRepo: DiscoverRepo | null, onOpen: (repo: Discove
     const query = queries[index]!;
     return {
       repo: entry.repo,
-      selectedKeys: entry.selectedKeys,
+      selectedKeys: selection[JSON.stringify(repoRef(entry.repo))] ?? EMPTY_SELECTION,
       dismissed: entry.dismissed,
       cancelled: entry.cancelled,
       key: repoTaskKey(entry.repo),
@@ -188,7 +189,7 @@ function useSessionTasks(activeRepo: DiscoverRepo | null, onOpen: (repo: Discove
 
   const cancel = useCallback((repo: DiscoverRepo) => {
     void skillsApi
-      .cancelRepoSkills(repo.owner, repo.name, repo.branch || undefined)
+      .cancelRepoSkills(repo.owner, repo.name, repo.branch || undefined, repo.path)
       .catch(() => {});
     setEntries((previous) =>
       previous.map((entry) =>
@@ -210,6 +211,11 @@ function useSessionTasks(activeRepo: DiscoverRepo | null, onOpen: (repo: Discove
           retry: false,
         })
         .then((data) => {
+          void qc.invalidateQueries({
+            queryKey: ["repos", "skills", ...repoRef(repo)],
+            predicate: (query) => query.queryKey[5] !== (repo.path || null),
+            refetchType: "none",
+          });
           void qc.invalidateQueries({ queryKey: ["repos", "metadata", repo.owner, repo.name] });
           return data;
         });

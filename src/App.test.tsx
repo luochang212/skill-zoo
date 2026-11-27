@@ -182,6 +182,59 @@ describe("App local skill detail navigation", () => {
     );
   });
 
+  it("opens a pasted subtree and loads the full repository when its filter is cleared", async () => {
+    const original = vi.mocked(invoke).getMockImplementation()!;
+    const path = "plugins/tool";
+    const scopedSkill = {
+      key: `${path}/example`,
+      name: "Scoped",
+      directory: "example",
+      repoOwner: "owner",
+      repoName: "bundle",
+      installStatus: "available",
+    };
+    vi.mocked(invoke).mockImplementation((command, args) => {
+      switch (command) {
+        case "get_recommended_repos":
+        case "get_banners":
+          return Promise.resolve([]);
+        case "search_repo":
+          return Promise.resolve({ owner: "owner", name: "bundle", branch: "main", path });
+        case "get_repo_skills":
+          return Promise.resolve(
+            (args as { path?: string }).path
+              ? { total: 1, skills: [scopedSkill] }
+              : {
+                  total: 2,
+                  skills: [scopedSkill, { ...scopedSkill, key: "other", name: "Whole repo" }],
+                },
+          );
+        case "get_repo_metadata":
+          return Promise.resolve({ owner: "owner", name: "bundle", defaultBranch: "main" });
+        default:
+          return original(command, args);
+      }
+    });
+    renderApp();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Discover" }));
+    fireEvent.change(
+      await screen.findByRole("textbox", { name: "Search skills or GitHub repo..." }),
+      {
+        target: { value: `https://github.com/owner/bundle/tree/main/${path}` },
+      },
+    );
+    await user.click(await screen.findByRole("button", { name: /owner\/bundle/ }));
+    expect(await screen.findByRole("button", { name: "Scoped" })).toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: "Select Scoped" }));
+    await user.click(screen.getByRole("button", { name: "Group by folder" }));
+    await user.click(screen.getByRole("button", { name: "Show all skills" }));
+    expect(await screen.findByRole("button", { name: "Whole repo" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Select Scoped" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Flat list" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Show all skills" })).not.toBeInTheDocument();
+  });
+
   it("protects unsaved editor drafts when continuing a prepared repository", async () => {
     const { user, complete } = await startRepositoryLoad();
     await user.click(screen.getByRole("button", { name: "Local" }));

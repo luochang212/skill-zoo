@@ -103,7 +103,7 @@ export function RepoTasksMenu() {
         </div>
         {visible.map((task) => {
           const loading = task.query.isFetching || task.query.isPending;
-          const label = `${task.repo.owner}/${task.repo.name}`;
+          const label = [task.repo.owner, task.repo.name, task.repo.path].filter(Boolean).join("/");
           const progress = task.progress;
           const total =
             progress?.stage === "downloading" && progress.total && progress.total > 0
