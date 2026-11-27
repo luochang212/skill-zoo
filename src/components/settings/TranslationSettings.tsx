@@ -23,10 +23,16 @@ export function TranslationSettings({ onConfigureModels }: { onConfigureModels: 
   const uid = useId();
   const providers = useSkillProviders();
   const prefs = useTranslationPreferences();
-  const save = useSaveTranslationPreferences();
+  const errorMessage = (error: unknown) =>
+    t(`translation.errors.${translationErrorCode(error)}`, {
+      defaultValue: t("translation.errors.configRead"),
+    });
+  const notifyError = (error: unknown) => toast.error(errorMessage(error));
+  const save = useSaveTranslationPreferences(notifyError);
   const [confirmClear, setConfirmClear] = useState(false);
   const clear = useMutation({
     mutationFn: translationApi.clearCache,
+    onError: notifyError,
     onSuccess: () => toast.success(t("translation.cacheCleared")),
     onSettled: () => setConfirmClear(false),
   });
@@ -50,18 +56,7 @@ export function TranslationSettings({ onConfigureModels }: { onConfigureModels: 
         options={translationLanguages.map(([value, label]) => ({ value, label }))}
         disabled={!prefs.data || save.isPending}
         onValueChange={(targetLanguage) =>
-          prefs.data &&
-          save.mutate(
-            { ...prefs.data, targetLanguage },
-            {
-              onError: (e) =>
-                toast.error(
-                  t(`translation.errors.${translationErrorCode(e)}`, {
-                    defaultValue: t("translation.errors.configRead"),
-                  }),
-                ),
-            },
-          )
+          prefs.data && save.mutate({ ...prefs.data, targetLanguage })
         }
       />
       {providers.isSuccess && choices.length === 0 ? (
@@ -143,15 +138,7 @@ export function TranslationSettings({ onConfigureModels }: { onConfigureModels: 
           className={`h-8 w-[4.5rem] shrink-0 rounded-md border text-xs ${confirmClear ? "border-primary" : "border-input"}`}
           disabled={clear.isPending}
           onClick={() => {
-            if (confirmClear)
-              clear.mutate(undefined, {
-                onError: (e) =>
-                  toast.error(
-                    t(`translation.errors.${translationErrorCode(e)}`, {
-                      defaultValue: t("translation.errors.configRead"),
-                    }),
-                  ),
-              });
+            if (confirmClear) clear.mutate();
             else setConfirmClear(true);
           }}
         >
@@ -160,9 +147,7 @@ export function TranslationSettings({ onConfigureModels }: { onConfigureModels: 
       </div>
       {error && (
         <p role="status" className="text-xs text-destructive">
-          {t(`translation.errors.${translationErrorCode(error)}`, {
-            defaultValue: t("translation.errors.configRead"),
-          })}
+          {errorMessage(error)}
         </p>
       )}
     </section>

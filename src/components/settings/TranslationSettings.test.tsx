@@ -59,6 +59,40 @@ beforeEach(async () => {
 const wrap = (element: React.ReactNode) =>
   render(<QueryClientProvider client={createTestQueryClient()}>{element}</QueryClientProvider>);
 describe("translation settings", () => {
+  it("reports a cache preference save failure once with a translation error", async () => {
+    vi.mocked(translationApi.savePreferences).mockRejectedValueOnce("configWrite");
+    const client = createTestQueryClient();
+    client.setDefaultOptions({ mutations: { onError: () => toast.error("Generic error") } });
+    render(
+      <QueryClientProvider client={client}>
+        <TranslationSettings onConfigureModels={vi.fn()} />
+      </QueryClientProvider>,
+    );
+    const toggle = screen.getByRole("switch", { name: "Prefer translations" });
+    await waitFor(() => expect(toggle).toBeEnabled());
+    await userEvent.click(toggle);
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledExactlyOnceWith(i18n.t("translation.errors.configWrite")),
+    );
+  });
+
+  it("reports a cache clear failure once despite the global mutation handler", async () => {
+    vi.mocked(translationApi.clearCache).mockRejectedValueOnce("cacheWrite");
+    const client = createTestQueryClient();
+    client.setDefaultOptions({ mutations: { onError: () => toast.error("Generic error") } });
+    render(
+      <QueryClientProvider client={client}>
+        <TranslationSettings onConfigureModels={vi.fn()} />
+      </QueryClientProvider>,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Clear" }));
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledExactlyOnceWith(i18n.t("translation.errors.cacheWrite")),
+    );
+  });
+
   it("defaults to original documents and saves the display preference without changing language or model", async () => {
     const user = userEvent.setup();
     wrap(<TranslationSettings onConfigureModels={vi.fn()} />);

@@ -107,7 +107,7 @@ export function SkillCreateView({ onClose, onCreated }: SkillCreateViewProps) {
               aria-hidden={!nameInvalid}
               className={`mt-2 text-xs text-destructive ${nameInvalid ? "" : "invisible"}`}
             >
-              {nameInvalid ? t("createSkill.nameInvalid") : ""}
+              {t("createSkill.nameInvalid")}
             </p>
             <textarea
               ref={descriptionRef}

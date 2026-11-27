@@ -23,13 +23,14 @@ export function useTranslationPreferences(enabled = true) {
     enabled,
   });
 }
-export function useSaveTranslationPreferences() {
+export function useSaveTranslationPreferences(onError?: (error: Error) => void) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (preferences: TranslationPreferences) => {
       await translationApi.savePreferences(preferences);
       return preferences;
     },
+    ...(onError && { onError }),
     onSuccess: (preferences) => qc.setQueryData(TRANSLATION_PREFERENCES_KEY, preferences),
   });
 }

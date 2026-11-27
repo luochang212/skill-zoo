@@ -665,9 +665,10 @@ function SkillCompanionRow({
             />
             <p
               id={invalid ? `skill-companion-error-${index}` : undefined}
+              aria-hidden={!invalid}
               className={`text-xs text-destructive ${invalid ? "" : "invisible"}`}
             >
-              {invalid ? t("settings.skillCompanion.validation") : ""}
+              {t("settings.skillCompanion.validation")}
             </p>
           </div>
         ) : (
