@@ -353,8 +353,12 @@ async fn trigger_incremental_refresh(
             .map_err(|e: std::sync::PoisonError<_>| crate::error::AppError::Cli(e.to_string()))?;
         prior_hashes(&cache)
     };
+    let test_home = crate::config::current_test_home();
+    let snapshot = crate::config::agents();
     let entries = tokio::task::spawn_blocking(move || {
-        SkillService::scan_skill_roots_batch_with_prior(&scan_inputs, &prior)
+        crate::config::with_restored_context(test_home, snapshot, || {
+            SkillService::scan_skill_roots_batch_with_prior(&scan_inputs, &prior)
+        })
     })
     .await
     .map_err(|e| crate::error::AppError::Parse(format!("Skill scan panicked: {e}")))??;

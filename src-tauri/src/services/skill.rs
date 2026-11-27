@@ -881,6 +881,7 @@ impl SkillService {
         let _refresh_guard = refresh_lock.lock().await;
 
         let snapshot = config::agents();
+        let test_home = config::current_test_home();
         let prior: PriorHashMap = {
             let cache = cache
                 .read()
@@ -888,7 +889,7 @@ impl SkillService {
             prior_hashes(&cache)
         };
         let entries = tokio::task::spawn_blocking(move || {
-            config::with_agent_snapshot(snapshot, || {
+            config::with_restored_context(test_home, snapshot, || {
                 let mut entries: Vec<SkillCacheEntry> = Vec::new();
                 Self::scan_filesystem_into(&mut entries, &prior);
                 Self::scan_external_imports_into(&mut entries, &prior);
@@ -920,6 +921,8 @@ impl SkillService {
         skill_dirs: Vec<String>,
     ) -> Result<Vec<InstalledSkill>, AppError> {
         let _refresh_guard = refresh_lock.lock().await;
+        let snapshot = config::agents();
+        let test_home = config::current_test_home();
         let prior: PriorHashMap = {
             let cache = cache
                 .read()
@@ -927,7 +930,9 @@ impl SkillService {
             prior_hashes(&cache)
         };
         let (entries, failed) = tokio::task::spawn_blocking(move || {
-            Self::scan_skills_batch_with_prior(&skill_dirs, &prior)
+            config::with_restored_context(test_home, snapshot, || {
+                Self::scan_skills_batch_with_prior(&skill_dirs, &prior)
+            })
         })
         .await
         .map_err(|e| AppError::Parse(format!("Installed skill scan panicked: {e}")))?;

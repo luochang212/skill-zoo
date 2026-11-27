@@ -600,6 +600,11 @@ pub fn with_test_home<T>(home: &std::path::Path, run: impl FnOnce() -> T) -> T {
     run()
 }
 
+#[cfg(any(test, feature = "test-helpers"))]
+pub fn current_test_home() -> Option<std::path::PathBuf> {
+    TEST_HOME.with(|v| v.borrow().clone())
+}
+
 thread_local! {
     static OPERATION_AGENTS: std::cell::RefCell<Option<Arc<Vec<AgentConfig>>>> = const { std::cell::RefCell::new(None) };
 }
@@ -613,6 +618,25 @@ pub fn with_agent_snapshot<T>(snapshot: Arc<Vec<AgentConfig>>, run: impl FnOnce(
     }
     let _restore = Restore(OPERATION_AGENTS.with(|v| v.replace(Some(snapshot))));
     run()
+}
+
+#[cfg(not(any(test, feature = "test-helpers")))]
+pub fn current_test_home() -> Option<std::path::PathBuf> {
+    None
+}
+
+pub fn with_restored_context<T>(
+    test_home: Option<std::path::PathBuf>,
+    agents: Arc<Vec<AgentConfig>>,
+    run: impl FnOnce() -> T,
+) -> T {
+    #[cfg(any(test, feature = "test-helpers"))]
+    if let Some(home) = test_home {
+        return with_test_home(&home, || with_agent_snapshot(agents, run));
+    }
+    #[cfg(not(any(test, feature = "test-helpers")))]
+    let _ = test_home;
+    with_agent_snapshot(agents, run)
 }
 
 #[cfg(test)]
