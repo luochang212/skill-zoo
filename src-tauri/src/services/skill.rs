@@ -64,6 +64,21 @@ fn commit_cache_entries(
     Ok(())
 }
 
+fn commit_cache_removal(
+    cache: &mut SkillCache,
+    skill_ids: &[String],
+    persist: impl FnOnce(&SkillCache) -> Result<(), AppError>,
+) -> Result<(), AppError> {
+    let previous = cache.clone();
+    let ids: HashSet<&String> = skill_ids.iter().collect();
+    cache.remove_where(|entry| ids.contains(&entry.id));
+    if let Err(error) = persist(cache) {
+        *cache = previous;
+        return Err(error);
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InstalledSkill {
@@ -351,6 +366,63 @@ fn canonical_paths_eq(a: &std::path::Path, b: &std::path::Path) -> bool {
         .ok()
         .zip(b.canonicalize().ok())
         .is_some_and(|(a, b)| a == b)
+}
+
+pub fn home_is_disposable(home: &std::path::Path) -> bool {
+    home.exists() && !is_symlink_or_junction(home) && home.join("SKILL.md").is_file()
+}
+
+fn dispose_home(home: &std::path::Path) -> Result<(), AppError> {
+    #[cfg(feature = "test-helpers")]
+    std::fs::remove_dir_all(home).map_err(|e| error::io(home, e))?;
+    #[cfg(not(feature = "test-helpers"))]
+    trash::delete(home).map_err(|e| {
+        AppError::Io(std::io::Error::other(format!(
+            "move {} to system trash: {e}",
+            home.display()
+        )))
+    })?;
+    Ok(())
+}
+
+pub fn dispose_skill_homes(
+    homes: &[(String, std::path::PathBuf)],
+) -> (Vec<String>, Vec<(String, String)>) {
+    #[cfg(feature = "test-helpers")]
+    {
+        let mut disposed = Vec::new();
+        let mut failed = Vec::new();
+        for (id, home) in homes {
+            match dispose_home(home) {
+                Ok(()) => disposed.push(id.clone()),
+                Err(e) => failed.push((id.clone(), e.to_string())),
+            }
+        }
+        (disposed, failed)
+    }
+    #[cfg(not(feature = "test-helpers"))]
+    {
+        if homes.is_empty() {
+            return (Vec::new(), Vec::new());
+        }
+        let paths = homes.iter().map(|(_, home)| home.as_path());
+        if trash::delete_all(paths).is_ok() {
+            return (homes.iter().map(|(id, _)| id.clone()).collect(), Vec::new());
+        }
+        let mut disposed = Vec::new();
+        let mut failed = Vec::new();
+        for (id, home) in homes {
+            if !home_is_disposable(home) {
+                disposed.push(id.clone());
+                continue;
+            }
+            match dispose_home(home) {
+                Ok(()) => disposed.push(id.clone()),
+                Err(e) => failed.push((id.clone(), e.to_string())),
+            }
+        }
+        (disposed, failed)
+    }
 }
 
 fn resolve_link_target(
@@ -1972,6 +2044,16 @@ impl SkillService {
         c.save()
     }
 
+    pub fn remove_cache_entries(
+        cache: &RwLock<SkillCache>,
+        skill_ids: &[String],
+    ) -> Result<(), AppError> {
+        let mut current = cache
+            .write()
+            .map_err(|e| AppError::Parse(format!("Cache lock: {e}")))?;
+        commit_cache_removal(&mut current, skill_ids, SkillCache::save)
+    }
+
     pub fn scan_skills_batch_with_prior(
         skill_dirs: &[String],
         prior: &PriorHashMap,
@@ -2196,9 +2278,17 @@ impl SkillService {
         Ok(())
     }
 
+    #[cfg(any(test, feature = "test-helpers"))]
     pub fn remove_skill_dir(skill_name: &str, home_path: &str) -> Result<(), AppError> {
         let home = std::path::Path::new(home_path);
+        Self::remove_agent_links_for_home(skill_name, home);
+        if home_is_disposable(home) {
+            dispose_home(home)?;
+        }
+        Ok(())
+    }
 
+    pub fn remove_agent_links_for_home(skill_name: &str, home: &std::path::Path) {
         for agent in config::agents().iter() {
             if let Some(agent_dir) = config::agent_skills_dir(agent) {
                 let symlink_path = agent_dir.join(Self::agent_link_name(skill_name));
@@ -2209,23 +2299,6 @@ impl SkillService {
                 }
             }
         }
-
-        if home.exists() && !is_symlink_or_junction(home) {
-            if !home.join("SKILL.md").is_file() {
-                return Ok(());
-            }
-            #[cfg(feature = "test-helpers")]
-            std::fs::remove_dir_all(home).map_err(|e| error::io(home, e))?;
-            #[cfg(not(feature = "test-helpers"))]
-            trash::delete(home).map_err(|e| {
-                AppError::Io(std::io::Error::other(format!(
-                    "move {} to system trash: {e}",
-                    home.display()
-                )))
-            })?;
-        }
-
-        Ok(())
     }
 
     pub(crate) fn stage_agent_symlink_removal_in_dirs(
@@ -3349,6 +3422,46 @@ mod tests {
         assert_eq!(saves, 1);
         assert!(cache.find_by_id("ssot:first").is_some());
         assert!(cache.find_by_id("ssot:second").is_some());
+    }
+
+    #[test]
+    fn cache_batch_removal_persists_once_for_all_ids() {
+        let mut cache = SkillCache::from_entries(vec![
+            test_cache_entry("ssot:first", "first", "owner", "repo"),
+            test_cache_entry("ssot:second", "second", "owner", "repo"),
+            test_cache_entry("ssot:third", "third", "owner", "repo"),
+        ]);
+        let mut saves = 0;
+
+        commit_cache_removal(
+            &mut cache,
+            &["ssot:first".to_string(), "ssot:second".to_string()],
+            |_| {
+                saves += 1;
+                Ok(())
+            },
+        )
+        .unwrap();
+
+        assert_eq!(saves, 1);
+        assert!(cache.find_by_id("ssot:first").is_none());
+        assert!(cache.find_by_id("ssot:second").is_none());
+        assert!(cache.find_by_id("ssot:third").is_some());
+    }
+
+    #[test]
+    fn cache_batch_removal_restores_memory_when_persistence_fails() {
+        let kept = test_cache_entry("ssot:kept", "kept", "owner", "repo");
+        let removed = test_cache_entry("ssot:removed", "removed", "owner", "repo");
+        let mut cache = SkillCache::from_entries(vec![kept, removed]);
+
+        let result = commit_cache_removal(&mut cache, &["ssot:removed".to_string()], |_| {
+            Err(AppError::Cli("save failed".to_string()))
+        });
+
+        assert!(result.is_err());
+        assert!(cache.find_by_id("ssot:kept").is_some());
+        assert!(cache.find_by_id("ssot:removed").is_some());
     }
 
     #[tokio::test]

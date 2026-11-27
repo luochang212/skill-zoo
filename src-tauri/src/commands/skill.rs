@@ -15,8 +15,9 @@ use crate::services::opener::open_directory;
 use crate::services::repo_metadata;
 use crate::services::repo_metadata::{minimal_discover_repo, DiscoverRepo};
 use crate::services::skill::{
-    is_symlink_or_junction, plugin_read_only_error, DiscoverableSkill, InstalledSkill,
-    ManagedSkill, RepoSkillsResult, SkillFileNode, SkillService, SymlinkStatus,
+    dispose_skill_homes, home_is_disposable, is_symlink_or_junction, plugin_read_only_error,
+    DiscoverableSkill, InstalledSkill, ManagedSkill, RepoSkillsResult, SkillFileNode, SkillService,
+    SymlinkStatus,
 };
 use crate::services::skill_archive::{self, ArchiveSkillsResult, RestoreArchivedSkillsResult};
 use crate::store::AppState;
@@ -1276,52 +1277,6 @@ fn update_result_with_added_error(
     update_result_with_error_count(result)
 }
 
-fn remove_lock_entry_for_skill(skill: &SkillCacheEntry) {
-    if skill.origin != "ssot" {
-        return;
-    }
-    if let Err(e) = SkillLock::update(|lock| {
-        let key = if lock.skills.contains_key(&skill.directory) {
-            skill.directory.clone()
-        } else if lock.skills.contains_key(&skill.name) {
-            skill.name.clone()
-        } else {
-            return Ok::<(), AppError>(());
-        };
-        lock.skills.remove(&key);
-        Ok::<(), AppError>(())
-    }) {
-        eprintln!(
-            "Failed to write lock after removing {}: {e}",
-            skill.directory
-        );
-    }
-}
-
-fn remove_cached_skill_from_disk(skill: &SkillCacheEntry) -> Result<(), CommandError> {
-    if skill.origin == "external" {
-        let mut imports = ExternalImports::load()?;
-        let import = imports
-            .imports
-            .remove(&skill.id)
-            .ok_or_else(|| format!("External import not found: {}", skill.id))?;
-        imports.save()?;
-        let _ = remove_external_import_links_for_target(
-            &import.directory,
-            &PathBuf::from(&import.source_path),
-        );
-        return Ok(());
-    }
-
-    let home_path = skill
-        .home_path
-        .as_ref()
-        .ok_or_else(|| "Skill has no physical home path, cannot remove".to_string())?;
-    SkillService::remove_skill_dir(&skill.directory, home_path)?;
-    remove_lock_entry_for_skill(skill);
-    Ok(())
-}
-
 fn scan_cached_skill_home(
     skill: &SkillCacheEntry,
     skill_dir: &Path,
@@ -1384,11 +1339,19 @@ pub async fn remove_skills(
     state: State<'_, AppState>,
     skill_ids: Vec<String>,
 ) -> Result<RemoveSkillsResult, CommandError> {
+    remove_skills_impl(&state, skill_ids).await
+}
+
+async fn remove_skills_impl(
+    state: &AppState,
+    skill_ids: Vec<String>,
+) -> Result<RemoveSkillsResult, CommandError> {
     let _agent_lease = state.acquire_local_lease()?;
     let _refresh = state.cache_refresh_lock.lock().await;
-    let mut removed: Vec<String> = Vec::new();
     let mut failed: Vec<RemoveSkillFailure> = Vec::new();
 
+    let mut resolved: Vec<SkillCacheEntry> = Vec::new();
+    let mut seen: HashSet<&String> = HashSet::new();
     for skill_id in &skill_ids {
         let skill = match SkillService::find_in_cache(&state.skill_cache, skill_id) {
             Ok(Some(s)) => s,
@@ -1416,29 +1379,91 @@ pub async fn remove_skills(
             continue;
         }
 
-        if let Err(e) = remove_cached_skill_from_disk(&skill) {
+        if !seen.insert(skill_id) {
             failed.push(RemoveSkillFailure {
                 skill_id: skill_id.clone(),
-                error: e.message,
+                error: format!("Skill not found: {skill_id}"),
             });
             continue;
         }
+        resolved.push(skill);
+    }
 
-        if skill.origin == "external" {
-            if let Some(source_path) = skill.home_path.as_deref() {
-                crate::services::watcher::unwatch_external_path(&state, Path::new(source_path));
-            }
-        }
+    let mut survivors = remove_external_import_skills(state, &resolved, &mut failed);
 
-        if let Err(e) = SkillService::remove_cache_entry(&state.skill_cache, skill_id) {
+    let mut disposable: Vec<(SkillCacheEntry, PathBuf)> = Vec::new();
+    for skill in resolved.into_iter().filter(|s| s.origin != "external") {
+        let Some(home_path) = skill.home_path.as_deref() else {
             failed.push(RemoveSkillFailure {
-                skill_id: skill_id.clone(),
+                skill_id: skill.id.clone(),
+                error: "Skill has no physical home path, cannot remove".to_string(),
+            });
+            continue;
+        };
+        let home = PathBuf::from(home_path);
+        SkillService::remove_agent_links_for_home(&skill.directory, &home);
+        if home_is_disposable(&home) {
+            disposable.push((skill, home));
+        } else {
+            survivors.push(skill);
+        }
+    }
+
+    let homes: Vec<(String, PathBuf)> = disposable
+        .iter()
+        .map(|(skill, home)| (skill.id.clone(), home.clone()))
+        .collect();
+    let (disposed_ids, dispose_failures) = dispose_skill_homes(&homes);
+    for (skill_id, error) in dispose_failures {
+        failed.push(RemoveSkillFailure { skill_id, error });
+    }
+    let disposed_ids: HashSet<&String> = disposed_ids.iter().collect();
+    survivors.extend(
+        disposable
+            .into_iter()
+            .filter(|(skill, _)| disposed_ids.contains(&skill.id))
+            .map(|(skill, _)| skill),
+    );
+
+    let ssot: Vec<&SkillCacheEntry> = survivors.iter().filter(|s| s.origin == "ssot").collect();
+    if !ssot.is_empty() {
+        if let Err(e) = SkillLock::update(|lock| {
+            for skill in &ssot {
+                let key = if lock.skills.contains_key(&skill.directory) {
+                    Some(skill.directory.clone())
+                } else if lock.skills.contains_key(&skill.name) {
+                    Some(skill.name.clone())
+                } else {
+                    None
+                };
+                if let Some(key) = key {
+                    lock.skills.remove(&key);
+                }
+            }
+            Ok::<(), AppError>(())
+        }) {
+            eprintln!("Failed to write lock after removing skills: {e}");
+        }
+    }
+
+    let removed: Vec<String> = survivors.iter().map(|s| s.id.clone()).collect();
+    if removed.is_empty() {
+        return Ok(RemoveSkillsResult {
+            removed: Vec::new(),
+            failed,
+        });
+    }
+    if let Err(e) = SkillService::remove_cache_entries(&state.skill_cache, &removed) {
+        for skill_id in removed {
+            failed.push(RemoveSkillFailure {
+                skill_id,
                 error: e.to_string(),
             });
-            continue;
         }
-
-        removed.push(skill_id.clone());
+        return Ok(RemoveSkillsResult {
+            removed: Vec::new(),
+            failed,
+        });
     }
 
     {
@@ -1450,6 +1475,67 @@ pub async fn remove_skills(
     }
 
     Ok(RemoveSkillsResult { removed, failed })
+}
+
+fn remove_external_import_skills(
+    state: &AppState,
+    resolved: &[SkillCacheEntry],
+    failed: &mut Vec<RemoveSkillFailure>,
+) -> Vec<SkillCacheEntry> {
+    let externals: Vec<&SkillCacheEntry> =
+        resolved.iter().filter(|s| s.origin == "external").collect();
+    let mut external_ok: Vec<SkillCacheEntry> = Vec::new();
+    if externals.is_empty() {
+        return external_ok;
+    }
+
+    match ExternalImports::load() {
+        Err(e) => {
+            for skill in externals {
+                failed.push(RemoveSkillFailure {
+                    skill_id: skill.id.clone(),
+                    error: e.to_string(),
+                });
+            }
+        }
+        Ok(mut imports) => {
+            let mut pending: Vec<(SkillCacheEntry, ExternalImportEntry)> = Vec::new();
+            for skill in externals {
+                if let Some(import) = imports.imports.remove(&skill.id) {
+                    pending.push((skill.clone(), import));
+                } else {
+                    failed.push(RemoveSkillFailure {
+                        skill_id: skill.id.clone(),
+                        error: format!("External import not found: {}", skill.id),
+                    });
+                }
+            }
+            match imports.save() {
+                Err(e) => {
+                    for (skill, _) in &pending {
+                        failed.push(RemoveSkillFailure {
+                            skill_id: skill.id.clone(),
+                            error: e.to_string(),
+                        });
+                    }
+                }
+                Ok(()) => {
+                    for (_, import) in &pending {
+                        crate::services::watcher::unwatch_external_path(
+                            state,
+                            Path::new(&import.source_path),
+                        );
+                        let _ = remove_external_import_links_for_target(
+                            &import.directory,
+                            &PathBuf::from(&import.source_path),
+                        );
+                    }
+                    external_ok = pending.into_iter().map(|(skill, _)| skill).collect();
+                }
+            }
+        }
+    }
+    external_ok
 }
 
 #[tauri::command]
@@ -2635,26 +2721,380 @@ mod tests {
     }
 
     #[test]
-    fn remove_cached_skill_from_disk_removes_selected_home_not_same_named_duplicate() {
-        let root = tempfile::tempdir().expect("tempdir");
-        let ssot_home = root.path().join(".agents").join("skills").join("demo");
-        let agent_home = root.path().join(".codex").join("skills").join("demo");
-        std::fs::create_dir_all(&ssot_home).expect("create ssot skill");
-        std::fs::create_dir_all(&agent_home).expect("create agent skill");
-        std::fs::write(ssot_home.join("SKILL.md"), "# Demo").expect("write ssot skill");
-        std::fs::write(agent_home.join("SKILL.md"), "# Demo").expect("write agent skill");
+    fn remove_skills_removes_selected_home_not_same_named_duplicate() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        config::with_test_home(tmp.path(), || {
+            let ssot_home = config::get_agents_skills_dir().join("demo");
+            let agent_home = config::get_agent_skills_dir("codex").unwrap().join("demo");
+            std::fs::create_dir_all(&ssot_home).expect("create ssot skill");
+            std::fs::create_dir_all(&agent_home).expect("create agent skill");
+            std::fs::write(ssot_home.join("SKILL.md"), "# Demo").expect("write ssot skill");
+            std::fs::write(agent_home.join("SKILL.md"), "# Demo").expect("write agent skill");
 
-        let skill = test_cache_entry_with_home(
-            "agent:codex:demo",
-            "demo",
-            "agent",
-            Some(agent_home.to_string_lossy().to_string()),
-        );
+            let ssot_entry = test_cache_entry_with_home(
+                "ssot:demo",
+                "demo",
+                "ssot",
+                Some(ssot_home.to_string_lossy().into_owned()),
+            );
+            let agent_entry = test_cache_entry_with_home(
+                "agent:codex:demo",
+                "demo",
+                "agent",
+                Some(agent_home.to_string_lossy().into_owned()),
+            );
+            let state = AppState::new(
+                SkillCache::from_entries(vec![ssot_entry, agent_entry]),
+                crate::persistence::MetadataStore {
+                    entries: Default::default(),
+                },
+                crate::persistence::Settings {
+                    values: Default::default(),
+                },
+            );
 
-        remove_cached_skill_from_disk(&skill).expect("remove selected skill");
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            let result = rt
+                .block_on(remove_skills_impl(
+                    &state,
+                    vec!["agent:codex:demo".to_string()],
+                ))
+                .expect("remove selected skill");
 
-        assert!(ssot_home.exists());
-        assert!(!agent_home.exists());
+            assert!(result.failed.is_empty());
+            assert_eq!(result.removed, vec!["agent:codex:demo"]);
+            assert!(ssot_home.exists());
+            assert!(!agent_home.exists());
+            drop(
+                crate::persistence::agent_transaction::AgentLease::acquire(
+                    &config::get_app_config_dir(),
+                )
+                .unwrap(),
+            );
+        });
+    }
+
+    #[test]
+    fn remove_skills_removes_mixed_origins_and_reports_per_item_failures() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        config::with_test_home(tmp.path(), || {
+            let store = config::get_agents_skills_dir();
+            let ssot_home = store.join("demo-store");
+            std::fs::create_dir_all(&ssot_home).expect("create ssot skill");
+            std::fs::write(ssot_home.join("SKILL.md"), "# Store").expect("write ssot skill");
+            let agent_dir = config::get_agent_skills_dir("codex").unwrap();
+            let agent_home = agent_dir.join("demo-agent");
+            std::fs::create_dir_all(&agent_home).expect("create agent skill");
+            std::fs::write(agent_home.join("SKILL.md"), "# Agent").expect("write agent skill");
+            let source = tmp.path().join("private").join("demo-ext");
+            std::fs::create_dir_all(&source).expect("create external source");
+            std::fs::write(source.join("SKILL.md"), "# Ext").expect("write external source");
+
+            let mut ssot_entry = test_cache_entry_with_home(
+                "ssot:demo-store",
+                "demo-store",
+                "ssot",
+                Some(ssot_home.to_string_lossy().into_owned()),
+            );
+            ssot_entry.apps.insert("codex".to_string(), true);
+            let mut agent_entry = test_cache_entry_with_home(
+                "agent:codex:demo-agent",
+                "demo-agent",
+                "agent",
+                Some(agent_home.to_string_lossy().into_owned()),
+            );
+            agent_entry.home_agent = Some("codex".to_string());
+            let external_entry = test_cache_entry_with_home(
+                "external:demo-ext",
+                "demo-ext",
+                "external",
+                Some(source.to_string_lossy().into_owned()),
+            );
+            let plugin_entry = test_cache_entry("plugin:demo", "demo", "plugin");
+
+            SkillService::toggle_symlink(
+                "demo-store",
+                ssot_home.to_string_lossy().as_ref(),
+                "codex",
+                true,
+            )
+            .expect("create codex link");
+
+            let mut lock = SkillLock::read().expect("read lock");
+            lock.skills.insert(
+                "demo-store".to_string(),
+                SkillLockEntry {
+                    extra: Default::default(),
+                    source: Some("owner/repo".to_string()),
+                    source_type: Some("github".to_string()),
+                    source_url: Some("https://github.com/owner/repo".to_string()),
+                    branch: Some("main".to_string()),
+                    skill_path: Some("skills/demo".to_string()),
+                    skill_folder_hash: None,
+                    installed_at: None,
+                    updated_at: None,
+                    commit_sha: Some("abc123".to_string()),
+                    content_digest: None,
+                },
+            );
+            lock.write().expect("write lock");
+
+            let mut imports = ExternalImports::default();
+            imports.imports.insert(
+                external_entry.id.clone(),
+                ExternalImportEntry {
+                    extra: Default::default(),
+                    id: external_entry.id.clone(),
+                    source_path: source.to_string_lossy().into_owned(),
+                    directory: "demo-ext".to_string(),
+                    imported_at: 1,
+                    updated_at: 1,
+                },
+            );
+            imports.save().expect("save imports");
+
+            let mut metadata = crate::persistence::MetadataStore {
+                entries: Default::default(),
+            };
+            metadata.set_starred("ssot:demo-store", true);
+            metadata.set_starred("plugin:demo", true);
+            metadata.save().expect("save metadata");
+
+            let state = AppState::new(
+                SkillCache::from_entries(vec![
+                    ssot_entry.clone(),
+                    agent_entry.clone(),
+                    external_entry.clone(),
+                    plugin_entry.clone(),
+                ]),
+                crate::persistence::MetadataStore {
+                    entries: Default::default(),
+                },
+                crate::persistence::Settings {
+                    values: Default::default(),
+                },
+            );
+
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            let result = rt
+                .block_on(remove_skills_impl(
+                    &state,
+                    vec![
+                        "ssot:demo-store".to_string(),
+                        "agent:codex:demo-agent".to_string(),
+                        "external:demo-ext".to_string(),
+                        "plugin:demo".to_string(),
+                        "ssot:missing".to_string(),
+                    ],
+                ))
+                .expect("remove skills");
+
+            let mut removed = result.removed.clone();
+            removed.sort();
+            assert_eq!(
+                removed,
+                vec![
+                    "agent:codex:demo-agent".to_string(),
+                    "external:demo-ext".to_string(),
+                    "ssot:demo-store".to_string(),
+                ]
+            );
+            assert_eq!(result.failed.len(), 2);
+            assert!(result
+                .failed
+                .iter()
+                .any(|f| f.skill_id == "plugin:demo" && f.error.contains("read-only")));
+            assert!(result
+                .failed
+                .iter()
+                .any(|f| f.skill_id == "ssot:missing" && f.error.contains("Skill not found")));
+
+            assert!(!ssot_home.exists());
+            assert!(!agent_home.exists());
+            assert!(source.join("SKILL.md").exists());
+            assert!(!agent_dir
+                .join(SkillService::agent_link_name("demo-store"))
+                .exists());
+            assert!(!SkillLock::read().unwrap().skills.contains_key("demo-store"));
+            assert!(ExternalImports::load().unwrap().imports.is_empty());
+
+            let cache = state.skill_cache.read().unwrap();
+            for id in [
+                "ssot:demo-store",
+                "agent:codex:demo-agent",
+                "external:demo-ext",
+            ] {
+                assert!(cache.find_by_id(id).is_none(), "{id} must leave the cache");
+            }
+            assert!(cache.find_by_id("plugin:demo").is_some());
+            drop(cache);
+
+            let metadata = state.metadata.read().unwrap();
+            assert!(!metadata.get("ssot:demo-store").starred);
+            assert!(metadata.get("plugin:demo").starred);
+            drop(metadata);
+
+            drop(
+                crate::persistence::agent_transaction::AgentLease::acquire(
+                    &config::get_app_config_dir(),
+                )
+                .unwrap(),
+            );
+        });
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn remove_skills_reports_disposal_failures_and_keeps_failed_entries() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        config::with_test_home(tmp.path(), || {
+            use std::os::unix::fs::PermissionsExt;
+
+            let locked_parent = tmp.path().join("locked");
+            let stuck_home = locked_parent.join("stuck");
+            std::fs::create_dir_all(&stuck_home).expect("create stuck skill");
+            std::fs::write(stuck_home.join("SKILL.md"), "# Stuck").expect("write stuck skill");
+            let ok_home = config::get_agents_skills_dir().join("demo-ok");
+            std::fs::create_dir_all(&ok_home).expect("create ok skill");
+            std::fs::write(ok_home.join("SKILL.md"), "# Ok").expect("write ok skill");
+
+            let stuck_entry = test_cache_entry_with_home(
+                "ssot:stuck",
+                "stuck",
+                "ssot",
+                Some(stuck_home.to_string_lossy().into_owned()),
+            );
+            let ok_entry = test_cache_entry_with_home(
+                "ssot:demo-ok",
+                "demo-ok",
+                "ssot",
+                Some(ok_home.to_string_lossy().into_owned()),
+            );
+            let mut metadata = crate::persistence::MetadataStore {
+                entries: Default::default(),
+            };
+            metadata.set_starred("ssot:stuck", true);
+            metadata.save().expect("save metadata");
+            let state = AppState::new(
+                SkillCache::from_entries(vec![stuck_entry, ok_entry]),
+                crate::persistence::MetadataStore {
+                    entries: Default::default(),
+                },
+                crate::persistence::Settings {
+                    values: Default::default(),
+                },
+            );
+
+            std::fs::set_permissions(&locked_parent, std::fs::Permissions::from_mode(0o555))
+                .expect("lock parent directory");
+
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            let result = rt
+                .block_on(remove_skills_impl(
+                    &state,
+                    vec!["ssot:stuck".to_string(), "ssot:demo-ok".to_string()],
+                ))
+                .expect("remove skills");
+
+            std::fs::set_permissions(&locked_parent, std::fs::Permissions::from_mode(0o755))
+                .expect("restore parent directory");
+
+            assert_eq!(result.removed, vec!["ssot:demo-ok".to_string()]);
+            assert_eq!(result.failed.len(), 1);
+            assert_eq!(result.failed[0].skill_id, "ssot:stuck");
+            assert!(!ok_home.exists());
+            assert!(stuck_home.exists());
+            assert!(state
+                .skill_cache
+                .read()
+                .unwrap()
+                .find_by_id("ssot:stuck")
+                .is_some());
+            assert!(state.metadata.read().unwrap().get("ssot:stuck").starred);
+
+            drop(
+                crate::persistence::agent_transaction::AgentLease::acquire(
+                    &config::get_app_config_dir(),
+                )
+                .unwrap(),
+            );
+        });
+    }
+
+    #[test]
+    fn remove_skills_reports_all_failures_when_cache_persist_fails() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        config::with_test_home(tmp.path(), || {
+            let first_home = config::get_agents_skills_dir().join("demo-first");
+            let second_home = config::get_agents_skills_dir().join("demo-second");
+            for (home, text) in [(&first_home, "# First"), (&second_home, "# Second")] {
+                std::fs::create_dir_all(home).expect("create skill");
+                std::fs::write(home.join("SKILL.md"), text).expect("write skill");
+            }
+            let first_entry = test_cache_entry_with_home(
+                "ssot:demo-first",
+                "demo-first",
+                "ssot",
+                Some(first_home.to_string_lossy().into_owned()),
+            );
+            let second_entry = test_cache_entry_with_home(
+                "ssot:demo-second",
+                "demo-second",
+                "ssot",
+                Some(second_home.to_string_lossy().into_owned()),
+            );
+            let state = AppState::new(
+                SkillCache::from_entries(vec![first_entry, second_entry]),
+                crate::persistence::MetadataStore {
+                    entries: Default::default(),
+                },
+                crate::persistence::Settings {
+                    values: Default::default(),
+                },
+            );
+
+            let blocked = config::get_app_config_dir().join("skills-cache.json.tmp");
+            std::fs::create_dir_all(&blocked).expect("block cache persist");
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            let result = rt
+                .block_on(remove_skills_impl(
+                    &state,
+                    vec![
+                        "ssot:demo-first".to_string(),
+                        "ssot:demo-second".to_string(),
+                    ],
+                ))
+                .expect("remove skills");
+            std::fs::remove_dir(&blocked).expect("unblock cache persist");
+
+            assert!(result.removed.is_empty());
+            assert_eq!(result.failed.len(), 2);
+            assert!(!first_home.exists());
+            assert!(!second_home.exists());
+            let cache = state.skill_cache.read().unwrap();
+            assert!(cache.find_by_id("ssot:demo-first").is_some());
+            assert!(cache.find_by_id("ssot:demo-second").is_some());
+            drop(cache);
+
+            drop(
+                crate::persistence::agent_transaction::AgentLease::acquire(
+                    &config::get_app_config_dir(),
+                )
+                .unwrap(),
+            );
+        });
     }
 
     #[test]
