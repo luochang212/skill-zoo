@@ -43,6 +43,8 @@ import {
   RotateCw,
   Loader,
   CircleOff,
+  ChevronRight,
+  Folder,
   List,
   ListTree,
   X,
@@ -133,12 +135,90 @@ function RepoSkillRow({
   );
 }
 
+interface GroupedRepoSkillRowProps {
+  skill: DiscoverableSkill;
+  selected: boolean;
+  isLoading: boolean;
+  removePending: boolean;
+  onToggle: () => void;
+  onPreview: () => void;
+  onRemove: () => void;
+}
+
+function GroupedRepoSkillRow({
+  skill,
+  selected,
+  isLoading,
+  removePending,
+  onToggle,
+  onPreview,
+  onRemove,
+}: GroupedRepoSkillRowProps) {
+  const { t } = useTranslation();
+  return (
+    <div
+      className={cn(
+        "flex h-12 items-center gap-3 rounded-md pl-2.5 pr-2 transition-colors duration-150",
+        selected ? "bg-foreground/[0.08]" : "hover:bg-foreground/[0.05]",
+      )}
+    >
+      <Checkbox
+        checked={skill.installStatus === "installed" || selected}
+        disabled={isLoading || skill.installStatus !== "available"}
+        onCheckedChange={onToggle}
+        aria-label={
+          skill.installStatus === "installed"
+            ? t("common.installed")
+            : skill.installStatus === "conflict"
+              ? t("browse.nameConflict")
+              : t("browse.selectSkill", { name: skill.name })
+        }
+      />
+      <button
+        type="button"
+        aria-label={skill.name}
+        className="flex min-w-0 flex-1 cursor-pointer self-stretch items-center text-left"
+        onClick={onPreview}
+      >
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="truncate text-sm font-medium leading-5">{skill.name}</span>
+          {skill.description && (
+            <span className="text-fade-right text-xs leading-4 text-muted-foreground/80">
+              {skill.description}
+            </span>
+          )}
+        </span>
+      </button>
+      {skill.installStatus === "installed" ? (
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs rounded-lg shrink-0"
+          disabled={isLoading || removePending}
+          onClick={onRemove}
+        >
+          {t("common.uninstall")}
+        </Button>
+      ) : skill.installStatus === "conflict" ? (
+        <Badge
+          variant="destructive"
+          className="h-7 shrink-0 px-2.5 text-xs font-medium"
+          title={t("browse.nameConflictHint")}
+        >
+          {t("browse.nameConflict")}
+        </Badge>
+      ) : null}
+    </div>
+  );
+}
+
 interface GroupedRepoSkillsProps {
   groups: ReturnType<typeof groupSkillsByParentPath>;
   selectedKeys: Set<string>;
   isLoadingRepo: boolean;
   removePending: boolean;
   onToggle: (key: string) => void;
+  onSetSelected: (keys: string[], selected: boolean) => void;
   onPreview: (skill: DiscoverableSkill) => void;
   onRemove: (skill: DiscoverableSkill) => void;
 }
@@ -149,45 +229,78 @@ function GroupedRepoSkills({
   isLoadingRepo,
   removePending,
   onToggle,
+  onSetSelected,
   onPreview,
   onRemove,
 }: GroupedRepoSkillsProps) {
+  const { t } = useTranslation();
   const labels = compressedGroupLabels(groups.map((g) => g.parentPath));
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+
+  const renderRow = (skill: DiscoverableSkill) => (
+    <GroupedRepoSkillRow
+      key={skill.key}
+      skill={skill}
+      selected={selectedKeys.has(skill.key)}
+      isLoading={isLoadingRepo}
+      removePending={removePending}
+      onToggle={() => onToggle(skill.key)}
+      onPreview={() => onPreview(skill)}
+      onRemove={() => onRemove(skill)}
+    />
+  );
 
   return (
-    <div className="flex flex-col gap-6">
-      {groups.map((group) => (
-        <section key={group.parentPath}>
-          {groups.length > 1 && (
-            <div
-              className="sticky top-0 z-10 -mx-5 px-9 py-1.5 bg-background/85 backdrop-blur-sm border-b border-border/60 flex items-baseline gap-2"
-              title={group.parentPath || "/"}
-            >
-              <span className="text-[13px] font-mono text-muted-foreground truncate">
-                {labels.get(group.parentPath) || group.parentPath || "/"}
-              </span>
-              <span className="text-[11px] text-muted-foreground/60 tabular-nums shrink-0">
-                {group.skills.length}
-              </span>
-            </div>
-          )}
-          <div className="flex flex-col gap-2 pt-2">
-            {group.skills.map((skill) => (
-              <RepoSkillRow
-                key={skill.key}
-                skill={skill}
-                selected={selectedKeys.has(skill.key)}
-                isLoading={isLoadingRepo}
-                removePending={removePending}
-                showParentPath={false}
-                onToggle={() => onToggle(skill.key)}
-                onPreview={() => onPreview(skill)}
-                onRemove={() => onRemove(skill)}
+    <div className="flex flex-col gap-2.5">
+      {groups.map((group) => {
+        const label = labels.get(group.parentPath) || group.parentPath || "/";
+        const keys = group.skills
+          .filter((skill) => skill.installStatus === "available")
+          .map((skill) => skill.key);
+        const picked = keys.filter((key) => selectedKeys.has(key)).length;
+        const open = !collapsed.has(group.parentPath);
+        return (
+          <section key={group.parentPath} className="py-px">
+            <div className="sticky top-0 z-10 -mx-5 flex h-9 items-center gap-2.5 bg-list-section pl-9 pr-5">
+              <Checkbox
+                checked={picked === 0 ? false : picked === keys.length ? true : "indeterminate"}
+                disabled={isLoadingRepo || keys.length === 0}
+                onCheckedChange={() =>
+                  onSetSelected(keys, !keys.every((key) => selectedKeys.has(key)))
+                }
+                aria-label={t("browse.selectGroup", { name: label })}
               />
-            ))}
-          </div>
-        </section>
-      ))}
+              <button
+                type="button"
+                aria-label={label}
+                aria-expanded={open}
+                title={group.parentPath || "/"}
+                onClick={() =>
+                  setCollapsed((previous) => toggleSetItem(previous, group.parentPath))
+                }
+                className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md text-left outline-none hover:bg-foreground/[0.04] focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <ChevronRight
+                  className={cn(
+                    "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-150 motion-reduce:transition-none",
+                    open && "rotate-90",
+                  )}
+                />
+                <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
+                <span className="truncate text-xs font-medium text-foreground/80">{label}</span>
+                <span className="shrink-0 text-xs text-muted-foreground/70 tabular-nums">
+                  {group.skills.length}
+                </span>
+              </button>
+            </div>
+            {open && (
+              <div className="flex flex-col gap-0.5 py-0.5 pl-6">
+                {group.skills.map((skill) => renderRow(skill))}
+              </div>
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -324,6 +437,8 @@ export function RepoDetail({ repo, onBack, onClearSubtree }: RepoDetailProps) {
   const { skills: skillList, total } = skills ?? { skills: [], total: 0 };
   const installableSkills = skillList.filter((s) => s.installStatus === "available");
   const duplicateNames = duplicateSkillNames(skillList);
+  const groups = groupSkillsByParentPath(skillList);
+  const groupable = groups.length > 1;
   const selectedInstallable = installableSkills.filter((s) => selectedKeys.has(s.key));
   const allSelected =
     installableSkills.length > 0 && selectedInstallable.length === installableSkills.length;
@@ -338,6 +453,17 @@ export function RepoDetail({ repo, onBack, onClearSubtree }: RepoDetailProps) {
       for (const { key } of installableSkills) {
         if (allSelected) next.delete(key);
         else next.add(key);
+      }
+      return next;
+    });
+  };
+
+  const setKeysSelected = (keys: string[], selected: boolean) => {
+    setSelectedKeys((previous) => {
+      const next = new Set(previous);
+      for (const key of keys) {
+        if (selected) next.add(key);
+        else next.delete(key);
       }
       return next;
     });
@@ -496,36 +622,38 @@ export function RepoDetail({ repo, onBack, onClearSubtree }: RepoDetailProps) {
                       {t("browse.selectAll")}
                     </label>
                   )}
-                  <button
-                    type="button"
-                    aria-label={t(viewMode === "flat" ? "browse.viewGrouped" : "browse.viewFlat")}
-                    title={t(viewMode === "flat" ? "browse.viewGrouped" : "browse.viewFlat")}
-                    onClick={() => setViewMode(viewMode === "flat" ? "grouped" : "flat")}
-                    className="ml-auto inline-flex shrink-0 items-center bg-muted rounded-lg p-1 gap-1 cursor-pointer"
-                  >
-                    <span
-                      className={cn(
-                        "p-1.5 rounded-md transition-all duration-200",
-                        viewMode === "flat"
-                          ? "bg-background text-foreground shadow-sm"
-                          : "text-muted-foreground",
-                      )}
+                  {groupable && (
+                    <button
+                      type="button"
+                      aria-label={t(viewMode === "flat" ? "browse.viewGrouped" : "browse.viewFlat")}
+                      title={t(viewMode === "flat" ? "browse.viewGrouped" : "browse.viewFlat")}
+                      onClick={() => setViewMode(viewMode === "flat" ? "grouped" : "flat")}
+                      className="ml-auto inline-flex shrink-0 items-center bg-muted rounded-lg p-1 gap-1 cursor-pointer"
                     >
-                      <List className="h-3.5 w-3.5" />
-                    </span>
-                    <span
-                      className={cn(
-                        "p-1.5 rounded-md transition-all duration-200",
-                        viewMode === "grouped"
-                          ? "bg-background text-foreground shadow-sm"
-                          : "text-muted-foreground",
-                      )}
-                    >
-                      <ListTree className="h-3.5 w-3.5" />
-                    </span>
-                  </button>
+                      <span
+                        className={cn(
+                          "p-1.5 rounded-md transition-all duration-200",
+                          viewMode === "flat"
+                            ? "bg-background text-foreground shadow-sm"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        <List className="h-3.5 w-3.5" />
+                      </span>
+                      <span
+                        className={cn(
+                          "p-1.5 rounded-md transition-all duration-200",
+                          viewMode === "grouped"
+                            ? "bg-background text-foreground shadow-sm"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        <ListTree className="h-3.5 w-3.5" />
+                      </span>
+                    </button>
+                  )}
                 </div>
-                {viewMode === "flat" ? (
+                {viewMode === "flat" || !groupable ? (
                   <div className="flex flex-col gap-2">
                     {skillList.map((skill) => (
                       <RepoSkillRow
@@ -546,11 +674,12 @@ export function RepoDetail({ repo, onBack, onClearSubtree }: RepoDetailProps) {
                   </div>
                 ) : (
                   <GroupedRepoSkills
-                    groups={groupSkillsByParentPath(skillList)}
+                    groups={groups}
                     selectedKeys={selectedKeys}
                     isLoadingRepo={isLoadingRepo}
                     removePending={removeMutation.isPending}
                     onToggle={toggleKey}
+                    onSetSelected={setKeysSelected}
                     onPreview={setPreviewSkill}
                     onRemove={(skill) => {
                       setPendingRemove(skill);

@@ -227,9 +227,9 @@ describe("App local skill detail navigation", () => {
     await user.click(await screen.findByRole("button", { name: /owner\/bundle/ }));
     expect(await screen.findByRole("button", { name: "Scoped" })).toBeInTheDocument();
     await user.click(screen.getByRole("checkbox", { name: "Select Scoped" }));
-    await user.click(screen.getByRole("button", { name: "Group by folder" }));
     await user.click(screen.getByRole("button", { name: "Show all skills" }));
     expect(await screen.findByRole("button", { name: "Whole repo" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Group by folder" }));
     expect(screen.getByRole("checkbox", { name: "Select Scoped" })).toBeChecked();
     expect(screen.getByRole("button", { name: "Flat list" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Show all skills" })).not.toBeInTheDocument();

@@ -4,7 +4,32 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RepoDetail } from "@/components/skills/RepoDetail";
-import type { DiscoverRepo } from "@/types/skills";
+import type { DiscoverRepo, DiscoverableSkill } from "@/types/skills";
+
+function repoSkill(key: string, overrides: Partial<DiscoverableSkill> = {}): DiscoverableSkill {
+  return {
+    key,
+    name: key,
+    directory: key,
+    repoOwner: "owner",
+    repoName: "repo",
+    installStatus: "available",
+    ...overrides,
+  };
+}
+
+const MIXED_REPO = [
+  repoSkill(".", { name: "root-skill", directory: "root-skill" }),
+  repoSkill("plugins/pitch/skills/deck-design"),
+  repoSkill("plugins/research/skills/lit-review"),
+  repoSkill("writing/essay"),
+  repoSkill("writing/summary", {
+    installStatus: "installed",
+    installedSkillId: "repo:owner/repo:summary",
+  }),
+  repoSkill("writing/advanced/thesis", { installStatus: "conflict" }),
+  repoSkill("tools/lint"),
+];
 
 const mocks = vi.hoisted(() => ({
   installMutate: vi.fn(),
@@ -13,6 +38,7 @@ const mocks = vi.hoisted(() => ({
   repoSkillsError: null as unknown,
   repoSkillsStaleData: null as unknown,
   repoSkillsFetching: false,
+  repoSkills: null as DiscoverableSkill[] | null,
   repoSelectedKeys: new Set<string>(),
   repoSkillPath: undefined as string | undefined,
 }));
@@ -51,55 +77,59 @@ vi.mock("@/components/skills/SkillInstallDialog", () => ({
   ),
 }));
 
-vi.mock("@/hooks/useRepoTasks", () => ({
-  useRepoTask: () => ({
-    data: mocks.repoSkillsError
-      ? mocks.repoSkillsStaleData
-      : {
-          total: 3,
-          skills: [
-            {
-              key: ".agents/skills/available",
-              name: "Available Skill",
-              directory: "available",
-              repoOwner: "owner",
-              repoName: "repo",
-              installStatus: "available",
-            },
-            {
-              key: "conflict",
-              name: "Conflict Skill",
-              directory: "conflict",
-              repoOwner: "owner",
-              repoName: "repo",
-              installStatus: "conflict",
-            },
-            {
-              key: "installed",
-              name: "Installed Skill",
-              directory: "installed",
-              repoOwner: "owner",
-              repoName: "repo",
-              installStatus: "installed",
-              installedSkillId: "repo:owner/repo:installed",
-            },
-          ].filter(
-            (skill) =>
-              !mocks.repoSkillPath ||
-              skill.key === mocks.repoSkillPath ||
-              skill.key.startsWith(`${mocks.repoSkillPath}/`),
-          ),
-        },
-    isFetching: mocks.repoSkillsFetching,
-    progress: null,
-    selectedKeys: mocks.repoSelectedKeys,
-    setSelectedKeys: vi.fn(),
-    refresh: mocks.refreshMutate,
-    isLoading: false,
-    isError: !!mocks.repoSkillsError,
-    error: mocks.repoSkillsError,
-  }),
-}));
+vi.mock("@/hooks/useRepoTasks", async () => {
+  const { useState } = await vi.importActual<typeof import("react")>("react");
+  return {
+    useRepoTask: () => {
+      const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => mocks.repoSelectedKeys);
+      const skills = (
+        mocks.repoSkills ?? [
+          {
+            key: ".agents/skills/available",
+            name: "Available Skill",
+            directory: "available",
+            repoOwner: "owner",
+            repoName: "repo",
+            installStatus: "available",
+          },
+          {
+            key: "conflict",
+            name: "Conflict Skill",
+            directory: "conflict",
+            repoOwner: "owner",
+            repoName: "repo",
+            installStatus: "conflict",
+          },
+          {
+            key: "installed",
+            name: "Installed Skill",
+            directory: "installed",
+            repoOwner: "owner",
+            repoName: "repo",
+            installStatus: "installed",
+            installedSkillId: "repo:owner/repo:installed",
+          },
+        ]
+      ).filter(
+        (skill) =>
+          !mocks.repoSkillPath ||
+          skill.key === mocks.repoSkillPath ||
+          skill.key.startsWith(`${mocks.repoSkillPath}/`),
+      );
+      return {
+        data: mocks.repoSkillsError ? mocks.repoSkillsStaleData : { total: skills.length, skills },
+        isFetching: mocks.repoSkillsFetching,
+        progress: null,
+        selectedKeys,
+        setSelectedKeys,
+        refresh: mocks.refreshMutate,
+        isLoading: false,
+        isError: !!mocks.repoSkillsError,
+        error: mocks.repoSkillsError,
+      };
+    },
+  };
+});
 
 function renderDetail(repo: DiscoverRepo = { owner: "owner", name: "repo", branch: "main" }) {
   mocks.repoSkillPath = repo.path;
@@ -110,6 +140,18 @@ function renderDetail(repo: DiscoverRepo = { owner: "owner", name: "repo", branc
     </QueryClientProvider>,
   );
   return { ...view, queryClient };
+}
+
+beforeEach(() => {
+  mocks.repoSkills = null;
+});
+
+async function renderMixedRepoGrouped() {
+  const user = userEvent.setup();
+  mocks.repoSkills = MIXED_REPO;
+  renderDetail();
+  await user.click(screen.getByRole("button", { name: "Group by folder" }));
+  return user;
 }
 
 describe("RepoDetail discover status", () => {
@@ -131,10 +173,29 @@ describe("RepoDetail discover status", () => {
   });
 
   it("offers grouping when every visible skill is already installed", async () => {
-    renderDetail({ owner: "owner", name: "repo", branch: "main", path: "installed" });
+    mocks.repoSkills = [
+      repoSkill("writing/essay", {
+        installStatus: "installed",
+        installedSkillId: "repo:owner/repo:essay",
+      }),
+      repoSkill("tools/lint", {
+        installStatus: "installed",
+        installedSkillId: "repo:owner/repo:lint",
+      }),
+    ];
+    renderDetail();
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Group by folder" }));
     expect(screen.getByRole("button", { name: "Flat list" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "writing" })).toBeInTheDocument();
+  });
+
+  it("does not offer the folder view when every skill shares one folder", () => {
+    mocks.repoSkills = [repoSkill("essay"), repoSkill("summary")];
+    renderDetail();
+
+    expect(screen.queryByRole("button", { name: "Group by folder" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "essay" })).toBeInTheDocument();
   });
 
   it("blocks stale install actions and does not display a discovery README", async () => {
@@ -294,6 +355,95 @@ describe("RepoDetail discover status", () => {
       },
       expect.objectContaining({ onSuccess: expect.any(Function) }),
     );
+  });
+});
+
+describe("adaptive folder grouping", () => {
+  beforeEach(() => {
+    globalThis.ResizeObserver = ResizeObserverMock;
+    mocks.installMutate.mockReset();
+    mocks.removeMutate.mockReset();
+    mocks.refreshMutate.mockReset();
+    mocks.repoSkillsError = null;
+    mocks.repoSkills = null;
+    mocks.repoSelectedKeys = new Set();
+  });
+
+  it("renders every folder as a collapsible group, single-skill folders included, and keeps paths off the rows", async () => {
+    await renderMixedRepoGrouped();
+
+    const writing = screen.getByRole("button", { name: "writing" });
+    expect(writing).toHaveAttribute("aria-expanded", "true");
+    expect(within(writing).getByText("2")).toBeInTheDocument();
+
+    const tools = screen.getByRole("button", { name: "tools" });
+    expect(tools).toHaveAttribute("aria-expanded", "true");
+    expect(within(tools).getByText("1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "/" })).toBeInTheDocument();
+
+    expect(
+      screen
+        .getByRole("button", { name: "plugins/pitch/skills/deck-design" })
+        .querySelector(".lucide-folder"),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "writing/essay" }).querySelector(".lucide-folder"),
+    ).toBeNull();
+  });
+
+  it("selects a whole folder from its header and skips skills that cannot be installed", async () => {
+    const user = await renderMixedRepoGrouped();
+
+    const groupSelect = screen.getByRole("checkbox", { name: "Select all skills in writing" });
+    expect(groupSelect).not.toBeChecked();
+    await user.click(groupSelect);
+
+    expect(groupSelect).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Select writing/essay" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Installed" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Install selected (1)" }));
+    await user.click(screen.getByRole("button", { name: "Confirm install test" }));
+    expect(mocks.installMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ skillNames: ["writing/essay"] }),
+      expect.any(Object),
+    );
+  });
+
+  it("marks a folder as partially selected and clears it from the header", async () => {
+    const user = userEvent.setup();
+    mocks.repoSkills = [...MIXED_REPO, repoSkill("writing/outline")];
+    renderDetail();
+    await user.click(screen.getByRole("button", { name: "Group by folder" }));
+
+    await user.click(screen.getByRole("checkbox", { name: "Select writing/essay" }));
+    const groupSelect = screen.getByRole("checkbox", { name: "Select all skills in writing" });
+    expect(groupSelect).toBePartiallyChecked();
+
+    await user.click(groupSelect);
+    expect(groupSelect).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Select writing/outline" })).toBeChecked();
+
+    await user.click(groupSelect);
+    expect(screen.getByRole("checkbox", { name: "Select writing/essay" })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Select writing/outline" })).not.toBeChecked();
+  });
+
+  it("collapses a folder without dropping its selection and expands it again", async () => {
+    const user = await renderMixedRepoGrouped();
+    await user.click(screen.getByRole("checkbox", { name: "Select writing/essay" }));
+
+    await user.click(screen.getByRole("button", { name: "writing" }));
+
+    expect(screen.getByRole("button", { name: "writing" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.queryByRole("button", { name: "writing/essay" })).not.toBeInTheDocument();
+    expect(screen.getByText("1 selected")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "writing" }));
+    expect(screen.getByRole("checkbox", { name: "Select writing/essay" })).toBeChecked();
   });
 });
 

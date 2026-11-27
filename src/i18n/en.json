@@ -97,6 +97,7 @@
     "removeSelected": "Remove selected",
     "repository": "Repository",
     "selectSkill": "Select {{name}}",
+    "selectGroup": "Select all skills in {{name}}",
     "previousBanner": "Previous banner",
     "nextBanner": "Next banner",
     "goToBanner": "Go to banner {{index}}"

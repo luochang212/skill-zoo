@@ -27,6 +27,7 @@
   --color-card-foreground: hsl(var(--card-foreground));
   --color-sidebar: hsl(var(--sidebar));
   --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-list-section: color-mix(in srgb, hsl(var(--foreground)) 4%, hsl(var(--background)));
 
   --container-3col: 47rem;
   --container-4col: 75rem;

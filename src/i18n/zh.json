@@ -97,6 +97,7 @@
     "removeSelected": "批量删除",
     "repository": "仓库",
     "selectSkill": "选择 {{name}}",
+    "selectGroup": "选择 {{name}} 下的全部技能",
     "previousBanner": "上一张横幅",
     "nextBanner": "下一张横幅",
     "goToBanner": "跳转到第 {{index}} 张横幅"
