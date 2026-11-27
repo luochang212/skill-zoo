@@ -18,10 +18,10 @@
     "description": "Z.ai's coding agent harness. Powerful, intelligent, extensible."
   },
   {
-    "owner": "patch-gg",
-    "name": "pixelfx",
+    "owner": "cursor",
+    "name": "plugins",
     "branch": "main",
-    "description": "244 pixel art effects, every one a small piece of code. Plus a Claude Code skill to make your own."
+    "description": "Cursor's official plugin collection: production skills and team bundles for coding agents, from review workflows to formal verification"
   },
   {
     "owner": "DietrichGebert",
