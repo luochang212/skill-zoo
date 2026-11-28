@@ -3,6 +3,7 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
+import { Header } from "./Header";
 import { WindowControls } from "./WindowControls";
 
 const win = vi.hoisted(() => ({
@@ -93,4 +94,35 @@ it("minimizes and closes through the window API", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Close" }));
   expect(win.minimize).toHaveBeenCalled();
   expect(win.close).toHaveBeenCalled();
+});
+
+it.each([false, true])(
+  "shares the top-right row with header actions (hideTabs=%s)",
+  async (hideTabs) => {
+    stubUserAgent(WINDOWS_UA);
+    render(
+      <Header
+        view="local"
+        onViewChange={() => {}}
+        hideTabs={hideTabs}
+        actions={<button>tasks</button>}
+      />,
+    );
+
+    const row = (await screen.findByRole("button", { name: "Close" })).parentElement!
+      .parentElement!;
+    expect(row).toHaveClass("self-stretch", "items-start", "-mr-5");
+    expect(screen.getByRole("button", { name: "tasks" }).parentElement).toBe(row);
+  },
+);
+
+it("centers header actions outside Windows", () => {
+  stubUserAgent(MAC_UA);
+  render(<Header view="local" onViewChange={() => {}} actions={<button>tasks</button>} />);
+
+  expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
+  expect(screen.getByRole("button", { name: "tasks" }).parentElement).toHaveClass(
+    "self-stretch",
+    "items-center",
+  );
 });

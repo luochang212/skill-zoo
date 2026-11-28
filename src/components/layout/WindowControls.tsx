@@ -68,11 +68,11 @@ function Controls() {
   }, [win]);
 
   return (
-    <div className="flex items-start gap-0.5 self-start">
+    <div className="flex items-start gap-0.5">
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8"
+        className="h-8 w-8 rounded-t-none"
         title={t("windowControls.minimize")}
         aria-label={t("windowControls.minimize")}
         onClick={() => void win.minimize()}
@@ -82,7 +82,7 @@ function Controls() {
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8"
+        className="h-8 w-8 rounded-t-none"
         title={t(maximized ? "windowControls.restore" : "windowControls.maximize")}
         aria-label={t(maximized ? "windowControls.restore" : "windowControls.maximize")}
         onClick={() => void win.toggleMaximize()}
@@ -92,7 +92,7 @@ function Controls() {
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 hover:bg-destructive hover:text-destructive-foreground"
+        className="h-8 w-8 rounded-t-none rounded-r-none hover:bg-destructive hover:text-destructive-foreground"
         title={t("windowControls.close")}
         aria-label={t("windowControls.close")}
         onClick={() => void win.close()}
