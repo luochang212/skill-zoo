@@ -158,7 +158,7 @@ function GroupedRepoSkillRow({
   return (
     <div
       className={cn(
-        "flex h-12 items-center gap-3 rounded-md pl-2.5 pr-2 transition-colors duration-150",
+        "-mr-5 flex h-12 items-center gap-3 rounded-l-md pl-2.5 pr-5 transition-colors duration-150",
         selected ? "bg-foreground/[0.08]" : "hover:bg-foreground/[0.05]",
       )}
     >
@@ -261,7 +261,7 @@ function GroupedRepoSkills({
         const open = !collapsed.has(group.parentPath);
         return (
           <section key={group.parentPath} className="py-px">
-            <div className="sticky top-0 z-10 -mx-5 flex h-9 items-center gap-2.5 bg-list-section pl-9 pr-5">
+            <div className="sticky top-0 z-10 -mx-5 flex h-9 items-center gap-2.5 bg-list-section pl-9 pr-5 transition-colors duration-150 hover:bg-foreground/[0.06]">
               <Checkbox
                 checked={picked === 0 ? false : picked === keys.length ? true : "indeterminate"}
                 disabled={isLoadingRepo || keys.length === 0}
@@ -278,7 +278,7 @@ function GroupedRepoSkills({
                 onClick={() =>
                   setCollapsed((previous) => toggleSetItem(previous, group.parentPath))
                 }
-                className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md text-left outline-none hover:bg-foreground/[0.04] focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <ChevronRight
                   className={cn(
@@ -288,7 +288,7 @@ function GroupedRepoSkills({
                 />
                 <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
                 <span className="truncate text-xs font-medium text-foreground/80">{label}</span>
-                <span className="shrink-0 text-xs text-muted-foreground/70 tabular-nums">
+                <span className="shrink-0 rounded bg-foreground/[0.07] px-1.5 py-0.5 text-[10px] font-medium leading-3 tabular-nums text-muted-foreground">
                   {group.skills.length}
                 </span>
               </button>

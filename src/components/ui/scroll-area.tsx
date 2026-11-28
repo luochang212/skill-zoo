@@ -65,7 +65,7 @@ const ScrollBar = React.forwardRef<
     orientation={orientation}
     data-scrollbar-autohide={hide ? "" : undefined}
     className={cn(
-      "flex touch-none select-none transition-opacity duration-300",
+      "z-20 flex touch-none select-none transition-opacity duration-300",
       orientation === "vertical" && "h-full w-[6px]",
       orientation === "horizontal" && "h-[6px] flex-col",
       className,
