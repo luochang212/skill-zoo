@@ -183,6 +183,30 @@ it("clears all settled notifications at once", async () => {
   expect(screen.queryByRole("button", { name: /Download tasks:/ })).not.toBeInTheDocument();
 });
 
+it("clears failed entries with clear all", async () => {
+  vi.mocked(skillsApi.getRepoSkills).mockRejectedValue(new Error("offline"));
+  const { user } = setupTwo();
+  await waitFor(() => expect(skillsApi.getRepoSkills).toHaveBeenCalledTimes(2));
+  await user.click(screen.getByRole("button", { name: /Download tasks:/ }));
+  expect(await screen.findByRole("menuitem", { name: /^owner\/repo/ })).toBeInTheDocument();
+  expect(screen.getByRole("menuitem", { name: /^other\/repo2/ })).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Clear all" }));
+  await waitFor(() =>
+    expect(screen.queryByRole("button", { name: /Download tasks:/ })).not.toBeInTheDocument(),
+  );
+});
+
+it("dismisses a failed entry through its close button", async () => {
+  vi.mocked(skillsApi.getRepoSkills).mockRejectedValue(new Error("offline"));
+  const { user } = setup();
+  await waitFor(() => expect(skillsApi.getRepoSkills).toHaveBeenCalledOnce());
+  await user.click(screen.getByRole("button", { name: /Download tasks:/ }));
+  await user.click(await screen.findByRole("menuitem", { name: "Dismiss owner/repo" }));
+  await waitFor(() =>
+    expect(screen.queryByRole("button", { name: /Download tasks:/ })).not.toBeInTheDocument(),
+  );
+});
+
 it("keeps the count visible outside Windows", async () => {
   vi.mocked(skillsApi.getRepoSkills).mockReturnValue(new Promise(() => {}));
   setup();
