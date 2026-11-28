@@ -97,7 +97,7 @@ it("minimizes and closes through the window API", async () => {
 });
 
 it.each([false, true])(
-  "shares the top-right row with header actions (hideTabs=%s)",
+  "insets window controls from the top while keeping header actions centered (hideTabs=%s)",
   async (hideTabs) => {
     stubUserAgent(WINDOWS_UA);
     render(
@@ -109,9 +109,10 @@ it.each([false, true])(
       />,
     );
 
-    const row = (await screen.findByRole("button", { name: "Close" })).parentElement!
-      .parentElement!;
-    expect(row).toHaveClass("self-stretch", "items-start", "-mr-5");
+    const controls = (await screen.findByRole("button", { name: "Close" })).parentElement!;
+    const row = controls.parentElement!;
+    expect(controls).toHaveClass("mt-1", "self-start");
+    expect(row).toHaveClass("items-center");
     expect(screen.getByRole("button", { name: "tasks" }).parentElement).toBe(row);
   },
 );
@@ -121,8 +122,5 @@ it("centers header actions outside Windows", () => {
   render(<Header view="local" onViewChange={() => {}} actions={<button>tasks</button>} />);
 
   expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
-  expect(screen.getByRole("button", { name: "tasks" }).parentElement).toHaveClass(
-    "self-stretch",
-    "items-center",
-  );
+  expect(screen.getByRole("button", { name: "tasks" }).parentElement).toHaveClass("items-center");
 });

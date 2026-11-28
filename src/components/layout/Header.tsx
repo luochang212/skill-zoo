@@ -24,7 +24,7 @@ const LOGO_FONT = '"New York", "Iowan Old Style", "Sitka Text", Cambria, Georgia
 
 export function Header({ view, onViewChange, hideTabs, onDragMouseDown, actions }: HeaderProps) {
   const { t } = useTranslation();
-  const captionRow = isWindowsPlatform() ? "items-start -mr-5" : "items-center";
+  const windows = isWindowsPlatform();
   const [animating, setAnimating] = useState(false);
   const [initialDone, setInitialDone] = useState(false);
 
@@ -39,9 +39,11 @@ export function Header({ view, onViewChange, hideTabs, onDragMouseDown, actions 
       className="relative border-b border-border/60 bg-background/80 backdrop-blur-sm shrink-0 select-none"
       onMouseDown={onDragMouseDown}
     >
-      <div className="h-[4.5rem] px-5">
+      <div className={cn("h-[4.5rem] px-5", windows && "pr-1")}>
         {hideTabs ? (
-          <div className="flex items-center justify-between h-full pl-[5.75rem]">
+          <div
+            className={cn("flex items-center justify-between h-full", !windows && "pl-[5.75rem]")}
+          >
             <h1
               className="italic tracking-tight leading-tight shrink-0"
               style={{
@@ -50,14 +52,14 @@ export function Header({ view, onViewChange, hideTabs, onDragMouseDown, actions 
             >
               <span className="font-bold text-2xl rainbow-text">Skill Zoo</span>
             </h1>
-            <div className={cn("flex gap-1 self-stretch", captionRow)}>
+            <div className="flex items-center gap-2 self-stretch">
               {actions}
               <WindowControls />
             </div>
           </div>
         ) : (
           <nav className="grid grid-cols-[1fr_auto_1fr] items-center h-full">
-            <div className="flex justify-start pl-[5.75rem]">
+            <div className={cn("flex justify-start", !windows && "pl-[5.75rem]")}>
               <h1
                 className="italic tracking-tight leading-tight"
                 style={{
@@ -104,7 +106,7 @@ export function Header({ view, onViewChange, hideTabs, onDragMouseDown, actions 
                 ))}
               </div>
             </div>
-            <div className={cn("flex justify-end gap-1 self-stretch", captionRow)}>
+            <div className="flex h-full items-center justify-end gap-2">
               {actions}
               <WindowControls />
             </div>

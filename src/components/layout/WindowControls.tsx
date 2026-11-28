@@ -6,18 +6,21 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { isWindowsPlatform } from "@/lib/platform";
 
+const captionButton = "h-8 w-9 rounded-md text-muted-foreground";
+
 function MaximizeIcon() {
   return (
     <svg
-      viewBox="0 0 24 24"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.5"
+      strokeWidth="1.25"
       strokeLinecap="round"
       strokeLinejoin="round"
       className="size-4"
     >
-      <rect x="5" y="5" width="14" height="14" rx="2" />
+      <rect x="3.5" y="3.5" width="9" height="9" rx="1" />
     </svg>
   );
 }
@@ -25,16 +28,17 @@ function MaximizeIcon() {
 function RestoreIcon() {
   return (
     <svg
-      viewBox="0 0 24 24"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.5"
+      strokeWidth="1.25"
       strokeLinecap="round"
       strokeLinejoin="round"
       className="size-4"
     >
-      <path d="M9 5h4c3.31 0 6 2.68 6 6v4" />
-      <rect x="5" y="9" width="10" height="10" rx="2" />
+      <path d="M6 3h6a1 1 0 0 1 1 1v6" />
+      <rect x="3" y="6" width="7" height="7" rx="1" />
     </svg>
   );
 }
@@ -68,21 +72,21 @@ function Controls() {
   }, [win]);
 
   return (
-    <div className="flex items-start gap-0.5">
+    <div className="mt-1 flex shrink-0 items-center gap-0.5 self-start">
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 rounded-t-none"
+        className={captionButton}
         title={t("windowControls.minimize")}
         aria-label={t("windowControls.minimize")}
         onClick={() => void win.minimize()}
       >
-        <Minus className="size-4" strokeWidth={1.5} />
+        <Minus className="size-4" strokeWidth={1.875} aria-hidden="true" />
       </Button>
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 rounded-t-none"
+        className={captionButton}
         title={t(maximized ? "windowControls.restore" : "windowControls.maximize")}
         aria-label={t(maximized ? "windowControls.restore" : "windowControls.maximize")}
         onClick={() => void win.toggleMaximize()}
@@ -92,12 +96,12 @@ function Controls() {
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 rounded-t-none rounded-r-none hover:bg-destructive hover:text-destructive-foreground"
+        className={`${captionButton} hover:bg-destructive/10 hover:text-destructive dark:hover:text-red-300`}
         title={t("windowControls.close")}
         aria-label={t("windowControls.close")}
         onClick={() => void win.close()}
       >
-        <X className="size-4" strokeWidth={1.5} />
+        <X className="size-4" strokeWidth={1.875} aria-hidden="true" />
       </Button>
     </div>
   );
