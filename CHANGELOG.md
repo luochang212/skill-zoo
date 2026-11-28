@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.1] — 2026-11-28
+
+### Added
+- Frameless Windows windows render custom title bar controls: minimize, maximize, and close live in the header and track the maximized state through resize events, with the window labeled for the taskbar and a visible tray icon on non-macOS platforms.
+
+### Fixed
+- Windows header layout: window controls pin to the top-right corner, header actions fuse into the caption cluster with caption spacing, the logo inset is restored, and the repo tasks trigger becomes a caption-sized icon-only button with its count in the tooltip.
+- Grouped skill rows bleed to the container edge on hover and selection, group headers carry the hover feedback with a pill count, and the scrollbar stacks above sticky group headers so it stays clickable.
+
 ## [1.3.0] — 2026-11-28
 
 ### Added
