@@ -10,6 +10,9 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { formatApiError } from "@/lib/api/errors";
+import { isWindowsPlatform } from "@/lib/platform";
+
+import { captionButton } from "./WindowControls";
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -64,15 +67,18 @@ export function RepoTasksMenu() {
     for (const task of clearable) dismiss(task.repo);
   };
 
+  const windows = isWindowsPlatform();
+  const summary = t("repoTasks.summary", { running, count: visible.length });
+
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          size="sm"
-          className="h-8 gap-2"
-          aria-label={t("repoTasks.summary", { running, count: visible.length })}
-          title={t("repoTasks.title")}
+          size={windows ? "icon" : "sm"}
+          className={windows ? captionButton : "h-8 gap-2"}
+          aria-label={summary}
+          title={windows ? summary : t("repoTasks.title")}
         >
           {running > 0 ? (
             <RepoTaskIcon loading aria-hidden="true" className="h-4 w-4" />
@@ -81,7 +87,7 @@ export function RepoTasksMenu() {
           ) : (
             <RepoTaskIcon aria-hidden="true" className="h-4 w-4" />
           )}
-          <span className="text-xs tabular-nums">{visible.length}</span>
+          {!windows && <span className="text-xs tabular-nums">{visible.length}</span>}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent

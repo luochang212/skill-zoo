@@ -97,7 +97,7 @@ it("minimizes and closes through the window API", async () => {
 });
 
 it.each([false, true])(
-  "insets window controls from the top while keeping header actions centered (hideTabs=%s)",
+  "fuses header actions into the top-inset window controls cluster (hideTabs=%s)",
   async (hideTabs) => {
     stubUserAgent(WINDOWS_UA);
     render(
@@ -110,12 +110,19 @@ it.each([false, true])(
     );
 
     const controls = (await screen.findByRole("button", { name: "Close" })).parentElement!;
-    const row = controls.parentElement!;
-    expect(controls).toHaveClass("mt-1", "self-start");
-    expect(row).toHaveClass("items-center");
-    expect(screen.getByRole("button", { name: "tasks" }).parentElement).toBe(row);
+    const cluster = controls.parentElement!;
+    expect(cluster).toHaveClass("mt-1", "self-start", "gap-0.5");
+    expect(controls).toHaveClass("items-center");
+    expect(screen.getByRole("button", { name: "tasks" }).parentElement).toBe(cluster);
   },
 );
+
+it("keeps the macOS logo inset on Windows", () => {
+  stubUserAgent(WINDOWS_UA);
+  render(<Header view="local" onViewChange={() => {}} />);
+
+  expect(screen.getByText("Skill Zoo").closest("h1")!.parentElement).toHaveClass("pl-[5.75rem]");
+});
 
 it("centers header actions outside Windows", () => {
   stubUserAgent(MAC_UA);

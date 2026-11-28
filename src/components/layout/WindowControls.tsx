@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { isWindowsPlatform } from "@/lib/platform";
 
-const captionButton = "h-8 w-9 rounded-md text-muted-foreground";
+export const captionButton = "h-8 w-9 rounded-md text-muted-foreground";
 
 function MaximizeIcon() {
   return (
@@ -72,7 +72,7 @@ function Controls() {
   }, [win]);
 
   return (
-    <div className="mt-1 flex shrink-0 items-center gap-0.5 self-start">
+    <div className="flex shrink-0 items-center gap-0.5">
       <Button
         variant="ghost"
         size="icon"

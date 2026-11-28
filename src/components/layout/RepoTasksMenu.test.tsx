@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { listen } from "@tauri-apps/api/event";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { skillsApi } from "@/lib/api/skills";
 import { RepoTasksProvider, useRepoTasks } from "@/hooks/useRepoTasks";
 import { RepoTasksMenu } from "./RepoTasksMenu";
@@ -49,6 +49,17 @@ function setup() {
   return { onOpen, user: userEvent.setup() };
 }
 
+const WINDOWS_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36";
+
+function stubUserAgent(value: string) {
+  Object.defineProperty(window.navigator, "userAgent", { value, configurable: true });
+}
+
+function restoreUserAgent() {
+  delete (window.navigator as { userAgent?: string }).userAgent;
+}
+
 beforeEach(() => {
   vi.mocked(listen)
     .mockReset()
@@ -56,6 +67,8 @@ beforeEach(() => {
   vi.mocked(skillsApi.getRepoSkills).mockReset();
   vi.mocked(skillsApi.cancelRepoSkills).mockReset();
 });
+
+afterEach(restoreUserAgent);
 
 it("shows stages and bytes without a line or percentage and opens the correct branch", async () => {
   let finish!: (value: RepoSkillsResult) => void;
@@ -168,4 +181,24 @@ it("clears all settled notifications at once", async () => {
   await screen.findAllByText("Skills ready to choose");
   await user.click(screen.getByRole("button", { name: "Clear all" }));
   expect(screen.queryByRole("button", { name: /Download tasks:/ })).not.toBeInTheDocument();
+});
+
+it("keeps the count visible outside Windows", async () => {
+  vi.mocked(skillsApi.getRepoSkills).mockReturnValue(new Promise(() => {}));
+  setup();
+  await waitFor(() => expect(skillsApi.getRepoSkills).toHaveBeenCalledOnce());
+  const trigger = screen.getByRole("button", { name: /Download tasks:/ });
+  expect(within(trigger).getByText("1")).toBeInTheDocument();
+  expect(trigger).toHaveAttribute("title", "Download tasks");
+});
+
+it("renders a caption-style icon-only trigger on Windows", async () => {
+  stubUserAgent(WINDOWS_UA);
+  vi.mocked(skillsApi.getRepoSkills).mockReturnValue(new Promise(() => {}));
+  setup();
+  await waitFor(() => expect(skillsApi.getRepoSkills).toHaveBeenCalledOnce());
+  const trigger = screen.getByRole("button", { name: /Download tasks:/ });
+  expect(trigger).toHaveClass("h-8", "w-9", "rounded-md");
+  expect(within(trigger).queryByText("1")).not.toBeInTheDocument();
+  expect(trigger).toHaveAttribute("title", "Download tasks: 1 loading, 1 total");
 });

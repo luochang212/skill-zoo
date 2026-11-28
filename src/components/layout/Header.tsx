@@ -41,9 +41,7 @@ export function Header({ view, onViewChange, hideTabs, onDragMouseDown, actions 
     >
       <div className={cn("h-[4.5rem] px-5", windows && "pr-1")}>
         {hideTabs ? (
-          <div
-            className={cn("flex items-center justify-between h-full", !windows && "pl-[5.75rem]")}
-          >
+          <div className="flex items-center justify-between h-full pl-[5.75rem]">
             <h1
               className="italic tracking-tight leading-tight shrink-0"
               style={{
@@ -52,14 +50,20 @@ export function Header({ view, onViewChange, hideTabs, onDragMouseDown, actions 
             >
               <span className="font-bold text-2xl rainbow-text">Skill Zoo</span>
             </h1>
-            <div className="flex items-center gap-2 self-stretch">
+            <div
+              className={
+                windows
+                  ? "mt-1 flex shrink-0 items-center gap-0.5 self-start"
+                  : "flex items-center gap-2 self-stretch"
+              }
+            >
               {actions}
               <WindowControls />
             </div>
           </div>
         ) : (
           <nav className="grid grid-cols-[1fr_auto_1fr] items-center h-full">
-            <div className={cn("flex justify-start", !windows && "pl-[5.75rem]")}>
+            <div className="flex justify-start pl-[5.75rem]">
               <h1
                 className="italic tracking-tight leading-tight"
                 style={{
@@ -106,7 +110,13 @@ export function Header({ view, onViewChange, hideTabs, onDragMouseDown, actions 
                 ))}
               </div>
             </div>
-            <div className="flex h-full items-center justify-end gap-2">
+            <div
+              className={
+                windows
+                  ? "mt-1 flex shrink-0 items-center justify-self-end gap-0.5 self-start"
+                  : "flex h-full items-center justify-end gap-2"
+              }
+            >
               {actions}
               <WindowControls />
             </div>
